@@ -19,6 +19,7 @@ var _terminal: Label
 var _toast: Label
 var _timer: Timer
 var _toast_left := 0.0
+var _hint := ""
 var _type_time := 0.0
 var _type_total := 0.0
 
@@ -44,9 +45,10 @@ func _ready() -> void:
 
 	_toast = _make_label(20)
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	_toast.offset_top = -90
+	_toast.offset_top = -120
 	_toast.offset_bottom = -50
 	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 	_toast.visible = false
 	add_child(_toast)
 
@@ -139,12 +141,26 @@ func _run(operation: Callable, after: Array[Mutation], text: String, line: Strin
 	finished.emit()
 
 
+## Show an AI line on its own.
+func say(line: String) -> void:
+	_show_toast(line)
+
+
+## An extra line shown under the next AI line (used once, for the rollback hint).
+func queue_hint(line: String) -> void:
+	_hint = line
+
+
 func _show_toast(line: String) -> void:
-	if line == "":
+	if line == "" and _hint == "":
 		return
 	_toast.text = "AI: " + line
-	_toast.visible = true
 	_toast_left = Tuning.toast_time
+	if _hint != "":
+		_toast.text += "\nAI: " + _hint
+		_toast_left *= 2.0
+		_hint = ""
+	_toast.visible = true
 
 
 func _process(delta: float) -> void:

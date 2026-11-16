@@ -2,7 +2,7 @@ class_name DebugOverlay
 extends CanvasLayer
 ## Debug tools (PLAN 9).
 ## F1 info overlay · F2 mutation console · F3 invincibility · F4 spawn wave ·
-## F5 restart with the same seed · F7 toggle bot. (F6, open prompt, arrives with the Director.)
+## F5 restart with the same seed · F6 open a prompt now · F7 toggle bot.
 
 var game: Node  ## the main scene: provides player, spawn_wave(), restart()
 
@@ -22,6 +22,7 @@ func _ready() -> void:
 	_info.add_theme_color_override(&"font_color", Color(0.75, 1.0, 0.8))
 	_info.add_theme_color_override(&"font_outline_color", Color.BLACK)
 	_info.add_theme_constant_override(&"outline_size", 4)
+	_info.visible = false   # F1 shows it; it would sit on top of the prompt and build log
 	add_child(_info)
 
 	_console = PanelContainer.new()
@@ -76,6 +77,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"debug_restart"):
 		if game:
 			game.restart(true)
+	elif event.is_action_pressed(&"debug_prompt"):
+		if game and game.director and not get_tree().paused:
+			game.director.open_prompt()
 	elif event.is_action_pressed(&"debug_bot"):
 		if game and is_instance_valid(game.player):
 			game.player.set_bot(not game.player.is_bot())
@@ -113,5 +117,5 @@ func _build_text() -> String:
 		var changed := "  *" if rules[key] != base[key] else ""
 		lines.append("  %s = %s%s" % [key, rules[key], changed])
 	lines.append("kills by source: %s" % [RunState.kills_by_source])
-	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F7 bot")
+	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F6 prompt  F7 bot")
 	return "\n".join(lines)

@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Minimal HUD: HP, kills, build version.
 
 var player: Node
+var director: AiDirector
 
 var _label: Label
 
@@ -30,4 +31,5 @@ func _process(_delta: float) -> void:
 	if is_instance_valid(player):
 		var dasher := Component.find(player, Dasher) as Dasher
 		dash = "dash ready" if dasher and dasher.is_ready() else "dash ..."
-	_label.text = "HP %d   Kills %d   %s\n%s" % [hp, RunState.kills, RunState.version_label(), dash]
+	var rollbacks := "Rollbacks: %d [Tab]" % director.reverts_left if director else ""
+	_label.text = "HP %d   Kills %d   %s\n%s\n%s" % [hp, RunState.kills, RunState.version_label(), rollbacks, dash]

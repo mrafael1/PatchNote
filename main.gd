@@ -1,7 +1,7 @@
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M4"
+const BUILD := "M5"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8
@@ -17,6 +17,9 @@ var camera: CameraRig
 var spawner: Spawner
 var feedback: Feedback
 var transition: Transition
+var director: AiDirector
+var prompt_panel: PromptPanel
+var patch_history: PatchHistory
 
 
 func _ready() -> void:
@@ -60,8 +63,25 @@ func _ready() -> void:
 	transition = Transition.new()
 	add_child(transition)
 
+	director = AiDirector.new()
+	director.name = "Director"
+	director.transition = transition
+	add_child(director)
+
+	prompt_panel = PromptPanel.new()
+	add_child(prompt_panel)
+	director.prompt_requested.connect(prompt_panel.open)
+	prompt_panel.chosen.connect(director.on_choice)
+
+	patch_history = PatchHistory.new()
+	patch_history.director = director
+	patch_history.prompt_panel = prompt_panel
+	patch_history.transition = transition
+	add_child(patch_history)
+
 	var hud := Hud.new()
 	hud.player = player
+	hud.director = director
 	add_child(hud)
 
 	var debug := DebugOverlay.new()

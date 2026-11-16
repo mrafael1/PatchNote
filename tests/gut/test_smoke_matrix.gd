@@ -27,6 +27,7 @@ func before_each() -> void:
 	await wait_physics_frames(2)
 	RunState.invincible = true
 	game.player.set_bot(true)
+	game.director.enabled = false   # the matrix applies patches itself
 
 
 func after_each() -> void:

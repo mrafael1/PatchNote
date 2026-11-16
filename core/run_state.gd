@@ -187,6 +187,13 @@ func _remove(m: Mutation) -> void:
 				c.queue_free()
 
 
+## Adds an entry to the run log. Game time and build are filled in.
+func log_event(event: StringName, data := {}) -> void:
+	var entry := {"event": event, "time": game_time, "build": build_number}
+	entry.merge(data)
+	run_log.append(entry)
+
+
 func _log(event: StringName, id: StringName) -> void:
 	run_log.append({"event": event, "id": id, "time": game_time, "build": build_number})
 

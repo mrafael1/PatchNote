@@ -35,6 +35,7 @@ func _run() -> void:
 	var db := root.get_node("MutationDB")
 	run_state.invincible = true
 	game.spawner.enabled = false
+	game.director.enabled = false
 	game.player.set_bot(true)
 	var applied: Array[String] = []
 	for id in OS.get_cmdline_user_args():

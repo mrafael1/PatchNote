@@ -27,6 +27,7 @@ func _run() -> void:
 	var db := root.get_node("MutationDB")
 	run_state.invincible = true
 	game.player.set_bot(true)
+	game.director.enabled = false
 	game.spawn_wave(10)
 	for i in FRAMES_BEFORE:
 		await physics_frame
