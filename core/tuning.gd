@@ -24,12 +24,38 @@ var dash_time := 0.15
 var dash_cooldown := 0.8
 
 # --- Enemies ---
+# Walkers read "<archetype>_<name>": chaser_* and tank_*.
 var chaser_speed := 190.0
 var chaser_hp := 3.0
 var chaser_contact_damage := 1.0
-var contact_range := 40.0
-var enemy_separation_radius := 36.0
 var chaser_hop_cooldown := 0.5
+var chaser_knockback_scale := 1.0
+var tank_speed := 105.0
+var tank_hp := 12.0
+var tank_contact_damage := 1.0
+var tank_hop_cooldown := 2.0
+var tank_knockback_scale := 0.2
+var shooter_speed := 150.0
+var shooter_hp := 2.0
+var shooter_fire_interval := 1.8
+var shooter_projectile_speed := 320.0
+var shooter_near := 5.0 * TILE    # closer than this: back off
+var shooter_far := 8.0 * TILE     # farther than this: approach
+var shooter_range := 13.0 * TILE
+var enemy_accel := 1400.0         # low enough that knockback is visible
+var contact_range := 40.0
+var player_hit_knockback := 320.0
+var enemy_separation_radius := 36.0
+var avoid_probe := 1.5 * TILE     # how far ahead walkers look for walls without gravity
+
+# --- Spawner ---
+var spawn_interval_start := 1.6
+var spawn_interval_end := 1.0
+var spawn_ramp_time := 120.0
+var spawn_min_distance := 8.0 * TILE
+var spawn_shooter_chance := 0.25
+var spawn_tank_chance := 0.15
+var spawn_tank_delay := 30.0
 var chaser_headroom := 3.7 * TILE  # free space a chaser needs above it to hop up
 var stuck_time := 2.0
 var wander_time := 1.5
@@ -48,6 +74,7 @@ var jump_buffer := 0.10
 var projectile_speed := 900.0
 var projectile_lifetime := 3.0
 var bounce_restitution := 0.8
+var projectile_knockback := 240.0
 
 # --- Hard caps (enforced by RunState.spawn) ---
 var hard_max_enemies := 150

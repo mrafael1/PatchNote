@@ -38,13 +38,14 @@ func heal(amount: float) -> void:
 
 
 ## The only place damage is applied and the only emitter of the damage signals.
-func take(info: DamageInfo) -> void:
+## Returns true if the damage was applied.
+func take(info: DamageInfo) -> bool:
 	if dead or is_invulnerable():
-		return
+		return false
 	var entity := get_parent()
 	var is_player := entity.is_in_group(&"player")
 	if is_player and RunState.invincible:
-		return
+		return false
 	hp_ratio = maxf(0.0, (hp() - info.amount) / max_hp())
 	if invuln_time > 0.0:
 		grant_invulnerability(invuln_time)
@@ -58,3 +59,4 @@ func take(info: DamageInfo) -> void:
 		elif entity.is_in_group(&"enemy"):
 			EventBus.enemy_killed.emit(entity, info)
 		died.emit(info)
+	return true

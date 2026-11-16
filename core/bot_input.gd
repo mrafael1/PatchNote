@@ -34,4 +34,5 @@ func _physics_process(_delta: float) -> void:
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
 	jump_pressed = _tick % 90 == 0
+	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12

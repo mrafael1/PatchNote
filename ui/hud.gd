@@ -26,4 +26,8 @@ func _process(_delta: float) -> void:
 		var health := Component.find(player, Health) as Health
 		if health:
 			hp = ceili(health.hp() - 0.001)
-	_label.text = "HP %d   Kills %d   %s" % [hp, RunState.kills, RunState.version_label()]
+	var dash := ""
+	if is_instance_valid(player):
+		var dasher := Component.find(player, Dasher) as Dasher
+		dash = "dash ready" if dasher and dasher.is_ready() else "dash ..."
+	_label.text = "HP %d   Kills %d   %s\n%s" % [hp, RunState.kills, RunState.version_label(), dash]

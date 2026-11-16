@@ -14,6 +14,7 @@ var friction := 3600.0
 var jump_speed := 0.0         ## 0 = Tuning.jump_velocity
 var use_rule_jumps := false   ## player: jump count comes from rules.jumps
 var innate_jumps := 1         ## everyone else
+var knockback_scale := 1.0
 
 var wish := Vector2.ZERO      ## desired direction, length 0..1
 var jump_held := false
@@ -25,6 +26,8 @@ var _air_jumps_used := 0
 var _cut_available := false
 var _was_on_floor := false
 var _gravity_key := Vector3(-1, 0, 0)   ## (enabled, dir.x, dir.y) seen last tick
+var _dash_left := 0.0
+var _dash_velocity := Vector2.ZERO
 
 
 ## Ask for a jump. It happens as soon as it is allowed, within the buffer window.
@@ -44,7 +47,22 @@ func max_jumps() -> int:
 func knockback(impulse: Vector2) -> void:
 	var body := get_parent() as CharacterBody2D
 	if body:
-		body.velocity += impulse
+		body.velocity += impulse * knockback_scale
+
+
+## Move at a fixed velocity for a short time, ignoring input and gravity.
+func dash(velocity: Vector2, duration: float) -> void:
+	_dash_velocity = velocity
+	_dash_left = duration
+
+
+func is_dashing() -> bool:
+	return _dash_left > 0.0
+
+
+## Entities with a Floating component ignore gravity entirely.
+func ignores_gravity() -> bool:
+	return Component.find(get_parent(), Floating) != null
 
 
 func _physics_process(delta: float) -> void:
@@ -52,12 +70,15 @@ func _physics_process(delta: float) -> void:
 	if body == null:
 		return
 	var rules := RunState.rules
-	var g_dir := rules.gravity_dir.normalized() if rules.gravity_enabled else Vector2.ZERO
-	var key := Vector3(1.0 if rules.gravity_enabled else 0.0, g_dir.x, g_dir.y)
+	var falls := rules.gravity_enabled and not ignores_gravity()
+	var g_dir := rules.gravity_dir.normalized() if falls else Vector2.ZERO
+	var key := Vector3(1.0 if falls else 0.0, g_dir.x, g_dir.y)
 	if key != _gravity_key:
 		_on_gravity_changed(body, Vector2(_gravity_key.y, _gravity_key.z), g_dir)
 		_gravity_key = key
-	if rules.gravity_enabled:
+	if _dash_left > 0.0:
+		_tick_dash(body, falls, g_dir, delta)
+	elif falls:
 		_tick_gravity(body, rules, g_dir, delta)
 	else:
 		_tick_flat(body, delta)
@@ -74,6 +95,22 @@ func _on_gravity_changed(body: CharacterBody2D, old_dir: Vector2, new_dir: Vecto
 	_air_jumps_used = 0
 	_cut_available = false
 	_was_on_floor = false
+
+
+func _tick_dash(body: CharacterBody2D, falls: bool, g_dir: Vector2, delta: float) -> void:
+	if falls:
+		body.motion_mode = CharacterBody2D.MOTION_MODE_GROUNDED
+		body.up_direction = -g_dir
+	else:
+		body.motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	body.velocity = _dash_velocity
+	body.move_and_slide()
+	_dash_left -= delta
+	if _dash_left <= 0.0:
+		# Leave the dash at normal speed, with no speed along the gravity axis.
+		var exit := _dash_velocity.normalized() * speed
+		body.velocity = exit - g_dir * exit.dot(g_dir)
+		_was_on_floor = false
 
 
 func _tick_flat(body: CharacterBody2D, delta: float) -> void:

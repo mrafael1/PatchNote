@@ -13,5 +13,23 @@ extends Node2D
 		queue_redraw()
 
 
+const FLASH_TIME := 0.09
+
+var _flash_left := 0.0
+
+
+## Brief white flash, used as hit feedback.
+func flash() -> void:
+	_flash_left = FLASH_TIME
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if _flash_left > 0.0:
+		_flash_left -= delta
+		if _flash_left <= 0.0:
+			queue_redraw()
+
+
 func _draw() -> void:
-	draw_rect(Rect2(-size / 2.0, size), color)
+	draw_rect(Rect2(-size / 2.0, size), Color.WHITE if _flash_left > 0.0 else color)

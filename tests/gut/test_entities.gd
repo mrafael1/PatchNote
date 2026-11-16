@@ -124,6 +124,7 @@ func test_arena_blocks_stay_inside_bounds_and_do_not_overlap() -> void:
 func test_game_scene_runs_with_bot_wave_and_patch_toggle() -> void:
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child_autofree(game)
+	game.spawner.enabled = false
 	await wait_physics_frames(3)
 	RunState.invincible = true
 	game.player.set_bot(true)
@@ -152,6 +153,7 @@ func test_game_scene_runs_with_bot_wave_and_patch_toggle() -> void:
 func test_chasers_close_in_on_the_player() -> void:
 	var game: Node = load("res://main.tscn").instantiate()
 	add_child_autofree(game)
+	game.spawner.enabled = false
 	await wait_physics_frames(3)
 	RunState.invincible = true
 	var chaser := RunState.spawn(CHASER, game.player.global_position + Vector2(300, 0)) as Node2D

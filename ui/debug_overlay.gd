@@ -106,5 +106,6 @@ func _build_text() -> String:
 	for key: String in rules:
 		var changed := "  *" if rules[key] != base[key] else ""
 		lines.append("  %s = %s%s" % [key, rules[key], changed])
+	lines.append("kills by source: %s" % [RunState.kills_by_source])
 	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F7 bot")
 	return "\n".join(lines)
