@@ -1,0 +1,40 @@
+; Engine configuration file.
+; Written as text by the builder; see PLAN.md section 1.
+
+config_version=5
+
+[application]
+
+config/name="Alone Alone Lab"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+InputSetup="*res://core/input_setup.gd"
+Tuning="*res://core/tuning.gd"
+EventBus="*res://core/event_bus.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[layer_names]
+
+2d_physics/layer_1="world"
+2d_physics/layer_2="player_body"
+2d_physics/layer_3="enemy_body"
+2d_physics/layer_4="player_hurtbox"
+2d_physics/layer_5="enemy_hurtbox"
+
+[physics]
+
+common/physics_ticks_per_second=60
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
