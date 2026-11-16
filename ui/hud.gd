@@ -1,0 +1,29 @@
+class_name Hud
+extends CanvasLayer
+## Minimal HUD: HP, kills, build version.
+
+var player: Node
+
+var _label: Label
+
+
+func _ready() -> void:
+	layer = 50
+	_label = Label.new()
+	_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_label.position += Vector2(-14, 8)
+	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_label.add_theme_font_size_override(&"font_size", 20)
+	_label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_label.add_theme_constant_override(&"outline_size", 5)
+	add_child(_label)
+
+
+func _process(_delta: float) -> void:
+	var hp := 0
+	if is_instance_valid(player):
+		var health := Component.find(player, Health) as Health
+		if health:
+			hp = ceili(health.hp() - 0.001)
+	_label.text = "HP %d   Kills %d   %s" % [hp, RunState.kills, RunState.version_label()]

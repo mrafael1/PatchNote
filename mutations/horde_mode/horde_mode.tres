@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/horde_mode/horde_mode.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"horde_mode"
+title = "Enable horde mode"
+description = "Three times the enemies, each with 40% less health. Camera pulls back."
+line_proposal = "The arena feels empty. I can fix empty."
+line_applied = "Population scaled. I made them flimsier so it stays fair. Mostly."
+line_reverted = "Fine. Fewer friends for you."
+tags = Array[StringName]([&"spawn"])

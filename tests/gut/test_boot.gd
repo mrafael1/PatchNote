@@ -3,7 +3,7 @@ extends GutTest
 
 
 func test_autoloads_exist() -> void:
-	for autoload_name: String in ["InputSetup", "Tuning", "EventBus"]:
+	for autoload_name: String in ["InputSetup", "Tuning", "EventBus", "RunState", "MutationDB"]:
 		assert_not_null(get_tree().root.get_node_or_null(autoload_name), autoload_name + " autoload")
 
 

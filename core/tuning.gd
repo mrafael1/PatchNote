@@ -23,6 +23,13 @@ var dash_distance := 3.5 * TILE
 var dash_time := 0.15
 var dash_cooldown := 0.8
 
+# --- Enemies ---
+var chaser_speed := 190.0
+var chaser_hp := 3.0
+var chaser_contact_damage := 1.0
+var contact_range := 40.0
+var enemy_separation_radius := 36.0
+
 # --- Gravity / jump (starting values, tuned at the gravity gate) ---
 var jump_velocity := 720.0
 var fall_gravity_mult := 1.4
