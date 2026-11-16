@@ -8,7 +8,7 @@ extends SceneTree
 ## mutations, then captures. Not part of the game.
 
 const FRAMES_BEFORE := 60
-const FRAMES_AFTER := 40
+const FRAMES_AFTER := 70
 
 
 func _initialize() -> void:

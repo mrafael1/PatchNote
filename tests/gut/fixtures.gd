@@ -14,6 +14,31 @@ class FxEntity extends Node2D:
 		RunState.register_entity(self, kind)
 
 
+## A PlayerInput the test drives by hand.
+class ScriptedInput extends PlayerInput:
+	func tap_jump() -> void:
+		jump_pressed = true
+		jump_held = true
+
+	func _physics_process(_delta: float) -> void:
+		# Runs before the player reads it; clear the one-tick flag after it was seen once.
+		if _seen:
+			jump_pressed = false
+		_seen = jump_pressed
+
+	var _seen := false
+
+
+class FxExtraJump extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.jumps += 1
+
+
+class FxFlipGravity extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.gravity_dir = -r.gravity_dir
+
+
 class FxRules extends Mutation:
 	func apply_rules(r: WorldRules) -> void:
 		r.spawn_rate_mult *= 2.0

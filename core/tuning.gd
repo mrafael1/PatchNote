@@ -29,9 +29,15 @@ var chaser_hp := 3.0
 var chaser_contact_damage := 1.0
 var contact_range := 40.0
 var enemy_separation_radius := 36.0
+var chaser_hop_cooldown := 0.5
+var chaser_headroom := 3.7 * TILE  # free space a chaser needs above it to hop up
+var stuck_time := 2.0
+var wander_time := 1.5
 
 # --- Gravity / jump (starting values, tuned at the gravity gate) ---
-var jump_velocity := 720.0
+var jump_velocity := 790.0        # apex about 3.6 tiles; ledges are 3 tiles apart
+var air_jump_factor := 0.85
+var landing_min_speed := 250.0   # slower touchdowns do not count as a landing event
 var fall_gravity_mult := 1.4
 var terminal_fall_speed := 900.0
 var jump_cut_factor := 0.4

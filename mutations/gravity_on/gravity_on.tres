@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/gravity_on/gravity_on.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"gravity_on"
+title = "Implement gravity"
+description = "Everything falls. Space jumps."
+line_proposal = "I noticed nothing in here has weight. That felt like an oversight."
+line_applied = "Gravity implemented. Mind the floor, it is new."
+line_reverted = "Rolling back gravity. Please remain where you are, wherever that is."
+tags = Array[StringName]([&"physics"])
+is_mode_switch = true

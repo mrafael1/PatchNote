@@ -6,7 +6,8 @@ extends Node2D
 ##
 ## Layout rule: ledges are one tile thick and sit on a 3-tile lattice (tops at rows
 ## 18, 15, 12, 9, 6, 3), which makes the level the same staircase measured from the
-## floor or from the ceiling.
+## floor or from the ceiling. Neighbouring tiers are at most 2 tiles apart sideways,
+## inside the jump (tests/gut/test_gravity.gd checks every ledge is reachable both ways).
 
 const COLS := 66
 const ROWS := 22
@@ -15,13 +16,13 @@ const ROWS := 22
 const LEDGES := [
 	[18, 6, 6], [18, 24, 7], [18, 40, 6], [18, 54, 6],
 	[15, 14, 6], [15, 32, 5], [15, 47, 6],
-	[12, 5, 6], [12, 22, 6], [12, 38, 7], [12, 55, 6],
+	[12, 5, 6], [12, 22, 6], [12, 38, 7], [12, 54, 6],
 	[9, 13, 6], [9, 30, 6], [9, 46, 6],
 	[6, 6, 5], [6, 22, 6], [6, 39, 6], [6, 54, 6],
-	[3, 14, 5], [3, 31, 5], [3, 47, 5],
+	[3, 12, 5], [3, 30, 5], [3, 47, 5],
 ]
 ## [column, row, width, height] — chunky blocks standing on the floor or ceiling
-const CHUNKS := [[20, 19, 2, 2], [44, 19, 2, 2], [28, 1, 2, 2], [52, 1, 2, 2]]
+const CHUNKS := [[20, 19, 2, 2], [48, 19, 2, 2], [25, 1, 2, 2], [56, 1, 2, 2]]
 
 const SPAWN_TILES := [
 	Vector2(3, 5), Vector2(3, 11), Vector2(3, 17),
@@ -34,6 +35,9 @@ const PLAYER_START_TILE := Vector2(33, 14)
 const COLOR_BACKGROUND := Color(0.09, 0.1, 0.13)
 const COLOR_GRID := Color(1, 1, 1, 0.035)
 const COLOR_BLOCK := Color(0.42, 0.45, 0.52)
+const COLOR_STANDABLE := Color(0.95, 0.97, 1.0)
+const COLOR_DEPTH := Color(0.0, 0.0, 0.0, 0.5)
+const STRIP := 5.0
 
 var blocks: Array[Rect2] = []          ## pixels
 var bounds: Rect2                      ## whole arena including the border, pixels
@@ -64,6 +68,7 @@ func _add_block(col: float, row: float, w: float, h: float, t: float) -> void:
 
 func _ready() -> void:
 	z_index = -10
+	EventBus.rules_changed.connect(func(_r: Resource) -> void: queue_redraw())
 	var body := StaticBody2D.new()
 	body.name = "Blocks"
 	body.collision_layer = Tuning.LAYER_WORLD
@@ -88,12 +93,28 @@ func distance_to_blocks(p: Vector2) -> float:
 	return best
 
 
+## Readability cues, driven by the rules: without gravity the floor is a flat grid
+## seen from above; with gravity the background darkens toward "down" and every
+## block shows a bright strip on the face you can stand on.
 func _draw() -> void:
 	draw_rect(bounds, COLOR_BACKGROUND)
 	var t := Tuning.TILE
-	for c in range(1, COLS):
-		draw_line(Vector2(c * t, 0), Vector2(c * t, bounds.size.y), COLOR_GRID)
-	for r in range(1, ROWS):
-		draw_line(Vector2(0, r * t), Vector2(bounds.size.x, r * t), COLOR_GRID)
+	var rules := RunState.rules
+	if not rules.gravity_enabled:
+		for c in range(1, COLS):
+			draw_line(Vector2(c * t, 0), Vector2(c * t, bounds.size.y), COLOR_GRID)
+		for r in range(1, ROWS):
+			draw_line(Vector2(0, r * t), Vector2(bounds.size.x, r * t), COLOR_GRID)
+		for rect in blocks:
+			draw_rect(rect, COLOR_BLOCK)
+		return
+	var down := rules.gravity_dir.y >= 0.0
+	for r in ROWS:
+		var depth := float(r) / (ROWS - 1)
+		if not down:
+			depth = 1.0 - depth
+		draw_rect(Rect2(0, r * t, bounds.size.x, t), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
 	for rect in blocks:
 		draw_rect(rect, COLOR_BLOCK)
+		var y := rect.position.y if down else rect.end.y - STRIP
+		draw_rect(Rect2(rect.position.x, y, rect.size.x, STRIP), COLOR_STANDABLE)

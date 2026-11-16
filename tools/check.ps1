@@ -43,7 +43,7 @@ Test-Errors 'boot' $boot
 if ($boot.Text -notmatch '\[boot\] Alone Alone Lab') { $failures += 'boot: banner line missing' }
 
 Write-Host '[3/3] tests'
-$tests = Invoke-Godot 'tests' '-s addons/gut/gut_cmdln.gd -gdir=res://tests/gut -ginclude_subdirs -gexit'
+$tests = Invoke-Godot 'tests' '--fixed-fps 60 -s addons/gut/gut_cmdln.gd -gdir=res://tests/gut -ginclude_subdirs -gexit'
 Test-Errors 'tests' $tests
 if ($tests.Text -notmatch 'All tests passed') { $failures += 'tests: "All tests passed" summary missing' }
 $summary = Select-String -Path $tests.Log -Pattern '^\s*(Scripts|Tests|Passing|Failing|Asserts)\s' | ForEach-Object { $_.Line.Trim() }
