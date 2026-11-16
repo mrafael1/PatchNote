@@ -43,10 +43,12 @@ func _physics_process(delta: float) -> void:
 	var space := get_world_2d().direct_space_state
 	var remaining := velocity.length() * delta
 	var contacts := 0
+	var skipped: Array[RID] = []
 	while remaining > 0.01 and contacts < MAX_CONTACTS_PER_TICK:
 		var dir := velocity.normalized()
 		var query := PhysicsRayQueryParameters2D.create(global_position, global_position + dir * remaining, mask)
 		query.hit_from_inside = true
+		query.exclude = skipped
 		var hit := space.intersect_ray(query)
 		if hit.is_empty():
 			global_position += dir * remaining
@@ -55,6 +57,11 @@ func _physics_process(delta: float) -> void:
 		var pos: Vector2 = hit.position
 		var normal: Vector2 = hit.normal
 		var collider := hit.collider as Node
+		if collider and collider.is_in_group(&"entities"):
+			var target_mover := Component.find(collider, Mover) as Mover
+			if target_mover and target_mover.is_airborne():
+				skipped.append(hit.rid)   # ground-level shot passes under it
+				continue
 		remaining -= global_position.distance_to(pos)
 		global_position = pos
 		if collider and collider.is_in_group(&"entities"):

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/gravity_reversed/gravity_reversed.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"gravity_reversed"
+title = "Reverse gravity"
+description = "Down is now up. The ceiling is the floor."
+line_proposal = "I found a sign error in the gravity code. I would like to keep it."
+line_applied = "Sign flipped. Technically everything still falls."
+line_reverted = "Restoring the original sign. Boring, but correct."
+tags = Array[StringName]([&"physics"])
+requires = Array[StringName]([&"gravity_on"])

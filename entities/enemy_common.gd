@@ -17,6 +17,21 @@ static func separation(me: Node2D) -> Vector2:
 	return push
 
 
+## Resize an enemy's collision shape and visual. The shape is duplicated first
+## because scenes share one shape resource between instances.
+static func apply_size(me: Node, mult: float) -> void:
+	if is_equal_approx(mult, 1.0):
+		return
+	var cs := me.get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if cs and cs.shape is RectangleShape2D:
+		var shape := cs.shape.duplicate() as RectangleShape2D
+		shape.size *= mult
+		cs.shape = shape
+	var visual := me.get_node_or_null("Visual") as RectVisual
+	if visual:
+		visual.size *= mult
+
+
 static func ray_hits_world(me: Node2D, from: Vector2, to: Vector2) -> bool:
 	var query := PhysicsRayQueryParameters2D.create(from, to, Tuning.LAYER_WORLD)
 	return not me.get_world_2d().direct_space_state.intersect_ray(query).is_empty()

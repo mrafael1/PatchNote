@@ -7,6 +7,8 @@ const STRAFE_FLIP_TIME := 2.5
 var kind: StringName = &"enemy"
 var generation := 0
 var from_spawner := false
+var size_mult := 1.0   ## smaller or bigger copy (set through spawn params)
+var hp_mult := 1.0
 
 var _strafe_sign := 1.0
 var _strafe_left := STRAFE_FLIP_TIME
@@ -17,7 +19,8 @@ var _strafe_left := STRAFE_FLIP_TIME
 
 
 func _ready() -> void:
-	health.base_max_hp = Tuning.shooter_hp
+	health.base_max_hp = Tuning.shooter_hp * hp_mult
+	EnemyCommon.apply_size(self, size_mult)
 	health.died.connect(func(_info: DamageInfo) -> void: queue_free())
 	mover.accel = Tuning.enemy_accel
 	shooter.faction = &"enemy"

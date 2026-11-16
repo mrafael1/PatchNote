@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/enemies_split/enemies_split.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"enemies_split"
+title = "Enemies split on death"
+description = "Killed enemies break into two smaller, weaker ones."
+line_proposal = "When they die they just disappear. I think they should leave something behind."
+line_applied = "Mitosis implemented. Every kill is now a negotiation."
+line_reverted = "They die normally again. The small ones already here are your problem."
+tags = Array[StringName]([&"spawn"])

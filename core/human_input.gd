@@ -3,6 +3,7 @@ extends PlayerInput
 ## Keyboard/mouse and gamepad.
 
 var _stick_aim_active := false
+var _wait_release := false
 
 
 func _physics_process(_delta: float) -> void:
@@ -11,6 +12,14 @@ func _physics_process(_delta: float) -> void:
 	dash_pressed = Input.is_action_just_pressed(&"dash")
 	jump_pressed = Input.is_action_just_pressed(&"jump")
 	jump_held = Input.is_action_pressed(&"jump")
+	if _wait_release:
+		if fire or jump_held or Input.is_action_pressed(&"dash"):
+			fire = false
+			jump_held = false
+			jump_pressed = false
+			dash_pressed = false
+		else:
+			_wait_release = false
 
 	var stick := Input.get_vector(&"aim_left", &"aim_right", &"aim_up", &"aim_down")
 	if stick.length() > 0.3:
@@ -22,6 +31,10 @@ func _physics_process(_delta: float) -> void:
 			var to_mouse := parent.get_global_mouse_position() - parent.global_position
 			if to_mouse.length() > 1.0:
 				aim_dir = to_mouse.normalized()
+
+
+func require_fresh_press() -> void:
+	_wait_release = true
 
 
 func _input(event: InputEvent) -> void:

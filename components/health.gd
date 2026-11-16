@@ -46,6 +46,8 @@ func take(info: DamageInfo) -> bool:
 	var is_player := entity.is_in_group(&"player")
 	if is_player and RunState.invincible:
 		return false
+	if is_player and info.faction == &"enemy" and RunState.in_grace():
+		return false
 	hp_ratio = maxf(0.0, (hp() - info.amount) / max_hp())
 	if invuln_time > 0.0:
 		grant_invulnerability(invuln_time)

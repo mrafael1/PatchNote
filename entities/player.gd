@@ -11,6 +11,9 @@ var _facing := Vector2.RIGHT
 @onready var shooter: Shooter = $Shooter
 @onready var dasher: Dasher = $Dasher
 @onready var _aim: Node2D = $Aim
+@onready var _visual: RectVisual = $Visual
+
+var _shadow: RectVisual
 
 
 func _ready() -> void:
@@ -22,6 +25,14 @@ func _ready() -> void:
 	dasher.dashed.connect(func() -> void: EventBus.player_dashed.emit())
 	shooter.faction = &"player"
 	set_input(HumanInput.new())
+	# Shadow left on the ground while the body is up on the height axis.
+	_shadow = RectVisual.new()
+	_shadow.size = _visual.size
+	_shadow.color = Color(0, 0, 0, 0.4)
+	_shadow.visible = false
+	_shadow.show_behind_parent = true
+	add_child(_shadow)
+	move_child(_shadow, 0)
 	RunState.register_entity(self, kind)
 
 
@@ -63,10 +74,38 @@ func _physics_process(_delta: float) -> void:
 		dasher.try_dash(_facing)
 	if input.fire:
 		shooter.try_fire(input.aim_dir)
+	elif RunState.rules.auto_attack and shooter.can_fire():
+		var target := _auto_target()
+		if target:
+			shooter.try_fire(target.global_position - global_position)
+
+
+## Nearest enemy in range with a clear line. Same Shooter, same cooldown as manual fire.
+func _auto_target() -> Node2D:
+	var best: Node2D = null
+	var best_d := Tuning.auto_attack_range * Tuning.auto_attack_range
+	for e in get_tree().get_nodes_in_group(&"enemy"):
+		var n := e as Node2D
+		if n == null or n.is_queued_for_deletion():
+			continue
+		var d := global_position.distance_squared_to(n.global_position)
+		if d < best_d and not EnemyCommon.ray_hits_world(self, global_position, n.global_position):
+			best_d = d
+			best = n
+	return best
 
 
 func _process(_delta: float) -> void:
 	_aim.rotation = input.aim_dir.angle()
+	# Height axis: the body lifts and grows, the shadow stays on the ground.
+	var lift := mover.height
+	_visual.position = Vector2(0, -lift)
+	_aim.position = Vector2(0, -lift)
+	_visual.scale = Vector2.ONE * (1.0 + 0.35 * lift / Tuning.hop_height)
+	_shadow.visible = lift > 0.0
+	# Under reversed gravity the sprite is drawn upside down.
+	var rules := RunState.rules
+	_visual.scale.y *= -1.0 if rules.gravity_enabled and rules.gravity_dir.y < 0.0 else 1.0
 	# Blink while invulnerable (after a hit, during a dash).
 	modulate.a = 0.45 if health.is_invulnerable() and not health.dead else 1.0
 

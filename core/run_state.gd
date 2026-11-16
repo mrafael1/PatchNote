@@ -27,6 +27,7 @@ var damage_by_source := {}
 var world: Node               ## container that spawned entities are added to
 var invincible := false       ## debug (F3): the player takes no damage
 
+var _grace_until := -1.0       ## game time until which enemies deal no damage
 var _pause_reasons := {}
 var _pending := {}            ## kind -> spawns requested but not yet in the tree
 
@@ -131,6 +132,23 @@ func recompute() -> void:
 	EventBus.rules_changed.emit(rules)
 
 
+## The rules a given stack would produce, without touching the current state.
+func preview_rules(patches: Array[Mutation]) -> WorldRules:
+	var r := base_rules.duplicate() as WorldRules
+	for m in patches:
+		m.apply_rules(r)
+	return r
+
+
+## Enemies deal no damage to the player for `seconds` of game time.
+func start_grace(seconds: float) -> void:
+	_grace_until = maxf(_grace_until, game_time + seconds)
+
+
+func in_grace() -> bool:
+	return game_time < _grace_until
+
+
 ## Back to a clean run. "New build" and every test start here.
 func reset(new_seed: int) -> void:
 	for i in range(stack.size() - 1, -1, -1):
@@ -147,6 +165,7 @@ func reset(new_seed: int) -> void:
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
 	_pending.clear()
+	_grace_until = -1.0
 	_pause_reasons.clear()
 	get_tree().paused = false
 	recompute()

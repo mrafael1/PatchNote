@@ -70,6 +70,14 @@ var jump_cut_factor := 0.4
 var coyote_time := 0.10
 var jump_buffer := 0.10
 
+# --- Hop (jump on the height axis, used when there is no gravity) ---
+var hop_time := 0.35
+var hop_height := 44.0            # visual only: how far the sprite lifts at the apex
+var hop_impact_speed := 400.0     # impact reported by player_landed after a hop
+
+# --- Auto attack ---
+var auto_attack_range := 12.0 * TILE
+
 # --- Projectiles ---
 var projectile_speed := 900.0
 var projectile_lifetime := 3.0
@@ -79,9 +87,13 @@ var projectile_knockback := 240.0
 # --- Hard caps (enforced by RunState.spawn) ---
 var hard_max_enemies := 150
 var hard_max_projectiles := 200
+var max_split_generation := 1   # enemies at this generation never split again
 
 # --- Transition ---
-var grace_time := 1.5
+var grace_time := 1.5             # enemies deal no damage for this long after a gravity change
+var transition_long := 0.8        # mode switch; 0 applies instantly (tests)
+var transition_short := 0.3
+var toast_time := 2.2             # how long the AI line stays up after a patch
 
 # --- Director ---
 var first_prompt_kills := 15

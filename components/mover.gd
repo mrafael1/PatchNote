@@ -28,6 +28,7 @@ var _was_on_floor := false
 var _gravity_key := Vector3(-1, 0, 0)   ## (enabled, dir.x, dir.y) seen last tick
 var _dash_left := 0.0
 var _dash_velocity := Vector2.ZERO
+var _hop_t := -1.0             ## seconds into the current hop, -1 = not hopping
 
 
 ## Ask for a jump. It happens as soon as it is allowed, within the buffer window.
@@ -54,6 +55,11 @@ func knockback(impulse: Vector2) -> void:
 func dash(velocity: Vector2, duration: float) -> void:
 	_dash_velocity = velocity
 	_dash_left = duration
+
+
+## Off the ground plane (hopping without gravity): passes over ground-level things.
+func is_airborne() -> bool:
+	return height > 0.0
 
 
 func is_dashing() -> bool:
@@ -95,6 +101,8 @@ func _on_gravity_changed(body: CharacterBody2D, old_dir: Vector2, new_dir: Vecto
 	_air_jumps_used = 0
 	_cut_available = false
 	_was_on_floor = false
+	_hop_t = -1.0
+	height = 0.0
 
 
 func _tick_dash(body: CharacterBody2D, falls: bool, g_dir: Vector2, delta: float) -> void:
@@ -103,6 +111,7 @@ func _tick_dash(body: CharacterBody2D, falls: bool, g_dir: Vector2, delta: float
 		body.up_direction = -g_dir
 	else:
 		body.motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+		_tick_hop(delta)
 	body.velocity = _dash_velocity
 	body.move_and_slide()
 	_dash_left -= delta
@@ -120,6 +129,27 @@ func _tick_flat(body: CharacterBody2D, delta: float) -> void:
 	var rate := accel if wish != Vector2.ZERO else friction
 	body.velocity = body.velocity.move_toward(target, rate * delta)
 	body.move_and_slide()
+	_tick_hop(delta)
+
+
+## Without gravity a jump is a hop on the height axis: a fixed arc, no air jumps.
+func _tick_hop(delta: float) -> void:
+	_buffer -= delta
+	if _hop_t < 0.0:
+		if _buffer > 0.0 and max_jumps() >= 1 and not ignores_gravity():
+			_buffer = 0.0
+			_hop_t = 0.0
+			height = 0.01
+			jumped.emit()
+		return
+	_hop_t += delta
+	var u := _hop_t / Tuning.hop_time
+	if u >= 1.0:
+		_hop_t = -1.0
+		height = 0.0
+		landed.emit(Tuning.hop_impact_speed)
+	else:
+		height = maxf(0.01, 4.0 * Tuning.hop_height * u * (1.0 - u))
 
 
 func _tick_gravity(body: CharacterBody2D, rules: WorldRules, g_dir: Vector2, delta: float) -> void:

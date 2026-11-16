@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/bouncing_projectiles/bouncing_projectiles.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"bouncing_projectiles"
+title = "Make projectiles bounce"
+description = "Shots ricochet three times. With gravity, they arc."
+line_proposal = "Your shots stop at walls. That seems like a waste of a perfectly good shot."
+line_applied = "Restitution enabled. Geometry is now part of your aim."
+line_reverted = "Shots stop at walls again. Walls win."
+tags = Array[StringName]([&"weapon"])

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/explode_on_hit/explode_on_hit.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"explode_on_hit"
+title = "Make hits explode"
+description = "Your shots explode on anything they touch. The blast pushes you too."
+line_proposal = "Impacts are underwhelming. I have an idea involving area of effect."
+line_applied = "Explosions shipped. Stand back from your own work."
+line_reverted = "Explosions removed. Quiet again."
+tags = Array[StringName]([&"weapon"])

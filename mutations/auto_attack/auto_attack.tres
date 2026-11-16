@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/auto_attack/auto_attack.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"auto_attack"
+title = "Automate attacking"
+description = "Fires at the nearest visible enemy. Hold fire to aim yourself."
+line_proposal = "You click a lot. I measured it. I can do the clicking."
+line_applied = "Attacking automated. You are now mostly responsible for walking."
+line_reverted = "Giving the trigger back. Try to keep up with my numbers."
+tags = Array[StringName]([&"weapon"])

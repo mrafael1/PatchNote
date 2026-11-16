@@ -16,6 +16,11 @@ func _init() -> void:
 	process_physics_priority = -10
 
 
+## Called after a transition: anything held must be released and pressed again.
+func require_fresh_press() -> void:
+	pass
+
+
 ## Position the aim is measured from: the entity this provider is attached to.
 func origin() -> Vector2:
 	var p := get_parent() as Node2D

@@ -1,7 +1,7 @@
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M3"
+const BUILD := "M4"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8
@@ -16,6 +16,7 @@ var player: CharacterBody2D
 var camera: CameraRig
 var spawner: Spawner
 var feedback: Feedback
+var transition: Transition
 
 
 func _ready() -> void:
@@ -55,6 +56,9 @@ func _ready() -> void:
 	feedback.camera = camera
 	feedback.effects_parent = world
 	add_child(feedback)
+
+	transition = Transition.new()
+	add_child(transition)
 
 	var hud := Hud.new()
 	hud.player = player

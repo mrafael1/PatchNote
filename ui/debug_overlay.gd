@@ -51,8 +51,14 @@ func toggle_mutation(id: StringName) -> void:
 	var m := MutationDB.get_mutation(id)
 	if m == null:
 		return
+	var transition: Transition = game.transition if game else null
 	if RunState.has_patch(id):
-		RunState.revert(m)
+		if transition:
+			transition.request_revert(m)
+		else:
+			RunState.revert(m)
+	elif transition:
+		transition.request_apply(m, true)
 	else:
 		RunState.apply(m, true)
 

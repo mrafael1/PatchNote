@@ -14,6 +14,8 @@ extends CharacterBody2D
 var kind: StringName = &"enemy"
 var generation := 0
 var from_spawner := false
+var size_mult := 1.0   ## smaller or bigger copy (set through spawn params)
+var hp_mult := 1.0
 
 var _contact_damage := 1.0
 var _hop_cooldown_time := 0.5
@@ -30,7 +32,9 @@ var _avoid_side := 1.0
 
 
 func _ready() -> void:
-	health.base_max_hp = _tuned("hp")
+	health.base_max_hp = _tuned("hp") * hp_mult
+	half_width *= size_mult
+	EnemyCommon.apply_size(self, size_mult)
 	health.died.connect(_on_died)
 	mover.jump_held = true
 	mover.accel = Tuning.enemy_accel
@@ -66,10 +70,12 @@ func _physics_process(delta: float) -> void:
 		steer = _steer_around_walls(to_player.normalized(), distance)
 	mover.wish = (steer + EnemyCommon.separation(self)).limit_length(1.0)
 
+	var player_mover := Component.find(player, Mover) as Mover
+	if player_mover and player_mover.is_airborne():
+		return   # the player is above the ground plane
 	if distance <= Tuning.contact_range + half_width - 15.0:
 		var target := Component.find(player, Health) as Health
 		if target and target.take(DamageInfo.make(_contact_damage, &"contact", &"enemy", global_position)):
-			var player_mover := Component.find(player, Mover) as Mover
 			if player_mover:
 				player_mover.knockback(to_player.normalized() * Tuning.player_hit_knockback)
 
