@@ -73,6 +73,16 @@ func _sort() -> void:
 
 func _validate_references() -> void:
 	for m in all:
-		for ref in m.requires + m.conflicts:
-			if not _by_id.has(ref):
-				push_error("Mutation '%s' references unknown id '%s'" % [m.id, ref])
+		for problem in problems(m):
+			push_error(problem)
+
+
+## What is wrong with m against the loaded pool (empty when it is valid).
+func problems(m: Mutation) -> Array[String]:
+	var out: Array[String] = []
+	if m.is_big and not (m.requires.is_empty() and m.conflicts.is_empty()):
+		out.append("Big mutation '%s' must have no requires and no conflicts" % m.id)
+	for ref in m.requires + m.conflicts:
+		if not _by_id.has(ref):
+			out.append("Mutation '%s' references unknown id '%s'" % [m.id, ref])
+	return out

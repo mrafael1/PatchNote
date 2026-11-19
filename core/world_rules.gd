@@ -17,6 +17,12 @@ extends Resource
 @export var projectile_max_bounces := 0      ## player projectiles
 @export var projectile_gravity_scale := 0.0  ## player projectiles
 @export var time_scale := 1.0
+# Big patch rules (PLAN v3 1.3). turn_duration is assigned, not composed: only the
+# one big patch in the slot owns it.
+@export var time_follows_motion := false
+@export var idle_time_scale := 1.0           ## multiplied; time scale while standing still
+@export var turn_based := false
+@export var turn_duration := 0.25            ## game seconds the world runs per player action
 
 
 func to_dict() -> Dictionary:

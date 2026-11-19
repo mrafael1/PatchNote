@@ -1,8 +1,12 @@
 extends Node
 ## Autoload "RunState" (PLAN 2.5). Owns the patch stack and everything derived from it.
 ##
-## rules is always base_rules + each stacked patch's apply_rules, in order. Nothing
-## else writes a rule. This node is also the single owner of pausing, of
+## rules is always base_rules + the big patch's apply_rules (if any) + each stacked
+## patch's apply_rules, in order. Nothing else writes a rule.
+##
+## Small patches live in `stack` and can be reverted. A big patch (PLAN v3 1.2) lives
+## alone in `big`: it is never reverted, only replaced through swap_big(), and only
+## reset() empties the slot. This node is also the single owner of pausing, of
 ## Engine.time_scale, and of the one path by which entities enter the world.
 
 const BASE_RULES_PATH := "res://core/base_rules.tres"
@@ -11,6 +15,7 @@ const MIN_TIME_SCALE := 0.05
 var base_rules: WorldRules
 var rules: WorldRules
 var stack: Array[Mutation] = []
+var big: Mutation             ## the big slot (PLAN v3 1.2); null = base gameplay
 var patch_state := {}
 
 var run_seed := 0
@@ -43,19 +48,24 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not get_tree().paused:
 		game_time += delta
+	_update_time_scale()
 
 
 # --- Patch stack -----------------------------------------------------------
 
+## Small patches in the stack, and the big patch in its slot.
 func has_patch(id: StringName) -> bool:
+	if big != null and big.id == id:
+		return true
 	for m in stack:
 		if m.id == id:
 			return true
 	return false
 
 
+## Small patches only: a big patch goes through swap_big().
 func can_apply(m: Mutation) -> bool:
-	if m == null or has_patch(m.id):
+	if m == null or m.is_big or has_patch(m.id):
 		return false
 	for req in m.requires:
 		if not has_patch(req):
@@ -66,9 +76,9 @@ func can_apply(m: Mutation) -> bool:
 	return true
 
 
-## force skips the requires/conflicts check (debug console only).
+## force skips the requires/conflicts check (debug console only). Never takes a big patch.
 func apply(m: Mutation, force := false) -> bool:
-	if m == null or has_patch(m.id):
+	if m == null or m.is_big or has_patch(m.id):
 		return false
 	if not force and not can_apply(m):
 		return false
@@ -84,10 +94,11 @@ func apply(m: Mutation, force := false) -> bool:
 
 
 ## Reverts m and every patch that depends on it. Returns what was removed,
-## dependents first. One call is one build.
+## dependents first. One call is one build. A big patch is never reverted: it
+## returns an empty list and changes nothing.
 func revert(m: Mutation) -> Array[Mutation]:
 	var removed: Array[Mutation] = []
-	if m == null or not stack.has(m):
+	if m == null or m.is_big or not stack.has(m):
 		return removed
 	removed = dependents_of(m)
 	removed.append(m)
@@ -101,7 +112,8 @@ func revert(m: Mutation) -> Array[Mutation]:
 	return removed
 
 
-## Patches that (directly or indirectly) require m, latest first. Excludes m.
+## Small patches that (directly or indirectly) require m, latest first. Excludes m.
+## m may be the big patch.
 func dependents_of(m: Mutation) -> Array[Mutation]:
 	var ids: Array[StringName] = [m.id]
 	var found: Array[Mutation] = []
@@ -124,20 +136,62 @@ func dependents_of(m: Mutation) -> Array[Mutation]:
 	return ordered
 
 
+## Puts m in the big slot (PLAN v3 1.2), replacing the big patch there. Small
+## patches that require the old big patch are dropped first, at no rollback cost.
+## Returns the dropped patches, latest first. One call is one build. Refuses null,
+## a small patch, and the patch already in the slot (empty list, nothing changes).
+func swap_big(m: Mutation) -> Array[Mutation]:
+	var dropped: Array[Mutation] = []
+	if m == null or not m.is_big or m == big:
+		return dropped
+	var old := big
+	if old != null:
+		dropped = dependents_of(old)
+		for x in dropped:
+			_remove(x)
+		_strip(old)
+	big = m
+	recompute()
+	m.enable()
+	for e in live_entities():
+		m.on_entity_spawned(e)
+	build_number += 1
+	var dropped_ids: Array[String] = []
+	for x in dropped:
+		dropped_ids.append(String(x.id))
+	log_event(&"big_swap", {"from": String(old.id) if old else "", "to": String(m.id), "dropped": dropped_ids})
+	EventBus.big_swapped.emit(old, m, dropped)
+	return dropped
+
+
 func recompute() -> void:
-	rules = base_rules.duplicate() as WorldRules
-	for m in stack:
-		m.apply_rules(rules)
-	Engine.time_scale = maxf(rules.time_scale, MIN_TIME_SCALE)
+	rules = preview_rules(stack)
+	_update_time_scale()
 	EventBus.rules_changed.emit(rules)
 
 
-## The rules a given stack would produce, without touching the current state.
-func preview_rules(patches: Array[Mutation]) -> WorldRules:
+## The rules a given small stack would produce under a big patch (by default the one
+## in the slot), without touching the current state.
+func preview_rules(patches: Array[Mutation], with_big: Mutation = big) -> WorldRules:
 	var r := base_rules.duplicate() as WorldRules
+	if with_big != null:
+		with_big.apply_rules(r)
 	for m in patches:
 		m.apply_rules(r)
 	return r
+
+
+## How much the player's motion scales time (PLAN v3 1.4). 1 until a big patch turns
+## time_follows_motion on (B1 fills this in).
+func motion_factor() -> float:
+	return 1.0
+
+
+## RunState is the only writer of Engine.time_scale: rules x motion, every tick.
+func _update_time_scale() -> void:
+	var scale := maxf(rules.time_scale * motion_factor(), MIN_TIME_SCALE)
+	if not is_equal_approx(Engine.time_scale, scale):
+		Engine.time_scale = scale
 
 
 ## Enemies deal no damage to the player for `seconds` of game time.
@@ -153,6 +207,9 @@ func in_grace() -> bool:
 func reset(new_seed: int) -> void:
 	for i in range(stack.size() - 1, -1, -1):
 		_remove(stack[i])
+	if big != null:
+		_strip(big)
+		big = null
 	patch_state.clear()
 	run_log.clear()
 	kills = 0
@@ -177,6 +234,11 @@ func version_label() -> String:
 
 func _remove(m: Mutation) -> void:
 	stack.erase(m)
+	_strip(m)
+
+
+## Takes everything class B of m out of the world: listeners, state, components.
+func _strip(m: Mutation) -> void:
 	m.disable()
 	patch_state.erase(m.id)
 	for e in live_entities():
@@ -223,6 +285,8 @@ func register_entity(entity: Node, kind: StringName) -> void:
 	entity.add_to_group(kind)
 	if entity.has_meta(&"via_spawn"):
 		_pending[kind] = maxi(0, int(_pending.get(kind, 0)) - 1)
+	if big != null:
+		big.on_entity_spawned(entity)
 	for m in stack:
 		m.on_entity_spawned(entity)
 	EventBus.entity_spawned.emit(entity)
@@ -322,6 +386,7 @@ func snapshot() -> Dictionary:
 	for m in stack:
 		ids.append(String(m.id))
 	return {
+		"big": String(big.id) if big else "",
 		"stack": ids,
 		"rules": rules.to_dict(),
 		"entities": entities,

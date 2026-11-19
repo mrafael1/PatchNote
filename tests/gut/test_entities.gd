@@ -130,7 +130,8 @@ func test_game_scene_runs_with_bot_wave_and_patch_toggle() -> void:
 	game.player.set_bot(true)
 	game.spawn_wave(12)
 	await wait_physics_frames(90)
-	assert_eq(RunState.count(&"enemy"), 12)
+	# The bot shoots, so one may already be dead: count the kills too.
+	assert_eq(RunState.count(&"enemy") + RunState.kills, 12)
 	var start: Vector2 = game.arena.player_start
 	assert_gt(game.player.global_position.distance_to(start), 10.0, "the bot moved the player")
 

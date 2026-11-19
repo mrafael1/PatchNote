@@ -108,6 +108,51 @@ class FxAll extends Mutation:
 		pass
 
 
+## Big patch fixtures (PLAN v3): each sets an assigned rule, adds a component and a
+## listener, so a swap has something of every class B kind to strip.
+class FxBigA extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.turn_duration = 0.5
+		r.camera_zoom *= 0.8
+
+	func on_entity_spawned(e: Node) -> void:
+		Component.attach(e, FxComp, id)
+
+	func enable() -> void:
+		_listen(EventBus.enemy_killed, _on_killed)
+
+	func _on_killed(_e: Node, _info: RefCounted) -> void:
+		state()["kills"] = int(state().get("kills", 0)) + 1
+
+
+class FxBigB extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.turn_duration = 0.1
+		r.time_follows_motion = true
+
+	func on_entity_spawned(e: Node) -> void:
+		if e.is_in_group(&"player"):
+			Component.attach(e, FxComp, id)
+
+	func enable() -> void:
+		_listen(EventBus.player_dashed, _on_dashed)
+
+	func _on_dashed() -> void:
+		pass
+
+
+## A small patch that only makes sense under big patch A.
+class FxUnderA extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.turn_duration *= 2.0
+
+	func enable() -> void:
+		_listen(EventBus.entity_spawned, _on_spawned)
+
+	func _on_spawned(_e: Node) -> void:
+		pass
+
+
 static func make(cls: GDScript, id: StringName, requires: Array = [], conflicts: Array = []) -> Mutation:
 	var m: Mutation = cls.new()
 	m.id = id
@@ -126,6 +171,23 @@ static func make_all() -> Array[Mutation]:
 	out.append(make(FxDependent, &"fx_dependent", [&"fx_rules"]))
 	out.append(make(FxConflict, &"fx_conflict", [], [&"fx_event"]))
 	out.append(make(FxAll, &"fx_all"))
+	return out
+
+
+static func make_big(cls: GDScript, id: StringName) -> Mutation:
+	var m := make(cls, id)
+	m.is_big = true
+	m.is_mode_switch = true
+	m.genre_label = String(id)
+	return m
+
+
+## fx_big_a and fx_big_b (big), fx_under_a (small, requires fx_big_a).
+static func make_bigs() -> Array[Mutation]:
+	var out: Array[Mutation] = []
+	out.append(make_big(FxBigA, &"fx_big_a"))
+	out.append(make_big(FxBigB, &"fx_big_b"))
+	out.append(make(FxUnderA, &"fx_under_a", [&"fx_big_a"]))
 	return out
 
 

@@ -15,6 +15,10 @@ extends Resource
 @export var conflicts: Array[StringName] = []  ## mutation ids, checked both ways
 @export var weight := 1.0
 @export var is_mode_switch := false      ## selects the long transition presentation
+## Big patch (PLAN v3 1.1): changes the genre, lives alone in RunState.big, is never
+## reverted (only replaced by another big patch). Has no requires and no conflicts.
+@export var is_big := false
+@export var genre_label := ""            ## big patches: short name for the HUD and history
 
 var _connections: Array = []
 

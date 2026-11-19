@@ -17,6 +17,7 @@ signal player_dashed
 signal explosion(pos: Vector2, radius: float)   ## presentation hook; carries no damage
 signal patch_applied(mutation: Resource)
 signal patch_reverted(mutation: Resource)
+signal big_swapped(old: Resource, new: Resource, dropped: Array)   ## old may be null
 signal rules_changed(rules: Resource)
 signal milestone_reached(id: int)
 signal run_started(run_seed: int)

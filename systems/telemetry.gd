@@ -60,6 +60,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"reverts_used": reverts_used,
 		"history_opens": history_opens,
 		"final_stack": RunState.stack.map(func(m: Mutation) -> String: return String(m.id)),
+		"final_big": String(RunState.big.id) if RunState.big else "",
 	}
 	record.merge(extra)
 	return record

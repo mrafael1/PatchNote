@@ -115,6 +115,25 @@ func request_apply(m: Mutation, force := false) -> bool:
 	return true
 
 
+## Starts putting big patch m in the big slot (PLAN v3 1.2). Always the full, long
+## sequence: a genre change pauses the world whatever it does to gravity. M10 gives it
+## its own look ("migrating engine"); M9 reuses the mode-switch one.
+func request_swap_big(m: Mutation) -> bool:
+	if busy or m == null or not m.is_big or m == RunState.big:
+		return false
+	var after: Array[Mutation] = []
+	if RunState.big != null:
+		var dropped := RunState.dependents_of(RunState.big)
+		for x in RunState.stack:
+			if not dropped.has(x):
+				after.append(x)
+	else:
+		after = RunState.stack.duplicate()
+	var text := "> merging major update: %s\n> compiling..." % m.title
+	_run(func() -> void: RunState.swap_big(m), after, text, m.line_applied, Tuning.transition_long, m)
+	return true
+
+
 ## Starts reverting m and its dependents: one action, one transition.
 func request_revert(m: Mutation) -> bool:
 	if busy or m == null or not RunState.stack.has(m):
@@ -136,12 +155,15 @@ func request_revert(m: Mutation) -> bool:
 	return true
 
 
-func _run(operation: Callable, after: Array[Mutation], text: String, line: String, duration: float) -> void:
+## next_big: the big patch the operation puts in the slot (null: the slot does not
+## change). A big swap always plays the full sequence.
+func _run(operation: Callable, after: Array[Mutation], text: String, line: String, duration: float,
+		next_big: Mutation = null) -> void:
 	var old := RunState.rules
-	var new := RunState.preview_rules(after)
+	var new := RunState.preview_rules(after, next_big if next_big != null else RunState.big)
 	var gravity_changes := old.gravity_enabled != new.gravity_enabled \
 			or (new.gravity_enabled and not old.gravity_dir.is_equal_approx(new.gravity_dir))
-	if not gravity_changes:
+	if not gravity_changes and next_big == null:
 		operation.call()
 		glitch(0.45)
 		_play(&"glitch")

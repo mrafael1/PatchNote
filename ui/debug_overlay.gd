@@ -31,7 +31,7 @@ func _ready() -> void:
 	var box := VBoxContainer.new()
 	_console.add_child(box)
 	var title := Label.new()
-	title.text = "Mutation console (click to apply / revert)"
+	title.text = "Mutation console (click to apply / revert; BIG: swap in)"
 	box.add_child(title)
 	for m in MutationDB.all:
 		var b := Button.new()
@@ -44,15 +44,23 @@ func _ready() -> void:
 	_refresh_console()
 	EventBus.patch_applied.connect(func(_m: Resource) -> void: _refresh_console())
 	EventBus.patch_reverted.connect(func(_m: Resource) -> void: _refresh_console())
+	EventBus.big_swapped.connect(func(_o: Resource, _n: Resource, _d: Array) -> void: _refresh_console())
 
 
 ## Apply the mutation if it is not in the stack, otherwise revert it. Ignores
-## requires/conflicts, like a developer console should.
+## requires/conflicts, like a developer console should. A big patch is swapped into
+## the big slot; clicking the one already there does nothing (only reset empties it).
 func toggle_mutation(id: StringName) -> void:
 	var m := MutationDB.get_mutation(id)
 	if m == null:
 		return
 	var transition: Transition = game.transition if game else null
+	if m.is_big:
+		if transition:
+			transition.request_swap_big(m)
+		else:
+			RunState.swap_big(m)
+		return
 	if RunState.has_patch(id):
 		if transition:
 			transition.request_revert(m)
@@ -95,7 +103,8 @@ func _refresh_console() -> void:
 	for id: StringName in _buttons:
 		var m := MutationDB.get_mutation(id)
 		var mark := "[x]" if RunState.has_patch(id) else "[ ]"
-		(_buttons[id] as Button).text = "%s %s — %s" % [mark, id, m.title if m else ""]
+		var big_tag := " BIG" if m and m.is_big else ""
+		(_buttons[id] as Button).text = "%s%s %s — %s" % [mark, big_tag, id, m.title if m else ""]
 
 
 func _build_text() -> String:
@@ -110,6 +119,7 @@ func _build_text() -> String:
 	var ids: Array[String] = []
 	for m in RunState.stack:
 		ids.append(String(m.id))
+	lines.append("big: " + (String(RunState.big.id) if RunState.big else "(none)"))
 	lines.append("stack: " + (", ".join(ids) if not ids.is_empty() else "(empty)"))
 	var rules := RunState.rules.to_dict()
 	var base := RunState.base_rules.to_dict()
