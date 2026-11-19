@@ -30,7 +30,7 @@ var _notes_saved := false
 
 func _ready() -> void:
 	var v: Dictionary = Engine.get_version_info()
-	print("[boot] Alone Alone Lab %s, Godot %s.%s.%s" % [BUILD, v.major, v.minor, v.patch])
+	print("[boot] Patch Notes %s, Godot %s.%s.%s" % [BUILD, v.major, v.minor, v.patch])
 
 	var run_seed := next_seed if next_seed >= 0 else int(randi() % 1000000)
 	next_seed = -1

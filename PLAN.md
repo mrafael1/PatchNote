@@ -1,4 +1,4 @@
-# Build Plan v3 — Big Patches (working title: "Alone Alone Lab")
+# Build Plan v3 — Big Patches ("Patch Notes")
 
 **For:** the builder agent
 **Goal of this build:** add the first **big patches**: permanent genre shifts the AI proposes 2 times per run, built on the v2 core, and steered by the adaptive path (what the AI has learned about the player).

@@ -13,7 +13,7 @@ var start_button: Button
 
 
 func _ready() -> void:
-	print("[boot] Alone Alone Lab %s, start screen" % Main.BUILD)
+	print("[boot] Patch Notes %s, start screen" % Main.BUILD)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var bg := ColorRect.new()
@@ -30,7 +30,7 @@ func _ready() -> void:
 	center.add_child(column)
 
 	var title := Label.new()
-	title.text = "ALONE ALONE LAB"
+	title.text = "PATCH NOTES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override(&"font_size", 44)
 	title.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))

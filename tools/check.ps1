@@ -42,12 +42,12 @@ if ($import.Code -ne 0) { $failures += "import: exit code $($import.Code)" }
 Write-Host '[2/4] boot (start screen)'
 $boot = Invoke-Godot 'boot' '--quit-after 120'
 Test-Errors 'boot' $boot
-if ($boot.Text -notmatch '\[boot\] Alone Alone Lab .*start screen') { $failures += 'boot: start screen banner missing' }
+if ($boot.Text -notmatch '\[boot\] Patch Notes .*start screen') { $failures += 'boot: start screen banner missing' }
 
 Write-Host '[3/4] boot (game scene)'
 $game = Invoke-Godot 'boot_game' 'res://main.tscn --quit-after 120'
 Test-Errors 'boot_game' $game
-if ($game.Text -notmatch '\[boot\] Alone Alone Lab .*Godot') { $failures += 'boot_game: game banner missing' }
+if ($game.Text -notmatch '\[boot\] Patch Notes .*Godot') { $failures += 'boot_game: game banner missing' }
 
 Write-Host '[4/4] tests'
 $tests = Invoke-Godot 'tests' '--fixed-fps 60 -s addons/gut/gut_cmdln.gd -gdir=res://tests/gut -ginclude_subdirs -gexit'

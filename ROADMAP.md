@@ -1,4 +1,4 @@
-# Roadmap — "Alone Alone Lab"
+# Roadmap — "Patch Notes"
 
 Where the game is going after the prototype, in phases. Each phase becomes a builder plan (`PLAN.md`) only when it starts; this file holds the direction, the progression model and the scope of each phase. Numbers are starting targets, to retune from playtests.
 
