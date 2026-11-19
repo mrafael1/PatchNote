@@ -1,9 +1,10 @@
 class_name Hud
 extends CanvasLayer
-## Minimal HUD: HP, kills, build version.
+## Minimal HUD: HP, kills, build version, rollbacks, and the final-wave countdown.
 
 var player: Node
 var director: AiDirector
+var run_loop: RunLoop
 
 var _label: Label
 
@@ -33,3 +34,5 @@ func _process(_delta: float) -> void:
 		dash = "dash ready" if dasher and dasher.is_ready() else "dash ..."
 	var rollbacks := "Rollbacks: %d [Tab]" % director.reverts_left if director else ""
 	_label.text = "HP %d   Kills %d   %s\n%s\n%s" % [hp, RunState.kills, RunState.version_label(), rollbacks, dash]
+	if run_loop and run_loop.rc_time_left() >= 0.0:
+		_label.text += "\nRELEASE CANDIDATE  %d s" % ceili(run_loop.rc_time_left())

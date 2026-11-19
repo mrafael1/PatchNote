@@ -1,7 +1,8 @@
+class_name Main
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M5"
+const BUILD := "M6"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8
@@ -20,6 +21,8 @@ var transition: Transition
 var director: AiDirector
 var prompt_panel: PromptPanel
 var patch_history: PatchHistory
+var run_loop: RunLoop
+var report: ReportScreen
 
 
 func _ready() -> void:
@@ -79,9 +82,23 @@ func _ready() -> void:
 	patch_history.transition = transition
 	add_child(patch_history)
 
+	run_loop = RunLoop.new()
+	run_loop.name = "RunLoop"
+	run_loop.build = BUILD
+	run_loop.director = director
+	run_loop.spawner = spawner
+	run_loop.transition = transition
+	add_child(run_loop)
+	run_loop.report_ready.connect(_on_report_ready)
+
+	report = ReportScreen.new()
+	add_child(report)
+	report.new_build_requested.connect(start_new_build)
+
 	var hud := Hud.new()
 	hud.player = player
 	hud.director = director
+	hud.run_loop = run_loop
 	add_child(hud)
 
 	var debug := DebugOverlay.new()
@@ -89,6 +106,7 @@ func _ready() -> void:
 	add_child(debug)
 
 	EventBus.player_died.connect(_on_player_died)
+	EventBus.run_ended.connect(_on_run_ended)
 	EventBus.run_started.emit(run_seed)
 
 
@@ -107,13 +125,29 @@ func spawn_wave(count := WAVE_SIZE) -> void:
 
 
 func restart(same_seed := false) -> void:
+	start_new_build(RunState.run_seed if same_seed else -1)
+
+
+## "New build": a fresh run. A negative seed picks a random one. Only works when this
+## is the current scene (tests instance it as a child and never reload it).
+func start_new_build(run_seed := -1) -> void:
 	if get_tree().current_scene != self:
 		return
-	next_seed = RunState.run_seed if same_seed else -1
+	next_seed = run_seed
 	get_tree().reload_current_scene()
 
 
 func _on_player_died() -> void:
 	player.visible = false
-	# The real lose flow (report screen) comes with the run loop; for now, start over.
-	get_tree().create_timer(1.0).timeout.connect(restart)
+
+
+func _on_run_ended(_outcome: StringName) -> void:
+	if get_tree().current_scene == self:
+		Telemetry.append(run_loop.record)
+	prompt_panel.dismiss()
+	patch_history.close()
+	patch_history.locked = true
+
+
+func _on_report_ready(outcome: StringName) -> void:
+	report.open(outcome, run_loop.record)

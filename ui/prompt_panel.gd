@@ -13,6 +13,7 @@ var _line: Label
 var _cards: HBoxContainer
 var _buttons: Array[Button] = []
 var _locked_for := 0.0
+var _dismissed := false   ## the run is over: never open again
 
 
 func _ready() -> void:
@@ -57,6 +58,8 @@ func open(p_offer: Offer) -> void:
 
 
 func _open(p_offer: Offer) -> void:
+	if _dismissed:
+		return
 	offer = p_offer
 	RunState.set_pause(&"prompt", true)
 	_line.text = "AI: " + offer.line
@@ -86,6 +89,19 @@ func _process(delta: float) -> void:
 	_locked_for -= delta
 	if _locked_for <= 0.0:
 		_unlock()
+
+
+## True once the panel is open and accepts a pick.
+func can_choose() -> bool:
+	return _root.visible and _locked_for <= 0.0
+
+
+## Closes the panel without a pick, for good (the run ended).
+func dismiss() -> void:
+	_dismissed = true
+	if _root.visible:
+		_root.visible = false
+		RunState.set_pause(&"prompt", false)
 
 
 func _unlock() -> void:

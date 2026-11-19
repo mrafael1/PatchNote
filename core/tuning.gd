@@ -106,3 +106,9 @@ var offer_size := 3
 var hotfix_heal := 1.0            # HP restored by every applied patch
 var prompt_input_delay := 0.5     # the prompt ignores input for this long after opening
 var reverts_per_run := 2
+
+# --- Run loop ---
+var rc_duration := 90.0           # the "release candidate" wave after the last prompt
+var rc_spawn_rate := 1.6          # spawner phase multipliers during that wave
+var rc_spawn_cap := 1.5
+var report_delay := 1.0           # game time between the end of the run and the report

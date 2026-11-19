@@ -1,0 +1,95 @@
+class_name Telemetry
+extends RefCounted
+## Playtest telemetry (PLAN 8): one JSON line per finished run, appended to a file.
+## Nothing in the game ever reads it back.
+
+const DEFAULT_PATH := "user://playtest/runs.jsonl"
+
+## Where lines go. Tools and tests point it elsewhere so they never mix with real playtests.
+static var log_path := DEFAULT_PATH
+## One id per process; runs in the same session share it.
+static var session_id := ""
+static var _runs_this_session := 0
+
+
+static func session() -> String:
+	if session_id == "":
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		session_id = "%08x%08x" % [rng.randi(), int(Time.get_unix_time_from_system()) & 0xffffffff]
+	return session_id
+
+
+## The record for the run that just ended, built from RunState. extra is merged in
+## (build name, bot flag, ...).
+static func build_record(outcome: StringName, extra := {}) -> Dictionary:
+	_runs_this_session += 1
+	var events: Array[Dictionary] = []
+	var prompts: Array[Dictionary] = []
+	var reverts_used := 0
+	var history_opens := 0
+	for entry: Dictionary in RunState.run_log:
+		match entry.event:
+			&"apply", &"revert":
+				events.append({"event": String(entry.event), "id": String(entry.id),
+						"time": snappedf(entry.time, 0.01), "build": entry.build})
+			&"prompt":
+				prompts.append({"index": entry.index, "offers": entry.offers, "pick": entry.pick,
+						"mandatory": entry.mandatory, "time": snappedf(entry.time, 0.01)})
+			&"prompt_skipped":
+				prompts.append({"index": entry.index, "offers": [], "pick": "",
+						"mandatory": false, "time": snappedf(entry.time, 0.01)})
+			&"revert_used":
+				reverts_used += 1
+			&"history_open":
+				history_opens += 1
+	var record := {
+		"schema": 1,
+		"session_id": session(),
+		"run_index": _runs_this_session,
+		"timestamp": Time.get_datetime_string_from_system(true),
+		"seed": RunState.run_seed,
+		"outcome": String(outcome),
+		"duration": snappedf(RunState.game_time, 0.01),
+		"version": RunState.version_label(),
+		"kills": RunState.kills,
+		"kills_by_source": _plain(RunState.kills_by_source),
+		"damage_by_source": _plain(RunState.damage_by_source),
+		"events": events,
+		"prompts": prompts,
+		"reverts_used": reverts_used,
+		"history_opens": history_opens,
+		"final_stack": RunState.stack.map(func(m: Mutation) -> String: return String(m.id)),
+	}
+	record.merge(extra)
+	return record
+
+
+## Appends one line. Returns OK or the error.
+static func append(record: Dictionary, file_path := "") -> Error:
+	if file_path == "":
+		file_path = log_path
+	var dir := file_path.get_base_dir()
+	if not DirAccess.dir_exists_absolute(dir):
+		var made := DirAccess.make_dir_recursive_absolute(dir)
+		if made != OK:
+			push_warning("telemetry: cannot create %s (%s)" % [dir, error_string(made)])
+			return made
+	var f := FileAccess.open(file_path, FileAccess.READ_WRITE if FileAccess.file_exists(file_path) else FileAccess.WRITE)
+	if f == null:
+		var err := FileAccess.get_open_error()
+		push_warning("telemetry: cannot open %s (%s)" % [file_path, error_string(err)])
+		return err
+	f.seek_end()
+	f.store_line(JSON.stringify(record))
+	f.close()
+	return OK
+
+
+## StringName keys and odd number types become plain JSON-friendly values.
+static func _plain(d: Dictionary) -> Dictionary:
+	var out := {}
+	for key: Variant in d:
+		var v: Variant = d[key]
+		out[String(key)] = snappedf(v, 0.01) if v is float else v
+	return out

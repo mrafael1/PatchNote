@@ -378,7 +378,7 @@ func test_patch_history_shows_the_build_log_and_rolls_back_on_confirm() -> void:
 	var history: PatchHistory = game.patch_history
 	assert_true(history.open())
 	assert_true(RunState.is_paused_for(&"history"))
-	assert_eq(history.build_log_lines(), ["v0.1  Initial build", "v0.2  Implement gravity",
+	assert_eq(PatchHistory.build_log_lines(), ["v0.1  Initial build", "v0.2  Implement gravity",
 			"v0.3  Reverse gravity"] as Array[String])
 	history.press_revert(gravity.id)
 	assert_eq(RunState.stack.size(), 2, "the first press only asks for confirmation")
@@ -388,7 +388,7 @@ func test_patch_history_shows_the_build_log_and_rolls_back_on_confirm() -> void:
 	assert_false(get_tree().paused)
 	assert_eq(RunState.stack.size(), 0, "gravity and its dependent are gone")
 	assert_eq(game.director.reverts_left, 1)
-	assert_eq(history.build_log_lines().slice(3), ["v0.4  Revert: Reverse gravity",
+	assert_eq(PatchHistory.build_log_lines().slice(3), ["v0.4  Revert: Reverse gravity",
 			"v0.4  Revert: Implement gravity"] as Array[String])
 	var opens := 0
 	for e: Dictionary in RunState.run_log:

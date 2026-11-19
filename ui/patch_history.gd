@@ -14,6 +14,7 @@ var _log: Label
 var _charges: Label
 var _list: VBoxContainer
 var _armed: StringName = &""   ## patch whose rollback is waiting for confirmation
+var locked := false            ## set when the run is over
 
 
 func _ready() -> void:
@@ -78,6 +79,8 @@ func is_open() -> bool:
 
 ## Not available during a prompt, a transition or the report.
 func can_open() -> bool:
+	if locked:
+		return false
 	if prompt_panel and prompt_panel.is_open():
 		return false
 	if transition and transition.busy:
@@ -117,7 +120,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## One line per build, oldest first: "v0.2  Implement gravity", "v0.4  Revert: ...".
-func build_log_lines() -> Array[String]:
+static func build_log_lines() -> Array[String]:
 	var lines: Array[String] = ["v0.1  Initial build"]
 	for entry: Dictionary in RunState.run_log:
 		if entry.event != &"apply" and entry.event != &"revert":
