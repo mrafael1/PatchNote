@@ -91,7 +91,10 @@ func end(result: StringName) -> void:
 	RunState.log_event(&"run_end", {"outcome": String(result)})
 	var player := get_tree().get_first_node_in_group(&"player")
 	record = Telemetry.build_record(result, {
+		"type": "run",
 		"build": build,
+		"taste": director.taste.to_dict() if director and director.taste else {},
+		"agenda_cards": director.agenda_cards() if director else 0,
 		"reached_release_candidate": rc_started_at >= 0.0,
 		"bot": player != null and player.has_method(&"is_bot") and player.is_bot(),
 		"invincible": RunState.invincible,

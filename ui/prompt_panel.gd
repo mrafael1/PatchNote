@@ -73,6 +73,11 @@ func _open(p_offer: Offer) -> void:
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override(&"font_size", 18)
 		b.text = "[%d]  %s\n\n%s\n\n\"%s\"" % [i + 1, m.title, m.description, m.line_proposal]
+		if offer.agenda.has(m):
+			# The AI's own pick, against the player's taste: labelled and tinted.
+			b.text = "%s\n[%d]  %s\n\n%s\n\n\"%s\"" % [Dialogue.AGENDA_LABEL.to_upper(), i + 1,
+					m.title, m.description, Dialogue.agenda_line(offer.prompt_index)]
+			b.self_modulate = Color(1.0, 0.75, 0.55)
 		b.disabled = true
 		b.pressed.connect(choose.bind(i))
 		_cards.add_child(b)

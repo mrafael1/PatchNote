@@ -2,6 +2,8 @@ class_name ReportScreen
 extends CanvasLayer
 ## Playtest Report (PLAN 8), shown for both outcomes over the paused game.
 ## "New build" starts a fresh run; "Copy report" puts the text on the clipboard.
+## Optionally the player marks each patch of the run Keep or Cut; the AI reads those
+## notes in the next run of the session (see Taste).
 
 signal new_build_requested(run_seed: int)
 
@@ -12,6 +14,10 @@ var _ai: Label
 var _new_build: Button
 var _copy: Button
 var _text := ""
+var _rate_box: VBoxContainer
+var _rate_grid: GridContainer
+var _rate_buttons := {}     ## id -> [keep: Button, cut: Button]
+var ratings := {}           ## id -> +1 (keep) / -1 (cut); empty if the player skipped it
 
 
 func _ready() -> void:
@@ -61,6 +67,18 @@ func _ready() -> void:
 	_ai.add_theme_font_size_override(&"font_size", 20)
 	column.add_child(_ai)
 
+	_rate_box = VBoxContainer.new()
+	_rate_box.add_theme_constant_override(&"separation", 6)
+	column.add_child(_rate_box)
+	var rate_title := Label.new()
+	rate_title.text = "Notes for the AI (optional): keep or cut each patch of this build"
+	rate_title.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.75))
+	_rate_box.add_child(rate_title)
+	_rate_grid = GridContainer.new()
+	_rate_grid.columns = 2
+	_rate_grid.add_theme_constant_override(&"h_separation", 40)
+	_rate_box.add_child(_rate_grid)
+
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override(&"separation", 20)
 	column.add_child(buttons)
@@ -89,6 +107,7 @@ func open(outcome: StringName, record: Dictionary) -> void:
 			Color(0.55, 1.0, 0.65) if outcome == &"win" else Color(1.0, 0.45, 0.4))
 	_ai.text = lines[lines.size() - 1]
 	_body.text = "\n".join(lines.slice(1, lines.size() - 1)).strip_edges()
+	_build_ratings(record)
 	RunState.set_pause(&"report", true)
 	_root.visible = true
 	_new_build.grab_focus.call_deferred()
@@ -147,6 +166,76 @@ static func _source_title(key: String) -> String:
 	return m.title if m else key
 
 
+## Patches applied during the run, first application order, each once.
+static func rateable_ids(record: Dictionary) -> Array[StringName]:
+	var out: Array[StringName] = []
+	for e: Dictionary in record.get("events", []):
+		var id := StringName(e.id)
+		if e.event == "apply" and not out.has(id) and MutationDB.get_mutation(id) != null:
+			out.append(id)
+	return out
+
+
+func _build_ratings(record: Dictionary) -> void:
+	ratings.clear()
+	_rate_buttons.clear()
+	for child in _rate_grid.get_children():
+		child.queue_free()
+	var ids := rateable_ids(record)
+	_rate_box.visible = not ids.is_empty()
+	for id in ids:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override(&"separation", 8)
+		var name_label := Label.new()
+		name_label.text = MutationDB.get_mutation(id).title
+		name_label.custom_minimum_size = Vector2(250, 0)
+		row.add_child(name_label)
+		var keep := Button.new()
+		keep.text = "Keep"
+		keep.toggle_mode = true
+		keep.toggled.connect(func(on: bool) -> void: rate(id, 1 if on else 0))
+		row.add_child(keep)
+		var cut := Button.new()
+		cut.text = "Cut"
+		cut.toggle_mode = true
+		cut.toggled.connect(func(on: bool) -> void: rate(id, -1 if on else 0))
+		row.add_child(cut)
+		_rate_buttons[id] = [keep, cut]
+		_style_choice(keep, false, Color.WHITE)
+		_style_choice(cut, false, Color.WHITE)
+		_rate_grid.add_child(row)
+
+
+## +1 keep, -1 cut, 0 clears. Keep and Cut exclude each other.
+func rate(id: StringName, value: int) -> void:
+	if value == 0:
+		ratings.erase(id)
+	else:
+		ratings[id] = value
+	if _rate_buttons.has(id):
+		var pair: Array = _rate_buttons[id]
+		var value_now: int = ratings.get(id, 0)
+		_style_choice(pair[0] as Button, value_now == 1, Color(0.45, 1.0, 0.55))
+		_style_choice(pair[1] as Button, value_now == -1, Color(1.0, 0.45, 0.4))
+
+
+func _style_choice(b: Button, on: bool, color: Color) -> void:
+	b.set_pressed_no_signal(on)
+	b.modulate = color if on else Color(1, 1, 1, 0.55)
+
+
+func ratings_text() -> String:
+	if ratings.is_empty():
+		return "NOTES FOR THE AI
+  (none)"
+	var lines: Array[String] = ["NOTES FOR THE AI"]
+	for id: StringName in ratings:
+		var m := MutationDB.get_mutation(id)
+		lines.append("  %-26s %s" % [m.title if m else String(id), "keep" if ratings[id] > 0 else "cut"])
+	return "
+".join(lines)
+
+
 func new_build(run_seed := -1) -> void:
 	if not is_open():
 		return
@@ -154,5 +243,7 @@ func new_build(run_seed := -1) -> void:
 
 
 func copy_report() -> void:
-	DisplayServer.clipboard_set(_text)
+	DisplayServer.clipboard_set(_text + "
+
+" + ratings_text())
 	_copy.text = "Copied"

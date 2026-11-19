@@ -33,3 +33,35 @@ static func report_line(outcome: StringName, duration: float, patches: int, reve
 	if patches >= 3:
 		return "Crashed with %d of my patches applied. I call that a stress test." % patches
 	return "Crash logged. I will mark it as a known issue."
+
+
+# --- Taste ---------------------------------------------------------------
+
+const TAG_NAMES := {&"weapon": "weapon", &"physics": "physics", &"spawn": "enemy",
+		&"movement": "movement"}
+const AGENDA_LABEL := "AI's pick"
+const AGENDA_LINES: Array[String] = [
+	"Outside your comfort zone. Good.",
+	"You will not pick this. Pick it anyway.",
+	"Trust me on this one.",
+	"I wrote this one for me, not for you.",
+]
+
+
+## A line that shows the AI noticed the player's taste, or "" to use the default.
+## last_run_rated: -1 first run of the session, 0 previous report skipped, 1 rated.
+static func taste_line(taste: Taste, prompt_index: int, last_run_rated: int) -> String:
+	if prompt_index == 1:
+		if last_run_rated == 1:
+			return "I read your notes from the last build. Adjusting."
+		if last_run_rated == 0:
+			return "No notes last time? Then I pick. More of my ideas this build."
+		return ""
+	var tag := taste.favourite_tag()
+	if tag != &"":
+		return "You keep picking %s patches. I leaned the deck that way." % TAG_NAMES.get(tag, String(tag))
+	return ""
+
+
+static func agenda_line(prompt_index: int) -> String:
+	return AGENDA_LINES[(prompt_index - 1) % AGENDA_LINES.size()]

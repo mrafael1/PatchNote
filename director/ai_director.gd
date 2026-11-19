@@ -16,6 +16,7 @@ var prompt_index := 0        ## prompts opened so far
 var reverts_left := 0
 var pending: Offer           ## an offer waiting for its choice
 var reverted := {}           ## ids the player rolled back; never offered again
+var taste: Taste             ## what the player seems to like; leans the offers
 
 var _kills_since_prompt := 0
 var _last_prompt_time := 0.0
@@ -25,6 +26,7 @@ var _hint_given := false
 
 func _ready() -> void:
 	reverts_left = Tuning.reverts_per_run
+	taste = Taste.from_session()
 	_kills_needed = Tuning.first_prompt_kills
 	_last_prompt_time = RunState.game_time
 	EventBus.enemy_killed.connect(_on_enemy_killed)
@@ -95,20 +97,49 @@ func get_offer(_ctx: Dictionary) -> Offer:
 				return offer
 
 	var rng := RunState.director_rng
-	while offer.cards.size() < Tuning.offer_size and not pool.is_empty():
+	var agenda_count := mini(agenda_cards(), Tuning.offer_size - 1)
+	# Cards that follow the player's taste...
+	while offer.cards.size() < Tuning.offer_size - agenda_count and not pool.is_empty():
 		var total := 0.0
 		for m in pool:
-			total += maxf(m.weight, 0.0)
+			total += _weight(m)
 		var roll := rng.randf() * total
 		var pick := pool[pool.size() - 1]
 		for m in pool:
-			roll -= maxf(m.weight, 0.0)
+			roll -= _weight(m)
 			if roll < 0.0:
 				pick = m
 				break
 		offer.cards.append(pick)
 		pool.erase(pick)
+	# ...and the AI's own picks: what the player likes least so far (ties at random).
+	while offer.cards.size() < Tuning.offer_size and not pool.is_empty():
+		var lowest: Array[Mutation] = []
+		var low := INF
+		for m in pool:
+			var sc := taste.score(m)
+			if sc < low - 0.001:
+				low = sc
+				lowest = [m]
+			elif absf(sc - low) <= 0.001:
+				lowest.append(m)
+		var pick := lowest[rng.randi_range(0, lowest.size() - 1)]
+		offer.cards.append(pick)
+		offer.agenda.append(pick)
+		pool.erase(pick)
+	var said := Dialogue.taste_line(taste, prompt_index, Taste.last_run_rated)
+	if said != "":
+		offer.line = said
 	return offer
+
+
+## How many cards per offer the AI keeps for its own agenda.
+func agenda_cards() -> int:
+	return Tuning.agenda_cards_unrated if Taste.last_run_rated == 0 else Tuning.agenda_cards
+
+
+func _weight(m: Mutation) -> float:
+	return maxf(m.weight, 0.0) * taste.weight_mult(m)
 
 
 ## The player picked a card: log, apply (with its transition), heal one HP.
@@ -120,8 +151,13 @@ func on_choice(offer: Offer, m: Mutation) -> void:
 	var ids: Array[String] = []
 	for card in offer.cards:
 		ids.append(String(card.id))
+	var agenda_ids: Array[String] = []
+	for card in offer.agenda:
+		agenda_ids.append(String(card.id))
 	RunState.log_event(&"prompt", {"index": offer.prompt_index, "offers": ids,
-			"pick": String(m.id), "mandatory": offer.mandatory})
+			"pick": String(m.id), "mandatory": offer.mandatory, "agenda": agenda_ids})
+	if not offer.mandatory:
+		taste.on_offer(offer.cards, m)
 	RunState.start_grace(Tuning.grace_time)
 	if transition and not _hint_given:
 		transition.queue_hint(Dialogue.ROLLBACK_HINT)
@@ -164,6 +200,7 @@ func revert(m: Mutation) -> bool:
 
 func on_revert(m: Mutation) -> void:
 	reverted[m.id] = true
+	taste.on_revert(m)
 
 
 func _mode_switch_applied() -> bool:

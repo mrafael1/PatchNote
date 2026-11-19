@@ -180,6 +180,12 @@ func _run(operation: Callable, after: Array[Mutation], text: String, line: Strin
 	finished.emit()
 
 
+## Hides any AI line still on screen (the report covers the game).
+func clear_toast() -> void:
+	_toast_left = 0.0
+	_toast.visible = false
+
+
 ## Show an AI line on its own.
 func say(line: String) -> void:
 	_show_toast(line)

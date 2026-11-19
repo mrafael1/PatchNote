@@ -112,3 +112,7 @@ var rc_duration := 90.0           # the "release candidate" wave after the last 
 var rc_spawn_rate := 1.6          # spawner phase multipliers during that wave
 var rc_spawn_cap := 1.5
 var report_delay := 1.0           # game time between the end of the run and the report
+
+# --- Taste (adaptive offers) ---
+var agenda_cards := 1             # cards per offer the AI picks against the player's taste
+var agenda_cards_unrated := 2     # after a run whose report was not rated: the AI takes free rein

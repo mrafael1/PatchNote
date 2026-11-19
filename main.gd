@@ -25,6 +25,8 @@ var run_loop: RunLoop
 var report: ReportScreen
 var sound: Sound
 
+var _notes_saved := false
+
 
 func _ready() -> void:
 	var v: Dictionary = Engine.get_version_info()
@@ -144,6 +146,7 @@ func restart(same_seed := false) -> void:
 func start_new_build(run_seed := -1) -> void:
 	if get_tree().current_scene != self:
 		return
+	save_notes()
 	next_seed = run_seed
 	get_tree().reload_current_scene()
 
@@ -153,7 +156,7 @@ func _on_player_died() -> void:
 
 
 func _on_run_ended(_outcome: StringName) -> void:
-	if get_tree().current_scene == self:
+	if is_live_game():
 		Telemetry.append(run_loop.record)
 	prompt_panel.dismiss()
 	patch_history.close()
@@ -161,4 +164,32 @@ func _on_run_ended(_outcome: StringName) -> void:
 
 
 func _on_report_ready(outcome: StringName) -> void:
+	transition.clear_toast()
 	report.open(outcome, run_loop.record)
+
+
+## True when this scene is the game being played, not a copy instanced by a test.
+## Only the live game writes telemetry and teaches the next run.
+func is_live_game() -> bool:
+	return is_inside_tree() and get_tree().current_scene == self
+
+
+## The report's notes become what the AI knows at the start of the next run of this
+## session, and one "notes" telemetry line. Skipping them is a signal too.
+func save_notes() -> void:
+	if _notes_saved or not run_loop.is_over() or not is_live_game():
+		return
+	_notes_saved = true
+	Taste.carried = report.ratings.duplicate()
+	Taste.last_run_rated = 1 if not report.ratings.is_empty() else 0
+	var notes := {}
+	for id: StringName in report.ratings:
+		notes[String(id)] = report.ratings[id]
+	Telemetry.append({"type": "notes", "session_id": Telemetry.session(),
+			"run_index": run_loop.record.get("run_index", 0), "seed": RunState.run_seed,
+			"rated": not notes.is_empty(), "notes": notes})
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_notes()

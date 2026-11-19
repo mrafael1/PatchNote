@@ -26,6 +26,7 @@ var _auto_pick := -1   ## >= 0: answer every prompt at once with this card (clam
 func before_each() -> void:
 	for key in TUNING_KEYS:
 		_saved[key] = Tuning.get(key)
+	Taste.clear_session()
 	Tuning.transition_long = 0.0
 	Tuning.transition_short = 0.0
 	Tuning.prompt_input_delay = 0.0

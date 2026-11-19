@@ -6,7 +6,8 @@ extends SceneTree
 ##
 ## Each argument is a seed; a trailing "i" makes that run invincible, so the win path
 ## is played too. The bot plays, cards are picked at random from the seed, and runs on
-## odd seeds roll one patch back after the third prompt. Telemetry goes to
+## odd seeds roll one patch back after the third prompt; even seeds leave notes on the
+## report (keep the first patch, cut the second). Telemetry goes to
 ## user://playtest/bot_runs.jsonl, never to the playtest file.
 ## Prints one "[botrun]" line per run and exits 1 if any run did not reach its report.
 
@@ -50,16 +51,27 @@ func _run() -> void:
 		if i + 1 < specs.size():
 			if not game.report.is_open():
 				game.report.open(&"lose", {})   # keep the chain going after a failure
+			if run_seed % 2 == 0:
+				var ids: Array = game.report.rateable_ids(game.run_loop.record)
+				for k in mini(2, ids.size()):
+					game.report.rate(ids[k], 1 if k == 0 else -1)
 			game.report.new_build(int(_seed_of(specs[i + 1])))
 
 	var added := _line_count() - lines_before
-	var parsed := 0
+	var runs := 0
+	var notes := 0
 	var text := FileAccess.get_file_as_string(LOG).strip_edges().split("\n")
 	for line in text.slice(maxi(0, text.size() - added)):
-		if JSON.parse_string(line) is Dictionary:
-			parsed += 1
-	if added != specs.size() or parsed != added:
-		print("[botrun] telemetry: expected %d new lines, found %d (%d valid JSON)" % [specs.size(), added, parsed])
+		var d: Variant = JSON.parse_string(line)
+		if d is Dictionary:
+			if d.get("type") == "run":
+				runs += 1
+			elif d.get("type") == "notes":
+				notes += 1
+	# One run line per run; one notes line per "New build" (every run but the last).
+	if runs != specs.size() or notes != specs.size() - 1:
+		print("[botrun] telemetry: expected %d run and %d notes lines, found %d and %d (%d lines)" % [
+			specs.size(), specs.size() - 1, runs, notes, added])
 		failures += 1
 	print("[botrun] summary: %d runs, %d failures, %d telemetry lines, %.1f s wall" % [
 		specs.size(), failures, added, (Time.get_ticks_msec() - started) / 1000.0])
@@ -94,9 +106,9 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 		if game.report.is_open():
 			var rec: Dictionary = game.run_loop.record
 			var picks: Array = (rec.prompts as Array).map(func(p: Dictionary) -> String: return p.pick)
-			return "[botrun] seed=%d%s outcome=%s time=%.1fs version=%s kills=%d prompts=%s reverts=%d rc=%s" % [
+			return "[botrun] seed=%d%s outcome=%s time=%.1fs version=%s kills=%d prompts=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
 				run_seed, " (invincible)" if invincible else "", rec.outcome, rec.duration, rec.version,
-				rec.kills, picks, rec.reverts_used, rec.reached_release_candidate]
+				rec.kills, picks, rec.reverts_used, rec.reached_release_candidate, rec.agenda_cards, _first_line(game)]
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
 		elif revert_planned and game.director.prompt_index >= 3 and game.director.pending == null \
@@ -115,3 +127,10 @@ func _line_count() -> int:
 		return 0
 	var text := FileAccess.get_file_as_string(LOG).strip_edges()
 	return 0 if text == "" else text.split("\n").size()
+
+
+func _first_line(game: Node) -> String:
+	for e: Dictionary in root.get_node("RunState").run_log:
+		if e.event == &"prompt":
+			return "agenda=%s" % [e.get("agenda", [])]
+	return ""
