@@ -4,7 +4,7 @@ extends GutTest
 
 const Fx := preload("res://tests/gut/fixtures.gd")
 const TUNING_KEYS: Array[String] = ["transition_long", "transition_short", "prompt_input_delay",
-		"force_gravity_at_prompt"]
+		"force_gravity_at_prompt", "big_prompt_after"]
 
 
 class Victim extends Node2D:
@@ -30,6 +30,7 @@ func before_each() -> void:
 	Tuning.transition_long = 0.0
 	Tuning.transition_short = 0.0
 	Tuning.prompt_input_delay = 0.0
+	Tuning.big_prompt_after = []   # BIG prompts have their own tests (test_big_prompts)
 	RunState.reset(11)
 	world = Node2D.new()
 	add_child_autofree(world)
@@ -246,8 +247,9 @@ func test_no_forced_card_when_the_mode_switch_is_already_applied_or_disabled() -
 
 func test_small_pool_gives_fewer_cards_and_an_empty_pool_is_skipped() -> void:
 	Tuning.force_gravity_at_prompt = 0
-	for m in MutationDB.all:
-		if RunState.stack.size() < MutationDB.all.size() - 2 and RunState.can_apply(m):
+	var smalls := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big)
+	for m in smalls:
+		if RunState.stack.size() < smalls.size() - 2 and RunState.can_apply(m):
 			RunState.apply(m)
 	director.open_prompt()
 	assert_eq(offers[0].cards.size(), 2, "only two left to offer")

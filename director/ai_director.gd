@@ -12,7 +12,8 @@ signal prompt_requested(offer: Offer)
 var transition: Transition   ## optional: patches go through it when set
 var enabled := true
 
-var prompt_index := 0        ## prompts opened so far
+var prompt_index := 0        ## small prompts opened so far
+var big_index := 0           ## BIG prompts opened (or skipped) so far
 var reverts_left := 0
 var pending: Offer           ## an offer waiting for its choice
 var reverted := {}           ## ids the player rolled back; never offered again
@@ -40,13 +41,38 @@ func context() -> Dictionary:
 	return {"time": RunState.game_time, "kills": _kills_since_prompt}
 
 
-## Opens a prompt if the pacing rule says so. Called every physics tick.
+## Opens a prompt if the pacing rule says so. Called every physics tick. A BIG prompt
+## that is due opens first, right after the small prompt it follows has been applied.
 func poll() -> void:
 	if not enabled or pending != null or (transition and transition.busy):
+		return
+	if big_prompt_due():
+		open_big_prompt()
 		return
 	var ctx := context()
 	if should_prompt(ctx):
 		open_prompt(ctx)
+
+
+## True when the small prompt a BIG prompt follows has been opened and the BIG one not yet.
+func big_prompt_due() -> bool:
+	var after := Tuning.big_prompt_after
+	return big_index < after.size() and prompt_index >= after[big_index]
+
+
+## How many BIG prompts this run has: those that follow a small prompt that exists.
+func big_prompts_per_run() -> int:
+	var n := 0
+	for a in Tuning.big_prompt_after:
+		if a <= Tuning.prompts_per_run:
+			n += 1
+	return n
+
+
+## Every small and BIG prompt has been opened and answered (or skipped).
+func prompts_done() -> bool:
+	return prompt_index >= Tuning.prompts_per_run and big_index >= big_prompts_per_run() \
+			and pending == null
 
 
 ## (enough counted kills AND the minimum gap) OR the maximum gap.
@@ -100,30 +126,12 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	var agenda_count := mini(agenda_cards(), Tuning.offer_size - 1)
 	# Cards that follow the player's taste...
 	while offer.cards.size() < Tuning.offer_size - agenda_count and not pool.is_empty():
-		var total := 0.0
-		for m in pool:
-			total += _weight(m)
-		var roll := rng.randf() * total
-		var pick := pool[pool.size() - 1]
-		for m in pool:
-			roll -= _weight(m)
-			if roll < 0.0:
-				pick = m
-				break
+		var pick := _weighted_pick(pool, rng)
 		offer.cards.append(pick)
 		pool.erase(pick)
-	# ...and the AI's own picks: what the player likes least so far (ties at random).
+	# ...and the AI's own picks: what the player likes least so far.
 	while offer.cards.size() < Tuning.offer_size and not pool.is_empty():
-		var lowest: Array[Mutation] = []
-		var low := INF
-		for m in pool:
-			var sc := taste.score(m)
-			if sc < low - 0.001:
-				low = sc
-				lowest = [m]
-			elif absf(sc - low) <= 0.001:
-				lowest.append(m)
-		var pick := lowest[rng.randi_range(0, lowest.size() - 1)]
+		var pick := _least_liked(pool, rng)
 		offer.cards.append(pick)
 		offer.agenda.append(pick)
 		pool.erase(pick)
@@ -131,6 +139,78 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	if said != "":
 		offer.line = said
 	return offer
+
+
+## Opens the next BIG prompt (PLAN v3 section 4), or logs it as skipped when there is
+## no big patch to swap to.
+func open_big_prompt() -> void:
+	if pending != null:
+		return
+	var offer := get_big_offer(context())
+	if offer.cards.is_empty():
+		RunState.log_event(&"big_prompt_skipped", {"index": offer.prompt_index})
+		return
+	pending = offer
+	prompt_requested.emit(offer)
+
+
+## Up to big_offer_size big patches, never the one in the slot, leaned by taste. With
+## two or more candidates the last of them is the AI's agenda (least liked). Every BIG
+## prompt after the first ends with a Keep card for the patch in the slot. Nothing to
+## swap to gives an empty offer (no prompt): a lone Keep card is not a choice.
+func get_big_offer(_ctx: Dictionary) -> Offer:
+	big_index += 1
+	var offer := Offer.new()
+	offer.big = true
+	offer.prompt_index = big_index
+	var pool: Array[Mutation] = []
+	for m in MutationDB.all:
+		if m.is_big and m != RunState.big:
+			pool.append(m)
+	if pool.is_empty():
+		return offer
+	var rng := RunState.director_rng
+	var size := mini(Tuning.big_offer_size, pool.size())
+	var agenda_count := 1 if size >= 2 else 0
+	while offer.cards.size() < size - agenda_count:
+		var pick := _weighted_pick(pool, rng)
+		offer.cards.append(pick)
+		pool.erase(pick)
+	if agenda_count > 0:
+		var pick := _least_liked(pool, rng)
+		offer.cards.append(pick)
+		offer.agenda.append(pick)
+	offer.line = offer.cards[0].line_proposal
+	if big_index > 1 and RunState.big != null:
+		offer.keep = RunState.big
+		offer.cards.append(RunState.big)
+	return offer
+
+
+func _weighted_pick(pool: Array[Mutation], rng: RandomNumberGenerator) -> Mutation:
+	var total := 0.0
+	for m in pool:
+		total += _weight(m)
+	var roll := rng.randf() * total
+	for m in pool:
+		roll -= _weight(m)
+		if roll < 0.0:
+			return m
+	return pool[pool.size() - 1]
+
+
+## What the player likes least so far; ties broken at random.
+func _least_liked(pool: Array[Mutation], rng: RandomNumberGenerator) -> Mutation:
+	var lowest: Array[Mutation] = []
+	var low := INF
+	for m in pool:
+		var sc := taste.score(m)
+		if sc < low - 0.001:
+			low = sc
+			lowest = [m]
+		elif absf(sc - low) <= 0.001:
+			lowest.append(m)
+	return lowest[rng.randi_range(0, lowest.size() - 1)]
 
 
 ## How many cards per offer the AI keeps for its own agenda.
@@ -148,14 +228,11 @@ func on_choice(offer: Offer, m: Mutation) -> void:
 		return
 	if pending == offer:
 		pending = null
-	var ids: Array[String] = []
-	for card in offer.cards:
-		ids.append(String(card.id))
-	var agenda_ids: Array[String] = []
-	for card in offer.agenda:
-		agenda_ids.append(String(card.id))
-	RunState.log_event(&"prompt", {"index": offer.prompt_index, "offers": ids,
-			"pick": String(m.id), "mandatory": offer.mandatory, "agenda": agenda_ids})
+	if offer.big:
+		_on_big_choice(offer, m)
+		return
+	RunState.log_event(&"prompt", {"index": offer.prompt_index, "offers": _id_list(offer.cards),
+			"pick": String(m.id), "mandatory": offer.mandatory, "agenda": _id_list(offer.agenda)})
 	if not offer.mandatory:
 		taste.on_offer(offer.cards, m)
 	RunState.start_grace(Tuning.grace_time)
@@ -165,6 +242,40 @@ func on_choice(offer: Offer, m: Mutation) -> void:
 	var accepted := transition.request_apply(m) if transition else RunState.apply(m)
 	if not accepted:
 		return
+	_heal_player()
+
+
+## A BIG prompt's choice: swap the slot (one permanent build; heals like a patch), or
+## keep the patch already there (nothing changes).
+func _on_big_choice(offer: Offer, m: Mutation) -> void:
+	var kept := m == offer.keep
+	RunState.log_event(&"big_prompt", {"index": offer.prompt_index, "offers": _id_list(offer.cards),
+			"pick": String(m.id), "agenda": _id_list(offer.agenda),
+			"keep": String(offer.keep.id) if offer.keep else "", "kept": kept})
+	taste.on_offer(offer.cards, m)
+	if kept:
+		if transition:
+			transition.say(Dialogue.BIG_KEPT)
+		return
+	RunState.start_grace(Tuning.grace_time)
+	if transition:
+		if not transition.request_swap_big(m):
+			return
+	else:
+		RunState.swap_big(m)
+		if RunState.big != m:
+			return
+	_heal_player()
+
+
+func _id_list(cards: Array[Mutation]) -> Array[String]:
+	var ids: Array[String] = []
+	for card in cards:
+		ids.append(String(card.id))
+	return ids
+
+
+func _heal_player() -> void:
 	for p in get_tree().get_nodes_in_group(&"player"):
 		var health := Component.find(p, Health) as Health
 		if health:

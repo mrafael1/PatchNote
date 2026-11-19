@@ -123,6 +123,16 @@ func _unhandled_input(event: InputEvent) -> void:
 static func build_log_lines() -> Array[String]:
 	var lines: Array[String] = ["v0.1  Initial build"]
 	for entry: Dictionary in RunState.run_log:
+		if entry.event == &"big_swap":
+			# A big patch is permanent: marked MAJOR and locked. Small patches it took
+			# with it are listed as dropped, not as rollbacks.
+			var big := MutationDB.get_mutation(StringName(entry.to))
+			var big_title: String = big.title if big else String(entry.to)
+			lines.append("v0.%d  MAJOR: %s [locked]" % [entry.build, big_title])
+			for id: String in entry.get("dropped", []):
+				var d := MutationDB.get_mutation(StringName(id))
+				lines.append("        %s dropped by %s" % [d.title if d else id, big_title])
+			continue
 		if entry.event != &"apply" and entry.event != &"revert":
 			continue
 		var m := MutationDB.get_mutation(entry.id)
@@ -146,12 +156,29 @@ func press_revert(id: StringName) -> void:
 	director.revert(m)
 
 
+## The big slot's row: a lock, the genre and the title. Not a button: it cannot be
+## rolled back (PLAN v3 1.2).
+static func big_entry(m: Mutation) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "BigEntry"
+	row.add_theme_constant_override(&"separation", 10)
+	row.add_child(LockIcon.new(22.0))
+	var label := Label.new()
+	label.text = "MAJOR  %s: %s  (permanent)" % [m.genre_label, m.title]
+	label.add_theme_font_size_override(&"font_size", 18)
+	label.add_theme_color_override(&"font_color", Color(1.0, 0.8, 0.45))
+	row.add_child(label)
+	return row
+
+
 func _refresh() -> void:
 	_log.text = "\n".join(build_log_lines())
 	var left := director.reverts_left if director else 0
 	_charges.text = "Rollbacks left: %d" % left
 	for child in _list.get_children():
 		child.queue_free()
+	if RunState.big != null:
+		_list.add_child(big_entry(RunState.big))
 	if RunState.stack.is_empty():
 		var none := Label.new()
 		none.text = "(none yet)"

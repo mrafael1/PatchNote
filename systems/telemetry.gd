@@ -28,8 +28,20 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 	var prompts: Array[Dictionary] = []
 	var reverts_used := 0
 	var history_opens := 0
+	var big_offers: Array[Dictionary] = []
+	var big_swaps: Array[Dictionary] = []
 	for entry: Dictionary in RunState.run_log:
 		match entry.event:
+			&"big_prompt":
+				big_offers.append({"index": entry.index, "offers": entry.offers, "agenda": entry.agenda,
+						"pick": entry.pick, "keep": entry.keep, "kept": entry.kept,
+						"time": snappedf(entry.time, 0.01)})
+			&"big_prompt_skipped":
+				big_offers.append({"index": entry.index, "offers": [], "agenda": [], "pick": "",
+						"keep": "", "kept": false, "time": snappedf(entry.time, 0.01)})
+			&"big_swap":
+				big_swaps.append({"time": snappedf(entry.time, 0.01), "from": entry.from,
+						"to": entry.to, "dropped": entry.dropped, "build": entry.build})
 			&"apply", &"revert":
 				events.append({"event": String(entry.event), "id": String(entry.id),
 						"time": snappedf(entry.time, 0.01), "build": entry.build})
@@ -61,9 +73,29 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"history_opens": history_opens,
 		"final_stack": RunState.stack.map(func(m: Mutation) -> String: return String(m.id)),
 		"final_big": String(RunState.big.id) if RunState.big else "",
+		"big_offers": big_offers,
+		"big_swaps": big_swaps,
+		"genre_seconds": genre_seconds(),
 	}
 	record.merge(extra)
 	return record
+
+
+## Game seconds spent under each big patch so far, "base" for none, in the order
+## they were first entered.
+static func genre_seconds() -> Dictionary:
+	var out := {"base": 0.0}
+	var current := "base"
+	var since := 0.0
+	for entry: Dictionary in RunState.run_log:
+		if entry.event == &"big_swap":
+			out[current] = float(out.get(current, 0.0)) + entry.time - since
+			current = entry.to
+			since = entry.time
+	out[current] = float(out.get(current, 0.0)) + RunState.game_time - since
+	for key: String in out:
+		out[key] = snappedf(out[key], 0.01)
+	return out
 
 
 ## Appends one line. Returns OK or the error.

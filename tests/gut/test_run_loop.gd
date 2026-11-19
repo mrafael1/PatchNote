@@ -61,6 +61,7 @@ func test_last_prompt_starts_the_release_candidate_and_surviving_it_wins() -> vo
 	assert_eq(game.run_loop.phase, RunLoop.PLAY)
 	assert_eq(game.run_loop.rc_time_left(), -1.0)
 	game.director.prompt_index = Tuning.prompts_per_run
+	game.director.big_index = game.director.big_prompts_per_run()
 	await wait_physics_frames(2)
 	assert_eq(game.run_loop.phase, RunLoop.RELEASE_CANDIDATE)
 	assert_eq(game.spawner.phase_rate, Tuning.rc_spawn_rate)
@@ -84,6 +85,7 @@ func test_a_pending_prompt_holds_the_release_candidate_back() -> void:
 	RunState.invincible = true
 	game.director.enabled = false
 	game.director.prompt_index = Tuning.prompts_per_run
+	game.director.big_index = game.director.big_prompts_per_run()
 	game.director.pending = Offer.new()
 	await wait_physics_frames(5)
 	assert_eq(game.run_loop.phase, RunLoop.PLAY)
@@ -230,6 +232,9 @@ func test_compressed_run_end_to_end_with_the_bot() -> void:
 	assert_eq(ended, [&"win"] as Array[StringName])
 	var rec := game.run_loop.record
 	assert_eq((rec.prompts as Array).size(), Tuning.prompts_per_run)
+	assert_eq((rec.big_offers as Array).size(), game.director.big_prompts_per_run(),
+			"every BIG prompt is in the record, shown or skipped")
+	assert_eq(rec.final_big, String(rec.big_swaps[0].to), "the first BIG prompt swapped the slot")
 	assert_eq(rec.reverts_used, 1)
 	assert_true(rec.reached_release_candidate)
 	assert_true(rec.bot)

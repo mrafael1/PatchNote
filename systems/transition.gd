@@ -116,8 +116,8 @@ func request_apply(m: Mutation, force := false) -> bool:
 
 
 ## Starts putting big patch m in the big slot (PLAN v3 1.2). Always the full, long
-## sequence: a genre change pauses the world whatever it does to gravity. M10 gives it
-## its own look ("migrating engine"); M9 reuses the mode-switch one.
+## sequence ("migrating engine"): a genre change pauses the world whatever it does
+## to gravity.
 func request_swap_big(m: Mutation) -> bool:
 	if busy or m == null or not m.is_big or m == RunState.big:
 		return false
@@ -129,7 +129,7 @@ func request_swap_big(m: Mutation) -> bool:
 				after.append(x)
 	else:
 		after = RunState.stack.duplicate()
-	var text := "> merging major update: %s\n> compiling..." % m.title
+	var text := "> MAJOR UPDATE: %s\n> migrating engine..." % m.title
 	_run(func() -> void: RunState.swap_big(m), after, text, m.line_applied, Tuning.transition_long, m)
 	return true
 
@@ -264,6 +264,6 @@ func _process(delta: float) -> void:
 		_type_time += delta
 		_terminal.visible_ratio = clampf(_type_time / _type_total, 0.0, 1.0)
 	if _toast_left > 0.0:
-		_toast_left -= delta
+		_toast_left -= real   # real time: a toast reads the same under slowed time
 		if _toast_left <= 0.0:
 			_toast.visible = false

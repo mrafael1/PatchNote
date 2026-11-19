@@ -59,8 +59,13 @@ func play(key: StringName, pitch_jitter := 0.04) -> void:
 		return
 	_last_ms[key] = now
 	var p := _players[key] as AudioStreamPlayer
-	p.pitch_scale = 1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)
+	p.pitch_scale = (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)) * pitch_for(Engine.time_scale)
 	p.play()
+
+
+## SFX pitch follows the time scale (B1), down to an octave and a bit below normal.
+static func pitch_for(time_scale: float) -> float:
+	return clampf(lerpf(0.45, 1.0, time_scale), 0.45, 1.0)
 
 
 func _on_projectile_fired(p: Node) -> void:

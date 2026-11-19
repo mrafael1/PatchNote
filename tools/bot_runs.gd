@@ -106,9 +106,11 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 		if game.report.is_open():
 			var rec: Dictionary = game.run_loop.record
 			var picks: Array = (rec.prompts as Array).map(func(p: Dictionary) -> String: return p.pick)
-			return "[botrun] seed=%d%s outcome=%s time=%.1fs version=%s kills=%d prompts=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
+			var bigs: Array = (rec.big_offers as Array).map(func(p: Dictionary) -> String: return p.pick if p.pick != "" else "-")
+			return "[botrun] seed=%d%s outcome=%s time=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
 				run_seed, " (invincible)" if invincible else "", rec.outcome, rec.duration, rec.version,
-				rec.kills, picks, rec.reverts_used, rec.reached_release_candidate, rec.agenda_cards, _first_line(game)]
+				rec.kills, picks, bigs, rec.genre_seconds, rec.reverts_used, rec.reached_release_candidate,
+				rec.agenda_cards, _first_line(game)]
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
 		elif revert_planned and game.director.prompt_index >= 3 and game.director.pending == null \

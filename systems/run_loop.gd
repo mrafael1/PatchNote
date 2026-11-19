@@ -46,13 +46,12 @@ func _physics_process(_delta: float) -> void:
 				report_ready.emit(outcome)
 
 
-## Every prompt of the run has been opened and answered (or skipped), and its patch
-## has finished applying.
+## Every small and BIG prompt of the run has been opened and answered (or skipped),
+## and its patch has finished applying.
 func _prompts_done() -> bool:
 	if director == null:
 		return false
-	return director.prompt_index >= Tuning.prompts_per_run and director.pending == null \
-			and not (transition and transition.busy)
+	return director.prompts_done() and not (transition and transition.busy)
 
 
 func _start_release_candidate() -> void:

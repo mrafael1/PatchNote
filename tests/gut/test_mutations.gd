@@ -73,17 +73,23 @@ func _kill(e: Node) -> void:
 	(Component.find(e, Health) as Health).take(DamageInfo.make(999.0, &"projectile", &"player"))
 
 
-func test_all_eight_mutations_are_registered() -> void:
+func test_all_eight_small_and_the_big_mutations_are_registered() -> void:
 	var ids: Array[String] = []
+	var bigs: Array[String] = []
 	for m in MutationDB.all:
-		ids.append(String(m.id))
+		(bigs if m.is_big else ids).append(String(m.id))
 	assert_eq(ids, ["auto_attack", "bouncing_projectiles", "enemies_split", "explode_on_hit",
 			"gravity_on", "gravity_reversed", "horde_mode", "jump_button"])
+	assert_eq(bigs, ["motion_time"])
 	var switches := 0
 	for m in MutationDB.all:
-		if m.is_mode_switch:
+		if m.is_mode_switch and not m.is_big:
 			switches += 1
-	assert_eq(switches, 1, "only gravity_on uses the long transition")
+		if m.is_big:
+			assert_true(m.is_mode_switch, "%s: a big patch uses the long transition" % m.id)
+			assert_ne(m.genre_label, "", "%s has a genre label" % m.id)
+			assert_eq(MutationDB.problems(m), [] as Array[String])
+	assert_eq(switches, 1, "only gravity_on uses the long transition among small patches")
 
 
 # --- jump_button -----------------------------------------------------------

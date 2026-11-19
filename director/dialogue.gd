@@ -38,7 +38,7 @@ static func report_line(outcome: StringName, duration: float, patches: int, reve
 # --- Taste ---------------------------------------------------------------
 
 const TAG_NAMES := {&"weapon": "weapon", &"physics": "physics", &"spawn": "enemy",
-		&"movement": "movement"}
+		&"movement": "movement", &"time": "time"}
 const AGENDA_LABEL := "AI's pick"
 const AGENDA_LINES: Array[String] = [
 	"Outside your comfort zone. Good.",
@@ -65,3 +65,11 @@ static func taste_line(taste: Taste, prompt_index: int, last_run_rated: int) -> 
 
 static func agenda_line(prompt_index: int) -> String:
 	return AGENDA_LINES[(prompt_index - 1) % AGENDA_LINES.size()]
+
+
+# --- Big patches ---------------------------------------------------------
+
+const MAJOR_LABEL := "MAJOR UPDATE"
+const BIG_FOOTER := "This one stays. Only another major update can replace it."
+const BIG_KEPT := "Keeping the engine as it is. For now."
+const KEEP_LABEL := "KEEP"

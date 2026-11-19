@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/motion_time/motion_time.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"motion_time"
+title = "Time moves when you move"
+description = "Stand still and the world almost stops. Move, shoot or dash and it runs."
+line_proposal = "The clock wastes cycles while you think. From now on it only runs when you do."
+line_applied = "Engine migrated. Time is now billed by motion."
+line_reverted = "Time runs on its own again."
+tags = Array[StringName]([&"time"])
+is_mode_switch = true
+is_big = true
+genre_label = "Motion time"

@@ -22,6 +22,13 @@ func _ready() -> void:
 	add_child(_label)
 
 
+## "v0.9" or, with a big patch in the slot, "v0.9 · Motion time".
+static func version_text() -> String:
+	if RunState.big != null:
+		return "%s · %s" % [RunState.version_label(), RunState.big.genre_label]
+	return RunState.version_label()
+
+
 func _process(_delta: float) -> void:
 	var hp := 0
 	if is_instance_valid(player):
@@ -33,6 +40,6 @@ func _process(_delta: float) -> void:
 		var dasher := Component.find(player, Dasher) as Dasher
 		dash = "dash ready" if dasher and dasher.is_ready() else "dash ..."
 	var rollbacks := "Rollbacks: %d [Tab]" % director.reverts_left if director else ""
-	_label.text = "HP %d   Kills %d   %s\n%s\n%s" % [hp, RunState.kills, RunState.version_label(), rollbacks, dash]
+	_label.text = "HP %d   Kills %d   %s\n%s\n%s" % [hp, RunState.kills, version_text(), rollbacks, dash]
 	if run_loop and run_loop.rc_time_left() >= 0.0:
 		_label.text += "\nRELEASE CANDIDATE  %d s" % ceili(run_loop.rc_time_left())

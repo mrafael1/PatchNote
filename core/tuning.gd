@@ -116,3 +116,9 @@ var report_delay := 1.0           # game time between the end of the run and the
 # --- Taste (adaptive offers) ---
 var agenda_cards := 1             # cards per offer the AI picks against the player's taste
 var agenda_cards_unrated := 2     # after a run whose report was not rated: the AI takes free rein
+
+# --- Big patches (PLAN v3) ---
+var big_prompt_after: Array[int] = [1, 3]   # a BIG prompt opens right after these small prompts
+var big_offer_size := 2           # big patches per BIG prompt (plus the Keep card on later ones)
+var motion_smoothing := 0.1       # B1: real seconds for the motion factor to follow the player
+var motion_pulse := 0.15          # B1: real seconds of full-speed time after a shot or dash

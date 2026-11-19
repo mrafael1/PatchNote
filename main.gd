@@ -2,7 +2,7 @@ class_name Main
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M9"
+const BUILD := "M10"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8
@@ -65,6 +65,10 @@ func _ready() -> void:
 	feedback.camera = camera
 	feedback.effects_parent = world
 	add_child(feedback)
+
+	var tint := TimeTint.new()
+	tint.name = "TimeTint"
+	add_child(tint)
 
 	sound = Sound.new()
 	sound.name = "Sound"

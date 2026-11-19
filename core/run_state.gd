@@ -35,6 +35,8 @@ var invincible := false       ## debug (F3): the player takes no damage
 var _grace_until := -1.0       ## game time until which enemies deal no damage
 var _pause_reasons := {}
 var _pending := {}            ## kind -> spawns requested but not yet in the tree
+var _motion := 1.0            ## smoothed motion factor (B1)
+var _pulse_left := 0.0        ## real seconds the motion factor stays at 1 after a shot or dash
 
 
 func _ready() -> void:
@@ -42,12 +44,16 @@ func _ready() -> void:
 	base_rules = load(BASE_RULES_PATH)
 	EventBus.entity_damaged.connect(_on_entity_damaged)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
+	EventBus.projectile_fired.connect(_on_projectile_fired)
+	EventBus.player_dashed.connect(_on_player_dashed)
 	reset(0)
 
 
 func _physics_process(delta: float) -> void:
 	if not get_tree().paused:
 		game_time += delta
+	# The physics delta is scaled; motion smoothing runs on real time.
+	_step_motion(delta / maxf(Engine.time_scale, 0.001))
 	_update_time_scale()
 
 
@@ -181,10 +187,49 @@ func preview_rules(patches: Array[Mutation], with_big: Mutation = big) -> WorldR
 	return r
 
 
-## How much the player's motion scales time (PLAN v3 1.4). 1 until a big patch turns
-## time_follows_motion on (B1 fills this in).
+## How much the player's motion scales time (PLAN v3 1.4). 1 unless a big patch turns
+## time_follows_motion on (B1); then a smoothed value between idle_time_scale and 1.
 func motion_factor() -> float:
-	return 1.0
+	return _motion if rules.time_follows_motion else 1.0
+
+
+## What the motion factor is heading for right now (PLAN v3 section 2). Full speed
+## (or a held direction, so time starts the moment the player decides to move) runs
+## time at 1; standing still runs it at idle_time_scale. A pause, a dead or missing
+## player, and the pulse after a shot or dash all give 1.
+func motion_target() -> float:
+	if not rules.time_follows_motion or get_tree().paused or _pulse_left > 0.0:
+		return 1.0
+	var player := get_tree().get_first_node_in_group(&"player") as CharacterBody2D
+	if player == null or not is_instance_valid(player):
+		return 1.0
+	var health := Component.find(player, Health) as Health
+	if health and health.dead:
+		return 1.0
+	var amount := player.velocity.length() / maxf(Tuning.player_speed, 1.0)
+	var input := player.get(&"input") as PlayerInput
+	if input:
+		amount = maxf(amount, input.move.length())
+	return lerpf(rules.idle_time_scale, 1.0, clampf(amount, 0.0, 1.0))
+
+
+func _step_motion(real_delta: float) -> void:
+	_pulse_left = maxf(0.0, _pulse_left - real_delta)
+	var target := motion_target()
+	if target >= 1.0:
+		_motion = 1.0   # full speed, a pause or a pulse: time runs at once, no ramp
+	else:
+		_motion = lerpf(_motion, target, 1.0 - exp(-real_delta / Tuning.motion_smoothing))
+
+
+func _on_projectile_fired(projectile: Node) -> void:
+	if rules.time_follows_motion and projectile.get(&"faction") == &"player":
+		_pulse_left = Tuning.motion_pulse
+
+
+func _on_player_dashed() -> void:
+	if rules.time_follows_motion:
+		_pulse_left = Tuning.motion_pulse
 
 
 ## RunState is the only writer of Engine.time_scale: rules x motion, every tick.
@@ -223,6 +268,8 @@ func reset(new_seed: int) -> void:
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
 	_pending.clear()
 	_grace_until = -1.0
+	_motion = 1.0
+	_pulse_left = 0.0
 	_pause_reasons.clear()
 	get_tree().paused = false
 	recompute()

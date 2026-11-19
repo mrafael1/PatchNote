@@ -1,7 +1,8 @@
 extends GutTest
-## Scene smoke matrix (PLAN 11): every legal subset of the mutation set, in the real
-## arena with the bot playing. Apply, simulate, check, revert everything, simulate,
-## check again. Error lines in the log are caught by tools/check.ps1.
+## Scene smoke matrix (PLAN 11, v3 section 8): each big slot value (none, then every
+## big patch) x every legal subset of the small patches, in the real arena with the bot
+## playing. Apply, simulate, check, revert everything, simulate, check again. Error
+## lines in the log are caught by tools/check.ps1.
 
 const SCENES: Array[String] = [
 	"res://entities/enemy_chaser.tscn", "res://entities/enemy_chaser.tscn",
@@ -38,10 +39,27 @@ func after_each() -> void:
 
 
 func test_every_legal_subset_runs_and_reverts_cleanly() -> void:
-	var all := MutationDB.all
+	await _matrix(null)
+
+
+func test_every_legal_subset_runs_under_each_big_patch() -> void:
+	var bigs := MutationDB.all.filter(func(m: Mutation) -> bool: return m.is_big)
+	assert_gt(bigs.size(), 0)
+	for big: Mutation in bigs:
+		RunState.swap_big(big)
+		await wait_physics_frames(2)
+		if not await _matrix(big):
+			return
+
+
+## Runs every legal small subset with `big` in the slot (already swapped in). Returns
+## false after the first failure.
+func _matrix(big: Mutation) -> bool:
+	var all := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big)
 	var rng := RandomNumberGenerator.new()
 	var subsets := 0
 	var most_enemies := 0
+	var big_label := String(big.id) if big else "none"
 	for mask in range(1, 1 << all.size()):
 		var subset: Array[Mutation] = []
 		for i in all.size():
@@ -51,7 +69,7 @@ func test_every_legal_subset_runs_and_reverts_cleanly() -> void:
 			continue
 		subsets += 1
 		rng.seed = mask
-		var label := "subset %s" % [subset.map(func(m: Mutation) -> String: return String(m.id))]
+		var label := "big %s, subset %s" % [big_label, subset.map(func(m: Mutation) -> String: return String(m.id))]
 
 		_spawn_wave(rng)
 		await wait_physics_frames(2)
@@ -61,7 +79,7 @@ func test_every_legal_subset_runs_and_reverts_cleanly() -> void:
 			var ready := todo.filter(func(m: Mutation) -> bool: return RunState.can_apply(m))
 			if ready.is_empty():
 				fail_test("%s: nothing left can be applied" % label)
-				return
+				return false
 			var pick: Mutation = ready[rng.randi_range(0, ready.size() - 1)]
 			RunState.apply(pick)
 			todo.erase(pick)
@@ -70,7 +88,7 @@ func test_every_legal_subset_runs_and_reverts_cleanly() -> void:
 		var problem := _world_problem()
 		if problem != "":
 			fail_test("%s, patches on: %s" % [label, problem])
-			return
+			return false
 
 		# Invariant: the derived state equals a clean rebuild of the same stack.
 		var order: Array[Mutation] = RunState.stack.duplicate()
@@ -81,7 +99,7 @@ func test_every_legal_subset_runs_and_reverts_cleanly() -> void:
 			RunState.apply(m)
 		if _derived() != reached:
 			fail_test("%s: rebuilt state differs" % label)
-			return
+			return false
 
 		# Revert from the bottom of the stack, so cascades are exercised.
 		while not RunState.stack.is_empty():
@@ -89,14 +107,18 @@ func test_every_legal_subset_runs_and_reverts_cleanly() -> void:
 		await wait_physics_frames(FRAMES_OFF)
 		problem = _world_problem()
 		if problem == "":
-			problem = _leftovers()
+			problem = _leftovers(big)
 		if problem != "":
 			fail_test("%s, after revert: %s" % [label, problem])
-			return
+			return false
 		_clear_world()
 		await wait_physics_frames(1)
-	assert_eq(subsets, 191, "8 mutations, one dependency: 3 * 2^6 - 1 non-empty legal subsets")
-	pass_test("%d subsets, up to %d enemies alive" % [subsets, most_enemies])
+	assert_eq(subsets, 191, "8 small mutations, one dependency: 3 * 2^6 - 1 non-empty legal subsets")
+	if RunState.big != big:
+		fail_test("big %s: the slot changed during the matrix" % big_label)
+		return false
+	pass_test("big %s: %d subsets, up to %d enemies alive" % [big_label, subsets, most_enemies])
+	return true
 
 
 func _legal(subset: Array[Mutation]) -> bool:
@@ -143,17 +165,24 @@ func _world_problem() -> String:
 	return ""
 
 
-func _leftovers() -> String:
-	if JSON.stringify(RunState.rules.to_dict()) != JSON.stringify(RunState.base_rules.to_dict()):
-		return "rules differ from base"
+## What the small patches left behind. With a big patch in the slot, its own rules,
+## listeners, components and state are expected and ignored.
+func _leftovers(big: Mutation) -> String:
+	var expected := RunState.preview_rules([] as Array[Mutation], big)
+	if JSON.stringify(RunState.rules.to_dict()) != JSON.stringify(expected.to_dict()):
+		return "rules differ from base + big"
 	var snap := RunState.snapshot()
-	if not (snap.connections as Dictionary).is_empty():
-		return "mutation listeners left: %s" % [snap.connections]
+	for sig: StringName in snap.connections:
+		for owner: String in snap.connections[sig]:
+			if big == null or not owner.begins_with(String(big.id) + "."):
+				return "mutation listeners left: %s" % [snap.connections]
 	for path: String in snap.entities:
-		if not (snap.entities[path] as Array).is_empty():
-			return "patch components left on %s" % path
-	if not RunState.patch_state.is_empty():
-		return "patch_state not cleared"
+		for comp: String in snap.entities[path]:
+			if big == null or not comp.ends_with("@" + String(big.id)):
+				return "patch components left on %s" % path
+	for id: StringName in RunState.patch_state:
+		if big == null or id != big.id:
+			return "patch_state not cleared"
 	return ""
 
 

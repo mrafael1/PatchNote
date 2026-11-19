@@ -130,6 +130,9 @@ static func report_text(outcome: StringName, record: Dictionary) -> String:
 	lines.append("Version     %s" % version)
 	lines.append("Seed        %d" % int(record.get("seed", RunState.run_seed)))
 	lines.append("Rollbacks   %d of %d" % [reverts, Tuning.reverts_per_run])
+	var genres := genres_text(record.get("genre_seconds", {}))
+	if genres != "":
+		lines.append("Genres      " + genres)
 	lines.append("")
 	lines.append("BUILD LOG")
 	for line in PatchHistory.build_log_lines():
@@ -166,12 +169,33 @@ static func _source_title(key: String) -> String:
 	return m.title if m else key
 
 
-## Patches applied during the run, first application order, each once.
+## "Base 1:20, Motion time 4:10" from genre_seconds; "" when the run never left base.
+static func genres_text(seconds: Dictionary) -> String:
+	if seconds.size() <= 1 and seconds.has("base"):
+		return ""
+	var parts: Array[String] = []
+	for key: String in seconds:
+		var m := MutationDB.get_mutation(StringName(key))
+		var label := "Base" if key == "base" else (m.genre_label if m else key)
+		parts.append("%s %s" % [label, _clock(float(seconds[key]))])
+	return ", ".join(parts)
+
+
+## Patches applied during the run, small and big, in the order they first came in,
+## each once.
 static func rateable_ids(record: Dictionary) -> Array[StringName]:
-	var out: Array[StringName] = []
+	var timed: Array = []
 	for e: Dictionary in record.get("events", []):
-		var id := StringName(e.id)
-		if e.event == "apply" and not out.has(id) and MutationDB.get_mutation(id) != null:
+		if e.event == "apply":
+			timed.append([float(e.get("time", 0.0)), timed.size(), StringName(e.id)])
+	for s: Dictionary in record.get("big_swaps", []):
+		timed.append([float(s.get("time", 0.0)), timed.size(), StringName(s.to)])
+	# By time, then by position in the record (sort_custom is not stable).
+	timed.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0] or (a[0] == b[0] and a[1] < b[1]))
+	var out: Array[StringName] = []
+	for pair: Array in timed:
+		var id: StringName = pair[2]
+		if not out.has(id) and MutationDB.get_mutation(id) != null:
 			out.append(id)
 	return out
 
