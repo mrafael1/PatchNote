@@ -5,6 +5,7 @@ extends CanvasLayer
 var player: Node
 var director: AiDirector
 var run_loop: RunLoop
+var turn_clock: TurnClock
 
 var _label: Label
 
@@ -41,5 +42,7 @@ func _process(_delta: float) -> void:
 		dash = "dash ready" if dasher and dasher.is_ready() else "dash ..."
 	var rollbacks := "Rollbacks: %d [Tab]" % director.reverts_left if director else ""
 	_label.text = "HP %d   Kills %d   %s\n%s\n%s" % [hp, RunState.kills, version_text(), rollbacks, dash]
+	if turn_clock and turn_clock.active:
+		_label.text += "\nTurn %d%s" % [turn_clock.turns, "   [E] wait" if turn_clock.is_waiting() else ""]
 	if run_loop and run_loop.rc_time_left() >= 0.0:
 		_label.text += "\nRELEASE CANDIDATE  %d s" % ceili(run_loop.rc_time_left())

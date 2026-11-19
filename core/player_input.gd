@@ -9,11 +9,15 @@ var fire := false               ## held
 var dash_pressed := false       ## true for one physics tick
 var jump_pressed := false       ## true for one physics tick
 var jump_held := false
+var wait_pressed := false       ## true for one physics tick; passes a turn under B2
 
 
 func _init() -> void:
 	# Fill the values before the entity that reads them runs its own physics tick.
 	process_physics_priority = -10
+	# Read even while the tree is paused: under B2 the world waits paused for the
+	# player's next action (PLAN v3 section 3). The player itself stays paused.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
 ## Called after a transition: anything held must be released and pressed again.

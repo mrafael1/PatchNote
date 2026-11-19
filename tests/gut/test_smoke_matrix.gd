@@ -160,7 +160,7 @@ func _world_problem() -> String:
 		return "enemy cap exceeded"
 	if RunState.count(&"player_projectile") + RunState.count(&"enemy_projectile") > Tuning.hard_max_projectiles:
 		return "projectile cap exceeded"
-	if get_tree().paused:
+	if RunState.is_paused_except(&"turn"):
 		return "tree left paused"
 	return ""
 

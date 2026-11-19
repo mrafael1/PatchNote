@@ -7,7 +7,7 @@ const DEADZONE := 0.25
 const ACTIONS: Array[StringName] = [
 	&"move_left", &"move_right", &"move_up", &"move_down",
 	&"aim_left", &"aim_right", &"aim_up", &"aim_down",
-	&"shoot", &"dash", &"jump",
+	&"shoot", &"dash", &"jump", &"wait",
 	&"patch_history", &"pause",
 	&"choose_1", &"choose_2", &"choose_3",
 	&"debug_overlay", &"debug_console", &"debug_invincible", &"debug_spawn",
@@ -27,6 +27,7 @@ func _init() -> void:
 	_bind(&"shoot", [_mouse(MOUSE_BUTTON_LEFT), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)])
 	_bind(&"dash", [_key(KEY_SHIFT), _mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)])
 	_bind(&"jump", [_key(KEY_SPACE), _pad(JOY_BUTTON_A)])
+	_bind(&"wait", [_key(KEY_E), _pad(JOY_BUTTON_Y)])   # pass a turn (B2); no-op otherwise
 	_bind(&"patch_history", [_key(KEY_TAB), _pad(JOY_BUTTON_BACK)])
 	_bind(&"pause", [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)])
 	_bind(&"choose_1", [_key(KEY_1)])

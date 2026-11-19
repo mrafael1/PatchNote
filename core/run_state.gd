@@ -372,7 +372,8 @@ func _under_cap(kind: StringName) -> bool:
 
 # --- Pause -----------------------------------------------------------------
 
-## Reasons: &"prompt", &"history", &"transition", &"report". The tree is paused
+## Reasons: &"prompt", &"history", &"transition", &"report", and &"turn" (B2: the
+## world waits for the player's next action). The tree is paused
 ## while any reason is active.
 func set_pause(reason: StringName, on: bool) -> void:
 	if on:
@@ -384,6 +385,14 @@ func set_pause(reason: StringName, on: bool) -> void:
 
 func is_paused_for(reason: StringName) -> bool:
 	return _pause_reasons.has(reason)
+
+
+## True if anything other than `reason` pauses the tree (a panel, a transition...).
+func is_paused_except(reason: StringName) -> bool:
+	for r: StringName in _pause_reasons:
+		if r != reason:
+			return true
+	return false
 
 
 # --- Run log ---------------------------------------------------------------

@@ -221,7 +221,7 @@ func test_compressed_run_end_to_end_with_the_bot() -> void:
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
 		elif not reverted and game.director.prompt_index >= 3 and not RunState.stack.is_empty() \
-				and not get_tree().paused:
+				and not RunState.is_paused_except(&"turn"):
 			assert_true(game.patch_history.open())
 			var target: StringName = RunState.stack[0].id
 			game.patch_history.press_revert(target)
@@ -234,7 +234,8 @@ func test_compressed_run_end_to_end_with_the_bot() -> void:
 	assert_eq((rec.prompts as Array).size(), Tuning.prompts_per_run)
 	assert_eq((rec.big_offers as Array).size(), game.director.big_prompts_per_run(),
 			"every BIG prompt is in the record, shown or skipped")
-	assert_eq(rec.final_big, String(rec.big_swaps[0].to), "the first BIG prompt swapped the slot")
+	assert_gt((rec.big_swaps as Array).size(), 0, "the first BIG prompt swapped the slot")
+	assert_eq(rec.final_big, String(rec.big_swaps[-1].to), "the slot holds the last swap")
 	assert_eq(rec.reverts_used, 1)
 	assert_true(rec.reached_release_candidate)
 	assert_true(rec.bot)

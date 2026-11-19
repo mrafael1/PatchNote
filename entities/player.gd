@@ -64,6 +64,15 @@ func _physics_process(_delta: float) -> void:
 		mover.wish = Vector2.ZERO
 		mover.jump_held = false
 		return
+	if RunState.rules.turn_based:
+		# B2: the TurnClock turns input into actions; the body only plays them out.
+		mover.wish = Vector2.ZERO
+		mover.jump_held = true   # a turn's jump is always a full jump
+		if RunState.rules.auto_attack and shooter.can_fire():
+			var t := _auto_target()
+			if t:
+				shooter.try_fire(t.global_position - global_position)
+		return
 	mover.wish = input.move
 	if input.move.length() > 0.2:
 		_facing = input.move.normalized()

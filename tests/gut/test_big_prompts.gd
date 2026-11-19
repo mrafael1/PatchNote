@@ -99,24 +99,43 @@ func test_the_run_loop_waits_for_a_due_big_prompt() -> void:
 	assert_eq(director.big_prompts_per_run(), 2, "a BIG prompt after a prompt that never comes does not count")
 
 
-func test_with_only_b1_the_first_big_prompt_offers_it_and_the_second_is_skipped() -> void:
+func test_the_real_pool_offers_both_genres_then_the_other_one_and_keep() -> void:
 	_small_prompt()
 	director.poll()
 	var first := offers[-1]
 	assert_true(first.big)
-	assert_eq(_ids(first.cards), ["motion_time"] as Array[String])
-	assert_eq(first.agenda.size(), 0, "one candidate: no agenda card")
+	var ids := _ids(first.cards)
+	ids.sort()
+	assert_eq(ids, ["motion_time", "turn_mode"] as Array[String])
+	assert_eq(first.agenda.size(), 1, "two candidates: one is the AI's pick")
 	assert_null(first.keep, "no Keep card on the first BIG prompt")
-	assert_eq(first.line, MutationDB.get_mutation(&"motion_time").line_proposal)
+	assert_eq(first.line, first.cards[0].line_proposal)
 	director.on_choice(first, first.cards[0])
-	assert_eq(RunState.big, MutationDB.get_mutation(&"motion_time"))
+	var slotted := RunState.big
 	_small_prompt()
+	_small_prompt()
+	director.poll()
+	var second := offers[-1]
+	assert_true(second.big)
+	assert_eq(second.cards.size(), 2, "the other genre and Keep")
+	assert_ne(second.cards[0], slotted)
+	assert_eq(second.keep, slotted)
+	assert_eq(second.agenda.size(), 0, "one candidate: no agenda card")
+
+
+func test_a_big_prompt_with_nothing_to_swap_to_is_skipped() -> void:
+	Tuning.big_prompt_after = [1]
+	var bigs := MutationDB.all.filter(func(m: Mutation) -> bool: return m.is_big)
+	for m: Mutation in bigs:
+		MutationDB.unregister(m)
 	_small_prompt()
 	var before := offers.size()
 	director.poll()
-	assert_eq(offers.size(), before, "nothing to swap to: no BIG prompt")
+	for m: Mutation in bigs:
+		MutationDB.register(m)
+	assert_eq(offers.size(), before, "no big patch: no BIG prompt")
 	assert_eq(RunState.run_log[-1].event, &"big_prompt_skipped")
-	assert_eq(director.big_index, 2)
+	assert_eq(director.big_index, 1)
 
 
 # --- Offers ------------------------------------------------------------------

@@ -2,7 +2,7 @@ class_name Main
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M10"
+const BUILD := "M11"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8
@@ -24,6 +24,7 @@ var patch_history: PatchHistory
 var run_loop: RunLoop
 var report: ReportScreen
 var sound: Sound
+var turn_clock: TurnClock
 
 var _notes_saved := false
 
@@ -48,6 +49,17 @@ func _ready() -> void:
 	player = PLAYER_SCENE.instantiate()
 	player.position = arena.player_start
 	world.add_child(player)
+
+	turn_clock = TurnClock.new()
+	turn_clock.name = "TurnClock"
+	turn_clock.player = player
+	turn_clock.arena = arena
+	add_child(turn_clock)
+
+	var overlay := TurnOverlay.new()
+	overlay.name = "TurnOverlay"
+	overlay.player = player
+	world.add_child(overlay)
 
 	camera = CameraRig.new()
 	camera.target = player
@@ -116,6 +128,7 @@ func _ready() -> void:
 	hud.player = player
 	hud.director = director
 	hud.run_loop = run_loop
+	hud.turn_clock = turn_clock
 	add_child(hud)
 
 	var debug := DebugOverlay.new()

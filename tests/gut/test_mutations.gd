@@ -80,7 +80,7 @@ func test_all_eight_small_and_the_big_mutations_are_registered() -> void:
 		(bigs if m.is_big else ids).append(String(m.id))
 	assert_eq(ids, ["auto_attack", "bouncing_projectiles", "enemies_split", "explode_on_hit",
 			"gravity_on", "gravity_reversed", "horde_mode", "jump_button"])
-	assert_eq(bigs, ["motion_time"])
+	assert_eq(bigs, ["motion_time", "turn_mode"])
 	var switches := 0
 	for m in MutationDB.all:
 		if m.is_mode_switch and not m.is_big:

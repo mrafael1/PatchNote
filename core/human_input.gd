@@ -12,12 +12,14 @@ func _physics_process(_delta: float) -> void:
 	dash_pressed = Input.is_action_just_pressed(&"dash")
 	jump_pressed = Input.is_action_just_pressed(&"jump")
 	jump_held = Input.is_action_pressed(&"jump")
+	wait_pressed = Input.is_action_just_pressed(&"wait")
 	if _wait_release:
 		if fire or jump_held or Input.is_action_pressed(&"dash"):
 			fire = false
 			jump_held = false
 			jump_pressed = false
 			dash_pressed = false
+			wait_pressed = false
 		else:
 			_wait_release = false
 

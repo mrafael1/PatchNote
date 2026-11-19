@@ -38,7 +38,7 @@ static func report_line(outcome: StringName, duration: float, patches: int, reve
 # --- Taste ---------------------------------------------------------------
 
 const TAG_NAMES := {&"weapon": "weapon", &"physics": "physics", &"spawn": "enemy",
-		&"movement": "movement", &"time": "time"}
+		&"movement": "movement", &"time": "time", &"strategy": "turn-based"}
 const AGENDA_LABEL := "AI's pick"
 const AGENDA_LINES: Array[String] = [
 	"Outside your comfort zone. Good.",

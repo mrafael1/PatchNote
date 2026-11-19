@@ -86,7 +86,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if game:
 			game.restart(true)
 	elif event.is_action_pressed(&"debug_prompt"):
-		if game and game.director and not get_tree().paused:
+		if game and game.director and not RunState.is_paused_except(&"turn"):
 			game.director.open_prompt()
 	elif event.is_action_pressed(&"debug_bot"):
 		if game and is_instance_valid(game.player):

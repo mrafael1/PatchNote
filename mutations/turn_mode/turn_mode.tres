@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://mutations/turn_mode/turn_mode.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"turn_mode"
+title = "Turn-based"
+description = "The world waits for you. Every step, shot or dash is one turn. E waits a turn."
+line_proposal = "Real time is a performance problem. I am moving the whole game to turns."
+line_applied = "Engine migrated. The world now waits for your move."
+line_reverted = "Turns removed. The world stops waiting."
+tags = Array[StringName]([&"strategy"])
+is_mode_switch = true
+is_big = true
+genre_label = "Turn-based"

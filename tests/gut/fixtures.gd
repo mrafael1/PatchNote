@@ -18,6 +18,7 @@ class FxEntity extends Node2D:
 class ScriptedInput extends PlayerInput:
 	var _jump_seen := false
 	var _dash_seen := false
+	var _wait_seen := false
 
 	func tap_jump() -> void:
 		jump_pressed = true
@@ -25,6 +26,9 @@ class ScriptedInput extends PlayerInput:
 
 	func tap_dash() -> void:
 		dash_pressed = true
+
+	func tap_wait() -> void:
+		wait_pressed = true
 
 	func _physics_process(_delta: float) -> void:
 		# Runs before the player reads the flags; clear each once it has been seen.
@@ -34,6 +38,9 @@ class ScriptedInput extends PlayerInput:
 		if _dash_seen:
 			dash_pressed = false
 		_dash_seen = dash_pressed
+		if _wait_seen:
+			wait_pressed = false
+		_wait_seen = wait_pressed
 
 
 class FxBounce extends Mutation:

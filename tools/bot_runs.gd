@@ -114,7 +114,7 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
 		elif revert_planned and game.director.prompt_index >= 3 and game.director.pending == null \
-				and not run_state.stack.is_empty() and not paused:
+				and not run_state.stack.is_empty() and not run_state.is_paused_except(&"turn"):
 			if game.patch_history.open():
 				var target: StringName = run_state.stack[rng.randi_range(0, run_state.stack.size() - 1)].id
 				game.patch_history.press_revert(target)

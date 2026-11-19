@@ -57,6 +57,21 @@ func dash(velocity: Vector2, duration: float) -> void:
 	_dash_left = duration
 
 
+## Ends any dash and drops the speed the body has, except falling under gravity.
+## B2 calls it at every turn end so the player stops exactly on its tile.
+func stop() -> void:
+	_dash_left = 0.0
+	var body := get_parent() as CharacterBody2D
+	if body == null:
+		return
+	var rules := RunState.rules
+	if rules.gravity_enabled and not ignores_gravity():
+		var g := rules.gravity_dir.normalized()
+		body.velocity = g * maxf(body.velocity.dot(g), 0.0)
+	else:
+		body.velocity = Vector2.ZERO
+
+
 ## Off the ground plane (hopping without gravity): passes over ground-level things.
 func is_airborne() -> bool:
 	return height > 0.0
