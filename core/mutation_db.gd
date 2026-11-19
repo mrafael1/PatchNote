@@ -11,6 +11,10 @@ var _by_id := {}
 
 func _ready() -> void:
 	reload()
+	var ids: Array[String] = []
+	for m in all:
+		ids.append(String(m.id))
+	print("[mutations] %d: %s" % [all.size(), ", ".join(ids)])
 
 
 func reload() -> void:

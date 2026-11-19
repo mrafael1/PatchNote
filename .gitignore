@@ -1,6 +1,5 @@
 .godot/
 .check/
 /builds/
-export_presets.cfg
 *.translation
 *.tmp

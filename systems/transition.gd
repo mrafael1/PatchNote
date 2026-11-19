@@ -13,6 +13,10 @@ extends CanvasLayer
 signal finished
 
 var busy := false
+var sound: Sound                 ## optional
+
+const GLITCH_SHADER := preload("res://systems/glitch.gdshader")
+const PROGRESS_CELLS := 24
 
 var _band: ColorRect
 var _terminal: Label
@@ -22,11 +26,27 @@ var _toast_left := 0.0
 var _hint := ""
 var _type_time := 0.0
 var _type_total := 0.0
+var _glitch: ColorRect
+var _glitch_strength := 0.0
+var _glitch_floor := 0.0          ## held while the terminal band is up
+var _progress: Label
+var _progress_time := 0.0
+var _progress_total := 0.0
 
 
 func _ready() -> void:
 	layer = 80
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+	# Drawn first, so the terminal band sits crisp on top of the glitched world.
+	_glitch = ColorRect.new()
+	_glitch.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_glitch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := ShaderMaterial.new()
+	mat.shader = GLITCH_SHADER
+	_glitch.material = mat
+	_glitch.visible = false
+	add_child(_glitch)
 
 	_band = ColorRect.new()
 	_band.color = Color(0.0, 0.03, 0.02, 0.72)
@@ -42,6 +62,14 @@ func _ready() -> void:
 	_terminal.offset_left = 80
 	_terminal.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_band.add_child(_terminal)
+
+	_progress = _make_label(18)
+	_progress.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_progress.offset_left = 80
+	_progress.offset_top = -30
+	_progress.offset_bottom = -6
+	_progress.modulate = Color(1, 1, 1, 0.7)
+	_band.add_child(_progress)
 
 	_toast = _make_label(20)
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -115,6 +143,8 @@ func _run(operation: Callable, after: Array[Mutation], text: String, line: Strin
 			or (new.gravity_enabled and not old.gravity_dir.is_equal_approx(new.gravity_dir))
 	if not gravity_changes:
 		operation.call()
+		glitch(0.45)
+		_play(&"glitch")
 		_show_toast(line)
 		finished.emit()
 		return
@@ -126,10 +156,19 @@ func _run(operation: Callable, after: Array[Mutation], text: String, line: Strin
 		_type_time = 0.0
 		_type_total = duration * 0.7
 		_band.visible = true
+		_progress_time = 0.0
+		_progress_total = duration
+		_progress.text = ""
+		glitch(1.0)
+		_glitch_floor = 0.22
+		_play(&"compile")
 		_timer.start(duration)
 		await _timer.timeout
 		_band.visible = false
+		_glitch_floor = 0.0
 	operation.call()
+	glitch(0.9)
+	_play(&"glitch")
 	RunState.set_pause(&"transition", false)
 	RunState.start_grace(Tuning.grace_time)
 	for p in get_tree().get_nodes_in_group(&"player"):
@@ -163,7 +202,36 @@ func _show_toast(line: String) -> void:
 	_toast.visible = true
 
 
+## Kicks the full-screen glitch to at least `amount`; it then fades out.
+func glitch(amount: float) -> void:
+	_glitch_strength = maxf(_glitch_strength, amount)
+	(_glitch.material as ShaderMaterial).set_shader_parameter(&"seed", randf() * 100.0)
+
+
+func glitch_strength() -> float:
+	return _glitch_strength
+
+
+func _play(key: StringName) -> void:
+	if sound:
+		sound.play(key, 0.0)
+
+
 func _process(delta: float) -> void:
+	# Real time: the glitch must fade the same during a pause and at any time scale.
+	var real := delta / maxf(Engine.time_scale, 0.001)
+	if _glitch_strength > _glitch_floor:
+		_glitch_strength = maxf(_glitch_floor, _glitch_strength - real * 2.5)
+	else:
+		_glitch_strength = _glitch_floor
+	_glitch.visible = _glitch_strength > 0.01
+	if _glitch.visible:
+		(_glitch.material as ShaderMaterial).set_shader_parameter(&"strength", _glitch_strength)
+	if _band.visible and _progress_total > 0.0:
+		_progress_time += real
+		var u := clampf(_progress_time / _progress_total, 0.0, 1.0)
+		var cells := int(u * PROGRESS_CELLS)
+		_progress.text = "[%s%s] %d%%" % ["#".repeat(cells), ".".repeat(PROGRESS_CELLS - cells), int(u * 100)]
 	if _band.visible and _type_total > 0.0:
 		_type_time += delta
 		_terminal.visible_ratio = clampf(_type_time / _type_total, 0.0, 1.0)

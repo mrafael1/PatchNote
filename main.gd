@@ -2,7 +2,7 @@ class_name Main
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M6"
+const BUILD := "M7"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8
@@ -23,6 +23,7 @@ var prompt_panel: PromptPanel
 var patch_history: PatchHistory
 var run_loop: RunLoop
 var report: ReportScreen
+var sound: Sound
 
 
 func _ready() -> void:
@@ -63,7 +64,12 @@ func _ready() -> void:
 	feedback.effects_parent = world
 	add_child(feedback)
 
+	sound = Sound.new()
+	sound.name = "Sound"
+	add_child(sound)
+
 	transition = Transition.new()
+	transition.sound = sound
 	add_child(transition)
 
 	director = AiDirector.new()
@@ -75,6 +81,8 @@ func _ready() -> void:
 	add_child(prompt_panel)
 	director.prompt_requested.connect(prompt_panel.open)
 	prompt_panel.chosen.connect(director.on_choice)
+	director.prompt_requested.connect(func(_o: Offer) -> void: sound.play(&"prompt", 0.0))
+	prompt_panel.chosen.connect(func(_o: Offer, _m: Mutation) -> void: sound.play(&"click", 0.0))
 
 	patch_history = PatchHistory.new()
 	patch_history.director = director
@@ -90,6 +98,9 @@ func _ready() -> void:
 	run_loop.transition = transition
 	add_child(run_loop)
 	run_loop.report_ready.connect(_on_report_ready)
+	run_loop.phase_changed.connect(func(phase: StringName) -> void:
+		if phase == RunLoop.RELEASE_CANDIDATE:
+			sound.play(&"release_candidate", 0.0))
 
 	report = ReportScreen.new()
 	add_child(report)

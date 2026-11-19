@@ -14,6 +14,7 @@ signal projectile_hit_wall(projectile: Node, pos: Vector2, normal: Vector2)
 signal player_jumped
 signal player_landed(pos: Vector2, impact_speed: float)
 signal player_dashed
+signal explosion(pos: Vector2, radius: float)   ## presentation hook; carries no damage
 signal patch_applied(mutation: Resource)
 signal patch_reverted(mutation: Resource)
 signal rules_changed(rules: Resource)

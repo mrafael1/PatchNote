@@ -36,6 +36,7 @@ static func blast(pos: Vector2, p_radius: float, damage: float, knockback: float
 			var away := player.global_position - pos
 			if away.length() <= p_radius + BODY_MARGIN:
 				_push(player, away, p_radius, knockback)
+	EventBus.explosion.emit(pos, p_radius)
 	if is_instance_valid(RunState.world):
 		var ring := Explosion.new()
 		ring.radius = p_radius

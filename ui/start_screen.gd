@@ -68,6 +68,9 @@ func _ready() -> void:
 	column.add_child(_row("Volume", volume))
 
 	start_button.grab_focus.call_deferred()
+	# "-- --autostart" skips this screen (release builds cannot be given a scene path).
+	if "--autostart" in OS.get_cmdline_user_args():
+		start.call_deferred()
 
 
 func _row(label_text: String, control: Control) -> HBoxContainer:
