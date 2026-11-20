@@ -166,9 +166,9 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 			var rec: Dictionary = game.run_loop.record
 			var picks: Array = (rec.prompts as Array).map(func(p: Dictionary) -> String: return p.pick)
 			var bigs: Array = (rec.big_offers as Array).map(func(p: Dictionary) -> String: return p.pick if p.pick != "" else "-")
-			return "[botrun] seed=%d%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
+			return "[botrun] seed=%d%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
 				run_seed, " (invincible)" if invincible else "", rec.outcome, rec.duration, rec.real_duration,
-				rec.version, rec.kills, picks, bigs, rec.genre_seconds, rec.genre_hits, rec.reverts_used,
+				rec.version, rec.kills, picks, bigs, rec.genre_seconds, rec.genre_hits, rec.genre_hits_by_kind, rec.reverts_used,
 				rec.reached_release_candidate,
 				rec.agenda_cards, _first_line(game)]
 		if game.prompt_panel.can_choose():

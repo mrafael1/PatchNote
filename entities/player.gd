@@ -68,11 +68,7 @@ func _physics_process(_delta: float) -> void:
 		# B2: the TurnClock turns input into actions; the body only plays them out.
 		mover.wish = Vector2.ZERO
 		mover.jump_held = true   # a turn's jump is always a full jump
-		if RunState.rules.auto_attack and shooter.can_fire():
-			var t := _auto_target()
-			if t:
-				shooter.try_fire(t.global_position - global_position)
-		return
+		return   # auto-attack fires only on wait turns: the TurnClock calls auto_fire()
 	mover.wish = input.move
 	if input.move.length() > 0.2:
 		_facing = input.move.normalized()
@@ -84,9 +80,13 @@ func _physics_process(_delta: float) -> void:
 	if input.fire:
 		shooter.try_fire(input.aim_dir)
 	elif RunState.rules.auto_attack and shooter.can_fire():
-		var target := _auto_target()
-		if target:
-			shooter.try_fire(target.global_position - global_position)
+		auto_fire()
+
+
+## auto_attack: one shot at the nearest visible enemy. Returns true if it fired.
+func auto_fire() -> bool:
+	var target := _auto_target()
+	return target != null and shooter.try_fire(target.global_position - global_position) != null
 
 
 ## Nearest enemy in range with a clear line. Same Shooter, same cooldown as manual fire.

@@ -8,6 +8,8 @@ var smalls: Array[Mutation]
 var big_a: Mutation
 var big_b: Mutation
 var under_a: Mutation
+var against_b: Mutation
+var on_against_b: Mutation
 var world: Node2D
 
 
@@ -25,7 +27,9 @@ func before_each() -> void:
 	big_a = bigs[0]
 	big_b = bigs[1]
 	under_a = bigs[2]
-	smalls.append(under_a)
+	against_b = bigs[3]
+	on_against_b = bigs[4]
+	smalls.append_array([under_a, against_b, on_against_b])
 
 
 func after_each() -> void:
@@ -189,6 +193,57 @@ func test_swapping_out_drops_dependents_without_a_rollback() -> void:
 	assert_eq(entry.dropped, ["fx_under_a"])
 	for e in RunState.run_log:
 		assert_ne(e.event, &"revert", "a drop is not a rollback")
+
+
+func test_a_small_patch_that_conflicts_with_the_slotted_big_cannot_be_applied() -> void:
+	assert_true(RunState.can_apply(against_b))
+	RunState.swap_big(big_b)
+	assert_false(RunState.can_apply(against_b), "the small patch lists the big one")
+	assert_false(RunState.apply(against_b))
+	RunState.swap_big(big_a)
+	assert_true(RunState.can_apply(against_b))
+	# The other direction: a big patch that lists the small one.
+	var picky := Fx.make_big(Fx.FxBigA, &"fx_picky_big")
+	picky.conflicts.assign([&"fx_rules"])
+	RunState.swap_big(picky)
+	assert_false(RunState.can_apply(_by_id(&"fx_rules")))
+
+
+func test_swapping_in_drops_conflicting_patches_and_their_dependents() -> void:
+	RunState.swap_big(big_a)
+	RunState.apply(under_a)
+	RunState.apply(against_b)
+	RunState.apply(_by_id(&"fx_rules"))
+	RunState.apply(on_against_b)
+	watch_signals(EventBus)
+	var build := RunState.build_number
+	var dropped := RunState.swap_big(big_b)
+	assert_eq(dropped, [under_a, on_against_b, against_b] as Array[Mutation], "dependents first")
+	assert_eq(RunState.stack, [_by_id(&"fx_rules")] as Array[Mutation], "unrelated small patches stay")
+	assert_eq(RunState.build_number, build + 1, "one build")
+	assert_eq(_components_from(&"fx_against_b"), 0)
+	assert_eq(_connections_from(&"fx_on_against_b"), 0)
+	assert_eq(RunState.run_log[-1].dropped, ["fx_under_a", "fx_on_against_b", "fx_against_b"])
+	assert_signal_emitted_with_parameters(EventBus, "big_swapped", [big_a, big_b, dropped])
+	for e in RunState.run_log:
+		assert_ne(e.event, &"revert", "a drop is not a rollback")
+
+
+func test_the_console_swap_to_turn_based_drops_gravity_and_reversed_gravity() -> void:
+	for e in RunState.live_entities():
+		e.free()
+	var gravity := MutationDB.get_mutation(&"gravity_on")
+	var reversed := MutationDB.get_mutation(&"gravity_reversed")
+	var bounce := MutationDB.get_mutation(&"bouncing_projectiles")
+	RunState.apply(gravity)
+	RunState.apply(reversed)
+	RunState.apply(bounce)
+	var dropped := RunState.swap_big(MutationDB.get_mutation(&"turn_mode"))
+	assert_eq(dropped, [reversed, gravity] as Array[Mutation])
+	assert_eq(RunState.stack, [bounce] as Array[Mutation])
+	assert_false(RunState.rules.gravity_enabled)
+	assert_eq(RunState.run_log[-1].dropped, ["gravity_reversed", "gravity_on"])
+	assert_false(RunState.can_apply(gravity), "never offered again under B2")
 
 
 func test_big_swapped_signal_carries_old_new_and_dropped() -> void:

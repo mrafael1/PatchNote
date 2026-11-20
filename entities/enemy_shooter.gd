@@ -1,6 +1,7 @@
 extends CharacterBody2D
 ## Shooter: keeps its distance, strafes, and fires slow projectiles when it has a
 ## clear line to the player. It has a Floating component, so gravity never applies.
+## On B2's grid (TurnClock.on_grid) it does none of this.
 
 const STRAFE_FLIP_TIME := 2.5
 
@@ -31,6 +32,9 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if TurnClock.on_grid(self):
+		mover.wish = Vector2.ZERO   # B2: the turn logic moves it and fires its shots
+		return
 	mover.speed = Tuning.shooter_speed
 	var player := EnemyCommon.find_player(self)
 	if player == null:

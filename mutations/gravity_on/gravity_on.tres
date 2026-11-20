@@ -12,3 +12,4 @@ line_applied = "Gravity implemented. Mind the floor, it is new."
 line_reverted = "Rolling back gravity. Please remain where you are, wherever that is."
 tags = Array[StringName]([&"physics"])
 is_mode_switch = true
+conflicts = Array[StringName]([&"turn_mode"])

@@ -71,7 +71,8 @@ func has_patch(id: StringName) -> bool:
 	return false
 
 
-## Small patches only: a big patch goes through swap_big().
+## Small patches only: a big patch goes through swap_big(). Conflicts are checked
+## against the stack and the big patch in the slot.
 func can_apply(m: Mutation) -> bool:
 	if m == null or m.is_big or has_patch(m.id):
 		return false
@@ -79,9 +80,14 @@ func can_apply(m: Mutation) -> bool:
 		if not has_patch(req):
 			return false
 	for other in stack:
-		if other.id in m.conflicts or m.id in other.conflicts:
+		if conflicting(m, other):
 			return false
-	return true
+	return big == null or not conflicting(m, big)
+
+
+## True when either patch lists the other in its conflicts.
+func conflicting(a: Mutation, b: Mutation) -> bool:
+	return b.id in a.conflicts or a.id in b.conflicts
 
 
 ## force skips the requires/conflicts check (debug console only). Never takes a big patch.
@@ -145,9 +151,11 @@ func dependents_of(m: Mutation) -> Array[Mutation]:
 
 
 ## Puts m in the big slot (PLAN v3 1.2), replacing the big patch there. Small
-## patches that require the old big patch are dropped first, at no rollback cost.
-## Returns the dropped patches, latest first. One call is one build. Refuses null,
-## a small patch, and the patch already in the slot (empty list, nothing changes).
+## patches that require the old big patch, and those that conflict with m (with
+## everything that depends on them, PLAN v3 3b.6), are dropped first, at no rollback
+## cost. Returns the dropped patches, dependents before what they depend on. One call
+## is one build. Refuses null, a small patch, and the patch already in the slot
+## (empty list, nothing changes).
 func swap_big(m: Mutation) -> Array[Mutation]:
 	var dropped: Array[Mutation] = []
 	if m == null or not m.is_big or m == big:
@@ -155,8 +163,15 @@ func swap_big(m: Mutation) -> Array[Mutation]:
 	var old := big
 	if old != null:
 		dropped = dependents_of(old)
-		for x in dropped:
-			_remove(x)
+	for x in _conflicting_with(m):
+		for d in dependents_of(x):
+			if not dropped.has(d):
+				dropped.append(d)
+		if not dropped.has(x):
+			dropped.append(x)
+	for x in dropped:
+		_remove(x)
+	if old != null:
 		_strip(old)
 	big = m
 	recompute()
@@ -170,6 +185,15 @@ func swap_big(m: Mutation) -> Array[Mutation]:
 	log_event(&"big_swap", {"from": String(old.id) if old else "", "to": String(m.id), "dropped": dropped_ids})
 	EventBus.big_swapped.emit(old, m, dropped)
 	return dropped
+
+
+## Stacked small patches that conflict with m, in stack order.
+func _conflicting_with(m: Mutation) -> Array[Mutation]:
+	var out: Array[Mutation] = []
+	for x in stack:
+		if conflicting(x, m):
+			out.append(x)
+	return out
 
 
 func recompute() -> void:
@@ -354,7 +378,9 @@ func spawn(scene: PackedScene, pos: Vector2, params := {}) -> Node:
 	if not is_instance_valid(world):
 		return null
 	var node := scene.instantiate()
-	var kind_value: Variant = node.get(&"kind")
+	# params may set the kind (an enemy shot is projectile.tscn with kind enemy_projectile):
+	# count it under the kind it will register with, or the pending count leaks.
+	var kind_value: Variant = params.get(&"kind", node.get(&"kind"))
 	var kind: StringName = kind_value if kind_value != null else &""
 	if not _under_cap(kind):
 		node.free()

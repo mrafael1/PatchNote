@@ -4,6 +4,8 @@ extends Node2D
 ##
 ## Wall hits bounce while the rules allow (player projectiles only), otherwise the
 ## projectile is removed. Hit signals fire on every contact, before that decision.
+## An enemy shot on B2's grid (TurnClock.on_grid) has no motion, contact or lifetime
+## of its own until it leaves the grid.
 
 const COLOR_PLAYER := Color(1.0, 0.95, 0.5)
 const COLOR_ENEMY := Color(1.0, 0.55, 0.2)
@@ -27,8 +29,8 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if _dead:
-		return
+	if _dead or TurnClock.on_grid(self):
+		return   # B2 moves an enemy shot tile by tile and resolves its hit
 	_age += delta
 	if _age >= Tuning.projectile_lifetime:
 		_despawn()

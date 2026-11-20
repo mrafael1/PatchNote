@@ -149,6 +149,7 @@ Distances are measured on one **distance field**, a breadth-first fill from `P` 
 **Shooter.** The band is `shooter_near`..`shooter_far` (5–8 tiles, from Tuning), measured on the field.
 - **Fire:** if it aimed last turn, it fires along its locked line, wherever the player is. The shot is created at the shooter's tile centre and enters its first tiles this turn. The shooter does not move.
 - **Aim:** otherwise, if `P` is on its row, column or diagonal, within `shooter_range`, with a clear line (3b.3), and its cooldown (in turns, `grid_shooter_cooldown`, on the `GridActor`; `Shooter._ready_in` is not used) is ready, it aims instead of moving. The line is locked and drawn.
+- **Hold:** otherwise, if `P` is on its row, column or diagonal with a clear line in range and it stands in the band, it stays: it is only waiting on its cooldown (stepping would only make it jitter on and off the line).
 - **Move:** otherwise it steps to the free neighbour that is in the band and aligned with `P`. Failing that, the neighbour in the band that brings it closest to aligned (smallest of |dx|, |dy|, ||dx|−|dy||, in tiles). Failing that, toward the band. Ties break in the fixed direction order.
 
 **Every enemy on a grid:**
@@ -227,7 +228,7 @@ Distances are measured on one **distance field**, a breadth-first fill from `P` 
 ## 4. Director: BIG prompts
 
 - **Schedule:** a BIG prompt opens right after small prompts listed in `Tuning.big_prompt_after` (start: `[1, 3]`). The run then has 4 small and 2 BIG prompts. The BIG prompt follows the same pause and input-guard rules as a small one.
-- **Pacing (M12 retune):** the first small prompt keeps v2's 60 s minimum gap (`first_prompt_min_gap`), so the first BIG prompt comes early; later small prompts wait at least 105 s; any gap ends at 180 s. `big_prompt_after` stays `[1, 3]`. Bot runs: ~9.6 min of game time per full run (60 s base, then ~6.5 and ~4.5 min in the two genre stretches).
+- **Pacing (M13 retune):** the first small prompt keeps v2's 60 s minimum gap (`first_prompt_min_gap`), so the first BIG prompt comes early; later small prompts wait at least 150 s; any gap ends at 180 s. `big_prompt_after` stays `[1, 3]`. The kill thresholds are met well before the gaps, so a full run is 60 + 3 × 150 + the 90 s RC wave = 10 min of game time: 60 s base, then 5 and 4 min in the two genre stretches. M12 had chosen 105 s from bot runs in which a projectile-cap leak (since M3) stopped all shooting after ~200 enemy shots; M13 fixed the leak (`RunState.spawn` counted an enemy shot under the scene's default kind) and retuned.
 - **Offer:** up to 2 big patches, not the one in the slot, sampled weighted, leaned by `Taste`. With 2 or more candidates, one card is the AI's agenda (least liked), as for small offers. The second BIG prompt adds a **Keep <current genre>** card. There is no skip on the first BIG prompt.
 - **Gravity guarantee:** prompt 2, small; from M13 it yields once a big patch is in the slot (section 3b.6).
 - **Taste:** picking, passing and keeping big patches feed `Taste` like small ones. Rollbacks cannot target them, so a big patch is only scored by picks, passes, keeps and report ratings.

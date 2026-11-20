@@ -35,10 +35,10 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 			&"big_prompt":
 				big_offers.append({"index": entry.index, "offers": entry.offers, "agenda": entry.agenda,
 						"pick": entry.pick, "keep": entry.keep, "kept": entry.kept,
-						"time": snappedf(entry.time, 0.01)})
+						"mandatory": entry.mandatory, "time": snappedf(entry.time, 0.01)})
 			&"big_prompt_skipped":
 				big_offers.append({"index": entry.index, "offers": [], "agenda": [], "pick": "",
-						"keep": "", "kept": false, "time": snappedf(entry.time, 0.01)})
+						"keep": "", "kept": false, "mandatory": false, "time": snappedf(entry.time, 0.01)})
 			&"big_swap":
 				big_swaps.append({"time": snappedf(entry.time, 0.01), "from": entry.from,
 						"to": entry.to, "dropped": entry.dropped, "build": entry.build})
@@ -78,6 +78,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"big_swaps": big_swaps,
 		"genre_seconds": genre_seconds(),
 		"genre_hits": genre_hits(),
+		"genre_hits_by_kind": genre_hits_by_kind(),
 	}
 	record.merge(extra)
 	return record
@@ -112,6 +113,24 @@ static func genre_hits() -> Dictionary:
 				out[current] = 0
 		elif entry.event == &"player_hit":
 			out[current] = int(out[current]) + 1
+	return out
+
+
+## The same hits split by kind ("contact", "projectile", ...), with "_blocked" added to
+## hits an invincible player would have taken. Keyed like genre_hits. A genre that
+## looks deadly is often one kind of hit the bot never avoids (M12), so sweeps read this.
+static func genre_hits_by_kind() -> Dictionary:
+	var out := {"base": {}}
+	var current := "base"
+	for entry: Dictionary in RunState.run_log:
+		if entry.event == &"big_swap":
+			current = entry.to
+			if not out.has(current):
+				out[current] = {}
+		elif entry.event == &"player_hit":
+			var kind := String(entry.get("kind", "unknown")) + ("_blocked" if entry.get("blocked", false) else "")
+			var kinds: Dictionary = out[current]
+			kinds[kind] = int(kinds.get(kind, 0)) + 1
 	return out
 
 

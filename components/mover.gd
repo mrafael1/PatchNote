@@ -45,7 +45,10 @@ func max_jumps() -> int:
 	return RunState.rules.jumps if use_rule_jumps else innate_jumps
 
 
+## Does nothing under turn-based (B2): bodies move only by whole tiles.
 func knockback(impulse: Vector2) -> void:
+	if RunState.rules.turn_based:
+		return
 	var body := get_parent() as CharacterBody2D
 	if body:
 		body.velocity += impulse * knockback_scale

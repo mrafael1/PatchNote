@@ -65,7 +65,7 @@ func _matrix(big: Mutation) -> bool:
 		for i in all.size():
 			if mask & (1 << i):
 				subset.append(all[i])
-		if not _legal(subset):
+		if not _legal(subset, big):
 			continue
 		subsets += 1
 		rng.seed = mask
@@ -113,7 +113,7 @@ func _matrix(big: Mutation) -> bool:
 			return false
 		_clear_world()
 		await wait_physics_frames(1)
-	assert_eq(subsets, 191, "8 small mutations, one dependency: 3 * 2^6 - 1 non-empty legal subsets")
+	assert_eq(subsets, _expected_subsets(big), "legal non-empty subsets under big %s" % big_label)
 	if RunState.big != big:
 		fail_test("big %s: the slot changed during the matrix" % big_label)
 		return false
@@ -121,9 +121,13 @@ func _matrix(big: Mutation) -> bool:
 	return true
 
 
-func _legal(subset: Array[Mutation]) -> bool:
-	var ids := subset.map(func(m: Mutation) -> StringName: return m.id)
-	for m in subset:
+## Every require is met and nothing conflicts, the big patch in the slot included.
+func _legal(subset: Array[Mutation], big: Mutation) -> bool:
+	var present: Array[Mutation] = subset.duplicate()
+	if big != null:
+		present.append(big)
+	var ids := present.map(func(m: Mutation) -> StringName: return m.id)
+	for m in present:
 		for req in m.requires:
 			if not req in ids:
 				return false
@@ -131,6 +135,13 @@ func _legal(subset: Array[Mutation]) -> bool:
 			if c in ids:
 				return false
 	return true
+
+
+## 8 small patches, gravity_reversed requires gravity_on: 3 * 2^6 - 1 = 191 non-empty
+## legal subsets. Under turn_mode gravity_on conflicts, so both gravity patches are
+## out: 2^6 - 1 = 63.
+func _expected_subsets(big: Mutation) -> int:
+	return 63 if big != null and big.id == &"turn_mode" else 191
 
 
 func _spawn_wave(rng: RandomNumberGenerator) -> void:

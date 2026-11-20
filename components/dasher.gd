@@ -1,7 +1,7 @@
 class_name Dasher
 extends Component
-## Short burst of movement with invulnerability. The same definition in every
-## rule state: direction comes from the caller, never from the mouse.
+## Short burst of movement with invulnerability (none under turn-based, where a dash
+## is movement, not protection). Direction comes from the caller, never from the mouse.
 
 signal dashed
 
@@ -30,7 +30,7 @@ func try_dash(dir: Vector2, distance := -1.0, duration := -1.0) -> bool:
 		duration = Tuning.dash_time
 	mover.dash(dir.normalized() * (distance / duration), duration)
 	var health := Component.find(entity, Health) as Health
-	if health:
+	if health and not RunState.rules.turn_based:
 		health.grant_invulnerability(duration)
 	_cooldown_left = Tuning.dash_cooldown
 	dashed.emit()

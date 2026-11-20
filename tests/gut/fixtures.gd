@@ -160,6 +160,28 @@ class FxUnderA extends Mutation:
 		pass
 
 
+## A small patch that cannot live under big patch B (as gravity cannot under B2).
+class FxAgainstB extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.max_enemies += 3
+
+	func on_entity_spawned(e: Node) -> void:
+		if e.is_in_group(&"enemy"):
+			Component.attach(e, FxComp, id)
+
+
+## A small patch that requires fx_against_b, so a swap to B drops it too.
+class FxOnAgainstB extends Mutation:
+	func apply_rules(r: WorldRules) -> void:
+		r.max_enemies *= 2
+
+	func enable() -> void:
+		_listen(EventBus.player_dashed, _on_dashed)
+
+	func _on_dashed() -> void:
+		pass
+
+
 static func make(cls: GDScript, id: StringName, requires: Array = [], conflicts: Array = []) -> Mutation:
 	var m: Mutation = cls.new()
 	m.id = id
@@ -189,12 +211,15 @@ static func make_big(cls: GDScript, id: StringName) -> Mutation:
 	return m
 
 
-## fx_big_a and fx_big_b (big), fx_under_a (small, requires fx_big_a).
+## fx_big_a and fx_big_b (big), fx_under_a (small, requires fx_big_a), fx_against_b
+## (small, conflicts with fx_big_b) and fx_on_against_b (small, requires fx_against_b).
 static func make_bigs() -> Array[Mutation]:
 	var out: Array[Mutation] = []
 	out.append(make_big(FxBigA, &"fx_big_a"))
 	out.append(make_big(FxBigB, &"fx_big_b"))
 	out.append(make(FxUnderA, &"fx_under_a", [&"fx_big_a"]))
+	out.append(make(FxAgainstB, &"fx_against_b", [], [&"fx_big_b"]))
+	out.append(make(FxOnAgainstB, &"fx_on_against_b", [&"fx_against_b"]))
 	return out
 
 

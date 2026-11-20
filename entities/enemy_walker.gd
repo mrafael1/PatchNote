@@ -6,7 +6,8 @@ extends CharacterBody2D
 ## gravity it walks along surfaces and hops: over low walls, and upward when the
 ## player is above and there is headroom. Under a ledge it keeps walking the way it
 ## was going instead of turning back, so it comes out from under and can hop up.
-## Either way, if it makes no progress for a while it wanders briefly.
+## Either way, if it makes no progress for a while it wanders briefly. On B2's grid
+## (TurnClock.on_grid) it does none of this.
 
 @export var archetype: StringName = &"chaser"
 @export var half_width := 15.0
@@ -50,6 +51,9 @@ func _tuned(suffix: String) -> float:
 
 
 func _physics_process(delta: float) -> void:
+	if TurnClock.on_grid(self):
+		mover.wish = Vector2.ZERO   # B2: the turn logic moves it and resolves its attacks
+		return
 	mover.speed = _tuned("speed")
 	_hop_cooldown = maxf(0.0, _hop_cooldown - delta)
 	var player := EnemyCommon.find_player(self)

@@ -2,7 +2,7 @@ class_name Main
 extends Node2D
 ## The game scene. Builds the arena, the player, the camera and the UI, and starts a run.
 
-const BUILD := "M12"
+const BUILD := "M13"
 const PLAYER_SCENE := preload("res://entities/player.tscn")
 const CHASER_SCENE := preload("res://entities/enemy_chaser.tscn")
 const WAVE_SIZE := 8

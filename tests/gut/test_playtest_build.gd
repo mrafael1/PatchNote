@@ -71,6 +71,17 @@ func test_genre_hits_follow_the_big_swaps() -> void:
 			"same keys, same order as genre_seconds")
 
 
+func test_genre_hits_by_kind_split_the_same_hits() -> void:
+	RunState.log_event(&"player_hit", {"amount": 1.0, "kind": &"contact", "blocked": false})
+	RunState.log_event(&"big_swap", {"from": "", "to": "turn_mode", "dropped": []})
+	RunState.log_event(&"player_hit", {"amount": 1.0, "kind": &"projectile", "blocked": true})
+	RunState.log_event(&"player_hit", {"amount": 1.0, "kind": &"contact", "blocked": false})
+	assert_eq(Telemetry.genre_hits_by_kind(),
+			{"base": {"contact": 1}, "turn_mode": {"projectile_blocked": 1, "contact": 1}})
+	assert_eq(Telemetry.genre_hits_by_kind().keys(), Telemetry.genre_hits().keys(), "keyed like genre_hits")
+	assert_true(Telemetry.build_record(&"lose").has("genre_hits_by_kind"))
+
+
 func test_real_duration_counts_paused_frames_and_game_time_does_not() -> void:
 	RunState.reset(12)
 	await wait_physics_frames(10)

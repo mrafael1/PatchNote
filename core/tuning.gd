@@ -98,10 +98,12 @@ var toast_time := 2.2             # how long the AI line stays up after a patch
 # --- Director ---
 var first_prompt_kills := 15
 var prompt_kills_step := 10
-# Pacing retuned at M12 from bot runs (16 invincible seeds): about 9.6 min of game time
-# per full run, 60 s of base, then ~6.5 min and ~4.5 min in the two genre stretches.
+# Pacing retuned at M13 from bot runs (16 invincible seeds). The kill thresholds are met
+# well before the minimum gaps, so a full run is 60 + 3 x prompt_min_gap + the RC wave:
+# 10 min of game time, 60 s of base, then 5 min and 4 min in the two genre stretches.
+# (M12's 105 s was measured while the projectile cap leak stopped all shooting.)
 var first_prompt_min_gap := 60.0  # the first prompt (and the first BIG one right after it) comes early
-var prompt_min_gap := 105.0
+var prompt_min_gap := 150.0
 var prompt_max_gap := 180.0
 var force_gravity_at_prompt := 2  # prompt that is a single mandatory mode-switch card if none is applied yet; 0 disables
 var prompts_per_run := 4
@@ -125,3 +127,9 @@ var big_prompt_after: Array[int] = [1, 3]   # a BIG prompt opens right after the
 var big_offer_size := 2           # big patches per BIG prompt (plus the Keep card on later ones)
 var motion_smoothing := 0.1       # B1: real seconds for the motion factor to follow the player
 var motion_pulse := 0.15          # B1: real seconds of full-speed time after a shot or dash
+var grid_shot_tiles := 2          # B2: tiles an enemy shot moves per turn
+var grid_shot_turns := 8          # B2: turns an enemy shot lives
+# B2: turns a grid shooter waits after firing before it may aim again. It fires, waits
+# these turns, aims for one: a shot every 7 turns, 1.75 s of game time at a 0.25 s turn,
+# close to shooter_fire_interval (1.8 s) / turn_duration.
+var grid_shooter_cooldown := 6

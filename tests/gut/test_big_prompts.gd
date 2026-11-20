@@ -51,7 +51,8 @@ func _new_director() -> void:
 	offers.clear()
 
 
-## Adds fx_big_a, fx_big_b (big) and fx_under_a (small, requires fx_big_a) to the pool.
+## Adds the fixtures of Fx.make_bigs() to the pool: fx_big_a, fx_big_b (big), and the
+## small fx_under_a, fx_against_b and fx_on_against_b.
 func _with_fixtures() -> void:
 	fixtures = Fx.make_bigs()
 	for m in fixtures:
@@ -65,10 +66,18 @@ func _ids(cards: Array[Mutation]) -> Array[String]:
 	return out
 
 
-## Opens the next small prompt and answers it with its first card.
+## Opens the next small prompt and answers it with its first card that conflicts with
+## no big patch (no gravity), so every genre stays on offer.
 func _small_prompt() -> void:
 	director.open_prompt()
-	director.on_choice(offers[-1], offers[-1].cards[0])
+	director.on_choice(offers[-1], _keeps_genres(offers[-1].cards))
+
+
+func _keeps_genres(cards: Array[Mutation]) -> Mutation:
+	for m in cards:
+		if not MutationDB.all.any(func(b: Mutation) -> bool: return b.is_big and RunState.conflicting(m, b)):
+			return m
+	return null
 
 
 # --- Schedule ----------------------------------------------------------------
@@ -121,6 +130,69 @@ func test_the_real_pool_offers_both_genres_then_the_other_one_and_keep() -> void
 	assert_ne(second.cards[0], slotted)
 	assert_eq(second.keep, slotted)
 	assert_eq(second.agenda.size(), 0, "one candidate: no agenda card")
+
+
+func test_the_real_pool_with_gravity_stacked_offers_b1_alone_and_mandatory() -> void:
+	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+	_small_prompt()
+	var taste_before := director.taste.to_dict()
+	director.poll()
+	var first := offers[-1]
+	assert_true(first.big)
+	assert_eq(_ids(first.cards), ["motion_time"] as Array[String], "B2 conflicts with gravity")
+	assert_true(first.mandatory)
+	assert_eq(first.line, Dialogue.MANDATORY)
+	assert_eq(first.agenda.size(), 0)
+	director.on_choice(first, first.cards[0])
+	assert_eq(RunState.big, first.cards[0])
+	assert_eq(director.taste.to_dict(), taste_before, "a mandatory pick teaches no taste")
+	var rec := Telemetry.build_record(&"lose")
+	assert_true(rec.big_offers[0].mandatory)
+	_small_prompt()
+	_small_prompt()
+	director.poll()
+	assert_eq(offers.filter(func(o: Offer) -> bool: return o.big).size(), 1,
+			"nothing compatible left to swap to")
+	assert_eq(RunState.run_log[-1].event, &"big_prompt_skipped")
+
+
+func test_with_b2_slotted_no_gravity_patch_is_offered() -> void:
+	Tuning.big_prompt_after = []
+	Tuning.force_gravity_at_prompt = 2
+	var b2 := MutationDB.get_mutation(&"turn_mode")
+	RunState.swap_big(b2)
+	for i in Tuning.prompts_per_run:
+		director.open_prompt()
+		var offer := offers[-1]
+		assert_false(offer.mandatory, "the forced gravity card yields to a genre")
+		assert_eq(offer.cards.size(), Tuning.offer_size)
+		for m in offer.cards:
+			assert_false(RunState.conflicting(m, b2), String(m.id))
+			assert_ne(m.id, &"gravity_on")
+		director.on_choice(offer, offer.cards[0])
+	assert_false(RunState.has_patch(&"gravity_on"))
+
+
+func test_with_b1_slotted_prompt_2_is_not_forced_and_big_prompt_2_opens() -> void:
+	Tuning.force_gravity_at_prompt = 2
+	var b1 := MutationDB.get_mutation(&"motion_time")
+	_small_prompt()
+	director.poll()
+	director.on_choice(offers[-1], b1)
+	assert_eq(RunState.big, b1)
+	director.open_prompt()
+	var second := offers[-1]
+	assert_false(second.big)
+	assert_false(second.mandatory, "a genre in the slot: no forced gravity card")
+	assert_eq(second.cards.size(), Tuning.offer_size)
+	director.on_choice(second, _keeps_genres(second.cards))
+	_small_prompt()
+	director.poll()
+	var third := offers[-1]
+	assert_true(third.big)
+	assert_eq(_ids(third.cards), ["turn_mode", "motion_time"] as Array[String])
+	assert_eq(third.keep, b1)
+	assert_false(third.mandatory, "a Keep card makes it a choice")
 
 
 func test_a_big_prompt_with_nothing_to_swap_to_is_skipped() -> void:

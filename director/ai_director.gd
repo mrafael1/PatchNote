@@ -160,10 +160,12 @@ func open_big_prompt() -> void:
 	prompt_requested.emit(offer)
 
 
-## Up to big_offer_size big patches, never the one in the slot, leaned by taste. With
-## two or more candidates the last of them is the AI's agenda (least liked). Every BIG
-## prompt after the first ends with a Keep card for the patch in the slot. Nothing to
-## swap to gives an empty offer (no prompt): a lone Keep card is not a choice.
+## Up to big_offer_size big patches, never the one in the slot nor one that conflicts
+## with a stacked small patch, leaned by taste. With two or more candidates the last of
+## them is the AI's agenda (least liked). Every BIG prompt after the first ends with a
+## Keep card for the patch in the slot. Nothing to swap to gives an empty offer (no
+## prompt): a lone Keep card is not a choice. A lone candidate with no Keep card is
+## mandatory (PLAN v3 3b.6): the slot is filled either way.
 func get_big_offer(_ctx: Dictionary) -> Offer:
 	big_index += 1
 	var offer := Offer.new()
@@ -171,7 +173,7 @@ func get_big_offer(_ctx: Dictionary) -> Offer:
 	offer.prompt_index = big_index
 	var pool: Array[Mutation] = []
 	for m in MutationDB.all:
-		if m.is_big and m != RunState.big:
+		if m.is_big and m != RunState.big and not _conflicts_with_stack(m):
 			pool.append(m)
 	if pool.is_empty():
 		return offer
@@ -190,7 +192,17 @@ func get_big_offer(_ctx: Dictionary) -> Offer:
 	if big_index > 1 and RunState.big != null:
 		offer.keep = RunState.big
 		offer.cards.append(RunState.big)
+	elif offer.cards.size() == 1:
+		offer.mandatory = true
+		offer.line = Dialogue.MANDATORY
 	return offer
+
+
+func _conflicts_with_stack(m: Mutation) -> bool:
+	for x in RunState.stack:
+		if RunState.conflicting(m, x):
+			return true
+	return false
 
 
 func _weighted_pick(pool: Array[Mutation], rng: RandomNumberGenerator) -> Mutation:
@@ -252,13 +264,14 @@ func on_choice(offer: Offer, m: Mutation) -> void:
 
 
 ## A BIG prompt's choice: swap the slot (one permanent build; heals like a patch), or
-## keep the patch already there (nothing changes).
+## keep the patch already there (nothing changes). A mandatory pick teaches no taste.
 func _on_big_choice(offer: Offer, m: Mutation) -> void:
 	var kept := m == offer.keep
 	RunState.log_event(&"big_prompt", {"index": offer.prompt_index, "offers": _id_list(offer.cards),
-			"pick": String(m.id), "agenda": _id_list(offer.agenda),
+			"pick": String(m.id), "agenda": _id_list(offer.agenda), "mandatory": offer.mandatory,
 			"keep": String(offer.keep.id) if offer.keep else "", "kept": kept})
-	taste.on_offer(offer.cards, m)
+	if not offer.mandatory:
+		taste.on_offer(offer.cards, m)
 	if kept:
 		if transition:
 			transition.say(Dialogue.BIG_KEPT)
@@ -320,7 +333,11 @@ func on_revert(m: Mutation) -> void:
 	taste.on_revert(m)
 
 
+## A mode switch is in the stack, or a genre is in the big slot (the forced card
+## yields to it, PLAN v3 3b.6).
 func _mode_switch_applied() -> bool:
+	if RunState.big != null:
+		return true
 	for m in RunState.stack:
 		if m.is_mode_switch:
 			return true

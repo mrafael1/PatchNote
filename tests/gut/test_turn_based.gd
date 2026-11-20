@@ -175,24 +175,45 @@ func test_bot_turn_policy_plays_turns() -> void:
 	assert_true(game.get_node("World/TurnOverlay").visible)
 
 
-func test_bot_steps_out_of_the_path_of_an_enemy_shot() -> void:
+func test_bot_steps_out_of_a_grid_shooters_locked_line() -> void:
 	# The bot is the retune's proxy (M12): standing in a shooter's line every turn made
-	# B2 look twice as deadly as base when it was the bot, not the genre.
+	# B2 look twice as deadly as base when it was the bot, not the genre. M13 (3b.7):
+	# the shooter locks its line a turn before it fires and the bot reads the danger map.
 	game.player.set_bot(true)
 	await _enter_b2()
-	var start := game.player.global_position
-	var far := RunState.spawn(game.CHASER_SCENE, start + Vector2(0, -7) * Tuning.TILE) as Node
-	await wait_physics_frames(2)   # spawned deferred: freeze it once it is ready
-	far.set_physics_process(false)
-	(far.get_node("Mover") as Node).set_physics_process(false)
-	RunState.spawn(load("res://entities/projectile.tscn"), start + Vector2(-3, 0) * Tuning.TILE, {
-		&"kind": &"enemy_projectile", &"faction": &"enemy",
-		&"velocity": Vector2(Tuning.shooter_projectile_speed, 0), &"damage": 1.0})
-	await wait_physics_frames(60)
-	assert_gt(clock.turns, 1)
-	assert_gt(absf(game.player.global_position.y - start.y), Tuning.TILE * 0.5, "stepped off the shot's row")
+	var start := TurnClock.tile_center(game.player.global_position)
+	var dir := Vector2.ZERO
+	for d: Vector2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.DOWN, Vector2.UP]:
+		var clear := true
+		for i in range(1, 7):
+			clear = clear and clock.is_free(start + d * Tuning.TILE * i)
+		if clear:
+			dir = d
+			break
+	assert_ne(dir, Vector2.ZERO, "a clear row or column of 6 tiles from the start")
+	# In the band (5-8 tiles), on the player's line: it aims on its first turn.
+	var shooter := RunState.spawn(Spawner.SCENES[&"shooter"], start + dir * 6 * Tuning.TILE) as Node
+	await wait_physics_frames(2)
+	# The bot shoots it: it has to live long enough to fire twice.
+	(Component.find(shooter, Health) as Health).base_max_hp = 1000.0
+	var seen := {"threatened": 0, "ended_marked": 0}
+	var watch := func(_n: int) -> void:
+		# The map the bot decided on: was its tile on the line, and is P off it?
+		var here := TurnClock.tile_center(game.player.global_position)
+		for s: Dictionary in clock.danger.get(here, []):
+			if s.kind == &"aim" or s.kind == &"shot":
+				seen.threatened += 1
+				break
+		if not (clock.danger.get(clock.player_tile, []) as Array).is_empty():
+			seen.ended_marked += 1
+	EventBus.turn_started.connect(watch)
+	await wait_physics_frames(480)   # about 30 turns: the shooter aims, fires, and again
+	EventBus.turn_started.disconnect(watch)
+	assert_gt(clock.turns, 20)
+	assert_gt(seen.threatened, 0, "a locked line or a shot reached the bot's tile")
+	assert_eq(seen.ended_marked, 0, "the bot never chose a marked tile")
 	var hits := RunState.run_log.filter(func(e: Dictionary) -> bool: return e.event == &"player_hit")
-	assert_eq(hits.size(), 0, "the shot missed")
+	assert_eq(hits.size(), 0, "the shots missed")
 
 
 func test_swapping_b1_and_b2_both_ways_mid_wave() -> void:
