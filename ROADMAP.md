@@ -67,8 +67,8 @@ Options to compare:
 ### Phase 1 — Core prototype (v2, M0–M7) · **done**
 One arena, 8 small patches, scripted Director, rollbacks, report, telemetry, Windows export.
 
-### Phase 2 — Big patches (v3, M8–M12) · **current**
-See `PLAN.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (player on the grid), 2 BIG prompts per run, adaptive path step 1 (taste, session only).
+### Phase 2 — Big patches (v3, M8–M13) · **current**
+See `PLAN.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (player on the grid in M11, enemies on the grid in M13 after the owner found B2 too close to B1), 2 BIG prompts per run, adaptive path step 1 (taste, session only).
 - **Content at the end:** 8 small patches, 2 big patches, 1 arena, 3 enemy types.
 - **Run length:** ~10–12 min.
 - **Must answer:** do permanent shifts feel like stakes? Do players gravitate to one genre?
@@ -85,7 +85,7 @@ See `PLAN.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (player 
 
 ### Phase 4 — More genres (v5)
 - **Tower-defense big patch:** the player places turrets on the grid (B2's grid reused) between waves; shooting becomes building.
-- **Turn-based, full:** enemies move on the grid and in turn order.
+- ~~**Turn-based, full:** enemies move on the grid and in turn order.~~ Pulled forward to v3 M13 (owner, 2026-11-20).
 - **JRPG card battle** as a **special stage type** (not a big patch): a stage where fights are turn-based card duels, entered from the stage choice.
 - **Taste saved on disk**; end-of-run ratings become the hidden meta-progression.
 - **Content at the end:** ~24 small patches, 4–5 big patches, 1 special stage type.
