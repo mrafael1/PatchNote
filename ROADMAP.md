@@ -68,7 +68,7 @@ Options to compare:
 One arena, 8 small patches, scripted Director, rollbacks, report, telemetry, Windows export.
 
 ### Phase 2 — Big patches (v3, M8–M13) · **current**
-See `PLAN.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (player on the grid in M11, enemies on the grid in M13 after the owner found B2 too close to B1), 2 BIG prompts per run, adaptive path step 1 (taste, session only).
+See `PLAN.v3.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (player on the grid in M11, enemies on the grid in M13 after the owner found B2 too close to B1), 2 BIG prompts per run, adaptive path step 1 (taste, session only).
 - **Content at the end:** 8 small patches, 2 big patches, 1 arena, 3 enemy types.
 - **Run length:** ~10–12 min.
 - **Must answer:** do permanent shifts feel like stakes? Do players gravitate to one genre?
