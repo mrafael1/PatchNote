@@ -111,6 +111,7 @@ v3 builds the **player half** of a turn-based game; enemies keep their real-time
 ## 4. Director: BIG prompts
 
 - **Schedule:** a BIG prompt opens right after small prompts listed in `Tuning.big_prompt_after` (start: `[1, 3]`). The run then has 4 small and 2 BIG prompts. The BIG prompt follows the same pause and input-guard rules as a small one.
+- **Pacing (M12 retune):** the first small prompt keeps v2's 60 s minimum gap (`first_prompt_min_gap`), so the first BIG prompt comes early; later small prompts wait at least 105 s; any gap ends at 180 s. `big_prompt_after` stays `[1, 3]`. Bot runs: ~9.6 min of game time per full run (60 s base, then ~6.5 and ~4.5 min in the two genre stretches).
 - **Offer:** up to 2 big patches, not the one in the slot, sampled weighted, leaned by `Taste`. With 2 or more candidates, one card is the AI's agenda (least liked), as for small offers. The second BIG prompt adds a **Keep <current genre>** card. There is no skip on the first BIG prompt.
 - **Gravity guarantee:** unchanged (prompt 2, small).
 - **Taste:** picking, passing and keeping big patches feed `Taste` like small ones. Rollbacks cannot target them, so a big patch is only scored by picks, passes, keeps and report ratings.

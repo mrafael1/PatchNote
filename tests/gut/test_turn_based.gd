@@ -175,6 +175,26 @@ func test_bot_turn_policy_plays_turns() -> void:
 	assert_true(game.get_node("World/TurnOverlay").visible)
 
 
+func test_bot_steps_out_of_the_path_of_an_enemy_shot() -> void:
+	# The bot is the retune's proxy (M12): standing in a shooter's line every turn made
+	# B2 look twice as deadly as base when it was the bot, not the genre.
+	game.player.set_bot(true)
+	await _enter_b2()
+	var start := game.player.global_position
+	var far := RunState.spawn(game.CHASER_SCENE, start + Vector2(0, -7) * Tuning.TILE) as Node
+	await wait_physics_frames(2)   # spawned deferred: freeze it once it is ready
+	far.set_physics_process(false)
+	(far.get_node("Mover") as Node).set_physics_process(false)
+	RunState.spawn(load("res://entities/projectile.tscn"), start + Vector2(-3, 0) * Tuning.TILE, {
+		&"kind": &"enemy_projectile", &"faction": &"enemy",
+		&"velocity": Vector2(Tuning.shooter_projectile_speed, 0), &"damage": 1.0})
+	await wait_physics_frames(60)
+	assert_gt(clock.turns, 1)
+	assert_gt(absf(game.player.global_position.y - start.y), Tuning.TILE * 0.5, "stepped off the shot's row")
+	var hits := RunState.run_log.filter(func(e: Dictionary) -> bool: return e.event == &"player_hit")
+	assert_eq(hits.size(), 0, "the shot missed")
+
+
 func test_swapping_b1_and_b2_both_ways_mid_wave() -> void:
 	game.player.set_bot(true)
 	game.spawner.enabled = true

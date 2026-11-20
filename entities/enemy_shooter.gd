@@ -26,7 +26,7 @@ func _ready() -> void:
 	shooter.faction = &"enemy"
 	shooter.cooldown = Tuning.shooter_fire_interval
 	shooter.projectile_speed = Tuning.shooter_projectile_speed
-	_strafe_sign = 1.0 if get_instance_id() % 2 == 0 else -1.0
+	_strafe_sign = 1.0 if RunState.gameplay_rng.randi() % 2 == 0 else -1.0   # seeded: same seed, same run
 	RunState.register_entity(self, kind)
 
 

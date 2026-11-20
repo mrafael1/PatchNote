@@ -3,7 +3,8 @@ extends GutTest
 ## Choices go through Director.on_choice / PromptPanel.choose; no synthetic clicks.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
-const TUNING_KEYS: Array[String] = ["transition_long", "transition_short", "prompt_input_delay",
+const TUNING_KEYS: Array[String] = ["first_prompt_min_gap", "prompt_min_gap", "transition_long",
+		"transition_short", "prompt_input_delay",
 		"force_gravity_at_prompt", "big_prompt_after"]
 
 
@@ -90,10 +91,34 @@ func _mode_switch() -> Mutation:
 
 func test_prompt_needs_kills_and_the_minimum_gap_or_the_maximum_gap() -> void:
 	var n := Tuning.first_prompt_kills
-	assert_false(director.should_prompt({"time": Tuning.prompt_min_gap + 1.0, "kills": n - 1}), "not enough kills")
-	assert_false(director.should_prompt({"time": Tuning.prompt_min_gap - 1.0, "kills": n * 3}), "too soon")
-	assert_true(director.should_prompt({"time": Tuning.prompt_min_gap, "kills": n}))
+	var first := Tuning.first_prompt_min_gap
+	assert_false(director.should_prompt({"time": first + 1.0, "kills": n - 1}), "not enough kills")
+	assert_false(director.should_prompt({"time": first - 1.0, "kills": n * 3}), "too soon")
+	assert_true(director.should_prompt({"time": first, "kills": n}))
 	assert_true(director.should_prompt({"time": Tuning.prompt_max_gap, "kills": 0}), "the maximum gap alone is enough")
+
+
+func test_the_first_prompt_has_its_own_minimum_gap() -> void:
+	Tuning.first_prompt_min_gap = 20.0
+	Tuning.prompt_min_gap = 60.0
+	assert_eq(director.min_gap(), 20.0)
+	assert_false(director.should_prompt({"time": 19.0, "kills": 1000}))
+	assert_true(director.should_prompt({"time": 20.0, "kills": Tuning.first_prompt_kills}))
+	_auto_pick = 0
+	RunState.game_time += Tuning.first_prompt_min_gap
+	_kill(Tuning.first_prompt_kills)
+	director.poll()
+	assert_eq(offers.size(), 1)
+	assert_eq(director.min_gap(), 60.0)
+	var n := Tuning.first_prompt_kills + Tuning.prompt_kills_step
+	var t := RunState.game_time
+	assert_false(director.should_prompt({"time": t + Tuning.prompt_min_gap - 1.0, "kills": n * 3}), "later gaps are longer")
+	assert_true(director.should_prompt({"time": t + Tuning.prompt_min_gap, "kills": n}))
+
+
+func test_shipped_pacing_brings_the_first_prompt_early() -> void:
+	assert_lte(_saved.first_prompt_min_gap, _saved.prompt_min_gap)
+	assert_lt(_saved.prompt_min_gap, Tuning.prompt_max_gap)
 
 
 func test_only_spawner_generation_zero_kills_count() -> void:
@@ -124,6 +149,8 @@ func test_kill_threshold_grows_and_the_run_has_four_prompts() -> void:
 ## Kills pour in at 5 per second with horde and split applied: the gap between two
 ## prompts still never drops under the minimum.
 func test_prompts_are_never_closer_than_the_minimum_gap() -> void:
+	Tuning.first_prompt_min_gap = 30.0
+	Tuning.prompt_min_gap = 70.0
 	RunState.apply(MutationDB.get_mutation(&"horde_mode"))
 	RunState.apply(MutationDB.get_mutation(&"enemies_split"))
 	_auto_pick = 0
@@ -139,7 +166,8 @@ func test_prompts_are_never_closer_than_the_minimum_gap() -> void:
 			times.append(RunState.game_time)
 	assert_eq(times.size() - 1, Tuning.prompts_per_run)
 	for i in range(1, times.size()):
-		assert_gte(times[i] - times[i - 1], Tuning.prompt_min_gap - 0.001, "gap before prompt %d" % i)
+		var minimum := Tuning.first_prompt_min_gap if i == 1 else Tuning.prompt_min_gap
+		assert_gte(times[i] - times[i - 1], minimum - 0.001, "gap before prompt %d" % i)
 
 
 # --- Offers ----------------------------------------------------------------

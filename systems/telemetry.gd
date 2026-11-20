@@ -63,6 +63,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"seed": RunState.run_seed,
 		"outcome": String(outcome),
 		"duration": snappedf(RunState.game_time, 0.01),
+		"real_duration": snappedf(RunState.real_time(), 0.01),
 		"version": RunState.version_label(),
 		"kills": RunState.kills,
 		"kills_by_source": _plain(RunState.kills_by_source),
@@ -76,6 +77,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"big_offers": big_offers,
 		"big_swaps": big_swaps,
 		"genre_seconds": genre_seconds(),
+		"genre_hits": genre_hits(),
 	}
 	record.merge(extra)
 	return record
@@ -95,6 +97,21 @@ static func genre_seconds() -> Dictionary:
 	out[current] = float(out.get(current, 0.0)) + RunState.game_time - since
 	for key: String in out:
 		out[key] = snappedf(out[key], 0.01)
+	return out
+
+
+## Hits the player took under each big patch, keyed like genre_seconds. Hits an
+## invincible player would have taken count too (bot runs measure difficulty that way).
+static func genre_hits() -> Dictionary:
+	var out := {"base": 0}
+	var current := "base"
+	for entry: Dictionary in RunState.run_log:
+		if entry.event == &"big_swap":
+			current = entry.to
+			if not out.has(current):
+				out[current] = 0
+		elif entry.event == &"player_hit":
+			out[current] = int(out[current]) + 1
 	return out
 
 

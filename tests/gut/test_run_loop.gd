@@ -5,7 +5,7 @@ extends GutTest
 
 const TEST_LOG := "user://playtest_test/runs.jsonl"
 const TUNING_KEYS: Array[String] = ["transition_long", "transition_short", "prompt_input_delay",
-		"rc_duration", "report_delay", "prompt_min_gap", "prompt_max_gap", "first_prompt_kills",
+		"rc_duration", "report_delay", "first_prompt_min_gap", "prompt_min_gap", "prompt_max_gap", "first_prompt_kills",
 		"toast_time"]
 
 var game: Main
@@ -206,6 +206,7 @@ func test_seed_field_parsing() -> void:
 ## Every phase in the real arena with the bot: four prompts answered through the
 ## panel, one rollback, the release candidate, then the win and the report.
 func test_compressed_run_end_to_end_with_the_bot() -> void:
+	Tuning.first_prompt_min_gap = 0.5
 	Tuning.prompt_min_gap = 0.5
 	Tuning.prompt_max_gap = 1.0
 	Tuning.first_prompt_kills = 1000

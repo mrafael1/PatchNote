@@ -1,5 +1,6 @@
 # Windows export check (M7 gate): export the release build, boot the exported game
-# headless, and require the game banner, the full mutation list and a clean log.
+# headless, and require the game banner, the full mutation list (big patches marked)
+# and a clean log.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
 # Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe)
@@ -34,6 +35,12 @@ if ($failures.Count -eq 0) {
     if ($text -match '\[mutations\] (\d+): (.*)') {
         Write-Host "    mutations: $($Matches[1]) ($($Matches[2].Trim()))"
         if ([int]$Matches[1] -ne $expected) { $failures += "boot: $($Matches[1]) mutations listed, $expected folders" }
+        # Big patches (PLAN v3 M12) are marked "(BIG)"; every resource with is_big = true must be.
+        $listed = ([regex]::Matches($Matches[2], '\(BIG\)')).Count
+        $bigs = @(Get-ChildItem (Join-Path $root 'mutations') -Recurse -Filter '*.tres' |
+            Where-Object { Select-String -Path $_.FullName -Pattern '^is_big = true' -Quiet }).Count
+        Write-Host "    big patches marked: $listed of $bigs"
+        if ($bigs -eq 0 -or $listed -ne $bigs) { $failures += "boot: $listed big patches marked, $bigs resources with is_big" }
     } else { $failures += 'boot: mutation list missing' }
     $size = (Get-Item (Join-Path $outDir 'PatchNotes.exe')).Length / 1MB
     Write-Host ("    PatchNotes.exe {0:N1} MB" -f $size)

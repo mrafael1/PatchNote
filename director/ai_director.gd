@@ -82,7 +82,13 @@ func should_prompt(ctx: Dictionary) -> bool:
 	var gap: float = ctx.time - _last_prompt_time
 	if gap >= Tuning.prompt_max_gap:
 		return true
-	return ctx.kills >= _kills_needed and gap >= Tuning.prompt_min_gap
+	return ctx.kills >= _kills_needed and gap >= min_gap()
+
+
+## The minimum gap before the next small prompt. The first one comes sooner, so the
+## first BIG prompt (right after it) is reached early in the run (M12 retune).
+func min_gap() -> float:
+	return Tuning.first_prompt_min_gap if prompt_index == 0 else Tuning.prompt_min_gap
 
 
 ## Also used by the debug key, which ignores the pacing rule.

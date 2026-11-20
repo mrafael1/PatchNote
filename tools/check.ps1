@@ -4,7 +4,7 @@
 # log scan is the real gate.
 #
 # Usage (from anywhere):  powershell -ExecutionPolicy Bypass -File tools\check.ps1 [-BotRuns]
-# -BotRuns adds the M6 gate: five full-length seeded bot runs (about a minute).
+# -BotRuns adds the M6 gate: five full-length seeded bot runs (about two minutes).
 
 param([switch]$BotRuns)
 $ErrorActionPreference = 'Stop'

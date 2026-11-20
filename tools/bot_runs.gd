@@ -5,14 +5,25 @@ extends SceneTree
 ##   godot --headless --path . --fixed-fps 60 -s tools/bot_runs.gd -- 1 2 3 4i 5i
 ##
 ## Each argument is a seed; a trailing "i" makes that run invincible, so the win path
-## is played too. The bot plays, cards are picked at random from the seed, and runs on
+## is played too. Options (any position):
+##   --set=<tuning var>=<value>   override a Tuning value for every run (retune sweeps),
+##                                e.g. --set=prompt_min_gap=90 --set=big_prompt_after=[1,3]
+##   --set=<mutation id>.<var>=<value>   override a number on a mutation resource,
+##                                e.g. --set=turn_mode.turn_duration=0.2
+##   --big=<mutation id>          start every run in that big patch (with
+##                                --set=big_prompt_after=[] it stays: one genre per run)
+##   --log=<path>                 write telemetry there instead (parallel sweeps)
+## The bot plays, cards are picked at random from the seed, and runs on
 ## odd seeds roll one patch back after the third prompt; even seeds leave notes on the
 ## report (keep the first patch, cut the second). Telemetry goes to
 ## user://playtest/bot_runs.jsonl, never to the playtest file.
 ## Prints one "[botrun]" line per run and exits 1 if any run did not reach its report.
 
-const MAX_FRAMES := 60 * 60 * 15      # 15 minutes of game time per run
-const LOG := "user://playtest/bot_runs.jsonl"
+const MAX_FRAMES := 60 * 60 * 25      # 25 minutes at 60 physics frames a second per run
+const DEFAULT_LOG := "user://playtest/bot_runs.jsonl"
+
+var LOG := DEFAULT_LOG
+var start_big := &""
 
 
 func _initialize() -> void:
@@ -20,7 +31,25 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var specs := OS.get_cmdline_user_args()
+	var specs := PackedStringArray()
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--set="):
+			if not _override(arg.trim_prefix("--set=")):
+				print("[botrun] FAILED: bad override %s" % arg)
+				quit(1)
+				return
+		elif arg.begins_with("--big="):
+			start_big = StringName(arg.trim_prefix("--big="))
+			# Untyped: naming class Mutation here would compile it before the autoloads exist.
+			var big: Resource = root.get_node("MutationDB").get_mutation(start_big)
+			if big == null or not big.get(&"is_big"):
+				print("[botrun] FAILED: no big patch %s" % start_big)
+				quit(1)
+				return
+		elif arg.begins_with("--log="):
+			LOG = arg.trim_prefix("--log=")
+		else:
+			specs.append(arg)
 	if specs.is_empty():
 		specs = PackedStringArray(["1", "2", "3", "4i", "5i"])
 	var telemetry: GDScript = load("res://systems/telemetry.gd")
@@ -78,6 +107,34 @@ func _run() -> void:
 	quit(1 if failures > 0 else 0)
 
 
+## "name=value" onto the Tuning autoload; value is parsed as a Godot literal.
+func _override(pair: String) -> bool:
+	var at := pair.find("=")
+	if at <= 0:
+		return false
+	var tuning: Object = root.get_node("Tuning")
+	var key := pair.left(at)
+	if key.contains("."):   # <mutation id>.<var>
+		tuning = root.get_node("MutationDB").get_mutation(StringName(key.get_slice(".", 0)))
+		key = key.get_slice(".", 1)
+		if tuning == null:
+			return false
+	var value: Variant = str_to_var(pair.substr(at + 1))
+	if not key in tuning or value == null:
+		return false
+	var current: Variant = tuning.get(key)
+	if current is Array and value is Array:
+		(current as Array).assign(value)
+	elif current is float and (value is int or value is float):
+		tuning.set(key, float(value))
+	elif typeof(current) == typeof(value):
+		tuning.set(key, value)
+	else:
+		return false
+	print("[botrun] tuning %s = %s" % [pair.left(at), tuning.get(key)])
+	return true
+
+
 func _seed_of(spec: String) -> String:
 	return spec.trim_suffix("i")
 
@@ -99,6 +156,8 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 		return "[botrun] seed=%d FAILED: game started with seed %d" % [run_seed, run_state.run_seed]
 	run_state.invincible = invincible
 	game.player.set_bot(true)
+	if start_big != &"":
+		run_state.swap_big(root.get_node("MutationDB").get_mutation(start_big))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed
 	var revert_planned := run_seed % 2 == 1
@@ -107,9 +166,10 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 			var rec: Dictionary = game.run_loop.record
 			var picks: Array = (rec.prompts as Array).map(func(p: Dictionary) -> String: return p.pick)
 			var bigs: Array = (rec.big_offers as Array).map(func(p: Dictionary) -> String: return p.pick if p.pick != "" else "-")
-			return "[botrun] seed=%d%s outcome=%s time=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
-				run_seed, " (invincible)" if invincible else "", rec.outcome, rec.duration, rec.version,
-				rec.kills, picks, bigs, rec.genre_seconds, rec.reverts_used, rec.reached_release_candidate,
+			return "[botrun] seed=%d%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
+				run_seed, " (invincible)" if invincible else "", rec.outcome, rec.duration, rec.real_duration,
+				rec.version, rec.kills, picks, bigs, rec.genre_seconds, rec.genre_hits, rec.reverts_used,
+				rec.reached_release_candidate,
 				rec.agenda_cards, _first_line(game)]
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))

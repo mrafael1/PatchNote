@@ -23,6 +23,7 @@ var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
 
 var game_time := 0.0          ## unpaused, time-scaled seconds since the run started
+var real_frames := 0          ## physics frames since the run started, pauses included (telemetry)
 var build_number := 1         ## monotonic: every apply or revert is a new build
 var run_log: Array[Dictionary] = []
 var kills := 0
@@ -50,6 +51,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	real_frames += 1
 	if not get_tree().paused:
 		game_time += delta
 	# The physics delta is scaled; motion smoothing runs on real time.
@@ -262,6 +264,7 @@ func reset(new_seed: int) -> void:
 	damage_by_source.clear()
 	build_number = 1
 	game_time = 0.0
+	real_frames = 0
 	invincible = false
 	run_seed = new_seed
 	director_rng.seed = hash([new_seed, "director"])
@@ -273,6 +276,12 @@ func reset(new_seed: int) -> void:
 	_pause_reasons.clear()
 	get_tree().paused = false
 	recompute()
+
+
+## Seconds of play the player sat through, pauses included: physics frames at the
+## project tick rate. Under B1 and B2 this runs ahead of game_time.
+func real_time() -> float:
+	return real_frames / float(Engine.physics_ticks_per_second)
 
 
 func version_label() -> String:

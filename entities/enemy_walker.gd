@@ -41,7 +41,7 @@ func _ready() -> void:
 	mover.knockback_scale = _tuned("knockback_scale")
 	_contact_damage = _tuned("contact_damage")
 	_hop_cooldown_time = _tuned("hop_cooldown")
-	_avoid_side = 1.0 if get_instance_id() % 2 == 0 else -1.0
+	_avoid_side = 1.0 if RunState.gameplay_rng.randi() % 2 == 0 else -1.0   # seeded: same seed, same run
 	RunState.register_entity(self, kind)
 
 

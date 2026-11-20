@@ -11,10 +11,15 @@ var _by_id := {}
 
 func _ready() -> void:
 	reload()
+	print(summary_line())
+
+
+## The boot line the export check reads: every id, big patches marked "(BIG)".
+func summary_line() -> String:
 	var ids: Array[String] = []
 	for m in all:
-		ids.append(String(m.id))
-	print("[mutations] %d: %s" % [all.size(), ", ".join(ids)])
+		ids.append(String(m.id) + (" (BIG)" if m.is_big else ""))
+	return "[mutations] %d: %s" % [all.size(), ", ".join(ids)]
 
 
 func reload() -> void:

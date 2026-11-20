@@ -98,8 +98,11 @@ var toast_time := 2.2             # how long the AI line stays up after a patch
 # --- Director ---
 var first_prompt_kills := 15
 var prompt_kills_step := 10
-var prompt_min_gap := 60.0
-var prompt_max_gap := 150.0
+# Pacing retuned at M12 from bot runs (16 invincible seeds): about 9.6 min of game time
+# per full run, 60 s of base, then ~6.5 min and ~4.5 min in the two genre stretches.
+var first_prompt_min_gap := 60.0  # the first prompt (and the first BIG one right after it) comes early
+var prompt_min_gap := 105.0
+var prompt_max_gap := 180.0
 var force_gravity_at_prompt := 2  # prompt that is a single mandatory mode-switch card if none is applied yet; 0 disables
 var prompts_per_run := 4
 var offer_size := 3

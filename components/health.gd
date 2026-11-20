@@ -44,15 +44,21 @@ func take(info: DamageInfo) -> bool:
 		return false
 	var entity := get_parent()
 	var is_player := entity.is_in_group(&"player")
-	if is_player and RunState.invincible:
-		return false
 	if is_player and info.faction == &"enemy" and RunState.in_grace():
+		return false
+	if is_player and RunState.invincible:
+		# Counted for telemetry (hits per genre in bot runs), with the same i-frames a
+		# real hit gives, so an invincible run measures what a mortal one would take.
+		if invuln_time > 0.0:
+			grant_invulnerability(invuln_time)
+		RunState.log_event(&"player_hit", {"amount": info.amount, "kind": info.kind, "blocked": true})
 		return false
 	hp_ratio = maxf(0.0, (hp() - info.amount) / max_hp())
 	if invuln_time > 0.0:
 		grant_invulnerability(invuln_time)
 	EventBus.entity_damaged.emit(entity, info)
 	if is_player:
+		RunState.log_event(&"player_hit", {"amount": info.amount, "kind": info.kind, "blocked": false})
 		EventBus.player_hit.emit(info)
 	if hp() <= 0.001:
 		dead = true
