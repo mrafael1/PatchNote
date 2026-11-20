@@ -222,7 +222,7 @@ func motion_factor() -> float:
 ## What the motion factor is heading for right now (PLAN v3 section 2). Full speed
 ## (or a held direction, so time starts the moment the player decides to move) runs
 ## time at 1; standing still runs it at idle_time_scale. A pause, a dead or missing
-## player, and the pulse after a shot or dash all give 1.
+## player, and the pulse after a manual shot or a dash all give 1.
 func motion_target() -> float:
 	if not rules.time_follows_motion or get_tree().paused or _pulse_left > 0.0:
 		return 1.0
@@ -248,8 +248,10 @@ func _step_motion(real_delta: float) -> void:
 		_motion = lerpf(_motion, target, 1.0 - exp(-real_delta / Tuning.motion_smoothing))
 
 
+## Only the player's own trigger pulses time. Auto-attack shots keep the slow motion
+## (owner, 2026-11-20): standing still while the weapon fires by itself is B1's bonus.
 func _on_projectile_fired(projectile: Node) -> void:
-	if rules.time_follows_motion and projectile.get(&"faction") == &"player":
+	if rules.time_follows_motion and projectile.get(&"faction") == &"player" 			and not projectile.get(&"auto_fired"):
 		_pulse_left = Tuning.motion_pulse
 
 

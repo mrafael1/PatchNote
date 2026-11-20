@@ -23,8 +23,9 @@ func can_fire() -> bool:
 	return _ready_in <= 0.0
 
 
-## Returns the projectile, or null if on cooldown or at the projectile cap.
-func try_fire(dir: Vector2) -> Node:
+## Returns the projectile, or null if on cooldown or at the projectile cap. auto marks
+## a shot the weapon fired by itself (auto_attack).
+func try_fire(dir: Vector2, auto := false) -> Node:
 	if _ready_in > 0.0 or dir == Vector2.ZERO:
 		return null
 	var shooter := get_parent() as Node2D
@@ -40,6 +41,7 @@ func try_fire(dir: Vector2) -> Node:
 		&"faction": faction,
 		&"velocity": aim * projectile_speed,
 		&"damage": damage,
+		&"auto_fired": auto,
 	})
 	if projectile == null:
 		return null

@@ -16,6 +16,8 @@ var faction: StringName = &"player"
 var velocity := Vector2.ZERO
 var damage := 1.0
 var source_patch: StringName = &""
+## Fired by auto_attack, not by the player's trigger. B1 gives these no time pulse.
+var auto_fired := false
 var bounces_used := 0
 
 var _age := 0.0

@@ -85,6 +85,7 @@ Composition as in v2: bools only turned on, `*_scale` multiplied, durations assi
 
 - `motion_factor = lerp(idle_time_scale, 1.0, clamp(player_speed / player_max_speed, 0, 1))`, smoothed (~0.1 s, real time). Player speed is the body's velocity length, so falling under gravity also moves time.
 - Shooting or dashing raises the factor to 1 for a short pulse (Tuning, ~0.15 s real time), so an idle shot still leaves the muzzle.
+- **Auto-attack shots give no pulse** (owner, 2026-11-20). Only the player's own trigger and the dash run time; a weapon firing by itself keeps the slow motion. Standing still with `auto_attack` is B1's bonus, not a way to cancel it (`Projectile.auto_fired`, set by `Shooter.try_fire(dir, auto)`).
 - B1 sets `idle_time_scale *= 0.08`.
 - Everything that already runs on game time (cooldowns, i-frames, grace, Director timers, the RC wave) slows with it. The prompt panel, the history and transitions stay on pause reasons and are unaffected.
 - Readability: a desaturation and vignette on the world that fade in as time slows (presentation only, reads `Engine.time_scale`); SFX pitch follows the time scale.

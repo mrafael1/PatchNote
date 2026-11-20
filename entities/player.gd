@@ -86,7 +86,7 @@ func _physics_process(_delta: float) -> void:
 ## auto_attack: one shot at the nearest visible enemy. Returns true if it fired.
 func auto_fire() -> bool:
 	var target := _auto_target()
-	return target != null and shooter.try_fire(target.global_position - global_position) != null
+	return target != null and shooter.try_fire(target.global_position - global_position, true) != null
 
 
 ## Nearest enemy in range with a clear line. Same Shooter, same cooldown as manual fire.

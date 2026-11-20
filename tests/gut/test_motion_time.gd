@@ -3,6 +3,7 @@ extends GutTest
 ## the acceptance numbers, the shot/dash pulse, pauses and death, and its presentation.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
+const CHASER := preload("res://entities/enemy_chaser.tscn")
 
 var game: Main
 var input: Fx.ScriptedInput
@@ -73,6 +74,42 @@ func test_a_shot_or_a_dash_runs_time_for_a_short_pulse() -> void:
 	EventBus.player_dashed.emit()
 	await wait_physics_frames(2)
 	assert_eq(Engine.time_scale, 1.0, "a dash pulses too")
+
+
+func test_auto_attack_keeps_the_slow_motion() -> void:
+	# Owner, 2026-11-20: auto-fire is a bonus under B1, not a way to cancel it.
+	RunState.apply(MutationDB.get_mutation(&"auto_attack"))
+	await _settle()
+	var at := game.player.global_position + Vector2(5 * 48.0, 0)
+	var enemy := RunState.spawn(CHASER, at) as CharacterBody2D
+	await wait_physics_frames(2)
+	enemy.set_physics_process(false)
+	(enemy.get_node("Mover") as Node).set_physics_process(false)
+	(Component.find(enemy, Health) as Health).base_max_hp = 1000.0   # it must outlive the test
+	var shots := [0]
+	var count := func(p: Node) -> void:
+		if p.get(&"faction") == &"player":
+			shots[0] += 1
+	EventBus.projectile_fired.connect(count)
+	var peak := 0.0
+	var t0 := RunState.game_time
+	var f0 := Engine.get_physics_frames()
+	for i in 180:   # standing still
+		await wait_physics_frames(1)
+		peak = maxf(peak, Engine.time_scale)
+	EventBus.projectile_fired.disconnect(count)
+	assert_gt(shots[0], 0, "the weapon kept firing by itself")
+	assert_lt(peak, 0.2, "and no auto shot sped time up (peak %.2f)" % peak)
+	var real := (Engine.get_physics_frames() - f0) / 60.0
+	assert_lte(RunState.game_time - t0, 0.1 * real, "idle time stays slow with auto-fire")
+	input.aim_dir = Vector2.RIGHT
+	input.fire = true
+	peak = 0.0
+	for i in 30:
+		await wait_physics_frames(1)
+		peak = maxf(peak, Engine.time_scale)
+	input.fire = false
+	assert_eq(peak, 1.0, "a manual shot still pulses")
 
 
 class FactionNode extends Node:
