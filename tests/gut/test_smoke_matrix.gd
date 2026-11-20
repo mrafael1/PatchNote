@@ -1,6 +1,7 @@
 extends GutTest
 ## Scene smoke matrix (PLAN 11, v3 section 8): each big slot value (none, then every
-## big patch) x every legal subset of the small patches, in the real arena with the bot
+## big patch) x every legal subset of the small patches (AI-tier patches are not small,
+## PLAN v4 1.1, and never enter the stack), in the real arena with the bot
 ## playing. Apply, simulate, check, revert everything, simulate, check again. Error
 ## lines in the log are caught by tools/check.ps1.
 
@@ -52,10 +53,58 @@ func test_every_legal_subset_runs_under_each_big_patch() -> void:
 			return
 
 
+## The M14 build's end state (PLAN v4 9.1): the AI's gravity (alone, then with its
+## reversal) over every small patch, under no big patch and each big patch it fits.
+## Outside the pinned counts.
+func test_the_full_stack_runs_under_ai_gravity() -> void:
+	var smalls := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big and not m.is_ai_tier())
+	var layers: Array = [[&"gravity_on"], [&"gravity_on", &"gravity_reversed"]]
+	var slots: Array = [null]
+	slots.append_array(MutationDB.all.filter(func(m: Mutation) -> bool: return m.is_big))
+	var runs := 0
+	for big: Mutation in slots:
+		if big != null:
+			RunState.swap_big(big)
+			await wait_physics_frames(2)
+		for ids: Array in layers:
+			var label := "big %s, ai %s" % [String(big.id) if big else "none", ids]
+			if not RunState.can_add_ai_list(ids, big, RunState.stack):
+				continue
+			runs += 1
+			var rng := RandomNumberGenerator.new()
+			rng.seed = runs
+			_spawn_wave(rng)
+			await wait_physics_frames(2)
+			for id: StringName in ids:
+				RunState.add_ai(MutationDB.get_mutation(id), &"stage")
+			for m: Mutation in smalls:
+				if not RunState.apply(m):
+					fail_test("%s: %s did not apply" % [label, m.id])
+					return
+			await wait_physics_frames(FRAMES_ON)
+			var problem := _world_problem()
+			if problem != "":
+				fail_test("%s, patches on: %s" % [label, problem])
+				return
+			RunState.remove_ai(MutationDB.get_mutation(ids[0]), &"rollback")
+			while not RunState.stack.is_empty():
+				RunState.revert(RunState.stack[0])
+			await wait_physics_frames(FRAMES_OFF)
+			problem = _world_problem()
+			if problem == "":
+				problem = _leftovers(big)
+			if problem != "":
+				fail_test("%s, after removal: %s" % [label, problem])
+				return
+			_clear_world()
+			await wait_physics_frames(1)
+	assert_eq(runs, 4, "none and B1, each with gravity and with gravity reversed (B2 refuses gravity)")
+
+
 ## Runs every legal small subset with `big` in the slot (already swapped in). Returns
 ## false after the first failure.
 func _matrix(big: Mutation) -> bool:
-	var all := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big)
+	var all := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big and not m.is_ai_tier())
 	var rng := RandomNumberGenerator.new()
 	var subsets := 0
 	var most_enemies := 0
@@ -137,11 +186,11 @@ func _legal(subset: Array[Mutation], big: Mutation) -> bool:
 	return true
 
 
-## 8 small patches, gravity_reversed requires gravity_on: 3 * 2^6 - 1 = 191 non-empty
-## legal subsets. Under turn_mode gravity_on conflicts, so both gravity patches are
-## out: 2^6 - 1 = 63.
-func _expected_subsets(big: Mutation) -> int:
-	return 63 if big != null and big.id == &"turn_mode" else 191
+## Pinned per slot (PLAN v4 11, M14): 6 small patches with no requires or conflicts
+## among them or with a big patch, so 2^6 - 1 = 63 under every slot. The gravity pair
+## left the small pool (medium tier).
+func _expected_subsets(_big: Mutation) -> int:
+	return 63
 
 
 func _spawn_wave(rng: RandomNumberGenerator) -> void:

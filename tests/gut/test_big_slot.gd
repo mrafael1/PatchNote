@@ -229,21 +229,28 @@ func test_swapping_in_drops_conflicting_patches_and_their_dependents() -> void:
 		assert_ne(e.event, &"revert", "a drop is not a rollback")
 
 
+## Gravity is an AI patch since v4: the swap drops it from the AI layer (reason
+## dropped), not from the stack.
 func test_the_console_swap_to_turn_based_drops_gravity_and_reversed_gravity() -> void:
 	for e in RunState.live_entities():
 		e.free()
 	var gravity := MutationDB.get_mutation(&"gravity_on")
 	var reversed := MutationDB.get_mutation(&"gravity_reversed")
 	var bounce := MutationDB.get_mutation(&"bouncing_projectiles")
-	RunState.apply(gravity)
-	RunState.apply(reversed)
+	assert_true(RunState.add_ai(gravity, &"stage"))
+	assert_true(RunState.add_ai(reversed, &"stage"))
 	RunState.apply(bounce)
 	var dropped := RunState.swap_big(MutationDB.get_mutation(&"turn_mode"))
-	assert_eq(dropped, [reversed, gravity] as Array[Mutation])
+	assert_eq(dropped, [] as Array[Mutation], "no small patch dropped")
+	assert_eq(RunState.ai.size(), 0)
 	assert_eq(RunState.stack, [bounce] as Array[Mutation])
 	assert_false(RunState.rules.gravity_enabled)
-	assert_eq(RunState.run_log[-1].dropped, ["gravity_reversed", "gravity_on"])
-	assert_false(RunState.can_apply(gravity), "never offered again under B2")
+	var remove: Dictionary = RunState.run_log[-2]
+	assert_eq(remove.event, &"ai_remove")
+	assert_eq(remove.ids, ["gravity_reversed", "gravity_on"])
+	assert_eq(remove.reason, &"dropped")
+	assert_eq(RunState.run_log[-1].event, &"big_swap")
+	assert_false(RunState.can_add_ai(gravity), "never pushed again under B2")
 
 
 func test_big_swapped_signal_carries_old_new_and_dropped() -> void:

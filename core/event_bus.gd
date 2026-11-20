@@ -20,6 +20,8 @@ signal explosion(pos: Vector2, radius: float)   ## presentation hook; carries no
 signal patch_applied(mutation: Resource)
 signal patch_reverted(mutation: Resource)
 signal big_swapped(old: Resource, new: Resource, dropped: Array)   ## old may be null
+signal ai_patch_added(mutation: Resource, owner_id: StringName)     ## &"stage" or &"boss"
+signal ai_patch_removed(mutation: Resource, reason: StringName)     ## &"rollback", &"expired", &"dropped", &"console" (F2)
 signal rules_changed(rules: Resource)
 signal milestone_reached(id: int)
 signal run_started(run_seed: int)

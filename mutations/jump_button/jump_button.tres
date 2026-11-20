@@ -11,3 +11,4 @@ line_proposal = "Space does nothing. Players press it anyway. I can give it a pu
 line_applied = "Jump button added. I also made landing dangerous, for them."
 line_reverted = "Removing the jump button. Space goes back to being decorative."
 tags = Array[StringName]([&"movement"])
+starter = true

@@ -1,13 +1,15 @@
 extends Node
 ## Autoload "RunState" (PLAN 2.5). Owns the patch stack and everything derived from it.
 ##
-## rules is always base_rules + the big patch's apply_rules (if any) + each stacked
-## patch's apply_rules, in order. Nothing else writes a rule.
+## rules is always base_rules + the big patch's apply_rules (if any) + each AI patch's
+## + each stacked patch's, in that layer order. Nothing else writes a rule.
 ##
 ## Small patches live in `stack` and can be reverted. A big patch (PLAN v3 1.2) lives
 ## alone in `big`: it is never reverted, only replaced through swap_big(), and only
-## reset() empties the slot. This node is also the single owner of pausing, of
-## Engine.time_scale, and of the one path by which entities enter the world.
+## reset() empties the slot. AI-tier patches (PLAN v4 1.2: mediums and boss-only) live
+## in `ai`, added and removed by a stage or the boss. This node is also the single
+## owner of pausing, of Engine.time_scale, and of the one path by which entities enter
+## the world.
 
 const BASE_RULES_PATH := "res://core/base_rules.tres"
 const MIN_TIME_SCALE := 0.05
@@ -16,6 +18,8 @@ var base_rules: WorldRules
 var rules: WorldRules
 var stack: Array[Mutation] = []
 var big: Mutation             ## the big slot (PLAN v3 1.2); null = base gameplay
+var ai: Array[Mutation] = []  ## the AI layer (PLAN v4 1.2): live AI-tier patches, in add order
+var ai_owner := {}            ## AI patch id -> &"stage" or &"boss"
 var patch_state := {}
 
 var run_seed := 0
@@ -61,28 +65,40 @@ func _physics_process(delta: float) -> void:
 
 # --- Patch stack -----------------------------------------------------------
 
-## Small patches in the stack, and the big patch in its slot.
+## Small patches in the stack, the big patch in its slot, and the AI layer.
 func has_patch(id: StringName) -> bool:
 	if big != null and big.id == id:
 		return true
 	for m in stack:
 		if m.id == id:
 			return true
+	for m in ai:
+		if m.id == id:
+			return true
 	return false
 
 
-## Small patches only: a big patch goes through swap_big(). Conflicts are checked
-## against the stack and the big patch in the slot.
+## Small patches only: a big patch goes through swap_big(), an AI-tier one through
+## add_ai(). Requires are met only by the stack or the big slot (an AI patch can go
+## without its dependents seeing it, PLAN v4 1.1). Conflicts are checked against the
+## stack, the AI layer and the big slot.
 func can_apply(m: Mutation) -> bool:
-	if m == null or m.is_big or has_patch(m.id):
+	if m == null or m.is_big or m.is_ai_tier() or has_patch(m.id):
 		return false
 	for req in m.requires:
-		if not has_patch(req):
+		if not (big != null and big.id == req) and not _has_id(stack, req):
 			return false
-	for other in stack:
+	for other in stack + ai:
 		if conflicting(m, other):
 			return false
 	return big == null or not conflicting(m, big)
+
+
+func _has_id(patches: Array[Mutation], id: StringName) -> bool:
+	for m in patches:
+		if m.id == id:
+			return true
+	return false
 
 
 ## True when either patch lists the other in its conflicts.
@@ -90,9 +106,10 @@ func conflicting(a: Mutation, b: Mutation) -> bool:
 	return b.id in a.conflicts or a.id in b.conflicts
 
 
-## force skips the requires/conflicts check (debug console only). Never takes a big patch.
+## force skips the requires/conflicts check (debug console only). Never takes a big
+## or an AI-tier patch.
 func apply(m: Mutation, force := false) -> bool:
-	if m == null or m.is_big or has_patch(m.id):
+	if m == null or m.is_big or m.is_ai_tier() or has_patch(m.id):
 		return false
 	if not force and not can_apply(m):
 		return false
@@ -153,24 +170,20 @@ func dependents_of(m: Mutation) -> Array[Mutation]:
 ## Puts m in the big slot (PLAN v3 1.2), replacing the big patch there. Small
 ## patches that require the old big patch, and those that conflict with m (with
 ## everything that depends on them, PLAN v3 3b.6), are dropped first, at no rollback
-## cost. Returns the dropped patches, dependents before what they depend on. One call
-## is one build. Refuses null, a small patch, and the patch already in the slot
-## (empty list, nothing changes).
+## cost. AI patches that conflict with m go too, with their AI dependents (logged as
+## ai_remove, reason dropped, PLAN v4 1.2). Returns the dropped small patches,
+## dependents before what they depend on. One call is one build. Refuses null, a small
+## patch, and the patch already in the slot (empty list, nothing changes).
 func swap_big(m: Mutation) -> Array[Mutation]:
-	var dropped: Array[Mutation] = []
 	if m == null or not m.is_big or m == big:
-		return dropped
+		return [] as Array[Mutation]
 	var old := big
-	if old != null:
-		dropped = dependents_of(old)
-	for x in _conflicting_with(m):
-		for d in dependents_of(x):
-			if not dropped.has(d):
-				dropped.append(d)
-		if not dropped.has(x):
-			dropped.append(x)
+	var dropped := swap_drops(m)
+	var ai_dropped := ai_swap_drops(m)
 	for x in dropped:
 		_remove(x)
+	for x in ai_dropped:
+		_remove_ai(x)
 	if old != null:
 		_strip(old)
 	big = m
@@ -179,21 +192,46 @@ func swap_big(m: Mutation) -> Array[Mutation]:
 	for e in live_entities():
 		m.on_entity_spawned(e)
 	build_number += 1
+	if not ai_dropped.is_empty():
+		_log_ai_remove(ai_dropped, &"dropped")
 	var dropped_ids: Array[String] = []
 	for x in dropped:
 		dropped_ids.append(String(x.id))
 	log_event(&"big_swap", {"from": String(old.id) if old else "", "to": String(m.id), "dropped": dropped_ids})
+	for x in ai_dropped:
+		EventBus.ai_patch_removed.emit(x, &"dropped")
 	EventBus.big_swapped.emit(old, m, dropped)
 	return dropped
 
 
-## Stacked small patches that conflict with m, in stack order.
-func _conflicting_with(m: Mutation) -> Array[Mutation]:
-	var out: Array[Mutation] = []
+## Pure: the small patches swap_big(m) would drop, in the order it returns them.
+func swap_drops(m: Mutation) -> Array[Mutation]:
+	var dropped: Array[Mutation] = []
+	if m == null or not m.is_big or m == big:
+		return dropped
+	if big != null:
+		dropped = dependents_of(big)
 	for x in stack:
+		if not conflicting(x, m):
+			continue
+		for d in dependents_of(x):
+			if not dropped.has(d):
+				dropped.append(d)
+		if not dropped.has(x):
+			dropped.append(x)
+	return dropped
+
+
+## Pure: the AI patches swap_big(m) would drop (those that conflict with m, with
+## their AI dependents), latest first.
+func ai_swap_drops(m: Mutation) -> Array[Mutation]:
+	var hit: Array[Mutation] = []
+	if m == null or not m.is_big or m == big:
+		return hit
+	for x in ai:
 		if conflicting(x, m):
-			out.append(x)
-	return out
+			hit.append(x)
+	return _ai_closure(hit)
 
 
 func recompute() -> void:
@@ -202,15 +240,162 @@ func recompute() -> void:
 	EventBus.rules_changed.emit(rules)
 
 
-## The rules a given small stack would produce under a big patch (by default the one
-## in the slot), without touching the current state.
-func preview_rules(patches: Array[Mutation], with_big: Mutation = big) -> WorldRules:
+## The rules a given small stack would produce under a big patch and an AI layer (by
+## default the live ones), without touching the current state. Layer order: base,
+## big, AI, stack.
+func preview_rules(patches: Array[Mutation], with_big: Mutation = big,
+		with_ai: Array[Mutation] = ai) -> WorldRules:
 	var r := base_rules.duplicate() as WorldRules
 	if with_big != null:
 		with_big.apply_rules(r)
+	for m in with_ai:
+		m.apply_rules(r)
 	for m in patches:
 		m.apply_rules(r)
 	return r
+
+
+# --- AI layer (PLAN v4 1.2) --------------------------------------------------
+
+## m is AI-tier and not live, its requires are met by the AI layer (as in
+## can_add_ai_list), and it conflicts with nothing live.
+func can_add_ai(m: Mutation) -> bool:
+	if m == null or not m.is_ai_tier() or has_patch(m.id):
+		return false
+	for req in m.requires:
+		if not _has_id(ai, req):
+			return false
+	if big != null and conflicting(m, big):
+		return false
+	for other in stack + ai:
+		if conflicting(m, other):
+			return false
+	return true
+
+
+## Pure: could `ids` be added in order to an empty AI layer over with_big and
+## with_stack (Mutations; an untyped array is fine)? Each one's requires must be met
+## by an earlier id in the list. Never reads the live AI layer. An unknown id or one
+## that is not AI-tier is illegal.
+func can_add_ai_list(ids: Array, with_big: Mutation = null, with_stack: Array = []) -> bool:
+	var layer: Array[Mutation] = []
+	var layer_ids: Array[StringName] = []
+	for raw: Variant in ids:
+		var id := StringName(raw)
+		var m := MutationDB.get_mutation(id)
+		if m == null or not m.is_ai_tier() or id in layer_ids:
+			return false
+		for req in m.requires:
+			if not req in layer_ids:
+				return false
+		if with_big != null and conflicting(m, with_big):
+			return false
+		for other in with_stack + layer:
+			if conflicting(m, other):
+				return false
+		layer.append(m)
+		layer_ids.append(id)
+	return true
+
+
+## Adds AI-tier patch m for owner_id (&"stage" or &"boss"). force skips the requires
+## and conflicts check (debug console only). One call is one build.
+func add_ai(m: Mutation, owner_id: StringName, force := false) -> bool:
+	if m == null or not m.is_ai_tier() or has_patch(m.id):
+		return false
+	if not force and not can_add_ai(m):
+		return false
+	ai.append(m)
+	ai_owner[m.id] = owner_id
+	recompute()
+	m.enable()
+	for e in live_entities():
+		m.on_entity_spawned(e)
+	build_number += 1
+	log_event(&"ai_apply", {"id": m.id, "owner": owner_id})
+	EventBus.ai_patch_added.emit(m, owner_id)
+	return true
+
+
+## AI patches that (directly or indirectly) require m, latest first. Excludes m.
+## Scans only the AI layer.
+func ai_dependents_of(m: Mutation) -> Array[Mutation]:
+	var found := _ai_closure([m] as Array[Mutation])
+	found.erase(m)
+	return found
+
+
+## Removes m and its AI dependents, latest first. reason: &"rollback", &"expired",
+## &"dropped", or &"console" (the F2 console: no charge, not a rollback). Returns what
+## was removed. One call is one build; m not in the layer changes nothing.
+func remove_ai(m: Mutation, reason: StringName) -> Array[Mutation]:
+	if m == null or not ai.has(m):
+		return [] as Array[Mutation]
+	return _drop_ai(_ai_closure([m] as Array[Mutation]), reason)
+
+
+## Removes every AI patch of owner_id (with their AI dependents), reason expired, as
+## one build. Returns what was removed.
+func expire_ai(owner_id: StringName) -> Array[Mutation]:
+	var hit: Array[Mutation] = []
+	for x in ai:
+		if ai_owner.get(x.id) == owner_id:
+			hit.append(x)
+	if hit.is_empty():
+		return hit
+	return _drop_ai(_ai_closure(hit), &"expired")
+
+
+## The patches of `roots` that are in the layer, plus every AI patch that requires one
+## of them, transitively. Latest first.
+func _ai_closure(roots: Array[Mutation]) -> Array[Mutation]:
+	var ids: Array[StringName] = []
+	var found: Array[Mutation] = []
+	for x in roots:
+		ids.append(x.id)
+		if ai.has(x):
+			found.append(x)
+	var grew := true
+	while grew:
+		grew = false
+		for x in ai:
+			if found.has(x):
+				continue
+			for req in x.requires:
+				if req in ids:
+					found.append(x)
+					ids.append(x.id)
+					grew = true
+					break
+	var ordered: Array[Mutation] = []
+	for i in range(ai.size() - 1, -1, -1):
+		if found.has(ai[i]):
+			ordered.append(ai[i])
+	return ordered
+
+
+func _drop_ai(going: Array[Mutation], reason: StringName) -> Array[Mutation]:
+	for x in going:
+		_remove_ai(x)
+	recompute()
+	build_number += 1
+	_log_ai_remove(going, reason)
+	for x in going:
+		EventBus.ai_patch_removed.emit(x, reason)
+	return going
+
+
+func _remove_ai(m: Mutation) -> void:
+	ai.erase(m)
+	ai_owner.erase(m.id)
+	_strip(m)
+
+
+func _log_ai_remove(going: Array[Mutation], reason: StringName) -> void:
+	var ids: Array[String] = []
+	for x in going:
+		ids.append(String(x.id))
+	log_event(&"ai_remove", {"ids": ids, "reason": reason})
 
 
 ## How much the player's motion scales time (PLAN v3 1.4). 1 unless a big patch turns
@@ -280,6 +465,9 @@ func in_grace() -> bool:
 func reset(new_seed: int) -> void:
 	for i in range(stack.size() - 1, -1, -1):
 		_remove(stack[i])
+	for i in range(ai.size() - 1, -1, -1):
+		_remove_ai(ai[i])
+	ai_owner.clear()
 	if big != null:
 		_strip(big)
 		big = null
@@ -369,6 +557,8 @@ func register_entity(entity: Node, kind: StringName) -> void:
 		_pending[kind] = maxi(0, int(_pending.get(kind, 0)) - 1)
 	if big != null:
 		big.on_entity_spawned(entity)
+	for m in ai:
+		m.on_entity_spawned(entity)
 	for m in stack:
 		m.on_entity_spawned(entity)
 	EventBus.entity_spawned.emit(entity)
@@ -452,8 +642,9 @@ func _on_enemy_killed(_enemy: Node, info: RefCounted) -> void:
 
 # --- Invariant support -----------------------------------------------------
 
-## Everything that must be a pure function of the stack: rules, patch-added
-## components per entity, and mutation-owned EventBus connections.
+## Everything that must be a pure function of the layers: rules, patch-added
+## components per entity, mutation-owned EventBus connections, and the AI layer's
+## ids with their owners.
 func snapshot() -> Dictionary:
 	var entities := {}
 	for e in live_entities():
@@ -478,8 +669,12 @@ func snapshot() -> Dictionary:
 	var ids: Array[String] = []
 	for m in stack:
 		ids.append(String(m.id))
+	var ai_pairs: Array = []
+	for m in ai:
+		ai_pairs.append([String(m.id), String(ai_owner.get(m.id, &""))])
 	return {
 		"big": String(big.id) if big else "",
+		"ai": ai_pairs,
 		"stack": ids,
 		"rules": rules.to_dict(),
 		"entities": entities,

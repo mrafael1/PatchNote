@@ -73,13 +73,22 @@ func _kill(e: Node) -> void:
 	(Component.find(e, Health) as Health).take(DamageInfo.make(999.0, &"projectile", &"player"))
 
 
-func test_all_eight_small_and_the_big_mutations_are_registered() -> void:
+## Small / medium / big split (PLAN v4 1.1): the gravity pair is medium since v4.
+func test_the_six_small_two_medium_and_two_big_mutations_are_registered() -> void:
 	var ids: Array[String] = []
+	var mediums: Array[String] = []
 	var bigs: Array[String] = []
 	for m in MutationDB.all:
-		(bigs if m.is_big else ids).append(String(m.id))
+		if m.is_big:
+			bigs.append(String(m.id))
+		elif m.is_medium:
+			mediums.append(String(m.id))
+		else:
+			ids.append(String(m.id))
+		assert_false(m.boss_only, "%s: no boss-only patch before M22" % m.id)
 	assert_eq(ids, ["auto_attack", "bouncing_projectiles", "enemies_split", "explode_on_hit",
-			"gravity_on", "gravity_reversed", "horde_mode", "jump_button"])
+			"horde_mode", "jump_button"])
+	assert_eq(mediums, ["gravity_on", "gravity_reversed"])
 	assert_eq(bigs, ["motion_time", "turn_mode"])
 	var switches := 0
 	for m in MutationDB.all:
@@ -89,7 +98,7 @@ func test_all_eight_small_and_the_big_mutations_are_registered() -> void:
 			assert_true(m.is_mode_switch, "%s: a big patch uses the long transition" % m.id)
 			assert_ne(m.genre_label, "", "%s has a genre label" % m.id)
 			assert_eq(MutationDB.problems(m), [] as Array[String])
-	assert_eq(switches, 1, "only gravity_on uses the long transition among small patches")
+	assert_eq(switches, 1, "only gravity_on uses the long transition outside the big patches")
 
 
 # --- jump_button -----------------------------------------------------------
@@ -141,7 +150,7 @@ func test_airborne_player_is_over_contact_damage_and_ground_projectiles() -> voi
 
 
 func test_jump_button_with_gravity_is_a_double_jump_and_reverts_cleanly() -> void:
-	RunState.apply(_mut(&"gravity_on"))
+	RunState.add_ai(_mut(&"gravity_on"), &"stage")
 	RunState.apply(_mut(&"jump_button"))
 	assert_eq(RunState.rules.jumps, 2)
 	var slams := 0
@@ -246,11 +255,11 @@ func test_killed_enemy_splits_once_and_children_survive_the_revert() -> void:
 
 func test_gravity_reversed_needs_gravity_and_makes_things_fall_up() -> void:
 	var reversed := _mut(&"gravity_reversed")
-	assert_false(RunState.can_apply(reversed), "requires gravity_on")
-	RunState.apply(_mut(&"gravity_on"))
-	assert_true(RunState.can_apply(reversed))
+	assert_false(RunState.can_add_ai(reversed), "requires gravity_on")
+	RunState.add_ai(_mut(&"gravity_on"), &"stage")
+	assert_true(RunState.can_add_ai(reversed))
 	_place(Vector2(10, 14))
-	RunState.apply(reversed)
+	RunState.add_ai(reversed, &"stage")
 	assert_eq(RunState.rules.gravity_dir, Vector2(0, -1))
 	var landed := false
 	for i in 180:
@@ -262,8 +271,8 @@ func test_gravity_reversed_needs_gravity_and_makes_things_fall_up() -> void:
 	assert_lt(player.global_position.y, 14 * T - 20.0, "it fell upward")
 	assert_eq(player.up_direction, Vector2(0, 1))
 	var build := RunState.build_number
-	var removed := RunState.revert(_mut(&"gravity_on"))
-	assert_eq(removed.size(), 2, "reverting gravity takes the reversal with it")
+	var removed := RunState.remove_ai(_mut(&"gravity_on"), &"rollback")
+	assert_eq(removed.size(), 2, "rolling back gravity takes the reversal with it")
 	assert_eq(RunState.build_number, build + 1)
 	assert_false(RunState.rules.gravity_enabled)
 
@@ -271,7 +280,7 @@ func test_gravity_reversed_needs_gravity_and_makes_things_fall_up() -> void:
 # --- Section 5 acceptance --------------------------------------------------
 
 func test_bounce_explode_gravity_gives_arcing_explosive_ricochets() -> void:
-	RunState.apply(_mut(&"gravity_on"))
+	RunState.add_ai(_mut(&"gravity_on"), &"stage")
 	RunState.apply(_mut(&"bouncing_projectiles"))
 	RunState.apply(_mut(&"explode_on_hit"))
 	_place(OPEN)
@@ -331,7 +340,7 @@ func test_gravity_change_runs_the_sequence_and_grants_grace() -> void:
 	var chaser := await _spawn_frozen_chaser(OPEN + Vector2(8, 0))
 	RunState.invincible = false
 	var transition: Transition = game.transition
-	assert_true(transition.request_apply(_mut(&"gravity_on")))
+	assert_true(transition.request_ai_add(_mut(&"gravity_on"), &"stage"))
 	assert_true(transition.busy)
 	assert_true(get_tree().paused, "the world is frozen")
 	assert_true(RunState.is_paused_for(&"transition"))
@@ -364,31 +373,55 @@ func test_other_patches_apply_at_once_without_pause_or_grace() -> void:
 
 func test_transition_refuses_illegal_requests() -> void:
 	var transition: Transition = game.transition
-	assert_false(transition.request_apply(_mut(&"gravity_reversed")), "requirement not met")
+	assert_false(transition.request_apply(_mut(&"gravity_on")), "an AI-tier patch never enters the stack")
+	assert_false(transition.request_apply(_mut(&"gravity_on"), true), "not even forced")
+	assert_false(transition.request_ai_add(_mut(&"horde_mode"), &"stage"), "a small is not AI-tier")
+	assert_false(transition.request_ai_add(_mut(&"gravity_reversed"), &"stage"), "requirement not met")
+	assert_false(transition.request_ai_remove(_mut(&"gravity_on"), &"rollback"), "not in the layer")
+	assert_true(transition.request_apply(_mut(&"horde_mode")))
+	assert_false(transition.request_ai_remove(_mut(&"horde_mode"), &"rollback"), "a stack patch is not a target")
+	assert_true(transition.request_ai_add(_mut(&"gravity_on"), &"stage"))
+	assert_false(transition.request_ai_add(_mut(&"gravity_on"), &"stage"), "already live")
 	assert_false(transition.request_revert(_mut(&"gravity_on")), "not in the stack")
-	assert_true(transition.request_apply(_mut(&"gravity_on")))
-	assert_false(transition.request_apply(_mut(&"gravity_on")), "already applied")
 
 
-func test_cascading_revert_is_one_transition_and_one_build() -> void:
+func test_cascading_ai_rollback_is_one_transition_and_one_build() -> void:
 	var transition: Transition = game.transition
-	transition.request_apply(_mut(&"gravity_on"))
-	transition.request_apply(_mut(&"gravity_reversed"))
-	assert_eq(RunState.stack.size(), 2)
+	transition.request_ai_add(_mut(&"gravity_on"), &"stage")
+	transition.request_ai_add(_mut(&"gravity_reversed"), &"stage")
+	assert_eq(RunState.ai.size(), 2)
 	watch_signals(transition)
 	var build := RunState.build_number
-	assert_true(transition.request_revert(_mut(&"gravity_on")))
+	assert_true(transition.request_ai_remove(_mut(&"gravity_on"), &"rollback"))
 	assert_signal_emit_count(transition, "finished", 1)
-	assert_eq(RunState.stack.size(), 0)
+	assert_eq(RunState.ai.size(), 0)
 	assert_eq(RunState.build_number, build + 1)
-	assert_true(RunState.in_grace())
+	assert_true(RunState.in_grace(), "an AI gravity change gets the grace")
+	assert_eq(RunState.run_log[-1].event, &"ai_remove")
+	assert_eq(RunState.run_log[-1].reason, &"rollback")
+
+
+## Previews pass the AI layer as it will be after the operation (PLAN v4 1.2): a
+## small patch under live gravity changes no gravity (no grace); a rollback of the
+## reversal alone keeps gravity but flips it back (the safety sequence and its grace).
+func test_previews_see_the_ai_layer() -> void:
+	var transition: Transition = game.transition
+	RunState.add_ai(_mut(&"gravity_on"), &"stage")
+	RunState.add_ai(_mut(&"gravity_reversed"), &"stage")
+	assert_true(transition.request_apply(_mut(&"horde_mode")))
+	assert_false(RunState.in_grace(), "gravity stays as it is: no safety sequence")
+	assert_true(transition.request_ai_remove(_mut(&"gravity_reversed"), &"rollback"))
+	assert_true(RunState.in_grace(), "gravity flips back down: the safety sequence")
+	assert_eq(RunState.ai, [_mut(&"gravity_on")] as Array[Mutation])
+	assert_true(RunState.rules.gravity_enabled)
+	assert_eq(RunState.rules.gravity_dir, Vector2(0, 1))
 
 
 func test_gravity_change_clears_speed_along_the_gravity_axis() -> void:
-	RunState.apply(_mut(&"gravity_on"))
+	RunState.add_ai(_mut(&"gravity_on"), &"stage")
 	_place(Vector2(10, 8))
 	await wait_physics_frames(12)
 	assert_gt(player.velocity.y, 100.0, "falling")
-	game.transition.request_revert(_mut(&"gravity_on"))
+	game.transition.request_ai_remove(_mut(&"gravity_on"), &"rollback")
 	await wait_physics_frames(2)
 	assert_almost_eq(player.velocity.y, 0.0, 1.0, "the fall does not carry into top-down")

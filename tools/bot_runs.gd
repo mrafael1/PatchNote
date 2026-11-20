@@ -13,13 +13,22 @@ extends SceneTree
 ##   --big=<mutation id>          start every run in that big patch (with
 ##                                --set=big_prompt_after=[] it stays: one genre per run)
 ##   --log=<path>                 write telemetry there instead (parallel sweeps)
-## The bot plays, cards are picked at random from the seed, and runs on
-## odd seeds roll one patch back after the third prompt; even seeds leave notes on the
-## report (keep the first patch, cut the second). Telemetry goes to
-## user://playtest/bot_runs.jsonl, never to the playtest file.
-## Prints one "[botrun]" line per run and exits 1 if any run did not reach its report.
+## --set=ai_scaffold_at_prompt=0 turns off the AI's M14 stage patch (PLAN v4 9.1).
+## The bot plays and cards are picked at random from the seed. Rollbacks target the AI
+## layer only (option D, PLAN v4 9.4): runs on odd seeds roll the AI's stage patch back
+## 30 s of game time after it lands, through the build log and two presses; the stack
+## is never rolled back. Even seeds leave notes on the report (keep the first patch,
+## cut the second). Telemetry goes to user://playtest/bot_runs.jsonl, never to the
+## playtest file.
+## Prints one "[botrun]" line per run and exits 1 if any run did not reach its report,
+## or if an odd seed held a stage patch ROLLBACK_SLACK past its rollback time without
+## rolling it back (the M14 gate, PLAN v4 10).
+## reverts= counts AI rollbacks; stage_reverts= those of stage patches; stack_reverts=
+## stack reverts (always 0 from the bot).
 
-const MAX_FRAMES := 60 * 60 * 25      # 25 minutes at 60 physics frames a second per run
+const MAX_FRAMES := 60 * 60 * 45      # 45 real minutes at 60 physics frames a second (PLAN v4 9.4)
+const ROLLBACK_AFTER := 30.0          # game seconds between the stage patch landing and its rollback
+const ROLLBACK_SLACK := 15.0          # unpaused game seconds a due rollback may wait before it counts as missed
 const DEFAULT_LOG := "user://playtest/bot_runs.jsonl"
 
 var LOG := DEFAULT_LOG
@@ -74,7 +83,7 @@ func _run() -> void:
 			break
 		var run_seed := int(_seed_of(spec))
 		var result := await _play(game, run_seed, spec.ends_with("i"))
-		if result == "":
+		if result == "" or result.contains(" FAILED"):
 			failures += 1
 		print(result if result != "" else "[botrun] seed=%d FAILED: no report after %d frames" % [run_seed, MAX_FRAMES])
 		if i + 1 < specs.size():
@@ -161,27 +170,73 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed
 	var revert_planned := run_seed % 2 == 1
+	var landed_at := -1.0   # game time the stage patch was first seen live
+	var missed := ""
 	for frame in MAX_FRAMES:
 		if game.report.is_open():
 			var rec: Dictionary = game.run_loop.record
 			var picks: Array = (rec.prompts as Array).map(func(p: Dictionary) -> String: return p.pick)
 			var bigs: Array = (rec.big_offers as Array).map(func(p: Dictionary) -> String: return p.pick if p.pick != "" else "-")
-			return "[botrun] seed=%d%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d rc=%s agenda=%d first_offer_%s" % [
-				run_seed, " (invincible)" if invincible else "", rec.outcome, rec.duration, rec.real_duration,
+			var counts := _revert_counts()
+			if missed != "" and counts.x == 0:
+				missed = " FAILED: %s" % missed
+			else:
+				missed = ""
+			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d stage_reverts=%d stack_reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
+				run_seed, " (invincible)" if invincible else "", missed, rec.outcome, rec.duration, rec.real_duration,
 				rec.version, rec.kills, picks, bigs, rec.genre_seconds, rec.genre_hits, rec.genre_hits_by_kind, rec.reverts_used,
-				rec.reached_release_candidate,
+				counts.x, counts.y, _ai_line(rec), rec.reached_release_candidate,
 				rec.agenda_cards, _first_line(game)]
+		var target := _stage_patch(run_state)
+		if target == null:
+			landed_at = -1.0
+		elif landed_at < 0.0:
+			landed_at = run_state.game_time
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
-		elif revert_planned and game.director.prompt_index >= 3 and game.director.pending == null \
-				and not run_state.stack.is_empty() and not run_state.is_paused_except(&"turn"):
+		elif revert_planned and target != null and run_state.game_time >= landed_at + ROLLBACK_AFTER \
+				and game.director.pending == null and not run_state.is_paused_except(&"turn"):
 			if game.patch_history.open():
-				var target: StringName = run_state.stack[rng.randi_range(0, run_state.stack.size() - 1)].id
-				game.patch_history.press_revert(target)
-				game.patch_history.press_revert(target)
-				revert_planned = false
+				var charges: int = game.director.charges
+				game.patch_history.press_revert(target.id)
+				game.patch_history.press_revert(target.id)
+				# Done only when the two presses spent a charge; otherwise try again.
+				if game.director.charges < charges:
+					revert_planned = false
+				else:
+					game.patch_history.close()
+		if revert_planned and target != null and missed == "" \
+				and run_state.game_time >= landed_at + ROLLBACK_AFTER + ROLLBACK_SLACK:
+			missed = "stage patch %s not rolled back by %.0f s" % [target.id, run_state.game_time]
 		await physics_frame
 	return ""
+
+
+## The first live AI patch owned by a stage, or null. Untyped: see _run.
+func _stage_patch(run_state: Node) -> Resource:
+	for m: Resource in run_state.ai:
+		if run_state.ai_owner.get(m.id) == &"stage":
+			return m
+	return null
+
+
+## (stage patch rollbacks, stack reverts) from the run log.
+func _revert_counts() -> Vector2i:
+	var out := Vector2i.ZERO
+	for e: Dictionary in root.get_node("RunState").run_log:
+		if e.event == &"revert_used" and e.get("owner", "") == "stage":
+			out.x += 1
+		elif e.event == &"revert":
+			out.y += 1
+	return out
+
+
+## "id+@time,id-rollback@time" from the record's ai_events; "-" when there are none.
+func _ai_line(rec: Dictionary) -> String:
+	var parts: Array[String] = []
+	for e: Dictionary in rec.get("ai_events", []):
+		parts.append("%s%s@%.0f" % [e.id, "+" if e.op == "add" else "-" + String(e.reason), e.time])
+	return ",".join(parts) if not parts.is_empty() else "-"
 
 
 func _line_count() -> int:

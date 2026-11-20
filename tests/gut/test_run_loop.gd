@@ -6,7 +6,7 @@ extends GutTest
 const TEST_LOG := "user://playtest_test/runs.jsonl"
 const TUNING_KEYS: Array[String] = ["transition_long", "transition_short", "prompt_input_delay",
 		"rc_duration", "report_delay", "first_prompt_min_gap", "prompt_min_gap", "prompt_max_gap", "first_prompt_kills",
-		"toast_time"]
+		"toast_time", "ai_scaffold_at_prompt"]
 
 var game: Main
 var ended: Array[StringName] = []
@@ -58,6 +58,7 @@ func _wait_report(max_frames := 120) -> void:
 func test_last_prompt_starts_the_release_candidate_and_surviving_it_wins() -> void:
 	RunState.invincible = true
 	game.director.enabled = false
+	Tuning.ai_scaffold_at_prompt = 0   # a disabled director never adds it
 	assert_eq(game.run_loop.phase, RunLoop.PLAY)
 	assert_eq(game.run_loop.rc_time_left(), -1.0)
 	game.director.prompt_index = Tuning.prompts_per_run
@@ -84,6 +85,7 @@ func test_last_prompt_starts_the_release_candidate_and_surviving_it_wins() -> vo
 func test_a_pending_prompt_holds_the_release_candidate_back() -> void:
 	RunState.invincible = true
 	game.director.enabled = false
+	Tuning.ai_scaffold_at_prompt = 0
 	game.director.prompt_index = Tuning.prompts_per_run
 	game.director.big_index = game.director.big_prompts_per_run()
 	game.director.pending = Offer.new()
@@ -144,28 +146,29 @@ func test_report_lists_the_build_log_sources_and_an_ai_line() -> void:
 	assert_true(lines[lines.size() - 1].begins_with("AI: "))
 	assert_string_contains(text, "v0.2  " + MutationDB.get_mutation(&"auto_attack").title)
 	assert_string_contains(text, "Base weapon")
-	assert_string_contains(text, "Rollbacks   1 of %d" % Tuning.reverts_per_run)
+	assert_string_contains(text, "Rollbacks   used 1 of %d earned" % Tuning.rollback_charges_start)
 	assert_string_contains(text, "Seed        %d" % RunState.run_seed)
 
 
 func test_telemetry_record_has_the_run_and_appends_one_line_per_run() -> void:
 	game.director.enabled = false
-	var gravity := MutationDB.get_mutation(&"gravity_on")
-	RunState.log_event(&"prompt", {"index": 1, "offers": ["gravity_on", "auto_attack"],
-			"pick": "gravity_on", "mandatory": false})
-	RunState.apply(gravity)
-	RunState.revert(gravity)
+	var horde := MutationDB.get_mutation(&"horde_mode")
+	RunState.log_event(&"prompt", {"index": 1, "offers": ["horde_mode", "auto_attack"],
+			"pick": "horde_mode", "mandatory": false})
+	RunState.apply(horde)
+	RunState.revert(horde)
 	RunState.kills_by_source[&"base"] = 3
 	game.run_loop.end(&"lose")
 	var rec := game.run_loop.record
 	for key in ["schema", "session_id", "run_index", "seed", "outcome", "duration", "version",
-			"kills", "kills_by_source", "events", "prompts", "reverts_used", "build", "bot"]:
+			"kills", "kills_by_source", "events", "prompts", "reverts_used", "build", "bot", "charges",
+			"ai_events"]:
 		assert_true(rec.has(key), "record has %s" % key)
 	assert_eq(rec.outcome, "lose")
 	assert_eq(rec.build, Main.BUILD)
 	assert_eq((rec.events as Array).map(func(e: Dictionary) -> String: return e.event),
 			["apply", "revert"])
-	assert_eq((rec.prompts as Array)[0].pick, "gravity_on")
+	assert_eq((rec.prompts as Array)[0].pick, "horde_mode")
 	assert_eq(rec.kills_by_source, {"base": 3})
 
 	Telemetry.log_path = TEST_LOG
@@ -204,7 +207,9 @@ func test_seed_field_parsing() -> void:
 
 
 ## Every phase in the real arena with the bot: four prompts answered through the
-## panel, one rollback, the release candidate, then the win and the report.
+## panel, the AI's stage patch after the last one (M14 scaffold), its rollback (option
+## D), the release candidate, then the win and the report. BIG prompts pick a genre
+## that leaves room for the stage patch.
 func test_compressed_run_end_to_end_with_the_bot() -> void:
 	Tuning.first_prompt_min_gap = 0.5
 	Tuning.prompt_min_gap = 0.5
@@ -220,11 +225,16 @@ func test_compressed_run_end_to_end_with_the_bot() -> void:
 		if game.report.is_open():
 			break
 		if game.prompt_panel.can_choose():
-			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
-		elif not reverted and game.director.prompt_index >= 3 and not RunState.stack.is_empty() \
-				and not RunState.is_paused_except(&"turn"):
+			var cards: Array[Mutation] = game.prompt_panel.offer.cards
+			var pick := rng.randi_range(0, cards.size() - 1)
+			if game.prompt_panel.offer.big:
+				for k in cards.size():
+					if not RunState.conflicting(cards[k], AiDirector.scaffold_patch()):
+						pick = k
+			game.prompt_panel.choose(pick)
+		elif not reverted and not RunState.ai.is_empty() and not RunState.is_paused_except(&"turn"):
 			assert_true(game.patch_history.open())
-			var target: StringName = RunState.stack[0].id
+			var target: StringName = RunState.ai[0].id
 			game.patch_history.press_revert(target)
 			game.patch_history.press_revert(target)
 			reverted = true
@@ -241,4 +251,8 @@ func test_compressed_run_end_to_end_with_the_bot() -> void:
 	assert_true(rec.reached_release_candidate)
 	assert_true(rec.bot)
 	assert_gt(rec.duration, Tuning.rc_duration)
-	assert_eq(game.director.reverts_left, Tuning.reverts_per_run - 1)
+	assert_eq(game.director.charges, Tuning.rollback_charges_start - 1)
+	assert_true(RunState.ai.is_empty())
+	assert_eq((rec.ai_events as Array).map(func(e: Dictionary) -> String: return "%s %s %s" % [e.op, e.owner, e.reason]),
+			["add stage ", "remove stage rollback"])
+	assert_eq(rec.charges, {"start": 1, "earned": 1, "used": 1})

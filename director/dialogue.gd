@@ -9,7 +9,9 @@ const PROMPT_LINES: Array[String] = [
 	"One more patch before I call this a release candidate.",
 ]
 const MANDATORY := "I already merged this one. Just click it."
-const ROLLBACK_HINT := "If you hate a patch, Tab opens the build log. You can roll back twice."
+const ROLLBACK_HINT := "Tab opens the build log. Your picks are final. Mine are not, if you have a rollback."
+## M14 only (PLAN v4 9.1): the AI ships a stage patch of its own. Never names it.
+const AI_SCAFFOLD := "I merged a patch of my own. No notes. Find it."
 const NOTHING_LEFT := "I am out of ideas that still compile. Carry on."
 
 

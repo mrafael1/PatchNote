@@ -11,3 +11,4 @@ line_proposal = "Impacts are underwhelming. I have an idea involving area of eff
 line_applied = "Explosions shipped. Stand back from your own work."
 line_reverted = "Explosions removed. Quiet again."
 tags = Array[StringName]([&"weapon"])
+starter = true

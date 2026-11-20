@@ -129,13 +129,14 @@ static func report_text(outcome: StringName, record: Dictionary) -> String:
 	lines.append("Kills       %d" % int(record.get("kills", RunState.kills)))
 	lines.append("Version     %s" % version)
 	lines.append("Seed        %d" % int(record.get("seed", RunState.run_seed)))
-	lines.append("Rollbacks   %d of %d" % [reverts, Tuning.reverts_per_run])
+	var charges: Dictionary = record.get("charges", {})
+	lines.append("Rollbacks   used %d of %d earned" % [reverts, int(charges.get("earned", Tuning.rollback_charges_start))])
 	var genres := genres_text(record.get("genre_seconds", {}))
 	if genres != "":
 		lines.append("Genres      " + genres)
 	lines.append("")
 	lines.append("BUILD LOG")
-	for line in PatchHistory.build_log_lines():
+	for line in PatchHistory.build_log_lines(true):   # the run is over: stage patches are named
 		lines.append("  " + line)
 	lines.append("")
 	lines.append("KILLS AND DAMAGE BY SOURCE")

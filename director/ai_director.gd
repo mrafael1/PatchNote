@@ -1,8 +1,8 @@
 class_name AiDirector
 extends Node
 ## The scripted "AI" (PLAN 6 and 7): decides when a prompt opens, what it offers,
-## and owns the revert charges. It knows no mutation by name; it only reads the
-## fields every Mutation has.
+## and owns the rollback charges. It knows no mutation by name; it only reads the
+## fields every Mutation has. Rollbacks (PLAN v4 1.3, option D) target AI patches only.
 ##
 ## Flow: poll() -> prompt_requested(offer) -> (UI) -> on_choice(offer, m).
 ## Tests drive it the same way, without any UI.
@@ -14,19 +14,22 @@ var enabled := true
 
 var prompt_index := 0        ## small prompts opened so far
 var big_index := 0           ## BIG prompts opened (or skipped) so far
-var reverts_left := 0
+var charges := 0             ## rollbacks left (PLAN v4 1.3)
+var charges_earned := 0      ## charges this run has had in all, the starting one included
 var pending: Offer           ## an offer waiting for its choice
-var reverted := {}           ## ids the player rolled back; never offered again
+var reverted := {}           ## small ids rolled back; never offered again. AI rollbacks never write it
 var taste: Taste             ## what the player seems to like; leans the offers
 
 var _kills_since_prompt := 0
 var _last_prompt_time := 0.0
 var _kills_needed := 0
 var _hint_given := false
+var _scaffold_done := false  ## M14 only (PLAN v4 9.1): the AI's stage patch was tried
 
 
 func _ready() -> void:
-	reverts_left = Tuning.reverts_per_run
+	charges = Tuning.rollback_charges_start
+	charges_earned = charges
 	taste = Taste.from_session()
 	_kills_needed = Tuning.first_prompt_kills
 	_last_prompt_time = RunState.game_time
@@ -49,6 +52,9 @@ func poll() -> void:
 	if big_prompt_due():
 		open_big_prompt()
 		return
+	if scaffold_due():
+		add_scaffold()
+		return
 	var ctx := context()
 	if should_prompt(ctx):
 		open_prompt(ctx)
@@ -69,10 +75,42 @@ func big_prompts_per_run() -> int:
 	return n
 
 
-## Every small and BIG prompt has been opened and answered (or skipped).
+## Every small and BIG prompt has been opened and answered (or skipped), and the
+## M14 stage patch has been tried.
 func prompts_done() -> bool:
 	return prompt_index >= Tuning.prompts_per_run and big_index >= big_prompts_per_run() \
-			and pending == null
+			and pending == null and not scaffold_due()
+
+
+# --- M14 scaffold (PLAN v4 9.1; deleted at M16) -------------------------------
+
+## The small prompt it follows has been opened, and it has not been tried yet.
+func scaffold_due() -> bool:
+	return not _scaffold_done and Tuning.ai_scaffold_at_prompt > 0 \
+			and prompt_index >= Tuning.ai_scaffold_at_prompt
+
+
+## The patch the AI adds: the first medium mode switch in MutationDB order (chosen by
+## data, never by id). Null when there is none.
+static func scaffold_patch() -> Mutation:
+	for m in MutationDB.all:
+		if m.is_medium and m.is_mode_switch:
+			return m
+	return null
+
+
+## Adds the scaffold patch as a stage patch, undocumented, if it fits the live state.
+## Tried once per run either way.
+func add_scaffold() -> void:
+	_scaffold_done = true
+	var m := scaffold_patch()
+	if m == null or not RunState.can_add_ai(m):
+		RunState.log_event(&"ai_scaffold_skipped", {"id": String(m.id) if m else ""})
+		return
+	if transition:
+		transition.request_ai_add(m, &"stage", Dialogue.AI_SCAFFOLD)
+	else:
+		RunState.add_ai(m, &"stage")
 
 
 ## (enough counted kills AND the minimum gap) OR the maximum gap.
@@ -117,16 +155,9 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	offer.line = Dialogue.prompt_line(prompt_index)
 	var pool: Array[Mutation] = []
 	for m in MutationDB.all:
+		# can_apply refuses mediums and boss-only patches: they never reach a small offer.
 		if RunState.can_apply(m) and not reverted.has(m.id):
 			pool.append(m)
-
-	if prompt_index == Tuning.force_gravity_at_prompt and not _mode_switch_applied():
-		for m in pool:
-			if m.is_mode_switch:
-				offer.cards = [m]
-				offer.mandatory = true
-				offer.line = Dialogue.MANDATORY
-				return offer
 
 	var rng := RunState.director_rng
 	var agenda_count := mini(agenda_cards(), Tuning.offer_size - 1)
@@ -161,9 +192,9 @@ func open_big_prompt() -> void:
 
 
 ## Up to big_offer_size big patches, never the one in the slot nor one that conflicts
-## with a stacked small patch, leaned by taste. With two or more candidates the last of
-## them is the AI's agenda (least liked). Every BIG prompt after the first ends with a
-## Keep card for the patch in the slot. Nothing to swap to gives an empty offer (no
+## with a live small or AI patch (PLAN v4 4), leaned by taste. With two or more
+## candidates the last of them is the AI's agenda (least liked). Every BIG prompt after
+## the first ends with a Keep card for the patch in the slot. Nothing to swap to gives an empty offer (no
 ## prompt): a lone Keep card is not a choice. A lone candidate with no Keep card is
 ## mandatory (PLAN v3 3b.6): the slot is filled either way.
 func get_big_offer(_ctx: Dictionary) -> Offer:
@@ -173,7 +204,7 @@ func get_big_offer(_ctx: Dictionary) -> Offer:
 	offer.prompt_index = big_index
 	var pool: Array[Mutation] = []
 	for m in MutationDB.all:
-		if m.is_big and m != RunState.big and not _conflicts_with_stack(m):
+		if m.is_big and m != RunState.big and not _conflicts_with_live(m):
 			pool.append(m)
 	if pool.is_empty():
 		return offer
@@ -198,8 +229,8 @@ func get_big_offer(_ctx: Dictionary) -> Offer:
 	return offer
 
 
-func _conflicts_with_stack(m: Mutation) -> bool:
-	for x in RunState.stack:
+func _conflicts_with_live(m: Mutation) -> bool:
+	for x in RunState.stack + RunState.ai:
 		if RunState.conflicting(m, x):
 			return true
 	return false
@@ -301,47 +332,53 @@ func _heal_player() -> void:
 			health.heal(Tuning.hotfix_heal)
 
 
+## Option D (PLAN v4 1.3): only a live AI patch, never a stack patch.
 func can_revert(m: Mutation) -> bool:
-	return reverts_left > 0 and m != null and RunState.stack.has(m) \
+	return charges > 0 and m != null and RunState.ai.has(m) \
 			and not (transition and transition.busy)
 
 
-## Spends one charge to roll m back, together with anything that depends on it.
+## Spends one charge to roll AI patch m back, together with its AI dependents. A stage
+## patch rolled back lowers its taste; a boss patch does not. Never writes `reverted`.
 func revert(m: Mutation) -> bool:
 	if not can_revert(m):
 		return false
-	var going := RunState.dependents_of(m)
+	var going := RunState.ai_dependents_of(m)
 	going.append(m)
+	var owners := {}
+	for x in going:
+		owners[x.id] = RunState.ai_owner.get(x.id, &"")
 	var hp := -1.0
 	for p in get_tree().get_nodes_in_group(&"player"):
 		var health := Component.find(p, Health) as Health
 		if health:
 			hp = health.hp()
-	var accepted := transition.request_revert(m) if transition else not RunState.revert(m).is_empty()
+	var accepted := transition.request_ai_remove(m, &"rollback") if transition \
+			else not RunState.remove_ai(m, &"rollback").is_empty()
 	if not accepted:
 		return false
-	reverts_left -= 1
-	RunState.log_event(&"revert_used", {"id": String(m.id), "hp": hp,
-			"removed": going.size(), "reverts_left": reverts_left})
+	charges -= 1
+	RunState.log_event(&"revert_used", {"id": String(m.id), "owner": String(owners[m.id]), "hp": hp,
+			"removed": going.size(), "charges": charges})
 	for x in going:
-		on_revert(x)
+		if owners[x.id] == &"stage":
+			taste.on_revert(x)
 	return true
 
 
+## A stage clear's charge (PLAN v4 1.3). Stage clears come at M16; until then only
+## the tests call it.
+func add_stage_charge() -> void:
+	charges += Tuning.rollback_charges_per_stage
+	charges_earned += Tuning.rollback_charges_per_stage
+	RunState.log_event(&"charge_earned", {"charges": charges})
+
+
+## A small patch rolled back (v2 interface): never offered again this run, and its
+## taste drops. No player-facing path reverts a small patch any more (option D).
 func on_revert(m: Mutation) -> void:
 	reverted[m.id] = true
 	taste.on_revert(m)
-
-
-## A mode switch is in the stack, or a genre is in the big slot (the forced card
-## yields to it, PLAN v3 3b.6).
-func _mode_switch_applied() -> bool:
-	if RunState.big != null:
-		return true
-	for m in RunState.stack:
-		if m.is_mode_switch:
-			return true
-	return false
 
 
 func _on_enemy_killed(enemy: Node, _info: RefCounted) -> void:

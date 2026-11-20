@@ -31,14 +31,28 @@ func _run() -> void:
 	game.spawn_wave(10)
 	for i in FRAMES_BEFORE:
 		await physics_frame
+	var applied: Array[String] = []
 	for i in range(1, args.size()):
 		var m: Resource = db.get_mutation(StringName(args[i]))
-		if m:
-			run_state.apply(m, true)
+		if m and _force(run_state, m):
+			applied.append(args[i])
+		else:
+			push_warning("[shot] not applied: %s" % args[i])
 	for i in FRAMES_AFTER:
 		await physics_frame
 	await process_frame
 	var image := root.get_texture().get_image()
 	var err := image.save_png(out)
-	print("[shot] %s (%d)" % [ProjectSettings.globalize_path(out), err])
+	print("[shot] %s (%d) patches=%s" % [ProjectSettings.globalize_path(out), err, applied])
 	quit()
+
+
+## The F2 console's routes: a big patch is swapped in, an AI-tier one added as a stage
+## patch, a small one applied, all ignoring requires/conflicts.
+func _force(run_state: Node, m: Resource) -> bool:
+	if m.is_big:
+		run_state.swap_big(m)
+		return run_state.big == m
+	if m.is_ai_tier():
+		return run_state.add_ai(m, &"stage", true)
+	return run_state.apply(m, true)

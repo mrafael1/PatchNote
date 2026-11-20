@@ -63,7 +63,7 @@ func test_gravity_on_makes_the_player_fall_and_land() -> void:
 	await wait_physics_frames(20)
 	assert_almost_eq(player.global_position.y, 14 * T, 1.0, "no gravity: stays put")
 	watch_signals(EventBus)
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	assert_true(await _wait_until_grounded())
 	assert_almost_eq(player.global_position.y, _standing_y(18), 3.0, "landed on the ledge below")
 	assert_eq(player.motion_mode, CharacterBody2D.MOTION_MODE_GROUNDED)
@@ -71,7 +71,7 @@ func test_gravity_on_makes_the_player_fall_and_land() -> void:
 
 
 func test_jump_height_and_short_hop() -> void:
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	_place(Vector2(15, 20))
 	assert_true(await _wait_until_grounded())
 	var ground := player.global_position.y
@@ -104,7 +104,7 @@ func test_space_does_nothing_without_a_jump_rule() -> void:
 
 
 func test_extra_jump_rule_gives_an_air_jump() -> void:
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	_place(Vector2(2.5, 20))   # open column: nothing overhead to bump into
 	assert_true(await _wait_until_grounded())
 	var ground := player.global_position.y
@@ -130,7 +130,7 @@ func test_extra_jump_rule_gives_an_air_jump() -> void:
 
 
 func test_player_can_climb_two_tiers() -> void:
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	# Floor, just left of the row-18 ledge that spans columns 24-30.
 	_place(Vector2(22.5, 20))
 	assert_true(await _wait_until_grounded())
@@ -155,11 +155,11 @@ func test_player_can_climb_two_tiers() -> void:
 
 
 func test_reverting_gravity_stops_the_fall() -> void:
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	_place(Vector2(3, 3))
 	await wait_physics_frames(15)
 	assert_gt(player.velocity.y, 200.0, "falling")
-	RunState.revert(gravity)
+	RunState.remove_ai(gravity, &"rollback")
 	await wait_physics_frames(20)
 	assert_almost_eq(player.velocity.y, 0.0, 1.0, "no leftover fall speed")
 	var y := player.global_position.y
@@ -170,8 +170,8 @@ func test_reverting_gravity_stops_the_fall() -> void:
 
 
 func test_flipped_gravity_falls_up_and_keeps_left_right() -> void:
-	RunState.apply(gravity)
-	RunState.apply(Fx.make(Fx.FxFlipGravity, &"fx_flip", [&"gravity_on"]))
+	RunState.add_ai(gravity, &"stage")
+	RunState.add_ai(Fx.make_medium(Fx.FxFlipGravity, &"fx_flip", [&"gravity_on"]), &"stage")
 	_place(Vector2(3, 10))
 	assert_true(await _wait_until_grounded(240), "lands on the ceiling")
 	assert_almost_eq(player.global_position.y, 1 * T + 17.0, 3.0)
@@ -195,9 +195,9 @@ func test_fifty_random_toggles_leave_everyone_in_valid_places() -> void:
 	for i in 50:
 		await wait_physics_frames(rng.randi_range(4, 45))
 		if RunState.has_patch(&"gravity_on"):
-			RunState.revert(gravity)
+			RunState.remove_ai(gravity, &"rollback")
 		else:
-			RunState.apply(gravity)
+			RunState.add_ai(gravity, &"stage")
 		_assert_all_entities_valid("toggle %d" % i)
 	await wait_physics_frames(120)
 	_assert_all_entities_valid("settled")
@@ -205,7 +205,7 @@ func test_fifty_random_toggles_leave_everyone_in_valid_places() -> void:
 
 
 func test_chaser_reaches_player_on_the_floor_past_an_obstacle() -> void:
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	_place(Vector2(26, 20))
 	# The 2-tile block at columns 20-21 stands between them.
 	var chaser := RunState.spawn(CHASER, Vector2(12, 20) * T) as Node2D
@@ -219,7 +219,7 @@ func test_chaser_reaches_player_on_the_floor_past_an_obstacle() -> void:
 
 
 func test_chaser_reaches_player_standing_on_a_ledge() -> void:
-	RunState.apply(gravity)
+	RunState.add_ai(gravity, &"stage")
 	_place(Vector2(27, 17))   # on the row-18 ledge, columns 24-30
 	assert_true(await _wait_until_grounded())
 	var chaser := RunState.spawn(CHASER, Vector2(36, 20) * T) as Node2D

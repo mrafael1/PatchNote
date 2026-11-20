@@ -11,3 +11,4 @@ line_proposal = "When they die they just disappear. I think they should leave so
 line_applied = "Mitosis implemented. Every kill is now a negotiation."
 line_reverted = "They die normally again. The small ones already here are your problem."
 tags = Array[StringName]([&"spawn"])
+starter = true

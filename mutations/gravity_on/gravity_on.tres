@@ -13,3 +13,5 @@ line_reverted = "Rolling back gravity. Please remain where you are, wherever tha
 tags = Array[StringName]([&"physics"])
 is_mode_switch = true
 conflicts = Array[StringName]([&"turn_mode"])
+is_medium = true
+boss_weight = 1.0

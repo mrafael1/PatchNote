@@ -105,12 +105,17 @@ var prompt_kills_step := 10
 var first_prompt_min_gap := 60.0  # the first prompt (and the first BIG one right after it) comes early
 var prompt_min_gap := 150.0
 var prompt_max_gap := 180.0
-var force_gravity_at_prompt := 2  # prompt that is a single mandatory mode-switch card if none is applied yet; 0 disables
 var prompts_per_run := 4
 var offer_size := 3
 var hotfix_heal := 1.0            # HP restored by every applied patch
 var prompt_input_delay := 0.5     # the prompt ignores input for this long after opening
-var reverts_per_run := 2
+# Rollbacks (PLAN v4 1.3, option D): AI patches only, a charge at the start and one
+# per stage clear. Stage clears come at M16; until then only tests grant the extra.
+var rollback_charges_start := 1
+var rollback_charges_per_stage := 1
+# M14 only (PLAN v4 9.1; deleted at M16): right after this small prompt the AI adds a
+# stage patch of its own, so the one-stage build has a rollback target. 0 disables.
+var ai_scaffold_at_prompt := 4
 
 # --- Run loop ---
 var rc_duration := 90.0           # the "release candidate" wave after the last prompt

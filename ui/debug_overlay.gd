@@ -31,7 +31,7 @@ func _ready() -> void:
 	var box := VBoxContainer.new()
 	_console.add_child(box)
 	var title := Label.new()
-	title.text = "Mutation console (click to apply / revert; BIG: swap in)"
+	title.text = "Mutation console (click to apply / revert; BIG: swap in; MED, BOSS: add / remove AI)"
 	box.add_child(title)
 	for m in MutationDB.all:
 		var b := Button.new()
@@ -45,16 +45,31 @@ func _ready() -> void:
 	EventBus.patch_applied.connect(func(_m: Resource) -> void: _refresh_console())
 	EventBus.patch_reverted.connect(func(_m: Resource) -> void: _refresh_console())
 	EventBus.big_swapped.connect(func(_o: Resource, _n: Resource, _d: Array) -> void: _refresh_console())
+	EventBus.ai_patch_added.connect(func(_m: Resource, _o: StringName) -> void: _refresh_console())
+	EventBus.ai_patch_removed.connect(func(_m: Resource, _r: StringName) -> void: _refresh_console())
 
 
 ## Apply the mutation if it is not in the stack, otherwise revert it. Ignores
 ## requires/conflicts, like a developer console should. A big patch is swapped into
 ## the big slot; clicking the one already there does nothing (only reset empties it).
+## An AI-tier patch is added to the AI layer as a stage patch, or removed from it with
+## reason console (no charge spent, not a rollback).
 func toggle_mutation(id: StringName) -> void:
 	var m := MutationDB.get_mutation(id)
 	if m == null:
 		return
 	var transition: Transition = game.transition if game else null
+	if m.is_ai_tier():
+		if RunState.ai.has(m):
+			if transition:
+				transition.request_ai_remove(m, &"console")
+			else:
+				RunState.remove_ai(m, &"console")
+		elif transition:
+			transition.request_ai_add(m, &"stage", "", true)
+		else:
+			RunState.add_ai(m, &"stage", true)
+		return
 	if m.is_big:
 		if transition:
 			transition.request_swap_big(m)
@@ -103,7 +118,9 @@ func _refresh_console() -> void:
 	for id: StringName in _buttons:
 		var m := MutationDB.get_mutation(id)
 		var mark := "[x]" if RunState.has_patch(id) else "[ ]"
-		var big_tag := " BIG" if m and m.is_big else ""
+		var big_tag := ""
+		if m:
+			big_tag = " BIG" if m.is_big else " MED" if m.is_medium else " BOSS" if m.boss_only else ""
 		(_buttons[id] as Button).text = "%s%s %s — %s" % [mark, big_tag, id, m.title if m else ""]
 
 
@@ -121,6 +138,10 @@ func _build_text() -> String:
 		ids.append(String(m.id))
 	lines.append("big: " + (String(RunState.big.id) if RunState.big else "(none)"))
 	lines.append("stack: " + (", ".join(ids) if not ids.is_empty() else "(empty)"))
+	var ai_ids: Array[String] = []
+	for m in RunState.ai:
+		ai_ids.append("%s (%s)" % [m.id, RunState.ai_owner.get(m.id, &"")])
+	lines.append("ai: " + (", ".join(ai_ids) if not ai_ids.is_empty() else "(empty)"))
 	var rules := RunState.rules.to_dict()
 	var base := RunState.base_rules.to_dict()
 	for key: String in rules:

@@ -30,6 +30,8 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 	var history_opens := 0
 	var big_offers: Array[Dictionary] = []
 	var big_swaps: Array[Dictionary] = []
+	var ai_events: Array[Dictionary] = []   ## PLAN v4 9.3, early: AI layer adds and removals
+	var ai_owners := {}
 	for entry: Dictionary in RunState.run_log:
 		match entry.event:
 			&"big_prompt":
@@ -51,8 +53,16 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 			&"prompt_skipped":
 				prompts.append({"index": entry.index, "offers": [], "pick": "",
 						"mandatory": false, "time": snappedf(entry.time, 0.01)})
+			&"ai_apply":
+				ai_owners[String(entry.id)] = String(entry.owner)
+				ai_events.append({"time": snappedf(entry.time, 0.01), "id": String(entry.id),
+						"owner": String(entry.owner), "op": "add", "reason": ""})
+			&"ai_remove":
+				for id: String in entry.ids:
+					ai_events.append({"time": snappedf(entry.time, 0.01), "id": id,
+							"owner": ai_owners.get(id, ""), "op": "remove", "reason": String(entry.reason)})
 			&"revert_used":
-				reverts_used += 1
+				reverts_used += 1   # AI rollbacks (option D)
 			&"history_open":
 				history_opens += 1
 	var record := {
@@ -76,6 +86,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"final_big": String(RunState.big.id) if RunState.big else "",
 		"big_offers": big_offers,
 		"big_swaps": big_swaps,
+		"ai_events": ai_events,
 		"genre_seconds": genre_seconds(),
 		"genre_hits": genre_hits(),
 		"genre_hits_by_kind": genre_hits_by_kind(),

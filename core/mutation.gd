@@ -19,8 +19,19 @@ extends Resource
 ## reverted (only replaced by another big patch). Has no requires and no conflicts.
 @export var is_big := false
 @export var genre_label := ""            ## big patches: short name for the HUD and history
+## AI tier (PLAN v4 1.1): lives in RunState.ai, never in the stack. A patch is exactly
+## one of small, medium, boss-only or big.
+@export var is_medium := false   ## how you move and see: a stage default the boss may also push
+@export var boss_only := false   ## a boss hazard: only the boss pushes it, never a stage
+@export var starter := false     ## in the first run's offer pool (read from M19 on)
+@export var boss_weight := 0.0   ## > 0: the boss may push it live
 
 var _connections: Array = []
+
+
+## Lives in RunState.ai (added by a stage or the boss), never in the stack.
+func is_ai_tier() -> bool:
+	return is_medium or boss_only
 
 
 ## Pure: change rule values only.

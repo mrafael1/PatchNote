@@ -125,7 +125,7 @@ func test_bounce_rule_reflects_projectiles() -> void:
 
 
 func test_projectile_gravity_rule_makes_shots_arc() -> void:
-	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+	RunState.add_ai(MutationDB.get_mutation(&"gravity_on"), &"stage")
 	var straight := await _fire_projectile(Vector2(10, 10.5), Vector2(600, 0))
 	await wait_physics_frames(15)
 	assert_almost_eq(straight.global_position.y, 10.5 * T, 0.5, "no arc without the rule")
@@ -159,7 +159,7 @@ func test_dash_covers_its_distance_with_invulnerability_and_cooldown() -> void:
 
 
 func test_dash_works_the_same_with_gravity() -> void:
-	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+	RunState.add_ai(MutationDB.get_mutation(&"gravity_on"), &"stage")
 	_place(OPEN + Vector2(0, 0.6))
 	await wait_physics_frames(30)
 	var start := player.global_position
@@ -185,7 +185,7 @@ func test_tank_resists_knockback_and_takes_more_hits() -> void:
 
 
 func test_shooter_floats_under_gravity_and_hurts_the_player() -> void:
-	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+	RunState.add_ai(MutationDB.get_mutation(&"gravity_on"), &"stage")
 	_place(OPEN + Vector2(0, 0.6))
 	var shooter := await _spawn(SHOOTER, OPEN + Vector2(7, -3))
 	var chaser := await _spawn(CHASER, Vector2(3, 3))
@@ -209,7 +209,7 @@ func test_shooter_floats_under_gravity_and_hurts_the_player() -> void:
 
 
 func test_enemy_projectiles_never_bounce_or_arc() -> void:
-	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+	RunState.add_ai(MutationDB.get_mutation(&"gravity_on"), &"stage")
 	RunState.apply(Fx.make(Fx.FxBounce, &"fx_bounce"))
 	RunState.apply(Fx.make(Fx.FxArc, &"fx_arc"))
 	_place(Vector2(3, 3))

@@ -12,3 +12,5 @@ line_applied = "Sign flipped. Technically everything still falls."
 line_reverted = "Restoring the original sign. Boring, but correct."
 tags = Array[StringName]([&"physics"])
 requires = Array[StringName]([&"gravity_on"])
+is_medium = true
+boss_weight = 0.5

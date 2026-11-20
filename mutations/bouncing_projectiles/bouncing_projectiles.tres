@@ -11,3 +11,4 @@ line_proposal = "Your shots stop at walls. That seems like a waste of a perfectl
 line_applied = "Restitution enabled. Geometry is now part of your aim."
 line_reverted = "Shots stop at walls again. Walls win."
 tags = Array[StringName]([&"weapon"])
+starter = true

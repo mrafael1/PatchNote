@@ -1,6 +1,8 @@
 class_name Transition
 extends CanvasLayer
-## Applies and reverts patches with their presentation (PLAN 4).
+## Applies and reverts patches with their presentation (PLAN 4), AI patches included
+## (PLAN v4 1.2). Every preview sees the stack and the AI layer as they will be after
+## the operation, so an AI gravity change gets the pause, velocity clear and grace.
 ##
 ## If the change alters gravity (on, off or direction) the full sequence runs: pause,
 ## terminal text over the frozen world, the actual apply/revert, unpause, then a
@@ -14,6 +16,7 @@ signal finished
 
 var busy := false
 var sound: Sound                 ## optional
+var gravity_changed := false     ## the last operation's preview changed gravity (tests read it)
 
 const GLITCH_SHADER := preload("res://systems/glitch.gdshader")
 const PROGRESS_CELLS := 24
@@ -101,7 +104,7 @@ func _make_label(font_size: int) -> Label:
 ## Starts applying m. Returns false if it was refused (busy, already applied, not
 ## legal). force skips requires/conflicts, for the debug console.
 func request_apply(m: Mutation, force := false) -> bool:
-	if busy or m == null or RunState.has_patch(m.id):
+	if busy or m == null or m.is_ai_tier() or RunState.has_patch(m.id):
 		return false
 	if not force and not RunState.can_apply(m):
 		return false
@@ -111,7 +114,7 @@ func request_apply(m: Mutation, force := false) -> bool:
 	if m.is_mode_switch:
 		text += "\n> compiling..."
 	var duration := Tuning.transition_long if m.is_mode_switch else Tuning.transition_short
-	_run(func() -> void: RunState.apply(m, force), after, text, m.line_applied, duration)
+	_run(func() -> void: RunState.apply(m, force), after, RunState.ai, text, m.line_applied, duration)
 	return true
 
 
@@ -121,48 +124,86 @@ func request_apply(m: Mutation, force := false) -> bool:
 func request_swap_big(m: Mutation) -> bool:
 	if busy or m == null or not m.is_big or m == RunState.big:
 		return false
-	var after: Array[Mutation] = []
-	if RunState.big != null:
-		var dropped := RunState.dependents_of(RunState.big)
-		for x in RunState.stack:
-			if not dropped.has(x):
-				after.append(x)
-	else:
-		after = RunState.stack.duplicate()
+	var after := _without(RunState.stack, RunState.swap_drops(m))
+	var after_ai := _without(RunState.ai, RunState.ai_swap_drops(m))
 	var text := "> MAJOR UPDATE: %s\n> migrating engine..." % m.title
-	_run(func() -> void: RunState.swap_big(m), after, text, m.line_applied, Tuning.transition_long, m)
+	_run(func() -> void: RunState.swap_big(m), after, after_ai, text, m.line_applied,
+			Tuning.transition_long, m)
 	return true
 
 
-## Starts reverting m and its dependents: one action, one transition.
+## Starts reverting m and its dependents: one action, one transition. Stack only
+## (the F2 console; PLAN v4 1.3).
 func request_revert(m: Mutation) -> bool:
 	if busy or m == null or not RunState.stack.has(m):
 		return false
 	var going := RunState.dependents_of(m)
 	going.append(m)
-	var after: Array[Mutation] = []
-	var long := false
-	for x in RunState.stack:
-		if going.has(x):
-			long = long or x.is_mode_switch
-		else:
-			after.append(x)
 	var text := "> rolling back %s: %s" % [RunState.version_label(), m.title]
 	if going.size() > 1:
 		text += "\n> and %d dependent patch(es)" % (going.size() - 1)
-	var duration := Tuning.transition_long if long else Tuning.transition_short
-	_run(func() -> void: RunState.revert(m), after, text, m.line_reverted, duration)
+	_run(func() -> void: RunState.revert(m), _without(RunState.stack, going), RunState.ai, text,
+			m.line_reverted, _duration_for(going))
 	return true
 
 
+## Starts adding AI-tier patch m for owner_id (PLAN v4 1.2). A stage patch is
+## undocumented: the terminal text does not name it, and `line` is the caller's
+## (empty: none). force skips requires/conflicts, for the debug console.
+func request_ai_add(m: Mutation, owner_id: StringName, line := "", force := false) -> bool:
+	if busy or m == null or not m.is_ai_tier() or RunState.has_patch(m.id):
+		return false
+	if not force and not RunState.can_add_ai(m):
+		return false
+	var after_ai: Array[Mutation] = RunState.ai.duplicate()
+	after_ai.append(m)
+	var text := "> AI patch deployed: %s" % ("(undocumented)" if owner_id == &"stage" else m.title)
+	_run(func() -> void: RunState.add_ai(m, owner_id, force), RunState.stack, after_ai, text, line,
+			_duration_for([m] as Array[Mutation]))
+	return true
+
+
+## Starts removing AI patch m and its AI dependents (PLAN v4 1.3): one action, one
+## transition. reason: &"rollback", &"expired" or &"console" (F2).
+func request_ai_remove(m: Mutation, reason: StringName) -> bool:
+	if busy or m == null or not RunState.ai.has(m):
+		return false
+	var going := RunState.ai_dependents_of(m)
+	going.append(m)
+	var text := ("> AI patch expired: %s" if reason == &"expired" else "> rolling back AI patch: %s") \
+			% m.title
+	if going.size() > 1:
+		text += "\n> and %d dependent patch(es)" % (going.size() - 1)
+	_run(func() -> void: RunState.remove_ai(m, reason), RunState.stack, _without(RunState.ai, going),
+			text, m.line_reverted, _duration_for(going))
+	return true
+
+
+func _without(patches: Array[Mutation], going: Array[Mutation]) -> Array[Mutation]:
+	var out: Array[Mutation] = []
+	for x in patches:
+		if not going.has(x):
+			out.append(x)
+	return out
+
+
+func _duration_for(patches: Array[Mutation]) -> float:
+	for x in patches:
+		if x.is_mode_switch:
+			return Tuning.transition_long
+	return Tuning.transition_short
+
+
+## after / after_ai: the stack and the AI layer as they will be after the operation.
 ## next_big: the big patch the operation puts in the slot (null: the slot does not
 ## change). A big swap always plays the full sequence.
-func _run(operation: Callable, after: Array[Mutation], text: String, line: String, duration: float,
-		next_big: Mutation = null) -> void:
+func _run(operation: Callable, after: Array[Mutation], after_ai: Array[Mutation], text: String,
+		line: String, duration: float, next_big: Mutation = null) -> void:
 	var old := RunState.rules
-	var new := RunState.preview_rules(after, next_big if next_big != null else RunState.big)
+	var new := RunState.preview_rules(after, next_big if next_big != null else RunState.big, after_ai)
 	var gravity_changes := old.gravity_enabled != new.gravity_enabled \
 			or (new.gravity_enabled and not old.gravity_dir.is_equal_approx(new.gravity_dir))
+	gravity_changed = gravity_changes
 	if not gravity_changes and next_big == null:
 		operation.call()
 		glitch(0.45)

@@ -41,6 +41,14 @@ if ($failures.Count -eq 0) {
             Where-Object { Select-String -Path $_.FullName -Pattern '^is_big = true' -Quiet }).Count
         Write-Host "    big patches marked: $listed of $bigs"
         if ($bigs -eq 0 -or $listed -ne $bigs) { $failures += "boot: $listed big patches marked, $bigs resources with is_big" }
+        # Mediums are marked "(MED)" and boss-only patches "(BOSS)" (PLAN v4 1.1), counted the same way.
+        foreach ($tier in @(@('MED', 'is_medium'), @('BOSS', 'boss_only'))) {
+            $marked = ([regex]::Matches($Matches[2], "\($($tier[0])\)")).Count
+            $flagged = @(Get-ChildItem (Join-Path $root 'mutations') -Recurse -Filter '*.tres' |
+                Where-Object { Select-String -Path $_.FullName -Pattern "^$($tier[1]) = true" -Quiet }).Count
+            Write-Host "    $($tier[0]) patches marked: $marked of $flagged"
+            if ($marked -ne $flagged) { $failures += "boot: $marked $($tier[0]) patches marked, $flagged resources with $($tier[1])" }
+        }
     } else { $failures += 'boot: mutation list missing' }
     $size = (Get-Item (Join-Path $outDir 'PatchNotes.exe')).Length / 1MB
     Write-Host ("    PatchNotes.exe {0:N1} MB" -f $size)

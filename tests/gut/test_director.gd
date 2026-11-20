@@ -1,11 +1,13 @@
 extends GutTest
-## M5: the scripted Director (PLAN 6), reverts (PLAN 7), and their UI.
+## M5: the scripted Director (PLAN 6), rollbacks (PLAN 7; option D from PLAN v4 1.3:
+## AI patches only, earned charges), the M14 scaffold patch (PLAN v4 9.1), and their UI.
 ## Choices go through Director.on_choice / PromptPanel.choose; no synthetic clicks.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
 const TUNING_KEYS: Array[String] = ["first_prompt_min_gap", "prompt_min_gap", "transition_long",
 		"transition_short", "prompt_input_delay",
-		"force_gravity_at_prompt", "big_prompt_after"]
+		"big_prompt_after", "ai_scaffold_at_prompt", "rollback_charges_start",
+		"rollback_charges_per_stage"]
 
 
 class Victim extends Node2D:
@@ -32,6 +34,7 @@ func before_each() -> void:
 	Tuning.transition_short = 0.0
 	Tuning.prompt_input_delay = 0.0
 	Tuning.big_prompt_after = []   # BIG prompts have their own tests (test_big_prompts)
+	Tuning.ai_scaffold_at_prompt = 0   # the scaffold has its own tests below
 	RunState.reset(11)
 	world = Node2D.new()
 	add_child_autofree(world)
@@ -80,11 +83,8 @@ func _ids(cards: Array[Mutation]) -> Array[String]:
 	return out
 
 
-func _mode_switch() -> Mutation:
-	for m in MutationDB.all:
-		if m.is_mode_switch:
-			return m
-	return null
+func _mut(id: StringName) -> Mutation:
+	return MutationDB.get_mutation(id)
 
 
 # --- Pacing ----------------------------------------------------------------
@@ -191,7 +191,6 @@ func test_offer_is_three_different_applicable_cards() -> void:
 
 
 func test_director_never_offers_what_cannot_be_applied() -> void:
-	Tuning.force_gravity_at_prompt = 0
 	var rng := RandomNumberGenerator.new()
 	var cards_seen := 0
 	for run_seed in 60:
@@ -205,13 +204,16 @@ func test_director_never_offers_what_cannot_be_applied() -> void:
 			var offer := offers[prompt]
 			for m in offer.cards:
 				cards_seen += 1
-				if not RunState.can_apply(m) or director.reverted.has(m.id):
+				if not RunState.can_apply(m) or director.reverted.has(m.id) or m.is_ai_tier():
 					fail_test("seed %d prompt %d offered %s" % [run_seed, prompt + 1, m.id])
 					return
 			director.on_choice(offer, offer.cards[rng.randi_range(0, offer.cards.size() - 1)])
-			# Sometimes roll something back, to exercise the "never again" rule.
+			# Sometimes revert a small one (the F2 path) and mark it, to exercise the
+			# "never again" rule.
 			if rng.randf() < 0.4 and not RunState.stack.is_empty():
-				director.revert(RunState.stack[rng.randi_range(0, RunState.stack.size() - 1)])
+				var x := RunState.stack[rng.randi_range(0, RunState.stack.size() - 1)]
+				for d in RunState.revert(x):
+					director.on_revert(d)
 	pass_test("%d cards checked" % cards_seen)
 
 
@@ -226,8 +228,10 @@ func test_same_seed_and_same_choices_give_the_same_offers() -> void:
 			var offer := offers[prompt]
 			seen.append(_ids(offer.cards))
 			director.on_choice(offer, offer.cards[prompt % offer.cards.size()])
+			if prompt == 0:
+				RunState.add_ai(_mut(&"gravity_on"), &"stage")
 			if prompt == 1:
-				director.revert(RunState.stack[0])
+				assert_true(director.revert(RunState.ai[0]))
 		runs.append(seen)
 	assert_eq(runs[0], runs[1])
 	RunState.reset(4243)
@@ -240,42 +244,51 @@ func test_same_seed_and_same_choices_give_the_same_offers() -> void:
 	assert_true(other != runs[0][0] or _ids(offers[0].cards) != runs[0][0], "other seeds differ")
 
 
-func test_second_prompt_forces_the_mode_switch_if_it_is_missing() -> void:
-	var switch := _mode_switch()
-	director.open_prompt()
-	var first := offers[0]
-	var pick: Mutation = null
-	for m in first.cards:
-		if m != switch:
-			pick = m
-	director.on_choice(first, pick)
-	director.open_prompt()
-	var second := offers[1]
-	assert_true(second.mandatory)
-	assert_eq(second.cards.size(), 1)
-	assert_eq(second.cards[0], switch)
-	assert_eq(second.line, Dialogue.MANDATORY)
+## PLAN v4 9.1: no forced gravity card; mediums never reach a small offer.
+func test_no_small_offer_is_forced_or_holds_an_ai_tier_patch() -> void:
+	for run_seed in 20:
+		RunState.reset(run_seed)
+		_new_director()
+		_auto_pick = 0
+		for prompt in Tuning.prompts_per_run:
+			director.open_prompt()
+		for offer in offers:
+			assert_false(offer.mandatory)
+			for m in offer.cards:
+				assert_false(m.is_ai_tier(), "seed %d offered %s" % [run_seed, m.id])
+	assert_false("force_gravity_at_prompt" in Tuning, "the forced card is gone")
+	assert_false("reverts_per_run" in Tuning)
 
 
-func test_no_forced_card_when_the_mode_switch_is_already_applied_or_disabled() -> void:
-	RunState.apply(_mode_switch())
-	director.open_prompt()
-	director.on_choice(offers[0], offers[0].cards[0])
-	director.open_prompt()
-	assert_false(offers[1].mandatory, "already applied")
-
-	RunState.reset(11)
-	_new_director()
-	Tuning.force_gravity_at_prompt = 0
-	director.open_prompt()
-	director.on_choice(offers[0], offers[0].cards[0])
-	director.open_prompt()
-	assert_false(offers[1].mandatory, "disabled by the tuning flag")
+## PLAN v4 11 (DB rules) and 5: fixture mediums and a boss-only patch never reach a
+## small offer, and a small that conflicts with a live AI patch is withheld.
+func test_fixture_ai_tier_patches_are_never_offered_and_withhold_their_conflicts() -> void:
+	var fx := Fx.make_ai_set()
+	for m in fx:
+		MutationDB.register(m)
+	var against := fx[4]
+	var seen_against := false
+	for run_seed in 20:
+		RunState.reset(run_seed)
+		_new_director()
+		if run_seed % 2 == 1:
+			RunState.add_ai(fx[0], &"stage")
+		for prompt in Tuning.prompts_per_run:
+			director.open_prompt()
+			if offers.size() <= prompt:
+				break
+			for m in offers[prompt].cards:
+				if m.is_ai_tier() or (run_seed % 2 == 1 and m == against):
+					fail_test("seed %d offered %s" % [run_seed, m.id])
+				seen_against = seen_against or m == against
+			director.on_choice(offers[prompt], offers[prompt].cards[0])
+	for m in fx:
+		MutationDB.unregister(m)
+	assert_true(seen_against, "the small one is offered when nothing withholds it")
 
 
 func test_small_pool_gives_fewer_cards_and_an_empty_pool_is_skipped() -> void:
-	Tuning.force_gravity_at_prompt = 0
-	var smalls := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big)
+	var smalls := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big and not m.is_ai_tier())
 	for m in smalls:
 		if RunState.stack.size() < smalls.size() - 2 and RunState.can_apply(m):
 			RunState.apply(m)
@@ -307,44 +320,180 @@ func test_choice_is_logged_with_the_offer() -> void:
 	assert_true(RunState.in_grace(), "same grace as a transition when the prompt closes")
 
 
-# --- Reverts ---------------------------------------------------------------
+# --- Rollbacks (option D) --------------------------------------------------------
 
-func test_two_reverts_per_run_and_a_cascade_costs_one() -> void:
-	var gravity := MutationDB.get_mutation(&"gravity_on")
-	var reversed := MutationDB.get_mutation(&"gravity_reversed")
-	var horde := MutationDB.get_mutation(&"horde_mode")
-	var split := MutationDB.get_mutation(&"enemies_split")
-	for m: Mutation in [gravity, reversed, horde, split]:
-		RunState.apply(m)
-	assert_eq(director.reverts_left, 2)
+func test_charges_start_at_one_and_each_stage_clear_adds_one() -> void:
+	assert_eq(director.charges, 1)
+	assert_eq(director.charges_earned, 1)
+	director.add_stage_charge()
+	assert_eq(director.charges, 2)
+	director.add_stage_charge()
+	assert_eq(director.charges, 3)
+	assert_eq(director.charges_earned, 3)
+	assert_eq(RunState.run_log[-1].event, &"charge_earned")
+
+
+func test_can_revert_is_false_for_every_stack_patch() -> void:
+	director.charges = 5
+	for m in MutationDB.all:
+		if RunState.can_apply(m):
+			RunState.apply(m)
+	assert_gt(RunState.stack.size(), 0)
+	for m in RunState.stack:
+		assert_false(director.can_revert(m), String(m.id))
+		assert_false(director.revert(m), String(m.id))
+	assert_eq(director.charges, 5, "nothing spent")
+	assert_false(director.can_revert(null))
+
+
+func test_an_ai_rollback_costs_one_charge_and_takes_its_dependents() -> void:
+	var gravity := _mut(&"gravity_on")
+	var reversed := _mut(&"gravity_reversed")
+	var horde := _mut(&"horde_mode")
+	RunState.apply(horde)
+	RunState.add_ai(gravity, &"stage")
+	RunState.add_ai(reversed, &"stage")
+	director.add_stage_charge()
+	assert_eq(director.charges, 2)
 	var build := RunState.build_number
+	assert_true(director.can_revert(gravity))
 	assert_true(director.revert(gravity))
-	assert_eq(director.reverts_left, 1, "gravity and its dependent went for one charge")
-	assert_eq(RunState.stack.size(), 2)
+	assert_eq(director.charges, 1, "gravity and its dependent went for one charge")
+	assert_true(RunState.ai.is_empty())
+	assert_eq(RunState.stack, [horde] as Array[Mutation], "the stack is untouched")
 	assert_eq(RunState.build_number, build + 1)
-	assert_true(director.reverted.has(gravity.id) and director.reverted.has(reversed.id))
 	var entry: Dictionary = RunState.run_log[-1]
 	assert_eq(entry.event, &"revert_used")
+	assert_eq(entry.id, "gravity_on")
+	assert_eq(entry.owner, "stage")
+	assert_true(entry.has("hp"))
 	assert_eq(entry.removed, 2)
-	assert_false(director.revert(gravity), "not in the stack any more")
-	assert_true(director.revert(horde))
-	assert_eq(director.reverts_left, 0)
-	assert_false(director.can_revert(split))
-	assert_false(director.revert(split), "out of charges")
-	assert_true(RunState.has_patch(split.id))
+	var removal: Dictionary = RunState.run_log[-2]
+	assert_eq(removal.event, &"ai_remove")
+	assert_eq(removal.reason, &"rollback")
+	assert_false(director.revert(gravity), "not live any more")
+
+
+func test_no_rollback_without_a_charge() -> void:
+	var gravity := _mut(&"gravity_on")
+	RunState.add_ai(gravity, &"stage")
+	director.charges = 0
+	assert_false(director.can_revert(gravity))
+	assert_false(director.revert(gravity))
+	assert_true(RunState.ai.has(gravity))
+
+
+func test_expiry_costs_no_charge_and_logs_expired() -> void:
+	# Through a transition with the director attached, as a stage end will (M16).
+	var transition := Transition.new()
+	add_child_autofree(transition)
+	director.transition = transition
+	var gravity := _mut(&"gravity_on")
+	RunState.add_ai(gravity, &"stage")
+	assert_true(transition.request_ai_remove(gravity, &"expired"))
+	assert_true(RunState.ai.is_empty())
+	RunState.add_ai(gravity, &"stage")
+	RunState.expire_ai(&"stage")
+	assert_eq(director.charges, 1)
+	assert_eq(RunState.run_log[-1].event, &"ai_remove")
+	assert_eq(RunState.run_log[-1].reason, &"expired")
+	for e: Dictionary in RunState.run_log:
+		assert_ne(e.event, &"revert_used", "an expiry is not a rollback")
+	director.transition = null
+
+
+func test_an_ai_rollback_never_writes_reverted() -> void:
+	var gravity := _mut(&"gravity_on")
+	RunState.add_ai(gravity, &"stage")
+	assert_true(director.revert(gravity))
+	assert_true(director.reverted.is_empty())
+	assert_true(RunState.can_add_ai(gravity), "it can come back later")
+
+
+func test_a_stage_rollback_lowers_taste_and_a_boss_rollback_does_not() -> void:
+	var gravity := _mut(&"gravity_on")
+	var reversed := _mut(&"gravity_reversed")
+	director.charges = 2
+	RunState.add_ai(gravity, &"boss")
+	var before := director.taste.to_dict()
+	assert_true(director.revert(gravity))
+	assert_eq(director.taste.to_dict(), before, "a boss rollback is tactics, not taste")
+	assert_eq(RunState.run_log[-1].owner, "boss")
+	RunState.add_ai(gravity, &"stage")
+	RunState.add_ai(reversed, &"stage")
+	assert_true(director.revert(gravity))
+	assert_lt(director.taste.score(gravity), 0.0)
+	var ids: Dictionary = director.taste.to_dict().ids
+	assert_lt(float(ids.get("gravity_on", 0.0)), 0.0)
+	assert_lt(float(ids.get("gravity_reversed", 0.0)), 0.0, "its dependent went too")
+
+
+func test_a_mixed_owner_rollback_lowers_only_the_stage_patch_taste() -> void:
+	var gravity := _mut(&"gravity_on")
+	var reversed := _mut(&"gravity_reversed")
+	RunState.add_ai(gravity, &"stage")
+	RunState.add_ai(reversed, &"boss")
+	assert_true(director.revert(gravity))
+	assert_true(RunState.ai.is_empty(), "the boss-owned dependent went too")
+	var ids: Dictionary = director.taste.to_dict().ids
+	assert_lt(float(ids.get("gravity_on", 0.0)), 0.0)
+	assert_false(ids.has("gravity_reversed"), "a boss patch teaches no taste")
 
 
 func test_reverted_patches_are_not_offered_again() -> void:
-	Tuning.force_gravity_at_prompt = 0
-	var horde := MutationDB.get_mutation(&"horde_mode")
+	var horde := _mut(&"horde_mode")
 	RunState.apply(horde)
-	director.revert(horde)
+	RunState.revert(horde)
+	director.on_revert(horde)
 	for seed_value in 30:
 		RunState.director_rng.seed = seed_value
 		director.pending = null
 		director.prompt_index = 0
 		director.open_prompt()
 		assert_false(offers[-1].cards.has(horde))
+
+
+# --- M14 scaffold (PLAN v4 9.1) --------------------------------------------------
+
+func test_the_scaffold_patch_is_chosen_by_data() -> void:
+	var m := AiDirector.scaffold_patch()
+	assert_not_null(m)
+	assert_true(m.is_medium and m.is_mode_switch)
+	for x in MutationDB.all:
+		if x == m:
+			break
+		assert_false(x.is_medium and x.is_mode_switch, "the first one in MutationDB order")
+
+
+func test_the_scaffold_lands_after_the_last_small_prompt_as_a_stage_patch() -> void:
+	Tuning.ai_scaffold_at_prompt = Tuning.prompts_per_run
+	_auto_pick = 0
+	for i in Tuning.prompts_per_run:
+		assert_false(director.scaffold_due())
+		director.open_prompt()
+	assert_true(RunState.ai.is_empty(), "not before the prompt is answered and polled")
+	assert_true(director.scaffold_due())
+	assert_false(director.prompts_done(), "the run loop waits for it")
+	director.poll()
+	var m := AiDirector.scaffold_patch()
+	assert_eq(RunState.ai, [m] as Array[Mutation])
+	assert_eq(RunState.ai_owner[m.id], &"stage")
+	assert_true(director.prompts_done())
+	assert_eq(offers.size(), Tuning.prompts_per_run, "no extra prompt")
+	director.poll()
+	assert_eq(RunState.ai.size(), 1, "added once")
+	assert_true(director.revert(m), "a rollback target")
+
+
+func test_the_scaffold_is_skipped_when_it_conflicts_with_the_live_state() -> void:
+	Tuning.ai_scaffold_at_prompt = 1
+	RunState.swap_big(_mut(&"turn_mode"))
+	_auto_pick = 0
+	director.open_prompt()
+	director.poll()
+	assert_true(RunState.ai.is_empty(), "gravity conflicts with Turn-based")
+	assert_eq(RunState.run_log[-1].event, &"ai_scaffold_skipped")
+	assert_false(director.scaffold_due())
 
 
 # --- In the game -----------------------------------------------------------
@@ -403,24 +552,53 @@ func test_hotfix_never_heals_above_the_maximum() -> void:
 
 func test_patch_history_shows_the_build_log_and_rolls_back_on_confirm() -> void:
 	var game: Node = await _start_game()
-	var gravity := MutationDB.get_mutation(&"gravity_on")
-	game.transition.request_apply(gravity)
-	game.transition.request_apply(MutationDB.get_mutation(&"gravity_reversed"))
+	var gravity := _mut(&"gravity_on")
+	var reversed := _mut(&"gravity_reversed")
+	var horde := _mut(&"horde_mode")
+	game.transition.request_apply(horde)
+	game.transition.request_ai_add(gravity, &"stage")
+	game.transition.request_ai_add(reversed, &"stage")
+	assert_eq(RunState.ai, [gravity, reversed] as Array[Mutation])
 	var history: PatchHistory = game.patch_history
 	assert_true(history.open())
 	assert_true(RunState.is_paused_for(&"history"))
-	assert_eq(PatchHistory.build_log_lines(), ["v0.1  Initial build", "v0.2  Implement gravity",
-			"v0.3  Reverse gravity"] as Array[String])
+	assert_eq(PatchHistory.build_log_lines(), ["v0.1  Initial build", "v0.2  " + horde.title,
+			"v0.3  AI patch (undocumented)", "v0.4  AI patch (undocumented)"] as Array[String])
+	await wait_process_frames(1)
+	var ai_buttons: Array[String] = []
+	for child in history._ai_list.get_children():
+		if child is Button and not child.is_queued_for_deletion():
+			ai_buttons.append((child as Button).text)
+	assert_eq(ai_buttons, ["Roll back: " + PatchHistory.UNDOCUMENTED,
+			"Roll back: " + PatchHistory.UNDOCUMENTED] as Array[String])
+	var yours: Array[String] = []
+	for child in history._list.get_children():
+		assert_false(child is Button, "the player's own patches have no rollback")
+		if child is Label and not child.is_queued_for_deletion():
+			yours.append((child as Label).text)
+	assert_eq(yours, [horde.title] as Array[String])
+	_assert_no_title_shown(history, gravity)
+	_assert_no_title_shown(history, reversed)
+	history.press_revert(horde.id)
+	history.press_revert(horde.id)
+	assert_true(history.is_open(), "a stack patch is no target")
 	history.press_revert(gravity.id)
-	assert_eq(RunState.stack.size(), 2, "the first press only asks for confirmation")
+	assert_eq(RunState.ai.size(), 2, "the first press only asks for confirmation")
 	assert_true(history.is_open())
+	await wait_process_frames(1)
+	_assert_no_title_shown(history, gravity)
 	history.press_revert(gravity.id)
 	assert_false(history.is_open())
 	assert_false(get_tree().paused)
-	assert_eq(RunState.stack.size(), 0, "gravity and its dependent are gone")
-	assert_eq(game.director.reverts_left, 1)
-	assert_eq(PatchHistory.build_log_lines().slice(3), ["v0.4  Revert: Reverse gravity",
-			"v0.4  Revert: Implement gravity"] as Array[String])
+	assert_true(RunState.ai.is_empty(), "gravity and its dependent are gone")
+	assert_eq(RunState.stack, [horde] as Array[Mutation])
+	assert_eq(game.director.charges, 0)
+	await wait_process_frames(1)
+	assert_string_contains(_hud(game)._label.text, "Rollbacks: 0 [Tab]", "the HUD reads the charges left")
+	assert_eq(PatchHistory.build_log_lines(), ["v0.1  Initial build", "v0.2  " + horde.title,
+			"v0.3  AI patch: " + gravity.title, "v0.4  AI patch: " + reversed.title,
+			"v0.5  Rollback: " + reversed.title, "v0.5  Rollback: " + gravity.title] as Array[String],
+			"a rollback names what it removed")
 	var opens := 0
 	for e: Dictionary in RunState.run_log:
 		if e.event == &"history_open":
@@ -429,3 +607,101 @@ func test_patch_history_shows_the_build_log_and_rolls_back_on_confirm() -> void:
 	history.open()
 	history.close()
 	assert_false(get_tree().paused)
+
+
+func test_the_report_names_stage_patches() -> void:
+	var gravity := _mut(&"gravity_on")
+	RunState.add_ai(gravity, &"stage")
+	assert_false(PatchHistory.build_log_lines().has("v0.2  AI patch: " + gravity.title))
+	assert_true(PatchHistory.build_log_lines(true).has("v0.2  AI patch: " + gravity.title))
+
+
+func test_a_boss_patch_is_named_in_the_history() -> void:
+	var gravity := _mut(&"gravity_on")
+	RunState.add_ai(gravity, &"boss")
+	assert_eq(PatchHistory.ai_label(gravity), "Boss patch: " + gravity.title)
+	assert_true(PatchHistory.build_log_lines().has("v0.2  AI patch: " + gravity.title))
+
+
+## In the game, the scaffold goes through the transition: an AI gravity change gets
+## the pause, the undocumented terminal text, the grace and the AI line.
+func test_the_scaffold_lands_through_the_transition() -> void:
+	Tuning.transition_long = 0.12
+	Tuning.ai_scaffold_at_prompt = 1
+	var game: Node = await _start_game()
+	var transition: Transition = game.transition
+	var m := AiDirector.scaffold_patch()
+	game.director.prompt_index = 1   # as if small prompt 1 had been answered
+	await wait_physics_frames(2)
+	assert_true(transition.busy, "the long sequence runs")
+	assert_true(RunState.is_paused_for(&"transition"))
+	assert_true(RunState.ai.is_empty(), "added after the terminal text")
+	assert_string_contains(transition._terminal.text, "(undocumented)")
+	assert_false(transition._terminal.text.contains(m.title), "a stage patch is not named")
+	assert_false(transition._terminal.text.contains(String(m.id)))
+	await wait_for_signal(transition.finished, 2.0)
+	assert_eq(RunState.ai, [m] as Array[Mutation])
+	assert_eq(RunState.ai_owner[m.id], &"stage")
+	assert_false(RunState.is_paused_for(&"transition"))
+	assert_true(RunState.in_grace())
+	assert_eq(transition._toast.text, "AI: " + Dialogue.AI_SCAFFOLD)
+
+
+## F2 (PLAN v4 9.2 Debug): an AI-tier patch is added as a stage patch and removed again,
+## with no charge spent and no rollback logged.
+func test_the_console_adds_and_removes_ai_patches() -> void:
+	var game: Node = await _start_game()
+	var overlay: DebugOverlay = null
+	for child in game.get_children():
+		if child is DebugOverlay:
+			overlay = child
+	assert_not_null(overlay)
+	var gravity := _mut(&"gravity_on")
+	var button: Button = overlay._buttons[gravity.id]
+	assert_string_contains(button.text, " MED gravity_on")
+	overlay.toggle_mutation(gravity.id)
+	assert_eq(RunState.ai, [gravity] as Array[Mutation])
+	assert_eq(RunState.ai_owner[gravity.id], &"stage")
+	assert_true(button.text.begins_with("[x]"))
+	overlay.toggle_mutation(gravity.id)
+	assert_true(RunState.ai.is_empty())
+	assert_eq(game.director.charges, 1, "no charge spent")
+	assert_eq(RunState.run_log[-1].event, &"ai_remove")
+	assert_eq(RunState.run_log[-1].reason, &"console", "not a rollback")
+	for e: Dictionary in RunState.run_log:
+		assert_ne(e.event, &"revert_used")
+	overlay.toggle_mutation(&"gravity_reversed")
+	assert_eq(RunState.ai, [_mut(&"gravity_reversed")] as Array[Mutation], "forced, like a console")
+
+
+func test_hud_shows_the_rollback_charges() -> void:
+	var game: Node = await _start_game()
+	await wait_process_frames(2)
+	var hud := _hud(game)
+	assert_not_null(hud)
+	assert_string_contains(hud._label.text, "Rollbacks: 1 [Tab]")
+
+
+func _hud(game: Node) -> Hud:
+	for child in game.get_children():
+		if child is Hud:
+			return child
+	return null
+
+
+## No Label or Button text under the history names m (title or id).
+func _assert_no_title_shown(history: PatchHistory, m: Mutation) -> void:
+	var stack: Array[Node] = [history]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n.is_queued_for_deletion():
+			continue
+		var text := ""
+		if n is Label:
+			text = (n as Label).text
+		elif n is Button:
+			text = (n as Button).text
+		if text.contains(m.title) or text.contains(String(m.id)):
+			fail_test("history shows %s: %s" % [m.id, text])
+			return

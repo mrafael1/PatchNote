@@ -40,12 +40,12 @@ The run's tension: **patches make you stronger and stranger; rollbacks are scarc
 ### 1.4 Patch tiers (owner, 2026-11-19)
 Three tiers, by how much of the game a patch changes:
 - **Small** — one mechanic. Reversible.
-- **Medium** — how you move and see, inside the current genre. Gravity is the reference medium patch (`gravity_on`, `gravity_reversed`). Reversible; it already uses the long transition (`is_mode_switch`). To define: does a medium patch have its own prompt or slot, does its rollback cost more than a small one, does it survive a big swap.
+- **Medium** — how you move and see, inside the current genre. Gravity is the reference medium patch (`gravity_on`, `gravity_reversed`). Reversible; it already uses the long transition (`is_mode_switch`). **Settled (owner, 2026-11-20; PLAN v4 1.1–1.2):** medium patches are **stage default patches**. They live in the AI layer (`RunState.ai`), never in the player's stack, and never appear at small prompts. They end with their stage, can be rolled back as AI patches (one charge, like any rollback), and the boss may also push them. The player is not told a stage's default patch. A big swap drops a medium that conflicts with the new genre; in normal play the layer is already empty at a swap.
 - **Big** — the genre. Permanent; only replaced by another big patch.
 
-v3 builds only the big tier; gravity keeps working as today (a small patch with the long transition) until the medium tier is designed.
+v3 built only the big tier. Since v4 M14 the gravity pair is medium: in the one-stage M14 build the AI adds `gravity_on` itself after the last small prompt, as a stage patch, so there is a rollback target until stages arrive (M16).
 
-### 1.5 Rollback study (open, owner, 2026-11-19)
+### 1.5 Rollback study (owner, 2026-11-19; settled 2026-11-20)
 Rollback is the prototype's least proven mechanic. Before v4 builds anything on it (boss weapons, per-stage charges), answer:
 1. **Is it used?** v2/v3 telemetry already logs every rollback with game time and HP. Measure: share of runs with ≥1 rollback, what gets rolled back, how soon after the apply.
 2. **Is it interesting?** A rollback is interesting only if the choice before it was risky. Without downsides on patches, it is mostly an "undo a bad card" button.
@@ -58,7 +58,9 @@ Options to compare:
 - **D. Only as a weapon:** no rollbacks of your own patches; you roll back the *AI's* patches (the boss and stage hazards).
 - **E. Rare unlock:** some runs, or some stages, grant it; most don't.
 
-**Chosen direction: D** (owner, 2026-11-19): rollbacks become a weapon against the AI's patches (the boss, stage default patches and hazards) instead of an undo for your own picks. It gives rollbacks a target the player wants to remove. Still to settle in v4: whether a few self-rollbacks remain (e.g. one per run) or disappear entirely, and how charges are gained. v3 keeps A unchanged and adds no rollback features, so the telemetry stays clean.
+**Chosen direction: D** (owner, 2026-11-19): rollbacks become a weapon against the AI's patches (the boss, stage default patches and hazards) instead of an undo for your own picks. It gives rollbacks a target the player wants to remove. v3 kept A unchanged and added no rollback features, so the telemetry stays clean.
+
+**Settled (owner, 2026-11-20; PLAN v4 1.3, built in M14):** rollbacks target **AI patches only**; there are **no self-rollbacks** in any form. A run starts with **1 charge and earns 1 per stage clear** (at most 4 in a run, no cap). One charge removes an AI patch and the AI patches that depend on it. Rolling back a stage default lowers its taste; rolling back a boss patch does not.
 
 ---
 
@@ -67,13 +69,14 @@ Options to compare:
 ### Phase 1 — Core prototype (v2, M0–M7) · **done**
 One arena, 8 small patches, scripted Director, rollbacks, report, telemetry, Windows export.
 
-### Phase 2 — Big patches (v3, M8–M13) · **current**
+### Phase 2 — Big patches (v3, M8–M13) · **done**
 See `PLAN.v3.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (player on the grid in M11, enemies on the grid in M13 after the owner found B2 too close to B1), 2 BIG prompts per run, adaptive path step 1 (taste, session only).
 - **Content at the end:** 8 small patches, 2 big patches, 1 arena, 3 enemy types.
 - **Run length:** ~10–12 min.
 - **Must answer:** do permanent shifts feel like stakes? Do players gravitate to one genre?
 
-### Phase 3 — Stages and the AI boss (v4)
+### Phase 3 — Stages and the AI boss (v4, M14–M24) · **current**
+See `PLAN.md` (v4). M14 built the AI layer, the medium tier and option D.
 - A run becomes **3 stages + a boss stage**. Each stage is an arena the AI proposes (2 choices, taste-leaned), with its own prompts; the big slot carries across stages.
 - **A stage = an arena + its default patch** (owner, 2026-11-19). Each stage type ships with a patch that defines it (e.g. a low-gravity lab, an ice floor, a dark server room). Variations of the stage swap that default for a related patch, so the same arena plays differently from run to run. The default patch is the stage's, not the player's: it is not in the player's stack and ends with the stage. **The player is not told the default patch** (owner, 2026-11-19): the stage choice shows the arena, not its patch; the player discovers it by playing. Under rollback option D, the default patch is one of the AI patches the player can roll back.
 - **Arenas as data:** 4–6 arenas built from block rectangles (the v2 seam), each readable top-down and with gravity.
@@ -118,10 +121,10 @@ See `PLAN.v3.md`. Big slot, B1 "Time moves when you move", B2 "Turn-based" (play
 ---
 
 ## 4. Open decisions
-1. ~~Gravity: small or big?~~ **Medium** (owner, 2026-11-19). Still open: the medium tier's rules (1.4).
-2. BIG prompts per run: 2 or 3, and whether they move to stage boundaries in v4.
-3. ~~Rollback: keep, rework or replace?~~ **Option D, rollbacks as a weapon** (owner, 2026-11-19). Still open: keep any self-rollbacks, and how charges are gained (1.5).
-4. Does a stage choice replace a BIG prompt, or do both exist?
-5. ~~Does the player see a stage's default patch?~~ **No, it is discovered in play** (owner, 2026-11-19). Still open: can a stage's variation conflict with the player's patches?
-6. Pool growth: does the AI ship new mutations on a schedule, or because of your taste (v4)?
+1. ~~Gravity: small or big?~~ **Medium** (owner, 2026-11-19). ~~The medium tier's rules~~ **Stage default patches in the AI layer** (owner, 2026-11-20; 1.4).
+2. ~~BIG prompts per run: 2 or 3, and whether they move to stage boundaries in v4.~~ **2, at the ends of stages 1 and 2** (owner, 2026-11-20; PLAN v4 4).
+3. ~~Rollback: keep, rework or replace?~~ **Option D, rollbacks as a weapon** (owner, 2026-11-19). ~~Keep any self-rollbacks, and how charges are gained~~ **No self-rollbacks; 1 charge + 1 per stage clear** (owner, 2026-11-20; 1.5).
+4. ~~Does a stage choice replace a BIG prompt, or do both exist?~~ **Both, at each stage end: the BIG prompt first, then the stage choice** (owner, 2026-11-20; PLAN v4 4).
+5. ~~Does the player see a stage's default patch?~~ **No, it is discovered in play** (owner, 2026-11-19). Still open: can a stage's variation conflict with the player's patches? Proposed (PLAN v4 5): no, such a variation is not offered, and a small that conflicts with the live default is withheld for that stage; owner to confirm (PLAN v4 13).
+6. ~~Pool growth: does the AI ship new mutations on a schedule, or because of your taste (v4)?~~ **Taste-led** (owner, 2026-11-20): each finished run ships 2, one toward the tags you like and one agenda pick so nothing stays locked for good; 0 + 2 after an unrated run (PLAN v4 7, from M19).
 7. When the first real playtest happens (skipped for v2 by choice; strongly needed before v4's boss, and the rollback study needs it).

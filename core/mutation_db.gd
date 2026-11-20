@@ -14,12 +14,23 @@ func _ready() -> void:
 	print(summary_line())
 
 
-## The boot line the export check reads: every id, big patches marked "(BIG)".
+## The boot line the export check reads: every id, big patches marked "(BIG)",
+## mediums "(MED)" and boss-only patches "(BOSS)".
 func summary_line() -> String:
 	var ids: Array[String] = []
 	for m in all:
-		ids.append(String(m.id) + (" (BIG)" if m.is_big else ""))
+		ids.append(String(m.id) + _mark(m))
 	return "[mutations] %d: %s" % [all.size(), ", ".join(ids)]
+
+
+func _mark(m: Mutation) -> String:
+	if m.is_big:
+		return " (BIG)"
+	if m.is_medium:
+		return " (MED)"
+	if m.boss_only:
+		return " (BOSS)"
+	return ""
 
 
 func reload() -> void:
@@ -87,7 +98,21 @@ func problems(m: Mutation) -> Array[String]:
 	var out: Array[String] = []
 	if m.is_big and not (m.requires.is_empty() and m.conflicts.is_empty()):
 		out.append("Big mutation '%s' must have no requires and no conflicts" % m.id)
+	if int(m.is_medium) + int(m.boss_only) + int(m.is_big) > 1:
+		out.append("Mutation '%s' sets more than one of is_medium, boss_only, is_big" % m.id)
+	if m.boss_only and m.boss_weight <= 0.0:
+		out.append("Boss-only mutation '%s' needs a boss_weight above 0" % m.id)
 	for ref in m.requires + m.conflicts:
 		if not _by_id.has(ref):
 			out.append("Mutation '%s' references unknown id '%s'" % [m.id, ref])
+	# AI-tier patches may require only mediums; a small may not require an AI-tier
+	# patch, or a stage end would drop the player's pick (PLAN v4 1.1).
+	for ref in m.requires:
+		var other: Mutation = _by_id.get(ref)
+		if other == null:
+			continue
+		if m.is_ai_tier() and not other.is_medium:
+			out.append("AI-tier mutation '%s' may require only mediums, not '%s'" % [m.id, ref])
+		elif not m.is_ai_tier() and not m.is_big and other.is_ai_tier():
+			out.append("Small mutation '%s' may not require AI-tier '%s'" % [m.id, ref])
 	return out

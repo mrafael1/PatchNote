@@ -40,8 +40,10 @@ func _run() -> void:
 	var applied: Array[String] = []
 	for id in OS.get_cmdline_user_args():
 		var m: Resource = db.get_mutation(StringName(id))
-		if m and run_state.apply(m, true):
+		if m and _force(run_state, m):
 			applied.append(id)
+		else:
+			push_warning("[bench] not applied: %s" % id)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
@@ -79,3 +81,14 @@ func _run() -> void:
 	print("[bench] fps=%.0f physics avg=%.2f ms p95=%.2f ms max=%.2f ms (budget 16.67 ms)" % [
 			fps, total / physics_ms.size(), physics_ms[int(physics_ms.size() * 0.95)], physics_ms[-1]])
 	quit()
+
+
+## The F2 console's routes: a big patch is swapped in, an AI-tier one added as a stage
+## patch, a small one applied, all ignoring requires/conflicts.
+func _force(run_state: Node, m: Resource) -> bool:
+	if m.is_big:
+		run_state.swap_big(m)
+		return run_state.big == m
+	if m.is_ai_tier():
+		return run_state.add_ai(m, &"stage", true)
+	return run_state.apply(m, true)

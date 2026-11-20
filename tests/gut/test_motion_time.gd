@@ -154,7 +154,7 @@ func test_the_world_tint_and_the_sound_pitch_follow_the_time_scale() -> void:
 
 func test_gravity_under_b1_needs_no_special_code() -> void:
 	await _settle()
-	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+	RunState.add_ai(MutationDB.get_mutation(&"gravity_on"), &"stage")
 	# Lifted into the air and let go: the fall speeds time up as it gathers speed.
 	game.player.global_position = game.arena.player_start + Vector2(0, -200)
 	game.player.velocity = Vector2.ZERO

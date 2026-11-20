@@ -11,3 +11,4 @@ line_proposal = "The arena feels empty. I can fix empty."
 line_applied = "Population scaled. I made them flimsier so it stays fair. Mostly."
 line_reverted = "Fine. Fewer friends for you."
 tags = Array[StringName]([&"spawn"])
+starter = true

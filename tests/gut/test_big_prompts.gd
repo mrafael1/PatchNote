@@ -4,7 +4,7 @@ extends GutTest
 
 const Fx := preload("res://tests/gut/fixtures.gd")
 const TUNING_KEYS: Array[String] = ["transition_long", "transition_short", "prompt_input_delay",
-		"force_gravity_at_prompt", "big_prompt_after", "big_offer_size", "report_delay"]
+		"ai_scaffold_at_prompt", "big_prompt_after", "big_offer_size", "report_delay"]
 
 var world: Node2D
 var director: AiDirector
@@ -20,7 +20,7 @@ func before_each() -> void:
 	Tuning.transition_long = 0.0
 	Tuning.transition_short = 0.0
 	Tuning.prompt_input_delay = 0.0
-	Tuning.force_gravity_at_prompt = 0
+	Tuning.ai_scaffold_at_prompt = 0   # the M14 scaffold has its own tests (test_director)
 	Tuning.big_prompt_after = [1, 3]
 	Tuning.big_offer_size = 2
 	RunState.reset(31)
@@ -132,8 +132,10 @@ func test_the_real_pool_offers_both_genres_then_the_other_one_and_keep() -> void
 	assert_eq(second.agenda.size(), 0, "one candidate: no agenda card")
 
 
-func test_the_real_pool_with_gravity_stacked_offers_b1_alone_and_mandatory() -> void:
-	RunState.apply(MutationDB.get_mutation(&"gravity_on"))
+## PLAN v4 4: get_big_offer checks the AI layer too. With AI gravity live, Turn-based
+## is never offered; B1 comes alone, and alone it is mandatory (v3 3b.6).
+func test_the_real_pool_with_ai_gravity_live_offers_b1_alone_and_mandatory() -> void:
+	RunState.add_ai(MutationDB.get_mutation(&"gravity_on"), &"stage")
 	_small_prompt()
 	var taste_before := director.taste.to_dict()
 	director.poll()
@@ -158,13 +160,12 @@ func test_the_real_pool_with_gravity_stacked_offers_b1_alone_and_mandatory() -> 
 
 func test_with_b2_slotted_no_gravity_patch_is_offered() -> void:
 	Tuning.big_prompt_after = []
-	Tuning.force_gravity_at_prompt = 2
 	var b2 := MutationDB.get_mutation(&"turn_mode")
 	RunState.swap_big(b2)
 	for i in Tuning.prompts_per_run:
 		director.open_prompt()
 		var offer := offers[-1]
-		assert_false(offer.mandatory, "the forced gravity card yields to a genre")
+		assert_false(offer.mandatory, "no forced card (PLAN v4 9.1)")
 		assert_eq(offer.cards.size(), Tuning.offer_size)
 		for m in offer.cards:
 			assert_false(RunState.conflicting(m, b2), String(m.id))
@@ -174,7 +175,6 @@ func test_with_b2_slotted_no_gravity_patch_is_offered() -> void:
 
 
 func test_with_b1_slotted_prompt_2_is_not_forced_and_big_prompt_2_opens() -> void:
-	Tuning.force_gravity_at_prompt = 2
 	var b1 := MutationDB.get_mutation(&"motion_time")
 	_small_prompt()
 	director.poll()
@@ -375,10 +375,39 @@ func test_patch_history_shows_the_big_patch_locked_and_not_selectable() -> void:
 		elif child is Button:
 			buttons += 1
 	assert_eq(big_rows, 1)
-	assert_eq(buttons, 1, "only the small patch can be rolled back")
+	assert_eq(buttons, 0, "neither the big nor a small patch can be rolled back (option D)")
 	history.close()
 	assert_false(director.can_revert(fixtures[0]))
 	assert_eq(RunState.revert(fixtures[0]), [] as Array[Mutation])
+
+
+## PLAN v4 11: a swap that drops a live AI gravity patch plays the gravity safety.
+func test_a_swap_preview_with_ai_gravity_live_plays_the_gravity_safety() -> void:
+	Tuning.transition_long = 0.1
+	var transition := Transition.new()
+	add_child_autofree(transition)
+	var gravity := MutationDB.get_mutation(&"gravity_on")
+	var turns := MutationDB.get_mutation(&"turn_mode")
+	RunState.add_ai(gravity, &"stage")
+	# A swap that keeps the AI gravity changes no gravity (the long sequence still plays).
+	assert_true(transition.request_swap_big(MutationDB.get_mutation(&"motion_time")))
+	assert_false(transition.gravity_changed, "the AI gravity stays")
+	await wait_for_signal(transition.finished, 2.0)
+	assert_eq(RunState.ai, [gravity] as Array[Mutation])
+	RunState._grace_until = -1.0   # end the first swap's grace, so the next one shows
+	assert_eq(RunState.ai_swap_drops(turns), [gravity] as Array[Mutation], "the preview drops it")
+	assert_false(RunState.preview_rules(RunState.stack, turns, [] as Array[Mutation]).gravity_enabled)
+	assert_false(RunState.in_grace())
+	assert_true(transition.request_swap_big(turns))
+	assert_true(transition.gravity_changed, "the swap's preview drops the AI gravity")
+	assert_true(transition.busy)
+	assert_true(RunState.is_paused_for(&"transition"), "the world freezes before the change")
+	assert_true(RunState.rules.gravity_enabled, "not yet")
+	await wait_for_signal(transition.finished, 2.0)
+	assert_true(RunState.in_grace(), "then the grace")
+	assert_true(RunState.ai.is_empty())
+	assert_false(RunState.rules.gravity_enabled)
+	assert_eq(RunState.big, turns)
 
 
 func test_hud_names_the_genre_next_to_the_version() -> void:

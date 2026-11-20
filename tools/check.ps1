@@ -4,7 +4,8 @@
 # log scan is the real gate.
 #
 # Usage (from anywhere):  powershell -ExecutionPolicy Bypass -File tools\check.ps1 [-BotRuns]
-# -BotRuns adds the M6 gate: five full-length seeded bot runs (about two minutes).
+# -BotRuns adds the M6 gate: five full-length seeded bot runs (about two minutes), plus
+# one B1 run on an odd seed that must roll the AI's stage patch back (M14).
 
 param([switch]$BotRuns)
 $ErrorActionPreference = 'Stop'
@@ -50,7 +51,11 @@ Test-Errors 'boot_game' $game
 if ($game.Text -notmatch '\[boot\] Patch Notes .*Godot') { $failures += 'boot_game: game banner missing' }
 
 Write-Host '[4/4] tests'
+$testWatch = [System.Diagnostics.Stopwatch]::StartNew()
 $tests = Invoke-Godot 'tests' '--fixed-fps 60 -s addons/gut/gut_cmdln.gd -gdir=res://tests/gut -ginclude_subdirs -gexit'
+$testWatch.Stop()
+# PLAN v4 11: the suite's budget is 8 min; over it is a known issue.
+Write-Host ("    suite duration: {0:N1} s wall" -f $testWatch.Elapsed.TotalSeconds)
 Test-Errors 'tests' $tests
 if ($tests.Text -notmatch 'All tests passed') { $failures += 'tests: "All tests passed" summary missing' }
 $summary = Select-String -Path $tests.Log -Pattern '^\s*(Scripts|Tests|Passing|Failing|Asserts)\s' | ForEach-Object { $_.Line.Trim() }
@@ -62,6 +67,13 @@ if ($BotRuns) {
     Test-Errors 'bot_runs' $bots
     Select-String -Path $bots.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($bots.Text -notmatch '\[botrun\] summary: \d+ runs, 0 failures') { $failures += 'bot_runs: summary missing or failures' }
+    # One odd invincible seed in one genre that the AI's stage patch fits (B1): it must
+    # be rolled back through the build log (PLAN v4 9.4, M14 gate).
+    $roll = Invoke-Godot 'bot_runs_rollback' '--fixed-fps 60 -s tools/bot_runs.gd -- --big=motion_time --set=big_prompt_after=[] 9i'
+    Test-Errors 'bot_runs_rollback' $roll
+    Select-String -Path $roll.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($roll.Text -notmatch '\[botrun\] summary: 1 runs, 0 failures') { $failures += 'bot_runs_rollback: summary missing or failures' }
+    if ($roll.Text -notmatch 'stage_reverts=1 stack_reverts=0') { $failures += 'bot_runs_rollback: the stage patch was not rolled back' }
 }
 
 if ($failures.Count -gt 0) {

@@ -3,7 +3,7 @@ extends GutTest
 ## picks and keeps, keeps one card for its own agenda, and reads the report's notes in
 ## the next run of the session.
 
-const TUNING_KEYS: Array[String] = ["force_gravity_at_prompt", "transition_long", "transition_short",
+const TUNING_KEYS: Array[String] = ["transition_long", "transition_short",
 		"report_delay", "agenda_cards"]
 
 var director: AiDirector
@@ -13,7 +13,6 @@ var _saved := {}
 func before_each() -> void:
 	for key in TUNING_KEYS:
 		_saved[key] = Tuning.get(key)
-	Tuning.force_gravity_at_prompt = 0
 	Tuning.transition_long = 0.0
 	Tuning.transition_short = 0.0
 	Taste.clear_session()
@@ -105,9 +104,10 @@ func test_choice_logs_the_agenda_and_teaches_the_taste() -> void:
 	assert_gt(director.taste.score(pick), 0.0)
 
 
+## Option D (PLAN v4 1.3): only a stage patch's rollback teaches the taste.
 func test_reverting_teaches_the_taste() -> void:
-	var m := _m(&"horde_mode")
-	RunState.apply(m)
+	var m := _m(&"gravity_on")
+	RunState.add_ai(m, &"stage")
 	assert_true(director.revert(m))
 	assert_lt(director.taste.score(m), 0.0)
 
