@@ -14,6 +14,14 @@ extends SceneTree
 ##   --big=<mutation id>          start every run with that parked big patch in the slot
 ##                                (PLAN v5 1.3: the slot is a test seam; nothing swaps it)
 ##   --log=<path>                 write telemetry there instead (parallel sweeps)
+##   --save=<path>                play every run from that save, read-only: each run sees
+##                                the same snapshot and nothing is written (PLAN v5 4.6)
+##   --keep-save                  with --save: chain the runs through the file (each run's
+##                                end is written, as in the real game)
+##   --fresh                      start from a new save (v0.0.0) instead of the file, or,
+##                                without --save, instead of everything unlocked
+## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
+## The real save file is never used: --save must name another path.
 ## The bot plays and cards are picked at random from the seed. Rollbacks are parked
 ## (PLAN v5 1.3): the bot never rolls anything back. Even seeds leave notes on the
 ## report (keep the first patch,
@@ -26,7 +34,13 @@ const MAX_FRAMES := 60 * 60 * 45      # 45 real minutes at 60 physics frames a s
 const DEFAULT_LOG := "user://playtest/bot_runs.jsonl"
 
 var LOG := DEFAULT_LOG
+## core/save_game.gd, loaded in _run: naming SaveGame (or loading it this early) would
+## compile it before the autoloads exist.
+var save: GDScript
 var start_big := &""
+var save_arg := ""
+var keep_save := false
+var fresh := false
 
 
 func _initialize() -> void:
@@ -51,12 +65,21 @@ func _run() -> void:
 				return
 		elif arg.begins_with("--log="):
 			LOG = arg.trim_prefix("--log=")
+		elif arg.begins_with("--save="):
+			save_arg = arg.trim_prefix("--save=")
+		elif arg == "--keep-save":
+			keep_save = true
+		elif arg == "--fresh":
+			fresh = true
 		else:
 			specs.append(arg)
 	if specs.is_empty():
 		specs = PackedStringArray(["1", "2", "3", "4i", "5i"])
 	var telemetry: GDScript = load("res://systems/telemetry.gd")
 	telemetry.log_path = LOG
+	if not _set_up_save():
+		quit(1)
+		return
 	var lines_before := _line_count()
 	var failures := 0
 	var started := Time.get_ticks_msec()
@@ -105,6 +128,10 @@ func _run() -> void:
 		print("[botrun] telemetry: expected %d run and %d notes lines, found %d and %d (%d lines)" % [
 			specs.size(), specs.size() - 1, runs, notes, added])
 		failures += 1
+	if keep_save:
+		var state: Dictionary = save.call(&"state")
+		print("[botrun] save: %s runs=%d wins=%d version=%s genres=%s" % [save_arg, state.runs,
+			state.wins, save.call(&"version").label(), state.genres])
 	print("[botrun] summary: %d runs, %d failures, %d telemetry lines, %.1f s wall" % [
 		specs.size(), failures, added, (Time.get_ticks_msec() - started) / 1000.0])
 	quit(1 if failures > 0 else 0)
@@ -174,9 +201,9 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 			var fail := " FAILED: %d BIG prompts" % big_prompts if big_prompts > 0 else ""
 			if rec.reverts_used > 0:
 				fail += " FAILED: %d rollbacks" % rec.reverts_used
-			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
+			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs genre=%s version=%s build=%s %s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
 				run_seed, " (invincible)" if invincible else "", fail, rec.outcome, rec.duration, rec.real_duration,
-				rec.version, rec.kills, picks, rec.final_big if rec.final_big != "" else "-", rec.genre_seconds,
+				rec.genre, rec.game_version, rec.version, load("res://core/unlocks.gd").call(&"summary"), rec.kills, picks, rec.final_big if rec.final_big != "" else "-", rec.genre_seconds,
 				rec.genre_hits, rec.genre_hits_by_kind, rec.reverts_used, _ai_line(rec), rec.reached_release_candidate,
 				rec.agenda_cards, _first_line(game)]
 		if game.prompt_panel.can_choose():
@@ -191,6 +218,33 @@ func _ai_line(rec: Dictionary) -> String:
 	for e: Dictionary in rec.get("ai_events", []):
 		parts.append("%s%s@%.0f" % [e.id, "+" if e.op == "add" else "-" + String(e.reason), e.time])
 	return ",".join(parts) if not parts.is_empty() else "-"
+
+
+## The save the runs play from (see the header). The start screen is told not to make
+## the real save live. Returns false (and says why) on a bad combination.
+func _set_up_save() -> bool:
+	save = load("res://core/save_game.gd")
+	var start_script: GDScript = load("res://ui/start_screen.gd")
+	start_script.save_live = false
+	if save_arg != "" and save_arg == save.DEFAULT_PATH:
+		print("[botrun] FAILED: --save must not be the real save (%s)" % save_arg)
+		return false
+	if keep_save:
+		if save_arg == "":
+			print("[botrun] FAILED: --keep-save needs --save=<path>")
+			return false
+		save.call(&"go_live", save_arg, fresh)
+	elif save_arg != "" or fresh:
+		save.call(&"use_snapshot", save_arg, fresh)
+	else:
+		save.call(&"go_inert")
+	if save.read_only:
+		print("[botrun] FAILED: %s is from a newer build" % save_arg)
+		return false
+	print("[botrun] save: %s" % ("inert" if save.unlock_all else "%s%s%s" % [
+		save_arg if save_arg != "" else "in memory", " (fresh)" if fresh else "",
+		", chained" if keep_save else ", read-only"]))
+	return true
 
 
 func _line_count() -> int:

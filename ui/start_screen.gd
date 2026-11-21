@@ -1,19 +1,35 @@
 class_name StartScreen
 extends Control
-## First screen (PLAN 8): Start, a seed field, fullscreen and master volume.
-## The two settings act on the window and the audio server directly and last for the
-## session; nothing is saved.
+## First screen (PLAN 8): Start, a seed field, fullscreen and master volume, and the
+## save (PLAN v5 1.5): its version line and "Reset save". The two settings act on the
+## window and the audio server directly and last for the session; they are not saved.
+##
+## Opening this screen only reads the save (a snapshot, never a write or a rename) to
+## show its line. Start and "Reset save" make it live (SaveGame.go_live), as v4 1.7
+## has it: the save turns on when the screen starts a game. Nothing touches the save
+## with --autostart (the export's smoke boot) or --inert-save (check.ps1's boot), or
+## when a tool cleared save_live first (bot_runs.gd and run_hash.gd choose their own).
 
 const GAME_SCENE := "res://main.tscn"
+const RESET_LABEL := "Reset save"
+const RESET_ARMED := "Click again to erase the save"
+
+## Tools set this to false before instancing the screen.
+static var save_live := true
 
 var seed_field: LineEdit
 var fullscreen: CheckButton
 var volume: HSlider
 var start_button: Button
+var save_label: Label
+var reset_button: Button
+var _reset_armed := false
 
 
 func _ready() -> void:
 	print("[boot] Patch Notes %s, start screen" % Main.BUILD)
+	if uses_real_save():
+		SaveGame.use_snapshot(SaveGame.DEFAULT_PATH)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var bg := ColorRect.new()
@@ -40,6 +56,10 @@ func _ready() -> void:
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	sub.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.5))
 	column.add_child(sub)
+	save_label = Label.new()
+	save_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	save_label.add_theme_font_size_override(&"font_size", 20)
+	column.add_child(save_label)
 
 	start_button = Button.new()
 	start_button.text = "Start"
@@ -66,6 +86,12 @@ func _ready() -> void:
 	volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	volume.value_changed.connect(set_volume)
 	column.add_child(_row("Volume", volume))
+
+	reset_button = Button.new()
+	reset_button.text = RESET_LABEL
+	reset_button.pressed.connect(press_reset)
+	column.add_child(reset_button)
+	refresh_save()
 
 	start_button.grab_focus.call_deferred()
 	# "-- --autostart" skips this screen (release builds cannot be given a scene path).
@@ -96,7 +122,50 @@ static func parse_seed(text: String) -> int:
 	return absi(hash(t)) % 1000000
 
 
+## "v0.1.2 · 4 runs", or why the save cannot be used.
+static func save_line() -> String:
+	if SaveGame.read_only:
+		return "Save from a newer build (read-only)"
+	var runs := int(SaveGame.state().runs)
+	return "%s · %d run%s" % [SaveGame.version().label(), runs, "" if runs == 1 else "s"]
+
+
+## False for tools and smoke boots: the screen then leaves the save as it is.
+static func uses_real_save() -> bool:
+	var args := OS.get_cmdline_user_args()
+	return save_live and not "--autostart" in args and not "--inert-save" in args
+
+
+func refresh_save() -> void:
+	save_label.text = save_line()
+	reset_button.disabled = not ((uses_real_save() or SaveGame.persist) and SaveGame.can_reset())
+	if reset_button.disabled:
+		_reset_armed = false
+	reset_button.text = RESET_ARMED if _reset_armed else RESET_LABEL
+
+
+## Two clicks: the first arms, the second erases the save (a new v0.0.0 save, written).
+func press_reset() -> void:
+	if reset_button.disabled:
+		return
+	if not _reset_armed:
+		_reset_armed = true
+	else:
+		_reset_armed = false
+		_go_live()
+		SaveGame.reset()
+	refresh_save()
+
+
+## The real save goes live here, unless a save is live already (a test's or a tool's
+## scratch save stays the one in use).
+func _go_live() -> void:
+	if uses_real_save() and not SaveGame.persist:
+		SaveGame.go_live()
+
+
 func start() -> void:
+	_go_live()
 	Main.next_seed = parse_seed(seed_field.text)
 	get_tree().change_scene_to_file(GAME_SCENE)
 

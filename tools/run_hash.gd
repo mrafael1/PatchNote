@@ -39,6 +39,12 @@ func _run() -> void:
 			var d: Variant = JSON.parse_string(line)
 			if d is Dictionary:
 				expected[int(d.seed)] = d.hashes
+	# Never the real playtest log or the real save: the runs are inert, as in M25.
+	var telemetry: GDScript = load("res://systems/telemetry.gd")
+	telemetry.log_path = "user://playtest/run_hash.jsonl"
+	var start_script: GDScript = load("res://ui/start_screen.gd")
+	start_script.save_live = false
+	load("res://core/save_game.gd").call(&"go_inert")
 	var start: Node = load("res://ui/start_screen.tscn").instantiate()
 	root.add_child(start)
 	current_scene = start

@@ -76,7 +76,7 @@ func test_last_prompt_starts_the_release_candidate_and_surviving_it_wins() -> vo
 	await _wait_report()
 	assert_true(game.report.is_open())
 	assert_true(RunState.is_paused_for(&"report"))
-	assert_true(game.report.text().begins_with("PLAYTEST REPORT  -  v1.0 shipped"))
+	assert_true(game.report.text().begins_with("PLAYTEST OF v0.0.0  -  BUILD SURVIVED"))
 	assert_true(game.run_loop.record.reached_release_candidate)
 
 
@@ -109,7 +109,7 @@ func test_dying_loses_once_and_closes_the_other_panels() -> void:
 	assert_false(game.prompt_panel.is_open())
 	await _wait_report()
 	assert_true(game.report.is_open())
-	assert_true(game.report.text().begins_with("PLAYTEST REPORT  -  Build crashed at v0.1"))
+	assert_true(game.report.text().begins_with("PLAYTEST OF v0.0.0  -  CRASHED AT BUILD 1"))
 	# Winning afterwards changes nothing.
 	game.run_loop.end(&"win")
 	assert_eq(ended, [&"lose"] as Array[StringName])
@@ -137,7 +137,7 @@ func test_report_lists_the_build_log_sources_and_an_ai_line() -> void:
 	game.run_loop.end(&"lose")
 	var text := ReportScreen.report_text(&"lose", game.run_loop.record)
 	var lines := text.split("\n")
-	assert_true(lines[0].begins_with("PLAYTEST REPORT"))
+	assert_true(lines[0].begins_with("PLAYTEST OF v0.0.0"))
 	assert_true(lines[lines.size() - 1].begins_with("AI: "))
 	assert_string_contains(text, "v0.2  " + MutationDB.get_mutation(&"auto_attack").title)
 	assert_string_contains(text, "Base weapon")

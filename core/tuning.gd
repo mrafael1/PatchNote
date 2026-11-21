@@ -56,6 +56,8 @@ var spawn_min_distance := 8.0 * TILE
 var spawn_shooter_chance := 0.25
 var spawn_tank_chance := 0.15
 var spawn_tank_delay := 30.0
+## A new save spawns only these (PLAN v5 2.3, read through Unlocks.enemies from M28).
+var starter_enemies: Array[StringName] = [&"chaser", &"shooter"]
 var chaser_headroom := 3.7 * TILE  # free space a chaser needs above it to hop up
 var stuck_time := 2.0
 var wander_time := 1.5

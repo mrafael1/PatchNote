@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M26"
+const BUILD := "M27"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -138,9 +138,12 @@ func _on_player_died() -> void:
 	player.visible = false
 
 
-func _on_run_ended(_outcome: StringName) -> void:
+func _on_run_ended(outcome: StringName) -> void:
 	if is_live_game():
 		Telemetry.append(genre.run_record())
+		# The save (inert unless the start screen or a bot chain made it live) counts the
+		# run, its genre's play time in real seconds, and the taste it ended with.
+		SaveGame.record_run(RunState.genre, outcome, RunState.real_time(), director.taste.to_save())
 	prompt_panel.dismiss()
 	patch_history.close()
 	patch_history.locked = true
@@ -163,7 +166,16 @@ func save_notes() -> void:
 	if _notes_saved or not genre.is_over() or not is_live_game():
 		return
 	_notes_saved = true
-	Taste.carried = report.ratings.duplicate()
+	if SaveGame.is_live():
+		# A live save keeps taste on disk: fold the ratings into it.
+		var taste := Taste.from_save(SaveGame.state().taste)
+		for id: StringName in report.ratings:
+			var m := MutationDB.get_mutation(id)
+			if m:
+				taste.on_rating(m, report.ratings[id])
+		SaveGame.set_taste(taste.to_save())
+	else:
+		Taste.carried = report.ratings.duplicate()
 	Taste.last_run_rated = 1 if not report.ratings.is_empty() else 0
 	var notes := {}
 	for id: StringName in report.ratings:

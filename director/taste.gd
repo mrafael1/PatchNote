@@ -7,8 +7,10 @@ extends RefCounted
 ## leans its offers toward high scores, and saves one card per offer for its own
 ## agenda: the thing the player likes least so far.
 ##
-## Nothing is saved to disk. The ratings from the report carry over to the next run
-## of the same session only (static), and fade by half each run.
+## With a live save (PLAN v5 1.5) the scores are kept on disk: each run starts from the
+## save's taste, its end writes the run's taste back, and the report's ratings are
+## folded in. Otherwise (inert games, tests) nothing is saved: the ratings carry over
+## to the next run of the same session only (static), and fade by half each run.
 
 const PICK := 1.0
 const PASS := -0.25          ## each card shown but not picked
@@ -29,8 +31,11 @@ var by_id := {}
 var by_tag := {}
 
 
-## Starts from what the session's previous runs taught.
+## Starts from what earlier runs taught: the save's taste when it is live, else the
+## session's carried ratings.
 static func from_session() -> Taste:
+	if SaveGame.is_live():
+		return from_save(SaveGame.state().taste)
 	var t := Taste.new()
 	for id: StringName in carried:
 		var m := MutationDB.get_mutation(id)
@@ -91,6 +96,31 @@ func to_dict() -> Dictionary:
 	for k: StringName in by_tag:
 		tags[String(k)] = snappedf(by_tag[k], 0.01)
 	return {"ids": ids, "tags": tags}
+
+
+## The save's form: {"by_id": {id: score}, "by_tag": {tag: score}} (SaveGame drops
+## unknown ids on load).
+func to_save() -> Dictionary:
+	var ids := {}
+	for k: StringName in by_id:
+		ids[String(k)] = snappedf(by_id[k], 0.001)
+	var tags := {}
+	for k: StringName in by_tag:
+		tags[String(k)] = snappedf(by_tag[k], 0.001)
+	return {"by_id": ids, "by_tag": tags}
+
+
+static func from_save(d: Dictionary) -> Taste:
+	var t := Taste.new()
+	var ids: Variant = d.get("by_id", {})
+	var tags: Variant = d.get("by_tag", {})
+	if ids is Dictionary:
+		for k: Variant in ids:
+			t.by_id[StringName(k)] = float(ids[k])
+	if tags is Dictionary:
+		for k: Variant in tags:
+			t.by_tag[StringName(k)] = float(tags[k])
+	return t
 
 
 func _nudge(m: Mutation, amount: float) -> void:

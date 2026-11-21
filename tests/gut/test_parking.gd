@@ -177,9 +177,10 @@ func test_a_swap_preview_with_ai_gravity_live_plays_the_gravity_safety() -> void
 
 
 func test_hud_names_the_parked_genre_next_to_the_version() -> void:
-	assert_eq(Hud.version_text(), RunState.version_label())
+	var base := "v0.0.0 · build %d" % RunState.build_number
+	assert_eq(Hud.version_text(), base)
 	RunState.swap_big(MutationDB.get_mutation(&"turn_mode"))
-	assert_eq(Hud.version_text(), "%s · Turn-based" % RunState.version_label())
+	assert_eq(Hud.version_text(), "v0.0.0 · build %d · Turn-based" % RunState.build_number)
 
 
 func test_report_and_telemetry_show_genres_and_swaps() -> void:

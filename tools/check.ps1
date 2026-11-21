@@ -5,7 +5,9 @@
 #
 # Usage (from anywhere):  powershell -ExecutionPolicy Bypass -File tools\check.ps1 [-BotRuns]
 # -BotRuns adds the M6 gate: five full-length seeded bot runs (about two minutes), plus
-# one run of the parked turn-based genre through the big-slot seam (PLAN v5 M25).
+# one run of the parked turn-based genre through the big-slot seam (PLAN v5 M25), plus
+# two runs chained through a scratch save (PLAN v5 M27).
+# Every step must leave the real save folder exactly as it was (PLAN v5 1.5, 6).
 
 param([switch]$BotRuns)
 $ErrorActionPreference = 'Stop'
@@ -15,6 +17,18 @@ New-Item -ItemType Directory -Force $logDir | Out-Null
 
 $errorPattern = 'SCRIPT ERROR|Parse Error|^\s*ERROR:|Could not find type|Failed to load script'
 $failures = @()
+
+# The real save (SaveGame.DEFAULT_PATH) lives here. Nothing the check runs may create,
+# change or remove a file in it: tests, boots and bots are inert or use scratch paths.
+$saveDir = Join-Path $env:APPDATA 'Godot\app_userdata\Patch Notes\save'
+function Get-SaveSnapshot {
+    if (-not (Test-Path $saveDir)) { return '(no save folder)' }
+    $files = Get-ChildItem -Path $saveDir -File | Sort-Object Name |
+        ForEach-Object { '{0}|{1}|{2}' -f $_.Name, $_.Length, $_.LastWriteTimeUtc.Ticks }
+    if (-not $files) { return '(empty save folder)' }
+    return ($files -join "`n")
+}
+$saveBefore = Get-SaveSnapshot
 
 function Invoke-Godot([string]$name, [string]$godotArgs) {
     $log = Join-Path $logDir "$name.log"
@@ -41,7 +55,7 @@ $import = Invoke-Godot 'import' '--import'
 if ($import.Code -ne 0) { $failures += "import: exit code $($import.Code)" }
 
 Write-Host '[2/4] boot (start screen)'
-$boot = Invoke-Godot 'boot' '--quit-after 120'
+$boot = Invoke-Godot 'boot' '--quit-after 120 -- --inert-save'
 Test-Errors 'boot' $boot
 if ($boot.Text -notmatch '\[boot\] Patch Notes .*start screen') { $failures += 'boot: start screen banner missing' }
 
@@ -73,7 +87,15 @@ if ($BotRuns) {
     Test-Errors 'bot_runs_parked' $parked
     Select-String -Path $parked.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($parked.Text -notmatch '\[botrun\] summary: 1 runs, 0 failures') { $failures += 'bot_runs_parked: summary missing or failures' }
+    # Two mortal runs chained through a fresh scratch save (PLAN v5 M27): the file counts both.
+    $chain = Invoke-Godot 'bot_runs_save' '--fixed-fps 60 -s tools/bot_runs.gd -- --save=user://save_check/save.json --keep-save --fresh 1 2'
+    Test-Errors 'bot_runs_save' $chain
+    Select-String -Path $chain.Log -Pattern '^\[botrun\] (save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($chain.Text -notmatch '\[botrun\] summary: 2 runs, 0 failures') { $failures += 'bot_runs_save: summary missing or failures' }
+    if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=2 ') { $failures += 'bot_runs_save: the save does not count 2 runs' }
 }
+
+if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check' }
 
 if ($failures.Count -gt 0) {
     Write-Host ''

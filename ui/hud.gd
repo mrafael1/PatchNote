@@ -23,11 +23,13 @@ func _ready() -> void:
 	add_child(_label)
 
 
-## "v0.9" or, with a big patch in the slot, "v0.9 · Motion time".
+## The game's version and the in-run build (PLAN v5 1.6): "v0.1.2 · build 5", or with
+## a parked big patch in the slot, "v0.1.2 · build 5 · Turn-based".
 static func version_text() -> String:
+	var text := "%s · build %d" % [SaveGame.version().label(), RunState.build_number]
 	if RunState.big != null:
-		return "%s · %s" % [RunState.version_label(), RunState.big.genre_label]
-	return RunState.version_label()
+		text += " · " + RunState.big.genre_label
+	return text
 
 
 func _process(_delta: float) -> void:

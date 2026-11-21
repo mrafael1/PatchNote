@@ -127,8 +127,9 @@ func _refresh_console() -> void:
 func _build_text() -> String:
 	var lines: Array[String] = []
 	lines.append("%s   seed %d   FPS %d   physics %.2f ms" % [
-		RunState.version_label(), RunState.run_seed, Engine.get_frames_per_second(),
+		Hud.version_text(), RunState.run_seed, Engine.get_frames_per_second(),
 		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
+	lines.append("save %s   %s" % [_save_mode(), Unlocks.summary()])
 	lines.append("entities %d   enemies %d   t %.1fs%s%s" % [
 		RunState.live_entities().size(), RunState.count(&"enemy"), RunState.game_time,
 		"   INVINCIBLE" if RunState.invincible else "",
@@ -150,3 +151,12 @@ func _build_text() -> String:
 	lines.append("kills by source: %s" % [RunState.kills_by_source])
 	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F6 prompt  F7 bot")
 	return "\n".join(lines)
+
+
+## F1: how the save is running (PLAN v5 5).
+static func _save_mode() -> String:
+	if SaveGame.read_only:
+		return "read-only (newer build)"
+	if SaveGame.persist:
+		return "live"
+	return "inert" if SaveGame.unlock_all else "snapshot"

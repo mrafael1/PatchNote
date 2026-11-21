@@ -120,14 +120,17 @@ func text() -> String:
 ## Plain-text report. First line is the title, last line the AI comment.
 static func report_text(outcome: StringName, record: Dictionary) -> String:
 	var duration: float = record.get("duration", RunState.game_time)
-	var version: String = record.get("version", RunState.version_label())
+	var game_version: String = record.get("game_version", SaveGame.version().label())
+	var build := int(record.get("build_number", RunState.build_number))
 	var reverts: int = record.get("reverts_used", 0)
 	var lines: Array[String] = []
-	lines.append("PLAYTEST REPORT  -  %s" % ("v1.0 shipped" if outcome == &"win" else "Build crashed at " + version))
+	# PLAN v5 1.6: the run is a playtest of the game's version; the build is flavour.
+	lines.append("PLAYTEST OF %s  -  %s" % [game_version,
+			"BUILD SURVIVED" if outcome == &"win" else "CRASHED AT BUILD %d" % build])
 	lines.append("")
 	lines.append("Time        %s" % _clock(duration))
 	lines.append("Kills       %d" % int(record.get("kills", RunState.kills)))
-	lines.append("Version     %s" % version)
+	lines.append("Version     %s · build %d" % [game_version, build])
 	lines.append("Seed        %d" % int(record.get("seed", RunState.run_seed)))
 	var charges: Dictionary = record.get("charges", {})
 	var earned := int(charges.get("earned", Tuning.rollback_charges_start))
