@@ -1,4 +1,5 @@
-extends Mutation
+extends PatchTake
+## Top-down take (PLAN v5 1.2).
 ## More, weaker enemies and a wider view. Rules only.
 
 @export var spawn_rate_factor := 3.0

@@ -169,7 +169,7 @@ func test_pauses_and_a_dead_player_run_at_full_speed() -> void:
 
 
 func test_the_world_tint_and_the_sound_pitch_follow_the_time_scale() -> void:
-	var tint := game.get_node("TimeTint") as TimeTint
+	var tint := game.get_node("Genre/TimeTint") as TimeTint
 	await wait_physics_frames(2)
 	assert_eq(tint.amount(), 0.0, "no tint at normal speed")
 	await _settle()

@@ -1,4 +1,5 @@
-extends Mutation
+extends PatchTake
+## Top-down take (PLAN v5 1.2).
 ## A killed enemy breaks into smaller, weaker copies. Copies do not split again
 ## (Tuning.max_split_generation) and they stay in the world if the patch is reverted.
 

@@ -89,8 +89,9 @@ func open_prompt(ctx := context()) -> void:
 	prompt_requested.emit(offer)
 
 
-## Up to offer_size patches, weighted, without repeats, all of them applicable now
-## and none of them rolled back earlier in this run.
+## Up to offer_size patches, weighted, without repeats, all of them applicable now,
+## with a take for the run's genre (PLAN v5 1.2) and none of them rolled back earlier
+## in this run.
 func get_offer(_ctx: Dictionary) -> Offer:
 	prompt_index += 1
 	var offer := Offer.new()
@@ -99,7 +100,7 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	var pool: Array[Mutation] = []
 	for m in MutationDB.offerable():
 		# can_apply refuses mediums and boss-only patches: they never reach a small offer.
-		if RunState.can_apply(m) and not reverted.has(m.id):
+		if m.has_take(RunState.genre) and RunState.can_apply(m) and not reverted.has(m.id):
 			pool.append(m)
 
 	var rng := RunState.director_rng

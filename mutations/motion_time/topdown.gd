@@ -1,4 +1,5 @@
-extends Mutation
+extends PatchTake
+## Top-down take (PLAN v5 1.2).
 ## B1, "Time moves when you move": a small patch since PLAN v5 (1.4). Stand still and
 ## the world almost stops; move, shoot or dash and it runs. The patch owns the motion
 ## factor and hands it to RunState.set_time_factor every tick; RunState stays the only

@@ -1,4 +1,5 @@
-extends Mutation
+extends PatchTake
+## Top-down take (PLAN v5 1.2).
 ## Shots bounce off walls, and arc when the world has gravity.
 
 @export var extra_bounces := 3

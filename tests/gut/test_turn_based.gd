@@ -161,7 +161,7 @@ func test_wait_does_nothing_outside_b2() -> void:
 	await wait_physics_frames(2)
 	assert_false(clock.active)
 	assert_false(RunState.is_paused_for(&"turn"))
-	assert_false(game.get_node("World/TurnOverlay").visible)
+	assert_false(game.world.get_node("TurnOverlay").visible)
 
 
 func test_bot_turn_policy_plays_turns() -> void:
@@ -172,7 +172,7 @@ func test_bot_turn_policy_plays_turns() -> void:
 	await wait_physics_frames(240)
 	assert_gt(clock.turns, 10)
 	assert_gt(RunState.game_time - t0, 2.0)
-	assert_true(game.get_node("World/TurnOverlay").visible)
+	assert_true(game.world.get_node("TurnOverlay").visible)
 
 
 func test_bot_steps_out_of_a_grid_shooters_locked_line() -> void:

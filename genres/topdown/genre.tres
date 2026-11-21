@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="GenreDef" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://core/genre_def.gd" id="1"]
+[ext_resource type="Script" path="res://genres/topdown/topdown_genre.gd" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = &"topdown"
+title = "Top-down shooter"
+blurb = "One arena, a gun, and whatever I patch into it."
+pace_unit = &"seconds"
+genre_script = ExtResource("2")
+playable = true

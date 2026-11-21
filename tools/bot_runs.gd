@@ -8,8 +8,9 @@ extends SceneTree
 ## is played too. Options (any position):
 ##   --set=<tuning var>=<value>   override a Tuning value for every run (retune sweeps),
 ##                                e.g. --set=prompt_min_gap=90
-##   --set=<mutation id>.<var>=<value>   override a number on a mutation resource,
-##                                e.g. --set=turn_mode.turn_duration=0.2
+##   --set=<mutation id>.<var>=<value>   override a number on that patch's take for the
+##                                run's genre (a parked legacy patch: on its resource),
+##                                e.g. --set=explode_on_hit.radius=90
 ##   --big=<mutation id>          start every run with that parked big patch in the slot
 ##                                (PLAN v5 1.3: the slot is a test seam; nothing swaps it)
 ##   --log=<path>                 write telemetry there instead (parallel sweeps)
@@ -116,11 +117,14 @@ func _override(pair: String) -> bool:
 		return false
 	var tuning: Object = root.get_node("Tuning")
 	var key := pair.left(at)
-	if key.contains("."):   # <mutation id>.<var>
-		tuning = root.get_node("MutationDB").get_mutation(StringName(key.get_slice(".", 0)))
+	if key.contains("."):   # <mutation id>.<var>: on its take for the run's genre (PLAN v5 1.2)
+		# Untyped: naming Mutation here would compile it before the autoloads exist.
+		var m: Object = root.get_node("MutationDB").get_mutation(StringName(key.get_slice(".", 0)))
 		key = key.get_slice(".", 1)
-		if tuning == null:
+		if m == null:
 			return false
+		var take: Object = m.call(&"take_for", root.get_node("RunState").genre)
+		tuning = take if take != null else m
 	var value: Variant = str_to_var(pair.substr(at + 1))
 	if not key in tuning or value == null:
 		return false

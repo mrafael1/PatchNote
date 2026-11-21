@@ -1,4 +1,5 @@
-extends Mutation
+extends PatchTake
+## Top-down take (PLAN v5 1.2).
 ## "Add a jump button": one more jump, and landing hurts whatever is underneath.
 ## Without gravity that jump is a hop over the ground plane; with gravity it is an
 ## extra (double) jump. The slam is the same code in both.

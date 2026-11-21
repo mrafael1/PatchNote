@@ -1,4 +1,5 @@
-extends Mutation
+extends PatchTake
+## Top-down take (PLAN v5 1.2).
 ## Every player-projectile contact (wall or enemy) sets off a small explosion.
 
 @export var radius := 70.0

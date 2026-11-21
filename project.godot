@@ -14,6 +14,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 InputSetup="*res://core/input_setup.gd"
 Tuning="*res://core/tuning.gd"
 EventBus="*res://core/event_bus.gd"
+GenreDB="*res://core/genre_db.gd"
 RunState="*res://core/run_state.gd"
 MutationDB="*res://core/mutation_db.gd"
 

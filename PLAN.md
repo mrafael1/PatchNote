@@ -61,7 +61,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 ## 1. Contracts
 
 ### 1.1 The shell and the genre interface
-- **`GenreDef`** (`core/genre_def.gd`, resource): `id`, `title`, `blurb`, `pace_unit` (`&"seconds"`, later `&"turns"`, `&"rooms"`), `script: Script` (a `Genre` subclass). One per genre in `genres/<id>/genre.tres`. **`GenreDB`** autoload lists them like `MutationDB` (sorted by id, `list_directory`, `problems()`).
+- **`GenreDef`** (`core/genre_def.gd`, resource): `id`, `title`, `blurb`, `pace_unit` (`&"seconds"`, later `&"turns"`, `&"rooms"`), `genre_script: Script` (a `Genre` subclass), `playable`. One per genre in `genres/<id>/genre.tres`. **`GenreDB`** autoload lists them like `MutationDB` (sorted by id, `list_directory`, `problems()`); it loads before `RunState` and `MutationDB`, which read it, and `MutationDB` checks that no patch id is a genre id.
 - **`Genre`** (`core/genre.gd`, `Node`): the base a genre extends.
   - `func build(shell: Main) -> void`: adds the genre's own nodes (arena, spawner, camera, overlays) under itself and places the player.
   - `func begin_run() -> void`: starts its run.

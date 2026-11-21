@@ -257,6 +257,41 @@ class FxAgainstMed extends Mutation:
 		pass
 
 
+## A genre the shell knows nothing about (PLAN v5 6): a bare world, no player, arena,
+## spawner, camera or run loop. finish() ends its run the way any genre must.
+class FxGenre extends Genre:
+	var began := false
+	var _over := false
+
+	func build(p_shell: Node) -> void:
+		super(p_shell)
+		world = Node2D.new()
+		world.name = "World"
+		add_child(world)
+		RunState.world = world
+
+	func begin_run() -> void:
+		began = true
+
+	func finish(outcome: StringName) -> void:
+		record = {"outcome": String(outcome), "duration": RunState.game_time, "kills": RunState.kills}
+		_over = true
+		run_ended.emit(outcome)
+
+	func is_over() -> bool:
+		return _over
+
+
+## Not Playable, so it never becomes the default genre while registered.
+static func make_genre(id: StringName = &"fx_genre") -> GenreDef:
+	var g := GenreDef.new()
+	g.id = id
+	g.title = "Test genre"
+	g.genre_script = FxGenre
+	g.playable = false
+	return g
+
+
 static func make(cls: GDScript, id: StringName, requires: Array = [], conflicts: Array = []) -> Mutation:
 	var m: Mutation = cls.new()
 	m.id = id

@@ -22,6 +22,7 @@ var ai: Array[Mutation] = []  ## the AI layer (PLAN v4 1.2): live AI-tier patche
 var ai_owner := {}            ## AI patch id -> &"stage" or &"boss"
 var patch_state := {}
 
+var genre: StringName         ## the run's genre (PLAN v5 1.1); set by reset(), never during a run
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
@@ -431,8 +432,9 @@ func in_grace() -> bool:
 	return game_time < _grace_until
 
 
-## Back to a clean run. "New build" and every test start here.
-func reset(new_seed: int) -> void:
+## Back to a clean run. "New build" and every test start here. An empty or unknown
+## genre means the default one (the first Playable genre in GenreDB).
+func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	for i in range(stack.size() - 1, -1, -1):
 		_remove(stack[i])
 	for i in range(ai.size() - 1, -1, -1):
@@ -451,6 +453,7 @@ func reset(new_seed: int) -> void:
 	real_frames = 0
 	invincible = false
 	run_seed = new_seed
+	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
 	_pending.clear()
@@ -613,8 +616,8 @@ func _on_enemy_killed(_enemy: Node, info: RefCounted) -> void:
 # --- Invariant support -----------------------------------------------------
 
 ## Everything that must be a pure function of the layers: rules, patch-added
-## components per entity, mutation-owned EventBus connections, and the AI layer's
-## ids with their owners.
+## components per entity, EventBus connections owned by mutations and their takes,
+## and the AI layer's ids with their owners.
 func snapshot() -> Dictionary:
 	var entities := {}
 	for e in live_entities():
@@ -633,6 +636,8 @@ func snapshot() -> Dictionary:
 			var obj := callable.get_object()
 			if obj is Mutation:
 				owners.append("%s.%s" % [(obj as Mutation).id, callable.get_method()])
+			elif obj is PatchTake:
+				owners.append("%s/%s.%s" % [(obj as PatchTake).id, (obj as PatchTake).genre, callable.get_method()])
 		owners.sort()
 		if not owners.is_empty():
 			connections[sig.name] = owners

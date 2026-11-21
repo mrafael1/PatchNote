@@ -1,7 +1,8 @@
 extends Node
 ## Autoload "MutationDB" (PLAN 2.6). Finds every mutation under res://mutations/.
 ## Uses ResourceLoader.list_directory so it also works in an exported build, and
-## sorts by id because that listing has no guaranteed order.
+## sorts by id because that listing has no guaranteed order. For each card it builds
+## one take per genre that has a file next to it (mutations/<id>/<genre>.gd, PLAN v5 1.2).
 
 const DIR := "res://mutations/"
 
@@ -91,6 +92,27 @@ func _add(m: Mutation, path: String) -> void:
 		return
 	all.append(m)
 	_by_id[m.id] = m
+	if path != "":
+		_build_takes(m, path.get_base_dir())
+
+
+## One take per genre with a file in dir. Cards are cached for the life of the process,
+## so a reload keeps the takes it built first (and any bot --set values on them).
+func _build_takes(m: Mutation, dir: String) -> void:
+	if not m.takes.is_empty():
+		return
+	for g in GenreDB.all:
+		var path := "%s/%s.gd" % [dir, g.id]
+		if not ResourceLoader.exists(path):
+			continue
+		var take := (load(path) as Script).new() as PatchTake
+		if take == null:
+			push_error("Take %s does not extend PatchTake" % path)
+			continue
+		take.patch = m
+		take.id = m.id
+		take.genre = g.id
+		m.takes[g.id] = take
 
 
 func _sort() -> void:
@@ -110,6 +132,17 @@ func problems(m: Mutation) -> Array[String]:
 		out.append("Big mutation '%s' must have no requires and no conflicts" % m.id)
 	if int(m.is_medium) + int(m.boss_only) + int(m.is_big) > 1:
 		out.append("Mutation '%s' sets more than one of is_medium, boss_only, is_big" % m.id)
+	if GenreDB.get_genre(m.id) != null:
+		out.append("Mutation id '%s' is also a genre id" % m.id)
+	# PLAN v5 1.2: behaviour lives in takes. Only a parked card may keep its own script,
+	# and an unparked card needs a take for every Playable genre (ROADMAP 1.4).
+	if m.is_legacy():
+		if m.resource_path != "" and not m.parked:
+			out.append("Mutation '%s' has its own script; only a parked patch may (move it into takes)" % m.id)
+	elif not m.parked:
+		for g in GenreDB.playable_ids():
+			if not m.takes.has(g):
+				out.append("Mutation '%s' has no take for the playable genre '%s'" % [m.id, g])
 	if m.boss_only and m.boss_weight <= 0.0:
 		out.append("Boss-only mutation '%s' needs a boss_weight above 0" % m.id)
 	for ref in m.requires + m.conflicts:
