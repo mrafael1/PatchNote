@@ -53,9 +53,8 @@ func test_every_legal_subset_runs_under_each_big_patch() -> void:
 			return
 
 
-## The M14 build's end state (PLAN v4 9.1): the AI's gravity (alone, then with its
-## reversal) over every small patch, under no big patch and each big patch it fits.
-## Outside the pinned counts.
+## The parked AI layer's gravity (alone, then with its reversal) over every small
+## patch, under no big patch and each big patch it fits. Outside the pinned counts.
 func test_the_full_stack_runs_under_ai_gravity() -> void:
 	var smalls := MutationDB.all.filter(func(m: Mutation) -> bool: return not m.is_big and not m.is_ai_tier())
 	var layers: Array = [[&"gravity_on"], [&"gravity_on", &"gravity_reversed"]]
@@ -98,7 +97,7 @@ func test_the_full_stack_runs_under_ai_gravity() -> void:
 				return
 			_clear_world()
 			await wait_physics_frames(1)
-	assert_eq(runs, 4, "none and B1, each with gravity and with gravity reversed (B2 refuses gravity)")
+	assert_eq(runs, 2, "no big patch, with gravity and with gravity reversed (the parked B2 refuses gravity)")
 
 
 ## Runs every legal small subset with `big` in the slot (already swapped in). Returns
@@ -186,11 +185,11 @@ func _legal(subset: Array[Mutation], big: Mutation) -> bool:
 	return true
 
 
-## Pinned per slot (PLAN v4 11, M14): 6 small patches with no requires or conflicts
-## among them or with a big patch, so 2^6 - 1 = 63 under every slot. The gravity pair
-## left the small pool (medium tier).
-func _expected_subsets(_big: Mutation) -> int:
-	return 63
+## Pinned per slot (PLAN v5 M25): 7 small patches with no requires or conflicts among
+## them, so 2^7 - 1 = 127 with an empty slot. B1 conflicts with the parked B2, so under
+## turn_mode the other 6 give 2^6 - 1 = 63. The gravity pair is parked (medium tier).
+func _expected_subsets(big: Mutation) -> int:
+	return 63 if big != null and big.id == &"turn_mode" else 127
 
 
 func _spawn_wave(rng: RandomNumberGenerator) -> void:

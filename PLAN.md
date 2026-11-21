@@ -53,6 +53,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 - The 1.0 rule, maturity steps past Playable, play thresholds (no genre steps up in v5; the save records play time so Phase 5 can read it).
 - Live AI patches and rollbacks in any form (parked, ROADMAP 1.7).
 - Playable mockup tastes (stills only, 4.3). Generated images: every mockup still is captured from the game (`tools/mockup_capture.gd`) and committed.
+- **`WorldRules` stays one bag** and requires/conflicts stay on the card (ROADMAP 3's split into a shared part plus per-genre rule bags comes with the second genre, Phase 5). **Mediums get their `genre` field** when mediums come back (Phase 6); v4 1.1's medium tier stays only for the parked AI layer.
 - Saving settings; RTS; final art and audio.
 
 ---
@@ -64,11 +65,12 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 - **`Genre`** (`core/genre.gd`, `Node`): the base a genre extends.
   - `func build(shell: Main) -> void`: adds the genre's own nodes (arena, spawner, camera, overlays) under itself and places the player.
   - `func begin_run() -> void`: starts its run.
-  - It asks the shell for prompts with `shell.request_prompt()` when its pacing says so (2.1). The Director still builds offers and applies patches.
+  - Prompt pacing stays the Director's rule (kills and gaps in game seconds) in v5: it suits the only genre, and moving it would break M26's same-run gate. Phase 5 hands prompt points to the genres (turn-based paces in turns). The Director builds offers and applies patches.
   - It tells the shell exactly two things: `signal stage_ended(index: int)` and `signal run_ended(outcome: StringName)` (ROADMAP 1.3). The shell never asks a genre how it runs.
-- **`ShooterGenre`** (`genres/shooter/shooter_genre.gd`): today's arena, spawner, `TurnClock`, `TurnOverlay`, `TimeTint`, camera, and the run pacing of `RunLoop` (play → release candidate → over). It fires `run_ended`; it has no stages yet, so it never fires `stage_ended`.
+- **`TopdownGenre`** (`genres/topdown/topdown_genre.gd`): today's arena, spawner, `TurnClock`, `TurnOverlay`, `TimeTint`, camera, and the run pacing of `RunLoop` (play → release candidate → over). It fires `run_ended`; it has no stages yet, so it never fires `stage_ended`.
+- **Genre ids never collide with content ids:** the first genre is `topdown` (title "Top-down shooter"), because `shooter` is already an enemy archetype.
 - **The shell (`main.gd`)** keeps only what all genres share: `RunState` reset, the player-facing UI (prompt panel, HUD frame, history, report, dev session, patch notes), `Transition`, `Sound`, `Feedback`, the Director, telemetry. `Main` keeps **read-only forwarding properties** (`arena`, `spawner`, `camera`, `turn_clock`, `run_loop`, `player`) to the active genre, so tests and tools keep working unchanged.
-- **`RunState.genre: StringName`** is set by `reset(seed, genre)` (default `&"shooter"`). It is separate from the patch layers. Nothing in v5 changes it during a run.
+- **`RunState.genre: StringName`** is set by `reset(seed, genre)` (default: the first Playable genre in `GenreDB`, `&"topdown"`). It is separate from the patch layers. Nothing in v5 changes it during a run.
 - **Rule: the shell never branches on a genre id.** A grep test (like v2's folder isolation) fails if a genre id appears in `main.gd`, `ui/`, `director/`, `devsession/` or `core/` outside `GenreDB`.
 
 ### 1.2 Takes: one patch, one behaviour per genre
@@ -88,7 +90,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 - **The AI layer** (`RunState.ai`, `add_ai`, `remove_ai`, `expire_ai`) and its invariant tests stay. Nothing in play adds to it. `rollback_charges_start = 0`; `Director.can_revert` stays for tests. The history hides the AI section and its buttons when the layer is empty, and the HUD drops "Rollbacks: N".
 
 ### 1.4 B1 becomes a small patch
-- `motion_time`: `is_big = false`, `genre_label` cleared, take `mutations/motion_time/shooter.gd`. Conflicts with nothing in the v5 pool.
+- `motion_time`: `is_big = false`, `genre_label` cleared, take `mutations/motion_time/topdown.gd`. Conflicts with nothing in the v5 pool.
 - **Its logic leaves `RunState`:** `_motion`, `_pulse_left`, `_step_motion`, `motion_target`, `_on_projectile_fired` and `_on_player_dashed` move into the take (its `state()`). `RunState` stays the **only writer of `Engine.time_scale`** through a new seam: `RunState.set_time_factor(owner: StringName, f: float)`. The scale is `rules.time_scale × Π factors`, floored at `MIN_TIME_SCALE`. `_strip(m)` and `reset()` clear that patch's factor, so a reverted B1 leaves time at 1 the same tick.
 - The take steps on real time as today (`delta / Engine.time_scale`), in a `physics_frame` listener connected through `_listen`. `rules.time_follows_motion` and `idle_time_scale` stay as rules (a test reads them).
 - `RunState.motion_factor()` stays as a read-only helper (the product of factors) for the HUD and `TimeTint`.
@@ -101,7 +103,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 {"schema": 1,
  "version": [0, 1, 2],
  "runs": 4, "wins": 1,
- "genres": {"shooter": {"step": "playable", "runs": 4, "play_time": 702.5}},
+ "genres": {"topdown": {"step": "playable", "runs": 4, "play_time": 702.5}},
  "shipped": ["look_1", "patch_auto_attack", "enemy_tank"],
  "look": {"tier": 1, "take": "punchy"},
  "taste": {"by_id": {}, "by_tag": {}},
@@ -109,6 +111,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
  "pending_session": false}
 ```
 - **Inert means "everything shipped":** with `unlock_all`, the pool is every unparked patch, every enemy spawns, and the look is tier 1 take `punchy` (today's feel). So GUT, `main.tscn` booted directly and the export's `--autostart` play as today. Tests of v0.0 gating turn `unlock_all` off.
+- **Play time is time spent playing** (the owner: genres grow from "time spent playing them"): `RunState.real_time()` of the run, unscaled, so B1's slow motion and hit stop do not shrink it.
 - **When it writes:** at run end (runs, wins, genre runs and play time, taste) with `pending_session = true`, then again when the dev session ships (shipped, version, look, sessions, `pending_session = false`). If the game closes between the two, the next start screen opens the pending dev session first ("The last build is still on my desk.").
 - **Taste:** `Taste.to_dict()` and a new `Taste.from_dict()`. When the save is live it replaces `Taste.carried`; inert games keep the session carry as today.
 - **Start screen:** "v0.1.2 · 4 runs" under the title, "Reset save" (two clicks, disabled on a higher-schema file), and Start (it opens the genre picker only when more than one genre is listed; in v5 it starts the shooter).
@@ -126,7 +129,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 - **`Look`** (`systems/look.gd`, static) holds the active `LookPreset` (`systems/looks/*.tres`): `shake_scale`, `particle_scale`, `hit_stop` (real seconds), `muzzle_flash`, `kill_pop_scale`, `trail`, `screen_flash`, `palette: Gradient` or 4 colours. Presentation only: no gameplay value reads it.
 - `Feedback`, `CameraRig.shake`, the projectile and the player's shooter read `Look.preset`. Hit stop goes through `RunState.set_time_factor(&"hit_stop", 0.0)` for `hit_stop` real seconds (the one time-scale writer stays `RunState`).
 - **Tier 0 (`look_0.tres`)** is the v0.0 look: readability only (2.2), `shake_scale = 0`, `particle_scale = 0.3`, no hit stop, no flash, no trail.
-- **Tier 1** has 3 takes (`look_1_punchy`, `look_1_clean`, `look_1_arcade`), each a preset of the same code (ROADMAP 1.5 scope rule). `punchy` is M14's feel plus hit stop. The 3 are tuned to look clearly different in a still.
+- **Tier 1** has 3 takes (`look_1_punchy`, `look_1_clean`, `look_1_arcade`), each a preset of the same code (ROADMAP 1.5 scope rule). `punchy` is M14's feel plus hit stop. **The 3 takes share tier 0's palette:** tier 1 is juice (ROADMAP 1.6); palettes and shaders are tier 2 (Phase 6). The 3 are tuned to look clearly different in a still through juice alone (shake blur, particle density, flashes, trails, kill pops); hit stop, which a still cannot show, is named in the take's line.
 
 ---
 
@@ -135,12 +138,12 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 ### 2.1 Pacing (starting targets, game time)
 - The shooter's run: **3 small prompts**, then a **45 s release-candidate wave**, then the report. Target **~3 min** (170–200 s median, invincible bot).
 - `Tuning`: `first_prompt_min_gap = 35`, `prompt_min_gap = 40`, `prompt_max_gap = 55`, `first_prompt_kills = 10`, `prompt_kills_step = 6`, `prompts_per_run = 3`, `rc_duration = 45`, `spawn_ramp_time = 120`. Retuned from bot sweeps at M28.
-- **The prompt is announced visually** (ROADMAP 1.4): from 6 s before a prompt can open (`Director.next_prompt_eta()`), a HUD bar fills: "Next patch incoming". It is the kill and time gates made visible, not a new rule.
+- **The prompt is announced visually** (ROADMAP 1.4, part of the core gimmick): once the kill gate is met, a HUD banner pulses "Next patch incoming" until the prompt opens (the remaining time gap, at most `prompt_min_gap`). It shows the existing gates, adds no rule, and never sits waiting on kills.
 - Picking still heals 1 HP. HP 5, as today.
 
 ### 2.2 Readability (in every look, tier 0 included)
 Fun before meta (ROADMAP 1.8 rule 1). Bots cannot judge it; G11 does.
-- **Telegraphs:** an enemy shooter flashes and grows for `Tuning.shooter_windup = 0.35` s before each shot (the shot is fired at the end of the windup, so the interval is unchanged); a chaser shows a squash for `chaser_hop_windup = 0.12` s before a hop. Under the parked B2 the grid telegraphs stay as they are.
+- **Telegraphs:** an enemy shooter flashes and grows for `Tuning.shooter_windup = 0.35` s before each shot (the shot is fired at the end of the windup, so the interval is unchanged); a chaser or tank within `Tuning.contact_warn_range = 1.5` tiles of the player shows a red rim that brightens as it closes in, so contact hits are read before they land (hops need gravity, which is parked). The bomber's 0.6 s windup (3) is the third telegraph. Under the parked B2 the grid telegraphs stay as they are.
 - **Hit confirmation:** the enemy flashes white (exists) and its body shows its HP lost (a short white bar under it, only once damaged, gone at full HP).
 - **Kill confirmation:** a short ring pop at the kill position and the `kill` sound in every look (`kill_pop_scale` sizes it); in tier 0 it is the only kill effect besides a small puff.
 - **Player hit:** a red screen-edge vignette for 0.3 s and the invulnerability blink (exists); no shake in tier 0.
@@ -180,19 +183,20 @@ Fun before meta (ROADMAP 1.8 rule 1). Bots cannot judge it; G11 does.
 
 ### 4.2 Which cards
 - **Available:** not shipped, every `requires` shipped, its genre (if any) is at least Playable.
-- **Shape:** if an available change has `due_after_run <= runs` and takes, the session is a **mockup session** on that change (its 3 takes as cards). Otherwise a **3-changes session**: up to `Tuning.session_cards = 3` cards, taste-weighted by tags (`Taste.weight_mult` over the change's tags), with **one agenda card** (the least-liked by tag) when 4 or more are available (ROADMAP 1.8 rule 4). Seeded from `run_seed` so a same-seed chain gives the same cards.
-- **Pick:** ships the change (or the take), bumps the version, logs the session, feeds taste (`Taste.on_offer` with the change's tags; picking a look take nudges a `look:<take>` id). An unpicked mockup take is not lost: `MockupTake` ids are kept in the session log (a later "look alt" change is Phase 6 content).
-- **Refusing is not an option in v5:** the player must pick one. A refused proposal "comes back later" (rule 3) holds because the unpicked changes stay available.
+- **Shape:** if an available change has `due_after_run <= runs` and takes, the session is a **mockup session** on that change (its 3 takes as cards). Otherwise a **3-changes session**: up to `Tuning.session_cards = 3` cards, taste-weighted by tags (`Taste.weight_mult` over the change's tags), with **one agenda card** (the least-liked by tag, voiced as the AI's own wish) whenever at least `Tuning.agenda_min_available = 2` cards are shown (ROADMAP 1.8 rule 4: push-back is a tuning value, never zero over a run of sessions). Seeded from `run_seed` so a same-seed chain gives the same cards.
+- **Fewer than 2 available:** no single forced card. The AI ships the last change itself, named in the patch notes as its own ("Last one on my list. I shipped it."), with its bump; the player goes straight to the patch notes.
+- **Pick:** ships the change (or the take), bumps the version, logs the session, feeds taste (`Taste.on_offer` with the change's tags; picking a look take nudges a `look:<take>` id). Unpicked mockup takes are kept in the session log; **they do not come back in v5**, and where they return (ROADMAP 1.5) is open (9).
+- **Refusing is not an option in v5:** the player must pick one. A refused proposal "comes back later" (rule 3) holds for changes, because the unpicked ones stay available.
 
 ### 4.3 Mockup cards
 - Each take card shows its still (`MockupTake.image`, 480×270, letterboxed), its title and one line. Hovering or focusing a card enlarges the still.
 - **Stills are captured from the game:** `tools/mockup_capture.gd -- <change_id>` runs a seeded, scripted 4-second scene (the player strafes and fires at a fixed group of chasers, one dies, one hits the player) under each take's preset and saves `devsession/mockups/<change>_<take>.png`. Committed. Rerun when a preset changes.
 
 ### 4.4 The AI ships its own change (default for open decision 5)
-Every `Tuning.ai_own_ship_every = 4` sessions (counted in the save), after the player's pick, the AI also ships one available non-mockup change of its own choice (least liked by tag, the agenda rule), named in the patch notes: "I also shipped something you didn't ask for: Tank." It bumps once more. 0 turns it off.
+Every `Tuning.ai_own_ship_every = 4` sessions (counted in the save), after the player's pick, the AI also ships one available non-mockup change of its own choice (least liked by tag, the agenda rule), named in the patch notes: "I also shipped something you didn't ask for: Tank." It bumps once more. 0 turns it off. The cadence, the target and the extra bump are this plan's own choices (ROADMAP open decision 5 is still "to confirm"), listed in 9.
 
-### 4.5 Telemetry (schema 3)
-Run records add `schema: 3`, `genre`, `version`, `look` {tier, take}, `pool_size`, `enemies`. A new line type `session` {version_before, version_after, shape, cards, pick, agenda, ai_ship, run_index}. Every schema 2 key still present is kept; big-slot keys (`big`, `big_offers`) are written as empty.
+### 4.5 Telemetry (schema 2)
+Today's records are `schema: 1` (v4's schema 2 was never built). v5's run records become `schema: 2` and add `genre`, `game_version` (the saved version, "v0.1.2"), `look` {tier, take}, `pool_size`, `enemies`. `version` keeps its meaning (the in-run build label, "v0.5"). A new line type `session` {version_before, version_after, shape, cards, pick, agenda, ai_ship, run_index}. Every schema 1 key is kept. The big-slot keys (`final_big`, `big_offers`, `big_swaps`) and the genre-split keys (`genre_seconds`, `genre_hits`, `genre_hits_by_kind`) stay keyed by big patch id until Phase 5 moves turn-based out of the slot (ROADMAP 3: "genre keys change from big patch id to genre"); `[botrun]` adds `genre=`.
 
 ### 4.6 Bot
 - The bot answers the dev session with a seeded random card and presses "Play".
@@ -208,7 +212,7 @@ Run records add `schema: 3`, `genre`, `version`, `look` {tier, take}, `pool_size
 ---
 
 ## 6. Tests (additions)
-- **Shell:** the genre-id grep (1.1); `Main`'s forwarders return the genre's nodes; `run_ended` from the genre reaches the report; a test genre fixture (a `Genre` with no arena that ends the run after 2 s) runs through the shell to the report, proving the shell needs nothing shooter-specific.
+- **Shell:** the genre-id grep (1.1); `Main`'s forwarders return the genre's nodes; `run_ended` from the genre reaches the report; a test genre fixture (a `Genre` with no arena that ends the run after 2 s) runs through the shell to the report, proving run start and run end need nothing shooter-specific.
 - **Takes:** forwarding calls the active genre's take; a patch with no take for the genre is never offered and its hooks are no-ops; `--set=<id>.<var>` reaches the take; `state()` is per patch and cleared on revert; a legacy script without `parked` is rejected by `problems()`. The invariant suite (≥250 sequences) passes unchanged with takes.
 - **Same run as M14:** an invincible bot run on seeds 1–4 with `unlock_all` and the M14 pacing (`--set` the old values) gives the same per-second hash of player position and enemy set before and after the genre port (M26 gate).
 - **B1 as a small:** applying `motion_time` slows time when idle; reverting it puts `Engine.time_scale` back to `rules.time_scale` in the same tick; the hit-stop factor and B1 multiply; `RunState` has no motion fields left (grep).
@@ -216,9 +220,9 @@ Run records add `schema: 3`, `genre`, `version`, `look` {tier, take}, `pool_size
 - **Save:** v4 11's save list, adapted: round-trip, missing, missing key, corrupt (`.bad` + warning, no `ERROR:`), higher schema (read-only, reset disabled), unknown ids dropped, inert by default, the real save file's existence and mtime unchanged by the suite, `pending_session` reopens the dev session.
 - **Version:** bump rules; label; a new save is v0.0.0; the report title.
 - **Unlocks:** a new save's pool is the 4 starters; the spawner never spawns a locked archetype over 2,000 picks and renormalises; `unlock_all` gives everything.
-- **Dev session:** first session is the `look_1` mockup; a 3-changes session has 3 cards with 1 agenda card when ≥ 4 are available; `requires` respected; same seed + same save → same cards; picking ships, bumps, logs, writes taste; nothing available → no bump, straight to the next run; the AI's own ship every 4th session; `ChangeDB.problems()` empty.
-- **Look:** tier 0 has no shake and no hit stop; each tier 1 take differs from the others in at least 3 preset fields; nothing outside presentation reads `Look` (grep for `Look.` outside `systems/`, `ui/`, `entities/`' visuals).
-- **Readability:** the shooter's shot comes `shooter_windup` after its telegraph starts and its interval is unchanged; the kill pop fires on every kill in every look; the camera lookahead stays inside bounds.
+- **Dev session:** first session is the `look_1` mockup; a session showing ≥ 2 cards has exactly 1 agenda card; a chained fresh sweep shows at least one agenda card; with 1 change left the AI ships it and no card is shown; `requires` respected; same seed + same save → same cards; picking ships, bumps, logs, writes taste; nothing available → no bump, straight to the next run; the AI's own ship every 4th session; `ChangeDB.problems()` empty.
+- **Look:** tier 0 has no shake and no hit stop; each tier 1 take differs from the others in at least 3 juice fields and has tier 0's palette; nothing outside presentation reads `Look` (grep for `Look.` outside `systems/`, `ui/`, `entities/`' visuals).
+- **Readability:** the shooter's shot comes `shooter_windup` after its telegraph starts and its interval is unchanged; a chaser's rim is off beyond `contact_warn_range` and on inside it; the kill pop fires on every kill in every look; the camera lookahead stays inside bounds.
 - **Bomber:** telegraph then blast; hurts enemies and the player; never spawned under `turn_based`; `enemies_split` halves of a bomber are bombers.
 - **Updated:** `test_big_prompts` (BIG prompts gone: keep the slot tests that go through `swap_big` directly, delete the prompt-flow ones), `test_director` (no scaffold, charges 0), `test_motion_time` (small patch, factor seam), `test_smoke_matrix` (pinned counts recomputed: 7 smalls, parked excluded), `test_playtest_build` (boot line with version, genres and PARKED), `test_run_loop` (3 prompts, 45 s wave).
 
@@ -229,17 +233,17 @@ Run records add `schema: 3`, `genre`, `version`, `look` {tier, take}, `pool_size
 | # | Milestone | Builder gate | Owner gate |
 |---|---|---|---|
 | M25 | Park the v4 run | 1.3 and 1.4: BIG prompts and big offers deleted, scaffold deleted, charges 0, history AI section hidden when empty, HUD without rollbacks; `parked` flag on `turn_mode`, `gravity_on`, `gravity_reversed`; `motion_time` a small with its logic in the patch and `RunState.set_time_factor`; smoke matrix re-pinned; check.ps1's rollback gate replaced by a parked-genre gate (`--big=turn_mode` 1 invincible run reaches its report); bot drops the rollback policy. **Numbers:** invincible 16-seed sweep, every run reaches its report, 0 BIG prompts, 0 rollbacks | — |
-| M26 | Genre interface + takes | 1.1 and 1.2: `GenreDef`, `GenreDB`, `Genre`, `ShooterGenre` owning arena, spawner, camera, turn clock, overlays and run pacing; `Main` thin with forwarders; `RunState.genre`; `PatchTake`, forwarding, takes for the 7 smalls (`mutations/<id>/shooter.gd`); legacy scripts only when parked; genre-id grep; test genre fixture. **Numbers:** the same-run hash test passes on seeds 1–4; suite duration within +15% of M25 | — |
-| M27 | Save + version | 1.5 and 1.6 (`GameVersion`, `Unlocks`, schema 1, taste on disk, genre play time, start screen line and reset, `pending_session`); all save tests. **Numbers:** 5 chained invincible bot runs with `--save --keep-save --fresh` write `runs: 5` and play time within 2% of the sum of game times; a second chain with the same seeds gives the identical file | — |
+| M26 | Genre interface + takes | 1.1 and 1.2: `GenreDef`, `GenreDB`, `Genre`, `TopdownGenre` owning arena, spawner, camera, turn clock, overlays and run pacing; `Main` thin with forwarders; `RunState.genre`; `PatchTake`, forwarding, takes for the 7 smalls (`mutations/<id>/topdown.gd`); legacy scripts only when parked; genre-id grep; test genre fixture. **Numbers:** the same-run hash test passes on seeds 1–4; suite duration within +15% of M25 | — |
+| M27 | Save + version | 1.5 and 1.6 (`GameVersion`, `Unlocks`, schema 1, taste on disk, genre play time, start screen line and reset, `pending_session`); all save tests. **Numbers:** 5 chained invincible bot runs with `--save --keep-save --fresh` write `runs: 5` and play time within 2% of the sum of the runs' real seconds; a second chain with the same seeds gives the identical file | — |
 | M28 | v0.0 + readability | 2.1–2.3: short run pacing, start content gating, prompt announcement, telegraphs, hit and kill confirmation, player-hit vignette, camera lookahead; `Look` with tier 0 and tier 1 `punchy` (the M14 feel) only. **Numbers:** invincible 16-seed sweep with `--fresh`: median run 170–200 s game time; mortal 16-seed sweep: median time-to-death reported (no target, it is the v0.0 baseline) | — |
-| M29 | Dev session | Section 4 except the tier 1 takes' tuning: `Change`, `MockupTake`, `ChangeDB`, the 6 changes (look takes may use placeholder stills), dev session and patch notes screens, both shapes, agenda card, report button, bump, taste writes, AI's own ship, F9, telemetry schema 3, bot answers. **Numbers:** a 7-run fresh chained bot sweep ships all 6 changes in 6 sessions (+ AI ships if due), ends at v0.1.5 or v0.1.6, the 7th session ships nothing and does not bump; same seeds → identical save | — |
-| M30 | Look tier 1 + bomber + playtest build | 1.7 tier 1 takes tuned apart, `mockup_capture.gd` and the 3 committed stills, the bomber (3), Windows export (boot line with version and genres), a one-page playtest sheet. **Numbers:** M28's sweep medians still hold with all 6 changes shipped (±15%) | **G11 — real human playtest.** A fresh save, at least 4 runs in one sitting, so v0.0, the look mockup and 2–3 shipped changes all show. Is v0.0 fun for 3 minutes? Does the dev session feel like a reward? Do the 3 look stills read as 3 different games-to-be? Does the player want "one more version"? |
+| M29 | Dev session | Section 4 except the tier 1 takes' tuning: `Change`, `MockupTake`, `ChangeDB`, the 6 changes (look takes may use placeholder stills), dev session and patch notes screens, both shapes, agenda card, report button, bump, taste writes, AI's own ship, F9, telemetry schema 3, bot answers. **Numbers:** a 7-run fresh chained bot sweep with `ai_own_ship_every = 4`: session 1 ships `look_1` (v0.1.0), sessions 2–4 one pick each plus the AI's ship at 4, session 5 the last change as the AI's own (1 left), so all 6 are out by session 5 at v0.1.5; session 6 ships nothing and does not bump; at least one agenda card over the chain; same seeds → identical save | — |
+| M30 | Look tier 1 + bomber + playtest build | 1.7 tier 1 takes tuned apart, `mockup_capture.gd` and the 3 committed stills, the bomber (3), Windows export (boot line with version and genres), a one-page playtest sheet. **Numbers:** M28's sweep medians still hold with all 6 changes shipped (±15%); **parity** ("never stats", ROADMAP 1.8 rule 5): mortal-bot time-to-death with starter enemies only, the 4-starter pool vs the 7-small pool, medians within ±15% (16 seeds each) | **G11 — real human playtest.** A fresh save, at least 4 runs in one sitting, so v0.0, the look mockup and 2–3 shipped changes all show. Is v0.0 fun for 3 minutes? Does the dev session feel like a reward? Do the 3 juice takes read as clearly different from their stills? Does the player want "one more version"? |
 
 Check, commit and report rules: as in v2 section 10. `tools/check.ps1` is green before every commit. Each milestone gets a tag (`m25`...) and a milestone report: what was built, check output, proxy numbers (saying which came from bots), decisions and tuning, known issues, what is untested.
 
 **Why this order:** parking first shrinks what the genre port has to carry (no BIG prompts, no scaffold, B1 out of `RunState`). The genre port is a pure refactor with a hash gate, so it goes before anything changes how a run plays. The save comes before the short run because content gating reads it. The dev session needs the save and the gating. The look takes and stills are tuned last, once the screens that show them exist.
 
-**Cut order if needed (first to last):** the AI's own ship (4.4) → the prompt announcement bar → the bomber (the chain keeps 5 changes) → the HP bar under damaged enemies → `patch_horde_mode`'s requires. **Never cut:** the genre interface and takes, the same-run hash gate, the save's mechanics and test isolation, both dev-session shapes, the look mockup with real stills, the readability telegraphs, G11.
+**Cut order if needed (first to last):** the AI's own ship (4.4) → the HP bar under damaged enemies → `patch_horde_mode`'s requires → the bomber (the chain keeps 5 changes) → the prompt announcement (a core-gimmick item, ROADMAP 1.4: cut last). **Never cut:** the genre interface and takes, the same-run hash gate, the save's mechanics and test isolation, both dev-session shapes, the look mockup with real stills, the readability telegraphs, the parity check, G11.
 
 ---
 
@@ -247,10 +251,19 @@ Check, commit and report rules: as in v2 section 10. `tools/check.ps1` is green 
 1. Is v0.0 fun for 3 minutes with no AI layer and 4 patches?
 2. Does the dev session feel like a reward, and does the mockup session read as "the game is being made with me"?
 3. Does the player want "one more version"?
-4. Can the shell run a genre it knows nothing about (the test genre)?
+4. Can the shell start and end a run of a genre it knows nothing about (the test genre)? (Prompt timing is the one shooter assumption left in the shell until Phase 5, 9.)
 5. Does a patch's behaviour live only in its take file?
 
 ## 9. Still open (each with a proposed default)
+After the alignment review (2026-11-21) the owner said "let's go": every default below stands until the owner says otherwise. The first five are ROADMAP section 6 defaults built as proposed.
+- **(1) Bump rule:** a pick is a patch step; a look tier or maturity step is a minor step. Alternative: every session is a minor step.
+- **(5) The AI ships its own change** every 4 sessions, least liked by tag, with its own bump (4.4). Alternative: `ai_own_ship_every = 0` for v5. ROADMAP still has this "to confirm".
+- **(11) Report ratings** stay as a taste input. Alternative: drop them; the dev-session pick is the taste signal.
+- **(12) Nothing carries between runs** inside the build. Alternative: the last run's pick starts in the next run's stack.
+- **(13) The playtest** is G11, before Phase 4 closes.
+- **Prompt timing stays with the Director** (1.1) until Phase 5. ROADMAP 1.3 says a genre tells the shell two things; until prompt points move into the genres, the shell keeps this one shooter assumption. Alternative: a third genre signal now (`prompt_due`), with the same rule moved into TopdownGenre.
+- **Unpicked look takes do not return in v5** (4.2). Where they come back (a "look alt" change, Phase 6?) is open; ROADMAP Phase 6 does not list it yet.
+- **Stills only for mockups** (4.3). Alternative: `mockup_capture.gd` also saves a short loop, which would show hit stop.
 - **Big slot deletion waits for Phase 5** (1.3). ROADMAP Phase 4 says "remove the big slot"; v5 removes it from play and keeps the code as a parked seam so turn-based and its tests survive the port. Alternative: delete it now and park turn-based's tests until Phase 5.
 - **The first dev session is the look mockup** (3, `due_after_run = 1`). Alternative: a 3-changes session first, the mockup at session 2 or 3.
 - **No refusing a dev session** (4.2). Alternative: a "Surprise me" card that lets the AI pick.

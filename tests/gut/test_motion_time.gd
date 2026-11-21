@@ -1,6 +1,7 @@
 extends GutTest
-## Big patch B1, "Time moves when you move" (PLAN v3 section 2), in the real arena:
-## the acceptance numbers, the shot/dash pulse, pauses and death, and its presentation.
+## B1, "Time moves when you move" (PLAN v3 section 2), a small patch since PLAN v5 1.4,
+## in the real arena: the acceptance numbers, the shot/dash pulse, pauses and death, its
+## presentation, and the time-factor seam its logic now goes through.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
 const CHASER := preload("res://entities/enemy_chaser.tscn")
@@ -28,17 +29,47 @@ func after_each() -> void:
 
 
 func _settle() -> void:
-	RunState.swap_big(b1)
+	assert_true(RunState.apply(b1), "B1 applies as a small patch")
 	await wait_physics_frames(30)
 
 
-func test_b1_is_a_big_patch_that_only_sets_rules() -> void:
-	assert_true(b1.is_big)
+func test_b1_is_a_small_patch() -> void:
+	assert_false(b1.is_big)
+	assert_false(b1.is_ai_tier())
+	assert_false(b1.parked)
 	assert_true(b1.is_mode_switch)
-	var r := RunState.preview_rules([] as Array[Mutation], b1)
+	assert_true(b1.conflicts.has(&"turn_mode"), "B1 under the parked B2 makes no sense")
+	var r := RunState.preview_rules([b1] as Array[Mutation])
 	assert_true(r.time_follows_motion)
 	assert_almost_eq(r.idle_time_scale, 0.08, 0.0001)
-	assert_eq(RunState.motion_factor(), 1.0, "no effect before the swap")
+	assert_eq(RunState.motion_factor(), 1.0, "no effect before it is applied")
+
+
+func test_reverting_b1_puts_time_back_in_the_same_tick() -> void:
+	await _settle()
+	assert_lt(Engine.time_scale, 0.2)
+	RunState.revert(b1)
+	assert_eq(RunState.motion_factor(), 1.0, "the factor is stripped with the patch")
+	await wait_physics_frames(1)
+	assert_almost_eq(Engine.time_scale, RunState.rules.time_scale, 0.0001)
+
+
+func test_time_factors_multiply_and_clear() -> void:
+	RunState.set_time_factor(&"a", 0.5)
+	RunState.set_time_factor(&"b", 0.5)
+	assert_almost_eq(RunState.motion_factor(), 0.25, 0.0001)
+	await wait_physics_frames(2)
+	assert_almost_eq(Engine.time_scale, 0.25 * RunState.rules.time_scale, 0.0001)
+	RunState.set_time_factor(&"a", 1.0)
+	assert_almost_eq(RunState.motion_factor(), 0.5, 0.0001, "a factor of 1 clears itself")
+	RunState.clear_time_factor(&"b")
+	assert_eq(RunState.motion_factor(), 1.0)
+
+
+func test_run_state_holds_no_motion_logic() -> void:
+	var text := FileAccess.get_file_as_string("res://core/run_state.gd")
+	for word in ["_pulse_left", "_step_motion", "motion_target", "motion_pulse", "idle_time_scale"]:
+		assert_false(text.contains(word), "RunState still mentions %s" % word)
 
 
 func test_standing_still_for_three_seconds_moves_game_time_by_at_most_0_4() -> void:
@@ -149,7 +180,7 @@ func test_the_world_tint_and_the_sound_pitch_follow_the_time_scale() -> void:
 	assert_lt(Sound.pitch_for(0.08), 0.6)
 	RunState.reset(0)
 	await wait_physics_frames(2)
-	assert_eq(Engine.time_scale, 1.0, "reset empties the slot and time is normal again")
+	assert_eq(Engine.time_scale, 1.0, "reset strips the patch and time is normal again")
 
 
 func test_gravity_under_b1_needs_no_special_code() -> void:

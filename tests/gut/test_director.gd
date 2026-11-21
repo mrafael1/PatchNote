@@ -1,12 +1,12 @@
 extends GutTest
 ## M5: the scripted Director (PLAN 6), rollbacks (PLAN 7; option D from PLAN v4 1.3:
-## AI patches only, earned charges), the M14 scaffold patch (PLAN v4 9.1), and their UI.
+## AI patches only, earned charges; parked in PLAN v5 1.3 but kept tested), and their UI.
 ## Choices go through Director.on_choice / PromptPanel.choose; no synthetic clicks.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
 const TUNING_KEYS: Array[String] = ["first_prompt_min_gap", "prompt_min_gap", "transition_long",
 		"transition_short", "prompt_input_delay",
-		"big_prompt_after", "ai_scaffold_at_prompt", "rollback_charges_start",
+		"rollback_charges_start",
 		"rollback_charges_per_stage"]
 
 
@@ -33,8 +33,9 @@ func before_each() -> void:
 	Tuning.transition_long = 0.0
 	Tuning.transition_short = 0.0
 	Tuning.prompt_input_delay = 0.0
-	Tuning.big_prompt_after = []   # BIG prompts have their own tests (test_big_prompts)
-	Tuning.ai_scaffold_at_prompt = 0   # the scaffold has its own tests below
+	# Rollbacks are parked (PLAN v5 1.3: no charge in play); these tests keep the
+	# mechanism working with the v4 starting charge.
+	Tuning.rollback_charges_start = 1
 	RunState.reset(11)
 	world = Node2D.new()
 	add_child_autofree(world)
@@ -453,49 +454,6 @@ func test_reverted_patches_are_not_offered_again() -> void:
 		assert_false(offers[-1].cards.has(horde))
 
 
-# --- M14 scaffold (PLAN v4 9.1) --------------------------------------------------
-
-func test_the_scaffold_patch_is_chosen_by_data() -> void:
-	var m := AiDirector.scaffold_patch()
-	assert_not_null(m)
-	assert_true(m.is_medium and m.is_mode_switch)
-	for x in MutationDB.all:
-		if x == m:
-			break
-		assert_false(x.is_medium and x.is_mode_switch, "the first one in MutationDB order")
-
-
-func test_the_scaffold_lands_after_the_last_small_prompt_as_a_stage_patch() -> void:
-	Tuning.ai_scaffold_at_prompt = Tuning.prompts_per_run
-	_auto_pick = 0
-	for i in Tuning.prompts_per_run:
-		assert_false(director.scaffold_due())
-		director.open_prompt()
-	assert_true(RunState.ai.is_empty(), "not before the prompt is answered and polled")
-	assert_true(director.scaffold_due())
-	assert_false(director.prompts_done(), "the run loop waits for it")
-	director.poll()
-	var m := AiDirector.scaffold_patch()
-	assert_eq(RunState.ai, [m] as Array[Mutation])
-	assert_eq(RunState.ai_owner[m.id], &"stage")
-	assert_true(director.prompts_done())
-	assert_eq(offers.size(), Tuning.prompts_per_run, "no extra prompt")
-	director.poll()
-	assert_eq(RunState.ai.size(), 1, "added once")
-	assert_true(director.revert(m), "a rollback target")
-
-
-func test_the_scaffold_is_skipped_when_it_conflicts_with_the_live_state() -> void:
-	Tuning.ai_scaffold_at_prompt = 1
-	RunState.swap_big(_mut(&"turn_mode"))
-	_auto_pick = 0
-	director.open_prompt()
-	director.poll()
-	assert_true(RunState.ai.is_empty(), "gravity conflicts with Turn-based")
-	assert_eq(RunState.run_log[-1].event, &"ai_scaffold_skipped")
-	assert_false(director.scaffold_due())
-
-
 # --- In the game -----------------------------------------------------------
 
 func _start_game() -> Node:
@@ -594,7 +552,7 @@ func test_patch_history_shows_the_build_log_and_rolls_back_on_confirm() -> void:
 	assert_eq(RunState.stack, [horde] as Array[Mutation])
 	assert_eq(game.director.charges, 0)
 	await wait_process_frames(1)
-	assert_string_contains(_hud(game)._label.text, "Rollbacks: 0 [Tab]", "the HUD reads the charges left")
+	assert_false(_hud(game)._label.text.contains("Rollbacks"), "no charge left: the HUD line goes")
 	assert_eq(PatchHistory.build_log_lines(), ["v0.1  Initial build", "v0.2  " + horde.title,
 			"v0.3  AI patch: " + gravity.title, "v0.4  AI patch: " + reversed.title,
 			"v0.5  Rollback: " + reversed.title, "v0.5  Rollback: " + gravity.title] as Array[String],
@@ -621,30 +579,6 @@ func test_a_boss_patch_is_named_in_the_history() -> void:
 	RunState.add_ai(gravity, &"boss")
 	assert_eq(PatchHistory.ai_label(gravity), "Boss patch: " + gravity.title)
 	assert_true(PatchHistory.build_log_lines().has("v0.2  AI patch: " + gravity.title))
-
-
-## In the game, the scaffold goes through the transition: an AI gravity change gets
-## the pause, the undocumented terminal text, the grace and the AI line.
-func test_the_scaffold_lands_through_the_transition() -> void:
-	Tuning.transition_long = 0.12
-	Tuning.ai_scaffold_at_prompt = 1
-	var game: Node = await _start_game()
-	var transition: Transition = game.transition
-	var m := AiDirector.scaffold_patch()
-	game.director.prompt_index = 1   # as if small prompt 1 had been answered
-	await wait_physics_frames(2)
-	assert_true(transition.busy, "the long sequence runs")
-	assert_true(RunState.is_paused_for(&"transition"))
-	assert_true(RunState.ai.is_empty(), "added after the terminal text")
-	assert_string_contains(transition._terminal.text, "(undocumented)")
-	assert_false(transition._terminal.text.contains(m.title), "a stage patch is not named")
-	assert_false(transition._terminal.text.contains(String(m.id)))
-	await wait_for_signal(transition.finished, 2.0)
-	assert_eq(RunState.ai, [m] as Array[Mutation])
-	assert_eq(RunState.ai_owner[m.id], &"stage")
-	assert_false(RunState.is_paused_for(&"transition"))
-	assert_true(RunState.in_grace())
-	assert_eq(transition._toast.text, "AI: " + Dialogue.AI_SCAFFOLD)
 
 
 ## F2 (PLAN v4 9.2 Debug): an AI-tier patch is added as a stage patch and removed again,
@@ -680,6 +614,29 @@ func test_hud_shows_the_rollback_charges() -> void:
 	var hud := _hud(game)
 	assert_not_null(hud)
 	assert_string_contains(hud._label.text, "Rollbacks: 1 [Tab]")
+
+
+## In play (PLAN v5 1.3) the run has no charge: no HUD line, and the build log hides
+## its AI section and has no rollback button.
+func test_parked_rollbacks_show_nothing_in_play() -> void:
+	Tuning.rollback_charges_start = _saved["rollback_charges_start"]
+	var game: Node = await _start_game()
+	assert_eq(game.director.charges, 0)
+	await wait_process_frames(2)
+	assert_false(_hud(game)._label.text.contains("Rollbacks"))
+	var history: PatchHistory = game.patch_history
+	RunState.apply(_mut(&"horde_mode"))
+	assert_true(history.open())
+	await wait_process_frames(1)
+	for c in history._ai_section:
+		assert_false(c.visible, "%s hidden" % c)
+	var stack: Array[Node] = [history]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Button and not n.is_queued_for_deletion():
+			assert_false((n as Button).text.contains("Roll back"), "no rollback button")
+	history.close()
 
 
 func _hud(game: Node) -> Hud:

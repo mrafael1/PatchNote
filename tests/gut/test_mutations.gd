@@ -74,31 +74,27 @@ func _kill(e: Node) -> void:
 
 
 ## Small / medium / big split (PLAN v4 1.1): the gravity pair is medium since v4.
-func test_the_six_small_two_medium_and_two_big_mutations_are_registered() -> void:
+func test_seven_offerable_smalls_and_three_parked_patches_are_registered() -> void:
 	var ids: Array[String] = []
-	var mediums: Array[String] = []
-	var bigs: Array[String] = []
+	var parked: Array[String] = []
 	for m in MutationDB.all:
-		if m.is_big:
-			bigs.append(String(m.id))
-		elif m.is_medium:
-			mediums.append(String(m.id))
+		if m.parked:
+			parked.append(String(m.id))
 		else:
 			ids.append(String(m.id))
-		assert_false(m.boss_only, "%s: no boss-only patch before M22" % m.id)
+			assert_false(m.is_big or m.is_ai_tier(), "%s: only small patches are offerable in v5" % m.id)
+		assert_false(m.boss_only, "%s: no boss-only patch" % m.id)
+		assert_eq(MutationDB.problems(m), [] as Array[String])
 	assert_eq(ids, ["auto_attack", "bouncing_projectiles", "enemies_split", "explode_on_hit",
-			"horde_mode", "jump_button"])
-	assert_eq(mediums, ["gravity_on", "gravity_reversed"])
-	assert_eq(bigs, ["motion_time", "turn_mode"])
-	var switches := 0
-	for m in MutationDB.all:
-		if m.is_mode_switch and not m.is_big:
-			switches += 1
-		if m.is_big:
-			assert_true(m.is_mode_switch, "%s: a big patch uses the long transition" % m.id)
-			assert_ne(m.genre_label, "", "%s has a genre label" % m.id)
-			assert_eq(MutationDB.problems(m), [] as Array[String])
-	assert_eq(switches, 1, "only gravity_on uses the long transition outside the big patches")
+			"horde_mode", "jump_button", "motion_time"])
+	assert_eq(parked, ["gravity_on", "gravity_reversed", "turn_mode"], "PLAN v5 1.3")
+	var offerable: Array[String] = []
+	for m in MutationDB.offerable():
+		offerable.append(String(m.id))
+	assert_eq(offerable, ids)
+	var bigs := MutationDB.all.filter(func(m: Mutation) -> bool: return m.is_big)
+	assert_eq(bigs.size(), 1, "turn_mode is the only big patch left, parked")
+	assert_ne(bigs[0].genre_label, "")
 
 
 # --- jump_button -----------------------------------------------------------

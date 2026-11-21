@@ -9,9 +9,7 @@ const PROMPT_LINES: Array[String] = [
 	"One more patch before I call this a release candidate.",
 ]
 const MANDATORY := "I already merged this one. Just click it."
-const ROLLBACK_HINT := "Tab opens the build log. Your picks are final. Mine are not, if you have a rollback."
-## M14 only (PLAN v4 9.1): the AI ships a stage patch of its own. Never names it.
-const AI_SCAFFOLD := "I merged a patch of my own. No notes. Find it."
+const ROLLBACK_HINT := "Tab opens the build log. Everything you pick is in there."
 const NOTHING_LEFT := "I am out of ideas that still compile. Carry on."
 
 
@@ -25,9 +23,9 @@ const RELEASE_CANDIDATE := "That was the last patch. Tagging a release candidate
 ## One comment on the playtest report.
 static func report_line(outcome: StringName, duration: float, patches: int, reverts_used: int) -> String:
 	if outcome == &"win":
-		if reverts_used == 0:
-			return "Shipped without a single rollback. I am taking full credit."
-		return "v1.0 shipped. The patch notes will say the rollbacks were my idea."
+		if reverts_used > 0:
+			return "Shipped, minus the parts you rolled back. I am taking credit for the rest."
+		return "Build survived. The patch notes will say it was my idea."
 	if duration < 120.0:
 		return "That was short. I will file it as a smoke test."
 	if reverts_used > 0:
@@ -68,10 +66,3 @@ static func taste_line(taste: Taste, prompt_index: int, last_run_rated: int) -> 
 static func agenda_line(prompt_index: int) -> String:
 	return AGENDA_LINES[(prompt_index - 1) % AGENDA_LINES.size()]
 
-
-# --- Big patches ---------------------------------------------------------
-
-const MAJOR_LABEL := "MAJOR UPDATE"
-const BIG_FOOTER := "This one stays. Only another major update can replace it."
-const BIG_KEPT := "Keeping the engine as it is. For now."
-const KEEP_LABEL := "KEEP"

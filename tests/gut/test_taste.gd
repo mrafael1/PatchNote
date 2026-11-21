@@ -108,6 +108,7 @@ func test_choice_logs_the_agenda_and_teaches_the_taste() -> void:
 func test_reverting_teaches_the_taste() -> void:
 	var m := _m(&"gravity_on")
 	RunState.add_ai(m, &"stage")
+	director.charges = 1   # rollbacks are parked (PLAN v5 1.3): no charge at the start
 	assert_true(director.revert(m))
 	assert_lt(director.taste.score(m), 0.0)
 

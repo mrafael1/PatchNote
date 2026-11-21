@@ -109,13 +109,10 @@ var prompts_per_run := 4
 var offer_size := 3
 var hotfix_heal := 1.0            # HP restored by every applied patch
 var prompt_input_delay := 0.5     # the prompt ignores input for this long after opening
-# Rollbacks (PLAN v4 1.3, option D): AI patches only, a charge at the start and one
-# per stage clear. Stage clears come at M16; until then only tests grant the extra.
-var rollback_charges_start := 1
+# Rollbacks (PLAN v4 1.3, option D): AI patches only. Parked in v5 (PLAN v5 1.3): the
+# run starts with no charge; only tests grant charges.
+var rollback_charges_start := 0
 var rollback_charges_per_stage := 1
-# M14 only (PLAN v4 9.1; deleted at M16): right after this small prompt the AI adds a
-# stage patch of its own, so the one-stage build has a rollback target. 0 disables.
-var ai_scaffold_at_prompt := 4
 
 # --- Run loop ---
 var rc_duration := 90.0           # the "release candidate" wave after the last prompt
@@ -128,8 +125,6 @@ var agenda_cards := 1             # cards per offer the AI picks against the pla
 var agenda_cards_unrated := 2     # after a run whose report was not rated: the AI takes free rein
 
 # --- Big patches (PLAN v3) ---
-var big_prompt_after: Array[int] = [1, 3]   # a BIG prompt opens right after these small prompts
-var big_offer_size := 2           # big patches per BIG prompt (plus the Keep card on later ones)
 var motion_smoothing := 0.1       # B1: real seconds for the motion factor to follow the player
 var motion_pulse := 0.15          # B1: real seconds of full-speed time after a shot or dash
 var grid_shot_tiles := 2          # B2: tiles an enemy shot moves per turn

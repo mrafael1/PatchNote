@@ -7,28 +7,21 @@ extends SceneTree
 ## Each argument is a seed; a trailing "i" makes that run invincible, so the win path
 ## is played too. Options (any position):
 ##   --set=<tuning var>=<value>   override a Tuning value for every run (retune sweeps),
-##                                e.g. --set=prompt_min_gap=90 --set=big_prompt_after=[1,3]
+##                                e.g. --set=prompt_min_gap=90
 ##   --set=<mutation id>.<var>=<value>   override a number on a mutation resource,
 ##                                e.g. --set=turn_mode.turn_duration=0.2
-##   --big=<mutation id>          start every run in that big patch (with
-##                                --set=big_prompt_after=[] it stays: one genre per run)
+##   --big=<mutation id>          start every run with that parked big patch in the slot
+##                                (PLAN v5 1.3: the slot is a test seam; nothing swaps it)
 ##   --log=<path>                 write telemetry there instead (parallel sweeps)
-## --set=ai_scaffold_at_prompt=0 turns off the AI's M14 stage patch (PLAN v4 9.1).
-## The bot plays and cards are picked at random from the seed. Rollbacks target the AI
-## layer only (option D, PLAN v4 9.4): runs on odd seeds roll the AI's stage patch back
-## 30 s of game time after it lands, through the build log and two presses; the stack
-## is never rolled back. Even seeds leave notes on the report (keep the first patch,
+## The bot plays and cards are picked at random from the seed. Rollbacks are parked
+## (PLAN v5 1.3): the bot never rolls anything back. Even seeds leave notes on the
+## report (keep the first patch,
 ## cut the second). Telemetry goes to user://playtest/bot_runs.jsonl, never to the
 ## playtest file.
 ## Prints one "[botrun]" line per run and exits 1 if any run did not reach its report,
-## or if an odd seed held a stage patch ROLLBACK_SLACK past its rollback time without
-## rolling it back (the M14 gate, PLAN v4 10).
-## reverts= counts AI rollbacks; stage_reverts= those of stage patches; stack_reverts=
-## stack reverts (always 0 from the bot).
+## saw a BIG prompt, or rolled anything back (both are parked in v5).
 
 const MAX_FRAMES := 60 * 60 * 45      # 45 real minutes at 60 physics frames a second (PLAN v4 9.4)
-const ROLLBACK_AFTER := 30.0          # game seconds between the stage patch landing and its rollback
-const ROLLBACK_SLACK := 15.0          # unpaused game seconds a due rollback may wait before it counts as missed
 const DEFAULT_LOG := "user://playtest/bot_runs.jsonl"
 
 var LOG := DEFAULT_LOG
@@ -169,66 +162,23 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 		run_state.swap_big(root.get_node("MutationDB").get_mutation(start_big))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed
-	var revert_planned := run_seed % 2 == 1
-	var landed_at := -1.0   # game time the stage patch was first seen live
-	var missed := ""
 	for frame in MAX_FRAMES:
 		if game.report.is_open():
 			var rec: Dictionary = game.run_loop.record
 			var picks: Array = (rec.prompts as Array).map(func(p: Dictionary) -> String: return p.pick)
-			var bigs: Array = (rec.big_offers as Array).map(func(p: Dictionary) -> String: return p.pick if p.pick != "" else "-")
-			var counts := _revert_counts()
-			if missed != "" and counts.x == 0:
-				missed = " FAILED: %s" % missed
-			else:
-				missed = ""
-			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d stage_reverts=%d stack_reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
-				run_seed, " (invincible)" if invincible else "", missed, rec.outcome, rec.duration, rec.real_duration,
-				rec.version, rec.kills, picks, bigs, rec.genre_seconds, rec.genre_hits, rec.genre_hits_by_kind, rec.reverts_used,
-				counts.x, counts.y, _ai_line(rec), rec.reached_release_candidate,
+			var big_prompts := (rec.big_offers as Array).size()
+			var fail := " FAILED: %d BIG prompts" % big_prompts if big_prompts > 0 else ""
+			if rec.reverts_used > 0:
+				fail += " FAILED: %d rollbacks" % rec.reverts_used
+			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs version=%s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
+				run_seed, " (invincible)" if invincible else "", fail, rec.outcome, rec.duration, rec.real_duration,
+				rec.version, rec.kills, picks, rec.final_big if rec.final_big != "" else "-", rec.genre_seconds,
+				rec.genre_hits, rec.genre_hits_by_kind, rec.reverts_used, _ai_line(rec), rec.reached_release_candidate,
 				rec.agenda_cards, _first_line(game)]
-		var target := _stage_patch(run_state)
-		if target == null:
-			landed_at = -1.0
-		elif landed_at < 0.0:
-			landed_at = run_state.game_time
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
-		elif revert_planned and target != null and run_state.game_time >= landed_at + ROLLBACK_AFTER \
-				and game.director.pending == null and not run_state.is_paused_except(&"turn"):
-			if game.patch_history.open():
-				var charges: int = game.director.charges
-				game.patch_history.press_revert(target.id)
-				game.patch_history.press_revert(target.id)
-				# Done only when the two presses spent a charge; otherwise try again.
-				if game.director.charges < charges:
-					revert_planned = false
-				else:
-					game.patch_history.close()
-		if revert_planned and target != null and missed == "" \
-				and run_state.game_time >= landed_at + ROLLBACK_AFTER + ROLLBACK_SLACK:
-			missed = "stage patch %s not rolled back by %.0f s" % [target.id, run_state.game_time]
 		await physics_frame
 	return ""
-
-
-## The first live AI patch owned by a stage, or null. Untyped: see _run.
-func _stage_patch(run_state: Node) -> Resource:
-	for m: Resource in run_state.ai:
-		if run_state.ai_owner.get(m.id) == &"stage":
-			return m
-	return null
-
-
-## (stage patch rollbacks, stack reverts) from the run log.
-func _revert_counts() -> Vector2i:
-	var out := Vector2i.ZERO
-	for e: Dictionary in root.get_node("RunState").run_log:
-		if e.event == &"revert_used" and e.get("owner", "") == "stage":
-			out.x += 1
-		elif e.event == &"revert":
-			out.y += 1
-	return out
 
 
 ## "id+@time,id-rollback@time" from the record's ai_events; "-" when there are none.

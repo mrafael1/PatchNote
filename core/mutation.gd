@@ -25,6 +25,9 @@ extends Resource
 @export var boss_only := false   ## a boss hazard: only the boss pushes it, never a stage
 @export var starter := false     ## in the first run's offer pool (read from M19 on)
 @export var boss_weight := 0.0   ## > 0: the boss may push it live
+## Parked (PLAN v5 1.3): kept and tested, but never offered, pooled or shipped. Only
+## tests, the F2 console and the bot's --big flag reach it, until its genre's phase.
+@export var parked := false
 
 var _connections: Array = []
 

@@ -1,8 +1,9 @@
 class_name AiDirector
 extends Node
-## The scripted "AI" (PLAN 6 and 7): decides when a prompt opens, what it offers,
-## and owns the rollback charges. It knows no mutation by name; it only reads the
-## fields every Mutation has. Rollbacks (PLAN v4 1.3, option D) target AI patches only.
+## The scripted "AI" (PLAN 6 and 7): decides when a prompt opens and what it offers.
+## It knows no mutation by name; it only reads the fields every Mutation has. BIG
+## prompts are gone from play (PLAN v5 1.3). Rollbacks (PLAN v4 1.3, option D, AI
+## patches only) are parked: the run starts with no charge, and only tests spend them.
 ##
 ## Flow: poll() -> prompt_requested(offer) -> (UI) -> on_choice(offer, m).
 ## Tests drive it the same way, without any UI.
@@ -13,7 +14,6 @@ var transition: Transition   ## optional: patches go through it when set
 var enabled := true
 
 var prompt_index := 0        ## small prompts opened so far
-var big_index := 0           ## BIG prompts opened (or skipped) so far
 var charges := 0             ## rollbacks left (PLAN v4 1.3)
 var charges_earned := 0      ## charges this run has had in all, the starting one included
 var pending: Offer           ## an offer waiting for its choice
@@ -24,7 +24,6 @@ var _kills_since_prompt := 0
 var _last_prompt_time := 0.0
 var _kills_needed := 0
 var _hint_given := false
-var _scaffold_done := false  ## M14 only (PLAN v4 9.1): the AI's stage patch was tried
 
 
 func _ready() -> void:
@@ -44,73 +43,18 @@ func context() -> Dictionary:
 	return {"time": RunState.game_time, "kills": _kills_since_prompt}
 
 
-## Opens a prompt if the pacing rule says so. Called every physics tick. A BIG prompt
-## that is due opens first, right after the small prompt it follows has been applied.
+## Opens a prompt if the pacing rule says so. Called every physics tick.
 func poll() -> void:
 	if not enabled or pending != null or (transition and transition.busy):
-		return
-	if big_prompt_due():
-		open_big_prompt()
-		return
-	if scaffold_due():
-		add_scaffold()
 		return
 	var ctx := context()
 	if should_prompt(ctx):
 		open_prompt(ctx)
 
 
-## True when the small prompt a BIG prompt follows has been opened and the BIG one not yet.
-func big_prompt_due() -> bool:
-	var after := Tuning.big_prompt_after
-	return big_index < after.size() and prompt_index >= after[big_index]
-
-
-## How many BIG prompts this run has: those that follow a small prompt that exists.
-func big_prompts_per_run() -> int:
-	var n := 0
-	for a in Tuning.big_prompt_after:
-		if a <= Tuning.prompts_per_run:
-			n += 1
-	return n
-
-
-## Every small and BIG prompt has been opened and answered (or skipped), and the
-## M14 stage patch has been tried.
+## Every small prompt has been opened and answered (or skipped).
 func prompts_done() -> bool:
-	return prompt_index >= Tuning.prompts_per_run and big_index >= big_prompts_per_run() \
-			and pending == null and not scaffold_due()
-
-
-# --- M14 scaffold (PLAN v4 9.1; deleted at M16) -------------------------------
-
-## The small prompt it follows has been opened, and it has not been tried yet.
-func scaffold_due() -> bool:
-	return not _scaffold_done and Tuning.ai_scaffold_at_prompt > 0 \
-			and prompt_index >= Tuning.ai_scaffold_at_prompt
-
-
-## The patch the AI adds: the first medium mode switch in MutationDB order (chosen by
-## data, never by id). Null when there is none.
-static func scaffold_patch() -> Mutation:
-	for m in MutationDB.all:
-		if m.is_medium and m.is_mode_switch:
-			return m
-	return null
-
-
-## Adds the scaffold patch as a stage patch, undocumented, if it fits the live state.
-## Tried once per run either way.
-func add_scaffold() -> void:
-	_scaffold_done = true
-	var m := scaffold_patch()
-	if m == null or not RunState.can_add_ai(m):
-		RunState.log_event(&"ai_scaffold_skipped", {"id": String(m.id) if m else ""})
-		return
-	if transition:
-		transition.request_ai_add(m, &"stage", Dialogue.AI_SCAFFOLD)
-	else:
-		RunState.add_ai(m, &"stage")
+	return prompt_index >= Tuning.prompts_per_run and pending == null
 
 
 ## (enough counted kills AND the minimum gap) OR the maximum gap.
@@ -123,8 +67,7 @@ func should_prompt(ctx: Dictionary) -> bool:
 	return ctx.kills >= _kills_needed and gap >= min_gap()
 
 
-## The minimum gap before the next small prompt. The first one comes sooner, so the
-## first BIG prompt (right after it) is reached early in the run (M12 retune).
+## The minimum gap before the next small prompt. The first one comes sooner.
 func min_gap() -> float:
 	return Tuning.first_prompt_min_gap if prompt_index == 0 else Tuning.prompt_min_gap
 
@@ -154,7 +97,7 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	offer.prompt_index = prompt_index
 	offer.line = Dialogue.prompt_line(prompt_index)
 	var pool: Array[Mutation] = []
-	for m in MutationDB.all:
+	for m in MutationDB.offerable():
 		# can_apply refuses mediums and boss-only patches: they never reach a small offer.
 		if RunState.can_apply(m) and not reverted.has(m.id):
 			pool.append(m)
@@ -176,64 +119,6 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	if said != "":
 		offer.line = said
 	return offer
-
-
-## Opens the next BIG prompt (PLAN v3 section 4), or logs it as skipped when there is
-## no big patch to swap to.
-func open_big_prompt() -> void:
-	if pending != null:
-		return
-	var offer := get_big_offer(context())
-	if offer.cards.is_empty():
-		RunState.log_event(&"big_prompt_skipped", {"index": offer.prompt_index})
-		return
-	pending = offer
-	prompt_requested.emit(offer)
-
-
-## Up to big_offer_size big patches, never the one in the slot nor one that conflicts
-## with a live small or AI patch (PLAN v4 4), leaned by taste. With two or more
-## candidates the last of them is the AI's agenda (least liked). Every BIG prompt after
-## the first ends with a Keep card for the patch in the slot. Nothing to swap to gives an empty offer (no
-## prompt): a lone Keep card is not a choice. A lone candidate with no Keep card is
-## mandatory (PLAN v3 3b.6): the slot is filled either way.
-func get_big_offer(_ctx: Dictionary) -> Offer:
-	big_index += 1
-	var offer := Offer.new()
-	offer.big = true
-	offer.prompt_index = big_index
-	var pool: Array[Mutation] = []
-	for m in MutationDB.all:
-		if m.is_big and m != RunState.big and not _conflicts_with_live(m):
-			pool.append(m)
-	if pool.is_empty():
-		return offer
-	var rng := RunState.director_rng
-	var size := mini(Tuning.big_offer_size, pool.size())
-	var agenda_count := 1 if size >= 2 else 0
-	while offer.cards.size() < size - agenda_count:
-		var pick := _weighted_pick(pool, rng)
-		offer.cards.append(pick)
-		pool.erase(pick)
-	if agenda_count > 0:
-		var pick := _least_liked(pool, rng)
-		offer.cards.append(pick)
-		offer.agenda.append(pick)
-	offer.line = offer.cards[0].line_proposal
-	if big_index > 1 and RunState.big != null:
-		offer.keep = RunState.big
-		offer.cards.append(RunState.big)
-	elif offer.cards.size() == 1:
-		offer.mandatory = true
-		offer.line = Dialogue.MANDATORY
-	return offer
-
-
-func _conflicts_with_live(m: Mutation) -> bool:
-	for x in RunState.stack + RunState.ai:
-		if RunState.conflicting(m, x):
-			return true
-	return false
 
 
 func _weighted_pick(pool: Array[Mutation], rng: RandomNumberGenerator) -> Mutation:
@@ -277,9 +162,6 @@ func on_choice(offer: Offer, m: Mutation) -> void:
 		return
 	if pending == offer:
 		pending = null
-	if offer.big:
-		_on_big_choice(offer, m)
-		return
 	RunState.log_event(&"prompt", {"index": offer.prompt_index, "offers": _id_list(offer.cards),
 			"pick": String(m.id), "mandatory": offer.mandatory, "agenda": _id_list(offer.agenda)})
 	if not offer.mandatory:
@@ -291,30 +173,6 @@ func on_choice(offer: Offer, m: Mutation) -> void:
 	var accepted := transition.request_apply(m) if transition else RunState.apply(m)
 	if not accepted:
 		return
-	_heal_player()
-
-
-## A BIG prompt's choice: swap the slot (one permanent build; heals like a patch), or
-## keep the patch already there (nothing changes). A mandatory pick teaches no taste.
-func _on_big_choice(offer: Offer, m: Mutation) -> void:
-	var kept := m == offer.keep
-	RunState.log_event(&"big_prompt", {"index": offer.prompt_index, "offers": _id_list(offer.cards),
-			"pick": String(m.id), "agenda": _id_list(offer.agenda), "mandatory": offer.mandatory,
-			"keep": String(offer.keep.id) if offer.keep else "", "kept": kept})
-	if not offer.mandatory:
-		taste.on_offer(offer.cards, m)
-	if kept:
-		if transition:
-			transition.say(Dialogue.BIG_KEPT)
-		return
-	RunState.start_grace(Tuning.grace_time)
-	if transition:
-		if not transition.request_swap_big(m):
-			return
-	else:
-		RunState.swap_big(m)
-		if RunState.big != m:
-			return
 	_heal_player()
 
 
@@ -366,8 +224,7 @@ func revert(m: Mutation) -> bool:
 	return true
 
 
-## A stage clear's charge (PLAN v4 1.3). Stage clears come at M16; until then only
-## the tests call it.
+## A stage clear's charge (PLAN v4 1.3). Parked with rollbacks: only the tests call it.
 func add_stage_charge() -> void:
 	charges += Tuning.rollback_charges_per_stage
 	charges_earned += Tuning.rollback_charges_per_stage

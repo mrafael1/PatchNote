@@ -23,7 +23,7 @@ func before_each() -> void:
 	input = Fx.ScriptedInput.new()
 	game.player.set_input(input)
 	clock = game.turn_clock
-	b1 = MutationDB.get_mutation(&"motion_time")
+	b1 = Fx.make_big(Fx.FxRealTime, &"fx_real_time")   # the old B1's place: a real-time big (PLAN v5 1.4)
 	b2 = MutationDB.get_mutation(&"turn_mode")
 
 
@@ -229,7 +229,6 @@ func test_swapping_b1_and_b2_both_ways_mid_wave() -> void:
 		assert_eq(RunState.is_paused_except(&"turn"), false)
 		if big == b1:
 			assert_false(RunState.is_paused_for(&"turn"), "B1 never waits for turns")
-			assert_eq(RunState.motion_factor(), RunState.motion_factor(), "B1 runs")
 		else:
 			assert_eq(Engine.time_scale, 1.0, "B2 does not scale time")
 		for e in RunState.live_entities():

@@ -5,7 +5,7 @@
 #
 # Usage (from anywhere):  powershell -ExecutionPolicy Bypass -File tools\check.ps1 [-BotRuns]
 # -BotRuns adds the M6 gate: five full-length seeded bot runs (about two minutes), plus
-# one B1 run on an odd seed that must roll the AI's stage patch back (M14).
+# one run of the parked turn-based genre through the big-slot seam (PLAN v5 M25).
 
 param([switch]$BotRuns)
 $ErrorActionPreference = 'Stop'
@@ -67,13 +67,12 @@ if ($BotRuns) {
     Test-Errors 'bot_runs' $bots
     Select-String -Path $bots.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($bots.Text -notmatch '\[botrun\] summary: \d+ runs, 0 failures') { $failures += 'bot_runs: summary missing or failures' }
-    # One odd invincible seed in one genre that the AI's stage patch fits (B1): it must
-    # be rolled back through the build log (PLAN v4 9.4, M14 gate).
-    $roll = Invoke-Godot 'bot_runs_rollback' '--fixed-fps 60 -s tools/bot_runs.gd -- --big=motion_time --set=big_prompt_after=[] 9i'
-    Test-Errors 'bot_runs_rollback' $roll
-    Select-String -Path $roll.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
-    if ($roll.Text -notmatch '\[botrun\] summary: 1 runs, 0 failures') { $failures += 'bot_runs_rollback: summary missing or failures' }
-    if ($roll.Text -notmatch 'stage_reverts=1 stack_reverts=0') { $failures += 'bot_runs_rollback: the stage patch was not rolled back' }
+    # The parked turn-based genre still plays a full run through the big-slot seam
+    # (PLAN v5 1.3, M25 gate), until Phase 5 ports it into the genre interface.
+    $parked = Invoke-Godot 'bot_runs_parked' '--fixed-fps 60 -s tools/bot_runs.gd -- --big=turn_mode 9i'
+    Test-Errors 'bot_runs_parked' $parked
+    Select-String -Path $parked.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($parked.Text -notmatch '\[botrun\] summary: 1 runs, 0 failures') { $failures += 'bot_runs_parked: summary missing or failures' }
 }
 
 if ($failures.Count -gt 0) {

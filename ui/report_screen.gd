@@ -130,7 +130,9 @@ static func report_text(outcome: StringName, record: Dictionary) -> String:
 	lines.append("Version     %s" % version)
 	lines.append("Seed        %d" % int(record.get("seed", RunState.run_seed)))
 	var charges: Dictionary = record.get("charges", {})
-	lines.append("Rollbacks   used %d of %d earned" % [reverts, int(charges.get("earned", Tuning.rollback_charges_start))])
+	var earned := int(charges.get("earned", Tuning.rollback_charges_start))
+	if earned > 0 or reverts > 0:   # rollbacks are parked (PLAN v5 1.3)
+		lines.append("Rollbacks   used %d of %d earned" % [reverts, earned])
 	var genres := genres_text(record.get("genre_seconds", {}))
 	if genres != "":
 		lines.append("Genres      " + genres)

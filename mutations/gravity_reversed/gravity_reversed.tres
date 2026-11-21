@@ -14,3 +14,4 @@ tags = Array[StringName]([&"physics"])
 requires = Array[StringName]([&"gravity_on"])
 is_medium = true
 boss_weight = 0.5
+parked = true

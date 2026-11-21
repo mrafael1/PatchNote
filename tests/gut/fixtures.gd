@@ -132,6 +132,12 @@ class FxBigA extends Mutation:
 		state()["kills"] = int(state().get("kills", 0)) + 1
 
 
+## A big patch that changes nothing: real time with no gravity. Stands in for the old
+## B1 wherever a test leaves B2 through a swap (B1 is a small patch since PLAN v5 1.4).
+class FxRealTime extends Mutation:
+	pass
+
+
 class FxBigB extends Mutation:
 	func apply_rules(r: WorldRules) -> void:
 		r.turn_duration = 0.1

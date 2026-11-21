@@ -2,7 +2,8 @@ class_name PatchHistory
 extends CanvasLayer
 ## Build log and rollback (PLAN 7, PLAN v4 9.2). Tab opens it over the paused game. It
 ## lists every build so far, then the live AI patches, each of which can be rolled back
-## while charges remain (option D), then the player's own patches, which cannot. A
+## while charges remain (option D), then the player's own patches, which cannot. The
+## AI section is hidden while it has nothing to show (rollbacks are parked, PLAN v5). A
 ## rollback asks for a second click and says first what else it would remove. A stage
 ## patch stays undocumented until it is rolled back or its stage ends.
 
@@ -17,6 +18,7 @@ var _root: Control
 var _log: Label
 var _charges: Label
 var _ai_list: VBoxContainer    ## AI patches: rollback buttons
+var _ai_section: Array[Control] = []   ## hidden while the parked AI layer has nothing (PLAN v5 1.3)
 var _list: VBoxContainer       ## the big slot and the stack: no buttons
 var _armed: StringName = &""   ## patch whose rollback is waiting for confirmation
 var locked := false            ## set when the run is over
@@ -58,7 +60,8 @@ func _ready() -> void:
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override(&"separation", 10)
 	columns.add_child(right)
-	right.add_child(_heading("AI PATCHES"))
+	var ai_heading := _heading("AI PATCHES")
+	right.add_child(ai_heading)
 	_charges = Label.new()
 	_charges.add_theme_font_size_override(&"font_size", 18)
 	right.add_child(_charges)
@@ -67,6 +70,7 @@ func _ready() -> void:
 	right.add_child(_ai_list)
 	right.add_child(_heading("YOUR PATCHES"))
 	var note := Label.new()
+	_ai_section = [ai_heading, _charges, _ai_list, note]
 	note.text = YOURS_NOTE
 	note.add_theme_font_size_override(&"font_size", 16)
 	note.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.6))
@@ -261,6 +265,9 @@ func _refresh() -> void:
 			removed += 1
 	if RunState.ai.is_empty() and removed == 0:
 		_ai_list.add_child(_row("(none yet)"))
+	var show_ai := not RunState.ai.is_empty() or removed > 0 or left > 0
+	for c in _ai_section:
+		c.visible = show_ai
 
 	if RunState.big != null:
 		_list.add_child(big_entry(RunState.big))

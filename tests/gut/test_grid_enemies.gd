@@ -10,6 +10,7 @@ extends GutTest
 ## checks the grid, the shots and the danger promise.
 
 const CHASER := preload("res://entities/enemy_chaser.tscn")
+const Fx := preload("res://tests/gut/fixtures.gd")
 const TANK := preload("res://entities/enemy_tank.tscn")
 const SHOOTER := preload("res://entities/enemy_shooter.tscn")
 const PROJECTILE := preload("res://entities/projectile.tscn")
@@ -98,7 +99,7 @@ var _aimed: Array[Dictionary] = []   ## last turn end's aims: the tiles each new
 
 
 func before_each() -> void:
-	b1 = MutationDB.get_mutation(&"motion_time")
+	b1 = Fx.make_big(Fx.FxRealTime, &"fx_real_time")   # the old B1's place: a real-time big (PLAN v5 1.4)
 	b2 = MutationDB.get_mutation(&"turn_mode")
 	_turn_duration = b2.get(&"turn_duration")
 	for key in TUNING_KEYS:

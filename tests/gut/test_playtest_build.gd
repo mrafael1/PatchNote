@@ -100,7 +100,8 @@ func test_real_duration_counts_paused_frames_and_game_time_does_not() -> void:
 	assert_eq(RunState.real_frames, 0, "reset starts the count again")
 
 
-## Big patches are marked (BIG), mediums (MED), boss-only patches (BOSS) (PLAN v4 1.1).
+## Big patches are marked (BIG), mediums (MED), boss-only patches (BOSS) (PLAN v4 1.1),
+## then parked ones (PARKED) (PLAN v5 1.3).
 func test_boot_line_lists_every_mutation_and_marks_big_patches() -> void:
 	var line := MutationDB.summary_line()
 	assert_string_starts_with(line, "[mutations] %d: " % MutationDB.all.size())
@@ -110,13 +111,18 @@ func test_boot_line_lists_every_mutation_and_marks_big_patches() -> void:
 		if mark != "":
 			marks[mark] += 1
 			assert_string_contains(line, "%s (%s)" % [m.id, mark])
+		elif m.parked:
+			assert_string_contains(line, "%s (PARKED)" % m.id)
 		else:
 			assert_string_contains(line, String(m.id))
 			assert_false(line.contains("%s (" % m.id), "%s is small" % m.id)
+		if m.parked:
+			assert_string_contains(line, "%s) (PARKED)" % mark if mark != "" else "%s (PARKED)" % m.id)
 	for mark: String in marks:
 		assert_eq(line.count("(%s)" % mark), marks[mark], mark)
-	assert_eq(marks["BIG"], 2, "v3 ships B1 and B2")
-	assert_eq(marks["MED"], 2, "v4 starts with the gravity pair")
+	assert_eq(marks["BIG"], 1, "B2, parked: B1 is a small patch (PLAN v5 1.4)")
+	assert_eq(marks["MED"], 2, "the gravity pair, parked")
+	assert_eq(line.count("(PARKED)"), 3)
 
 
 ## Same seed, same run: bot sweeps compare configs seed by seed, and a playtest seed

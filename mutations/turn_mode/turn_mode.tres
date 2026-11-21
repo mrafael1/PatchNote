@@ -15,3 +15,4 @@ is_mode_switch = true
 is_big = true
 genre_label = "Turn-based"
 starter = true
+parked = true

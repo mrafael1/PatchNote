@@ -15,7 +15,7 @@ func _ready() -> void:
 
 
 ## The boot line the export check reads: every id, big patches marked "(BIG)",
-## mediums "(MED)" and boss-only patches "(BOSS)".
+## mediums "(MED)" and boss-only patches "(BOSS)", then parked ones "(PARKED)".
 func summary_line() -> String:
 	var ids: Array[String] = []
 	for m in all:
@@ -24,13 +24,23 @@ func summary_line() -> String:
 
 
 func _mark(m: Mutation) -> String:
+	var mark := ""
 	if m.is_big:
-		return " (BIG)"
-	if m.is_medium:
-		return " (MED)"
-	if m.boss_only:
-		return " (BOSS)"
-	return ""
+		mark = " (BIG)"
+	elif m.is_medium:
+		mark = " (MED)"
+	elif m.boss_only:
+		mark = " (BOSS)"
+	return mark + (" (PARKED)" if m.parked else "")
+
+
+## Patches the game may offer or ship: every loaded one that is not parked (PLAN v5 1.3).
+func offerable() -> Array[Mutation]:
+	var out: Array[Mutation] = []
+	for m in all:
+		if not m.parked:
+			out.append(m)
+	return out
 
 
 func reload() -> void:
