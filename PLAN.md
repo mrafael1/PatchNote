@@ -1,5 +1,7 @@
 # Build Plan v4 — Stages and the AI boss ("Patch Notes")
 
+> **On hold after M14 (owner, 2026-11-21).** The direction changed; see `ROADMAP.md` (v2). Its section 5 lists which v4 pieces survive. The next plan is v5 (Roadmap Phase 4).
+
 **For:** the builder agent
 **Goal of this build:** turn one continuous run into **3 stages + a boss stage**. Each stage is an arena the AI ships with a hidden patch of its own. Rollbacks become a weapon against the AI's patches. The game gets its first save, so the AI can ship new mutations from run to run.
 **Engine:** Godot **4.7.x stable**, unchanged, GDScript, 2D simulation.
