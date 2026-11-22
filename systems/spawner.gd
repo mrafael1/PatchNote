@@ -9,6 +9,7 @@ const SCENES := {
 	&"shooter": preload("res://entities/enemy_shooter.tscn"),
 	&"tank": preload("res://entities/enemy_tank.tscn"),
 	&"bomber": preload("res://entities/enemy_bomber.tscn"),
+	&"lancer": preload("res://entities/enemy_lancer.tscn"),
 }
 const VIEW_HALF := Vector2(640, 360)
 
@@ -57,12 +58,16 @@ func pick_type() -> StringName:
 	var shooter_chance := Tuning.spawn_shooter_chance if allowed.has(&"shooter") else 0.0
 	var bomber_ok := _elapsed >= Tuning.spawn_bomber_delay and allowed.has(&"bomber") and not RunState.rules.turn_based
 	var bomber_chance := Tuning.spawn_bomber_chance if bomber_ok else 0.0
+	var lancer_ok := _elapsed >= Tuning.spawn_lancer_delay and allowed.has(&"lancer") and not RunState.rules.turn_based
+	var lancer_chance := Tuning.spawn_lancer_chance if lancer_ok else 0.0
 	if roll < tank_chance:
 		return &"tank"
 	if roll < tank_chance + shooter_chance:
 		return &"shooter"
 	if roll < tank_chance + shooter_chance + bomber_chance:
 		return &"bomber"
+	if roll < tank_chance + shooter_chance + bomber_chance + lancer_chance:
+		return &"lancer"
 	if allowed.has(&"chaser") or allowed.is_empty():
 		return &"chaser"
 	return allowed[0]

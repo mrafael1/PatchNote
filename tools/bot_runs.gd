@@ -13,6 +13,9 @@ extends SceneTree
 ##                                e.g. --set=explode_on_hit.radius=90
 ##   --big=<mutation id>          start every run with that parked big patch in the slot
 ##                                (PLAN v5 1.3: the slot is a test seam; nothing swaps it)
+##   --apply=<mutation id>        apply that small patch at the start of every run, as if
+##                                picked (M33 parity: a piece's own effect, without the
+##                                offer pool's draws changing with the pool's size)
 ##   --log=<path>                 write telemetry there instead (parallel sweeps)
 ##   --save=<path>                play every run from that save, read-only: each run sees
 ##                                the same snapshot and nothing is written (PLAN v5 4.6)
@@ -47,6 +50,7 @@ var LOG := DEFAULT_LOG
 ## compile it before the autoloads exist.
 var save: GDScript
 var start_big := &""
+var start_apply := &""
 var save_arg := ""
 var keep_save := false
 var fresh := false
@@ -72,6 +76,13 @@ func _run() -> void:
 			var big: Resource = root.get_node("MutationDB").get_mutation(start_big)
 			if big == null or not big.get(&"is_big"):
 				print("[botrun] FAILED: no big patch %s" % start_big)
+				quit(1)
+				return
+		elif arg.begins_with("--apply="):
+			start_apply = StringName(arg.trim_prefix("--apply="))
+			var small: Resource = root.get_node("MutationDB").get_mutation(start_apply)
+			if small == null or small.get(&"is_big") or small.get(&"parked"):
+				print("[botrun] FAILED: no small patch %s" % start_apply)
 				quit(1)
 				return
 		elif arg.begins_with("--log="):
@@ -224,6 +235,8 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 	game.player.set_bot(true)
 	if start_big != &"":
 		run_state.swap_big(root.get_node("MutationDB").get_mutation(start_big))
+	if start_apply != &"":
+		run_state.apply(root.get_node("MutationDB").get_mutation(start_apply))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed
 	for frame in MAX_FRAMES:

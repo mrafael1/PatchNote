@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/mutation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"elite"
+title = "Elite enemies"
+description = "Every eighth enemy is an elite: its shield takes 3 hits. Killing it wipes the enemy shots around it."
+line_proposal = "They all look the same. I promoted some of them. With shields."
+line_applied = "Elites deployed. Break the shield, then enjoy the quiet."
+line_reverted = "Elites demoted. Everyone is equally unimportant again."
+tags = Array[StringName]([&"spawn", &"pressure"])
+starter = false

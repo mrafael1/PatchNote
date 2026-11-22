@@ -85,8 +85,8 @@ func test_seven_offerable_smalls_and_three_parked_patches_are_registered() -> vo
 			assert_false(m.is_big or m.is_ai_tier(), "%s: only small patches are offerable in v5" % m.id)
 		assert_false(m.boss_only, "%s: no boss-only patch" % m.id)
 		assert_eq(MutationDB.problems(m), [] as Array[String])
-	assert_eq(ids, ["auto_attack", "bouncing_projectiles", "enemies_split", "explode_on_hit",
-			"horde_mode", "jump_button", "motion_time"])
+	assert_eq(ids, ["auto_attack", "bouncing_projectiles", "echo", "elite", "enemies_split", "explode_on_hit",
+			"horde_mode", "hunter", "jump_button", "magnet", "motion_time", "orbit", "well"])
 	assert_eq(parked, ["gravity_on", "gravity_reversed", "turn_mode"], "PLAN v5 1.3")
 	var offerable: Array[String] = []
 	for m in MutationDB.offerable():

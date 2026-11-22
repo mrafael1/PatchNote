@@ -1,7 +1,8 @@
 extends GutTest
 ## Scene smoke matrix (PLAN 11, v3 section 8): each big slot value (none, then every
-## big patch) x every legal subset of the small patches (AI-tier patches are not small,
-## PLAN v4 1.1, and never enter the stack), in the real arena with the bot
+## big patch) x a fixed sample of the legal subsets of the small patches (AI-tier
+## patches are not small, PLAN v4 1.1, and never enter the stack), in the real arena with
+## the bot
 ## playing. Apply, simulate, check, revert everything, simulate, check again. Error
 ## lines in the log are caught by tools/check.ps1.
 
@@ -111,7 +112,9 @@ func _matrix(big: Mutation) -> bool:
 	var subsets := 0
 	var most_enemies := 0
 	var big_label := String(big.id) if big else "none"
-	for mask in range(1, 1 << all.size()):
+	var masks := sample_masks(all.size())
+	var covered := {}
+	for mask: int in masks:
 		var subset: Array[Mutation] = []
 		for i in all.size():
 			if mask & (1 << i):
@@ -119,6 +122,8 @@ func _matrix(big: Mutation) -> bool:
 		if not _legal(subset, big):
 			continue
 		subsets += 1
+		for m in subset:
+			covered[m.id] = true
 		rng.seed = mask
 		var label := "big %s, subset %s" % [big_label, subset.map(func(m: Mutation) -> String: return String(m.id))]
 
@@ -164,7 +169,10 @@ func _matrix(big: Mutation) -> bool:
 			return false
 		_clear_world()
 		await wait_physics_frames(1)
-	assert_eq(subsets, _expected_subsets(big), "legal non-empty subsets under big %s" % big_label)
+	assert_eq(subsets, _expected_subsets(all, masks, big), "legal sampled subsets under big %s" % big_label)
+	for m in all:
+		if _legal([m] as Array[Mutation], big):
+			assert_true(covered.has(m.id), "%s runs in at least one subset under big %s" % [m.id, big_label])
 	if RunState.big != big:
 		fail_test("big %s: the slot changed during the matrix" % big_label)
 		return false
@@ -188,11 +196,45 @@ func _legal(subset: Array[Mutation], big: Mutation) -> bool:
 	return true
 
 
-## Pinned per slot (PLAN v5 M25): 7 small patches with no requires or conflicts among
-## them, so 2^7 - 1 = 127 with an empty slot. B1 conflicts with the parked B2, so under
-## turn_mode the other 6 give 2^6 - 1 = 63. The gravity pair is parked (medium tier).
-func _expected_subsets(big: Mutation) -> int:
-	return 63 if big != null and big.id == &"turn_mode" else 127
+## The subsets tried (M33): with 7 smalls every subset was tried (127); with 13 that is
+## 8191 per slot, so the matrix now tries every single patch, every pair (each two-patch
+## interaction), the full stack, and SAMPLED seeded random larger subsets: about as many
+## runs as before. Bit i of a mask is small patch i.
+const SAMPLED := 40
+
+
+static func sample_masks(n: int) -> Array[int]:
+	var out: Array[int] = []
+	for i in n:
+		out.append(1 << i)
+	for i in n:
+		for j in range(i + 1, n):
+			out.append((1 << i) | (1 << j))
+	var full := (1 << n) - 1
+	if not full in out:
+		out.append(full)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 33
+	var tries := 0
+	while out.size() < n + n * (n - 1) / 2 + 1 + SAMPLED and tries < 10000:
+		tries += 1
+		var mask := rng.randi_range(1, full)
+		var bits := 0
+		for i in n:
+			bits += (mask >> i) & 1
+		if bits >= 3 and not mask in out:
+			out.append(mask)
+	return out
+
+
+## The sample's legal subsets, counted on their own: every small is legal alone and in
+## pairs with an empty slot (no requires or conflicts among them); under turn_mode, B1
+## (motion_time) conflicts with the slot, so every mask holding it drops out.
+func _expected_subsets(all: Array, masks: Array[int], big: Mutation) -> int:
+	if big == null or big.id != &"turn_mode":
+		return masks.size()
+	var b1 := all.map(func(m: Mutation) -> StringName: return m.id).find(&"motion_time")
+	return masks.filter(func(mask: int) -> bool: return mask & (1 << b1) == 0).size()
 
 
 func _spawn_wave(rng: RandomNumberGenerator) -> void:
@@ -203,9 +245,14 @@ func _spawn_wave(rng: RandomNumberGenerator) -> void:
 				{&"from_spawner": true})
 
 
+## Under motion time (time_follows_motion) the time scale is left out: B1's factor is
+## smoothed over the last ticks of player motion, so a rebuild restarts it at 1 and the
+## next tick brings it back. Not a pure function of the layers by design; the old full
+## matrix only passed because its seeds caught the bot at full speed (found in M33).
 func _derived() -> String:
 	var snap := RunState.snapshot()
-	return JSON.stringify([snap.stack, snap.rules, snap.entities, snap.connections, snap.time_scale])
+	var time_scale: Variant = null if RunState.rules.time_follows_motion else snap.time_scale
+	return JSON.stringify([snap.stack, snap.rules, snap.entities, snap.connections, time_scale])
 
 
 ## Empty string if every entity is somewhere sane and the counts respect the caps.

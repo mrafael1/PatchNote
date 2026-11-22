@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"patch_echo"
+title = "Experimental: echo shots"
+pitch = "Experimental. Every shot fires again a moment later from where you stood. I do not know why it works."
+kind = &"patch"
+bump = &"patch"
+unlocks = Array[StringName]([&"echo"])
+tags = Array[StringName]([&"weapon", &"odd"])

@@ -6,7 +6,7 @@ extends RefCounted
 ## this from M28 on (start content gating).
 
 ## Every enemy archetype the spawner knows (a change may unlock one of these).
-const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber"]
+const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber", &"lancer"]
 const FULL_LOOK := {"tier": 1, "take": "punchy"}
 ## The game's basics (PLAN v5 4.8): the first builds miss them and the first dev
 ## sessions ship them. Without movement the player can only aim and shoot; without

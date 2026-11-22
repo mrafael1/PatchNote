@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/mutation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"echo"
+title = "Experimental: echo shots"
+description = "Every shot fires again 0.6 s later at half damage, from where you stood when you fired it."
+line_proposal = "Experimental. Your shots leave a copy behind. I did not ask why."
+line_applied = "Echo on. Shoot, walk away, let your past self finish the job."
+line_reverted = "Echo off. Only the present fires now."
+tags = Array[StringName]([&"weapon", &"odd"])
+starter = false

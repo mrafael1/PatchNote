@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/mutation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"hunter"
+title = "The Hunter"
+description = "From the first minute, one slow stalker follows you for the rest of the run. It cannot die; 6 hits stun it."
+line_proposal = "You get comfortable. I wrote something that does not let you."
+line_applied = "Hunter compiled. It is slow. It is patient. It does not stop."
+line_reverted = "Hunter unloaded. Whatever was following you has gone home."
+tags = Array[StringName]([&"pressure"])
+starter = false

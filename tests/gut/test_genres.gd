@@ -84,7 +84,7 @@ func _scripts(dir: String) -> Array[String]:
 
 func test_every_offerable_patch_is_a_card_with_a_take_per_playable_genre() -> void:
 	var offerable := MutationDB.offerable()
-	assert_eq(offerable.size(), 7)
+	assert_eq(offerable.size(), 13)
 	for m in offerable:
 		assert_false(m.is_legacy(), "%s is a plain card" % m.id)
 		assert_eq(m.get_script(), Mutation)

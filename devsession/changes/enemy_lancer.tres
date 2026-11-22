@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"enemy_lancer"
+title = "New enemy: Lancer"
+pitch = "It stops, it aims, it charges in a straight line. Anything on that line gets hit. Its friends too."
+kind = &"enemy"
+bump = &"patch"
+unlocks = Array[StringName]([&"lancer"])
+tags = Array[StringName]([&"spawn"])

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/mutation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"magnet"
+title = "Experimental: magnetic enemies"
+description = "Enemy shots that pass within a tile of another enemy curve into it and hit it."
+line_proposal = "Experimental. I magnetised the enemies. Their bullets like them more than you."
+line_applied = "Magnets on. Stand behind someone they would rather hit."
+line_reverted = "Magnets off. Their aim is their own again."
+tags = Array[StringName]([&"odd"])
+starter = false

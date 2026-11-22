@@ -6,5 +6,6 @@
 script = ExtResource("1")
 id = &"fork_enemy"
 question = "Who joins the fight?"
-options = Array[StringName]([&"enemy_tank", &"enemy_bomber"])
+options = Array[StringName]([&"enemy_tank", &"enemy_bomber", &"enemy_lancer"])
+requires_forks = Array[StringName]([])
 tags = Array[StringName]([&"spawn"])

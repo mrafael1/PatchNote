@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"patch_orbit"
+title = "Orbit shards"
+pitch = "Two shards circle you and hit what they touch. Your gun stays as it is. Stand close to things."
+kind = &"patch"
+bump = &"patch"
+unlocks = Array[StringName]([&"orbit"])
+tags = Array[StringName]([&"weapon"])

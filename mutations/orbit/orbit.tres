@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/mutation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"orbit"
+title = "Orbit shards"
+description = "Two shards circle you and hit whatever they touch. Your gun is unchanged."
+line_proposal = "Your sides are undefended. I attached two rocks to you. Spinning rocks."
+line_applied = "Shards in orbit. Stand close to things you dislike."
+line_reverted = "Shards recalled. Your personal space is your own problem again."
+tags = Array[StringName]([&"weapon"])
+starter = false

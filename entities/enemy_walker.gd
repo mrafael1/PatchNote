@@ -16,6 +16,14 @@ extends CharacterBody2D
 ## the player and other enemies alike, and the bomber is gone. A lit fuse always ends in
 ## its blast. Blowing itself up is not a kill; shooting it first is. What its blast kills
 ## is not the player's kill either (enemy faction: no kill count, no prompt pacing).
+##
+## The lancer (PLAN v6 3) is a walker too. Within Tuning.lancer_trigger_range and with a
+## clear line it stops and telegraphs the line it will take for Tuning.lancer_windup
+## (it grows and flashes, and the line shows), then charges along it at
+## Tuning.lancer_charge_speed for up to Tuning.lancer_charge_distance or until a wall.
+## Everyone it meets on the way takes Tuning.lancer_charge_damage once per charge: the
+## player and other enemies alike (enemy faction, as the bomber's blast). Then it stands
+## for Tuning.lancer_recover and walks again. Its walking contact hurts as a chaser's.
 
 @export var archetype: StringName = &"chaser"
 @export var half_width := 15.0
@@ -38,6 +46,14 @@ var _avoid_side := 1.0
 var _fuse_left := -1.0   ## bomber: < 0 while the fuse is not lit
 var _blown := false
 var fuses := 0           ## bomber: telegraphs started (tests)
+
+enum Lance { WALK, WINDUP, CHARGE, RECOVER }
+var lance: Lance = Lance.WALK   ## lancer: where it is in its attack
+var charges := 0                ## lancer: charges started (tests)
+var _lance_left := 0.0
+var _lance_dir := Vector2.ZERO
+var _lance_hit := {}            ## nodes hit this charge
+var _lance_line: Line2D
 
 @onready var mover: Mover = $Mover
 @onready var health: Health = $Health
@@ -77,6 +93,8 @@ func _physics_process(delta: float) -> void:
 	var to_player := player.global_position - global_position
 	var distance := to_player.length()
 	if is_bomber() and _bomber_step(delta, distance):
+		return
+	if is_lancer() and _lancer_step(delta, to_player, distance):
 		return
 	var reach := contact_reach()
 	visual.rim = 0.0 if is_bomber() else EnemyCommon.contact_warning(distance - reach)
@@ -184,6 +202,90 @@ func _wall_ahead(side: Vector2) -> bool:
 
 func is_bomber() -> bool:
 	return archetype == &"bomber"
+
+
+func is_lancer() -> bool:
+	return archetype == &"lancer"
+
+
+## The line a lancer telegraphs or charges along (tests): unit vector, zero when walking.
+func lance_dir() -> Vector2:
+	return _lance_dir if lance != Lance.WALK else Vector2.ZERO
+
+
+## Lancer: telegraph, charge, recover. Returns true while it handles the tick (the walk
+## logic is skipped).
+func _lancer_step(delta: float, to_player: Vector2, distance: float) -> bool:
+	match lance:
+		Lance.WALK:
+			if distance > Tuning.lancer_trigger_range:
+				return false
+			var player := EnemyCommon.find_player(self)
+			if player and EnemyCommon.ray_hits_world(self, global_position, player.global_position):
+				return false
+			lance = Lance.WINDUP
+			_lance_left = Tuning.lancer_windup
+			_lance_dir = to_player.normalized()
+			_show_line(true)
+		Lance.WINDUP:
+			_lance_left -= delta
+			var u := clampf(1.0 - _lance_left / maxf(Tuning.lancer_windup, 0.001), 0.0, 1.0)
+			visual.telegraph = u
+			_lance_line.default_color = Color(1.0, 0.3, 0.9, 0.25 + 0.55 * u)
+			if _lance_left <= 0.0:
+				lance = Lance.CHARGE
+				charges += 1
+				_lance_hit.clear()
+				visual.telegraph = 0.0
+				_show_line(false)
+				var speed := Tuning.lancer_charge_speed
+				mover.dash(_lance_dir * speed, Tuning.lancer_charge_distance / speed)
+		Lance.CHARGE:
+			_charge_hits()
+			if not mover.is_dashing() or is_on_wall():
+				mover.stop()
+				lance = Lance.RECOVER
+				_lance_left = Tuning.lancer_recover
+		Lance.RECOVER:
+			_lance_left -= delta
+			if _lance_left <= 0.0:
+				lance = Lance.WALK
+	if lance != Lance.CHARGE:
+		mover.wish = Vector2.ZERO
+	visual.rim = 0.0
+	return true
+
+
+func _show_line(on: bool) -> void:
+	if _lance_line == null:
+		_lance_line = Line2D.new()
+		_lance_line.width = 8.0
+		_lance_line.z_index = -1
+		add_child(_lance_line)
+	_lance_line.visible = on
+	_lance_line.points = PackedVector2Array([Vector2.ZERO, _lance_dir * Tuning.lancer_charge_distance])
+	_lance_line.default_color = Color(1.0, 0.3, 0.9, 0.25)
+
+
+## Everyone within reach of the charging lancer takes its hit, once per charge.
+func _charge_hits() -> void:
+	for group: StringName in [&"player", &"enemy"]:
+		for n in get_tree().get_nodes_in_group(group):
+			var other := n as Node2D
+			if other == self or other == null or _lance_hit.has(other):
+				continue
+			var other_half: float = other.get(&"half_width") if other.get(&"half_width") != null else 15.0
+			if global_position.distance_to(other.global_position) > half_width + other_half + 6.0:
+				continue
+			var other_mover := Component.find(other, Mover) as Mover
+			if other_mover and other_mover.is_airborne():
+				continue
+			_lance_hit[other] = true
+			var hp := Component.find(other, Health) as Health
+			if hp and hp.take(DamageInfo.make(Tuning.lancer_charge_damage, &"charge", &"enemy", global_position)):
+				if other_mover:
+					other_mover.knockback(_lance_dir.orthogonal() * signf(_lance_dir.orthogonal().dot(
+							other.global_position - global_position) + 0.001) * Tuning.player_hit_knockback)
 
 
 func is_fuse_lit() -> bool:

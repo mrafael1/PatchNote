@@ -4,10 +4,11 @@ extends GutTest
 ## back to inert and deletes the scratch files.
 
 const TEST_PATH := "user://save_session_test/save.json"
-const ALL: Array[String] = ["basic_movement", "basic_world", "enemy_bomber", "enemy_tank",
-		"look_1_arcade", "look_1_clean", "look_1_punchy", "patch_auto_attack", "patch_horde_mode",
-		"patch_motion_time"]
-const FORKS: Array[String] = ["fork_enemy", "fork_hands", "look_1"]
+const ALL: Array[String] = ["basic_movement", "basic_world", "enemy_bomber", "enemy_lancer",
+		"enemy_tank", "look_1_arcade", "look_1_clean", "look_1_punchy", "patch_auto_attack",
+		"patch_echo", "patch_elite", "patch_horde_mode", "patch_hunter", "patch_magnet",
+		"patch_motion_time", "patch_orbit", "patch_well"]
+const FORKS: Array[String] = ["fork_enemy", "fork_hands", "fork_odd", "fork_pressure", "look_1"]
 const LOOKS: Array[String] = ["look_1_punchy", "look_1_clean", "look_1_arcade"]
 
 var _changes: Array[Change] = []
@@ -135,7 +136,13 @@ func test_the_changes_and_forks_are_valid() -> void:
 		assert_eq(preset.take, c.take.id)
 		assert_eq(Look.path_for(1, String(c.take.id)), preset.resource_path, "Look finds the take's preset")
 		assert_eq(c.short_name(), c.take.title)
-	assert_eq(_fork(&"fork_enemy").options, [&"enemy_tank", &"enemy_bomber"] as Array[StringName])
+	assert_eq(_fork(&"fork_enemy").options, [&"enemy_tank", &"enemy_bomber", &"enemy_lancer"] as Array[StringName])
+	assert_eq(_fork(&"fork_hands").options, [&"patch_auto_attack", &"patch_motion_time", &"patch_orbit"] as Array[StringName])
+	assert_eq(_fork(&"fork_pressure").options, [&"patch_horde_mode", &"patch_hunter", &"patch_elite"] as Array[StringName])
+	assert_eq(_fork(&"fork_pressure").requires_forks, [&"fork_enemy"] as Array[StringName], "was horde requires tank")
+	assert_eq(_fork(&"fork_odd").requires_forks, [&"fork_hands"] as Array[StringName])
+	for f in ChangeDB.forks:
+		assert_eq(f.options.size(), 3, "%s: three answers (PLAN v6 3)" % f.id)
 	# Dependencies sit on forks now (PLAN v6 1.1): no change requires another.
 	for c in ChangeDB.all:
 		if not c.is_basic():
@@ -218,6 +225,7 @@ func test_a_fork_shows_its_options_with_the_least_liked_as_the_ais_wish_last() -
 	_live(1)
 	_answer(&"look_1")
 	_answer(&"fork_enemy")
+	_answer(&"fork_pressure")   # left: fork_hands (fork_odd waits for it)
 	var taste := Taste.new()
 	taste.by_tag[&"time"] = -3.0
 	taste.by_tag[&"weapon"] = 2.0
@@ -227,7 +235,7 @@ func test_a_fork_shows_its_options_with_the_least_liked_as_the_ais_wish_last() -
 		assert_eq(s.fork.id, &"fork_hands")
 		var ids := _ids(s)
 		ids.sort()
-		assert_eq(ids, ["patch_auto_attack", "patch_horde_mode", "patch_motion_time"])
+		assert_eq(ids, ["patch_auto_attack", "patch_motion_time", "patch_orbit"])
 		assert_eq(s.cards.filter(func(c: Dictionary) -> bool: return c.agenda).size(), 1)
 		assert_eq(s.agenda_card().id, "patch_motion_time", "the AI's wish is what the player likes least")
 		assert_eq(s.cards[-1].id, "patch_motion_time", "and it is shown last")
@@ -313,6 +321,7 @@ func test_picking_a_change_ships_it_bumps_patch_and_feeds_its_tags() -> void:
 	_live(2)
 	_answer(&"look_1")
 	_answer(&"fork_enemy")
+	_answer(&"fork_pressure")
 	var s := DevSession.plan(4)
 	assert_eq(s.fork.id, &"fork_hands")
 	var index := _ids(s).find("patch_auto_attack")
@@ -320,15 +329,16 @@ func test_picking_a_change_ships_it_bumps_patch_and_feeds_its_tags() -> void:
 	var tags_before: Dictionary = SaveGame.state().taste.by_tag.duplicate()
 	assert_true(s.pick(index))
 	assert_true(SaveGame.has_shipped(&"patch_auto_attack"))
-	assert_false(SaveGame.has_shipped(&"patch_horde_mode"), "shelved")
+	assert_false(SaveGame.has_shipped(&"patch_orbit"), "shelved")
 	assert_false(SaveGame.has_shipped(&"patch_motion_time"), "shelved")
-	assert_eq(SaveGame.version().label(), "v0.1.2", "a pick is a patch step")
+	assert_eq(SaveGame.version().label(), "v0.1.3", "a pick is a patch step")
 	assert_gt(float(SaveGame.state().taste.by_tag.get("weapon", 0.0)), float(tags_before.get("weapon", 0.0)))
 	var lines := s.notes_lines()
 	assert_eq(lines[1], "• %s: %s" % [picked.title, picked.pitch])
 	assert_has(lines, "    New patch in the pool: Automate attacking")
 	assert_has(Unlocks.pool(), MutationDB.get_mutation(&"auto_attack"))
-	assert_false(Unlocks.pool().has(MutationDB.get_mutation(&"horde_mode")), "a shelved patch is not in the pool")
+	assert_false(Unlocks.pool().has(MutationDB.get_mutation(&"orbit")), "a shelved patch is not in the pool")
+	assert_true(_fork(&"fork_odd") in DevSession.ready_forks(), "its answer opens the odd question")
 
 
 func test_the_ai_answers_another_fork_every_fourth_session() -> void:
@@ -338,7 +348,9 @@ func test_the_ai_answers_another_fork_every_fourth_session() -> void:
 	_live(4)
 	_answer(&"look_1")
 	_answer(&"fork_enemy")
-	_answer(&"fork_hands")   # left: the 3 test forks
+	_answer(&"fork_hands")
+	_answer(&"fork_pressure")
+	_answer(&"fork_odd")   # left: the 3 test forks
 	for i in 3:
 		SaveGame.finish_session({"after_run": i + 1})
 	var taste := Taste.new()
@@ -354,7 +366,7 @@ func test_the_ai_answers_another_fork_every_fourth_session() -> void:
 	assert_ne(ai.fork, answered_by_player, "another fork")
 	assert_false((ai.fork as Fork).mockup)
 	assert_true((ai.fork as Fork).is_answered())
-	assert_eq(SaveGame.version().label(), "v0.1.4", "one bump each")
+	assert_eq(SaveGame.version().label(), "v0.1.6", "one bump each")
 	assert_eq(s.ai_fork(), "%s:%s" % [(ai.fork as Fork).id, (ai.change as Change).id])
 	assert_has(s.notes_lines(), DevSession.AI_FORK_LINE % [(ai.fork as Fork).question, (ai.change as Change).short_name()])
 	assert_true(String((ai.change as Change).id).ends_with("_o1"), "its wish: the option the player likes least")
@@ -364,9 +376,12 @@ func test_the_ai_never_answers_the_players_last_question() -> void:
 	Tuning.ai_own_ship_every = 4
 	_live(4)
 	_answer(&"look_1")
+	_answer(&"fork_enemy")
+	_answer(&"fork_pressure")
 	for i in 3:
 		SaveGame.finish_session({"after_run": i + 1})
-	var s := DevSession.plan(11)   # fork_enemy and fork_hands: the pick leaves one
+	var s := DevSession.plan(11)   # fork_hands; its answer opens fork_odd: one left
+	assert_eq(s.fork.id, &"fork_hands")
 	assert_true(s.pick(0))
 	assert_eq(s.shipped.size(), 1)
 	assert_eq(DevSession.ready_forks().size(), 1, "the last question stays the player's")
@@ -441,7 +456,16 @@ func test_a_v5_save_keeps_its_look_and_its_answers() -> void:
 	SaveGame.go_live(TEST_PATH, true)
 	SaveGame.state().shipped = parsed.shipped
 	assert_true(_fork(&"fork_enemy").is_answered())
-	assert_true(_fork(&"fork_enemy").shelf().is_empty(), "both shipped: nothing on the shelf")
+	assert_eq(parsed.shipped.size(), 5, "both shipped, nothing unshipped")
+	assert_eq(_fork(&"fork_enemy").shelf(), [ChangeDB.get_change(&"enemy_lancer")] as Array[Change],
+			"only the M33 lancer on the shelf")
+	# A v5 save that answered with Horde (then in fork_hands) keeps it, and so answers
+	# the pressure question; the hands question is asked again (PLAN v6 M33).
+	SaveGame.state().shipped = ["basic_movement", "basic_world", "look_1_clean", "enemy_tank", "patch_horde_mode"]
+	assert_true(_fork(&"fork_pressure").is_answered())
+	assert_eq(_fork(&"fork_pressure").answer(), ChangeDB.get_change(&"patch_horde_mode"))
+	assert_false(_fork(&"fork_hands").is_answered())
+	assert_true(_fork(&"fork_hands") in DevSession.ready_forks())
 	assert_eq(_fork(&"look_1").shelf().size(), 2)
 	var no_take := SaveGame.new_state()
 	no_take.shipped = ["look_1"]
@@ -458,7 +482,7 @@ func _two_answered() -> DevSession:
 	_answer(&"look_1")
 	_answer(&"fork_enemy")
 	var s := DevSession.plan(5)
-	assert_eq(s.fork.id, &"fork_hands")
+	assert_eq(s.shape, DevSession.FORK)
 	return s
 
 
@@ -473,15 +497,17 @@ func test_a_rework_swaps_one_answer_for_a_shelved_one_with_one_patch_step() -> v
 	assert_true(s.can_rework())
 	var tags_before: Dictionary = SaveGame.state().taste.by_tag.duplicate()
 	assert_false(s.rework(&"fork_enemy", &"enemy_tank"), "the answer is not on the shelf")
-	assert_false(s.rework(&"fork_hands", &"patch_horde_mode"), "an open fork has no shelf")
+	assert_false(s.rework(&"fork_hands", &"patch_orbit"), "an open fork has no shelf")
 	assert_true(s.rework(&"fork_enemy", &"enemy_bomber"))
 	assert_false(SaveGame.has_shipped(&"enemy_tank"))
 	assert_true(SaveGame.has_shipped(&"enemy_bomber"))
 	assert_eq(SaveGame.version().label(), "v0.1.2")
 	assert_true(&"bomber" in Unlocks.enemies())
 	assert_false(&"tank" in Unlocks.enemies(), "the next run has no tank")
-	assert_eq(_fork(&"fork_enemy").shelf(), [ChangeDB.get_change(&"enemy_tank")] as Array[Change])
-	assert_false(_fork(&"fork_hands").is_answered(), "a rework costs the session: no new answer")
+	assert_eq(_fork(&"fork_enemy").shelf(), [ChangeDB.get_change(&"enemy_tank"),
+			ChangeDB.get_change(&"enemy_lancer")] as Array[Change])
+	assert_false(_fork(&"fork_hands").is_answered() or _fork(&"fork_pressure").is_answered(),
+			"a rework costs the session: no new answer")
 	assert_eq(DevSession.answers().size(), 2, "a rework never unanswers a fork")
 	assert_false(s.pick(0), "nor a pick after it")
 	assert_false(s.rework(&"fork_enemy", &"enemy_tank"), "one rework per session")
@@ -540,9 +566,9 @@ func test_reworking_a_patch_swaps_the_pool() -> void:
 	_answer(&"look_1")
 	_answer(&"fork_hands")   # Auto-aim
 	var s := DevSession.plan(5)
-	assert_true(s.rework(&"fork_hands", &"patch_horde_mode"))
+	assert_true(s.rework(&"fork_hands", &"patch_orbit"))
 	var pool: Array = _next_run().pool
-	assert_has(pool, "horde_mode")
+	assert_has(pool, "orbit")
 	assert_does_not_have(pool, "auto_attack")
 	assert_has(s.notes_lines(), "    Out of the pool: %s" % MutationDB.get_mutation(&"auto_attack").title)
 
@@ -558,10 +584,10 @@ func test_the_rework_card_needs_two_answers_and_a_shelf() -> void:
 	assert_true(DevSession.plan(5).can_rework())
 	Tuning.rework_after_forks = 2
 	# Two answered with an empty shelf (a v5 save that shipped every option).
-	for id: StringName in [&"look_1_clean", &"look_1_arcade", &"enemy_tank", &"enemy_bomber"]:
+	for id: StringName in [&"look_1_clean", &"look_1_arcade", &"enemy_tank", &"enemy_bomber", &"enemy_lancer"]:
 		SaveGame.ship(id, GameVersion.PATCH)
 	var bare := DevSession.plan(5)
-	assert_eq(bare.fork.id, &"fork_hands")
+	assert_eq(bare.shape, DevSession.FORK)
 	assert_false(bare.can_rework(), "nothing on the shelf")
 	assert_true(DevSession.rework_rows().is_empty())
 
@@ -580,7 +606,7 @@ func test_no_question_left_but_a_shelf_is_a_rework_only_session() -> void:
 	assert_string_contains(s.opening, DevSession.REWORK_LINE)
 	var rows := DevSession.rework_rows()
 	assert_eq(rows.map(func(r: Dictionary) -> String: return String((r.fork as Fork).id)), FORKS)
-	assert_eq((rows[0].to as Array).size(), 1, "fork_enemy: one option on the shelf")
+	assert_eq((rows[0].to as Array).size(), 2, "fork_enemy: two options on the shelf")
 	assert_true(s.keep())
 	assert_true(SaveGame.version().equals(before), "keep it as it is: no bump")
 	assert_true(s.notes_lines().is_empty())
@@ -627,8 +653,10 @@ func test_the_flow_offers_rework_as_a_fourth_card_and_back() -> void:
 	assert_false(flow.screen.list_ready(), "the input delay again")
 	await wait_seconds(Tuning.prompt_input_delay + 0.1)
 	var targets := flow.screen.rework_targets().map(func(t: Array) -> String: return "%s:%s" % t)
-	assert_eq(targets, ["fork_enemy:enemy_bomber", "look_1:look_1_clean", "look_1:look_1_arcade"])
-	assert_not_null(flow.screen.row_button(1).icon, "a mockup fork shows its shelved stills")
+	assert_eq(targets, ["fork_enemy:enemy_bomber", "fork_enemy:enemy_lancer", "look_1:look_1_clean",
+			"look_1:look_1_arcade"])
+	assert_null(flow.screen.row_button(1).icon)
+	assert_not_null(flow.screen.row_button(2).icon, "a mockup fork shows its shelved stills")
 	assert_eq(flow.screen.list_button().text, "Back")
 	flow.screen.press_list_button()
 	assert_false(flow.screen.list_open())
@@ -680,14 +708,18 @@ func test_the_f2_rework_swaps_between_runs() -> void:
 
 
 ## A chained run of sessions from a fresh save: two basics, the look mockup, then one
-## fork per session until none is left. The same chain writes the same file.
+## fork per session (and the AI's own on its cadence) until none is left, then
+## REWORK-only sessions that keep. The same chain writes the same file.
 func test_a_chain_of_sessions_answers_every_fork() -> void:
 	Tuning.ai_own_ship_every = 4
 	var first := _chain()
-	assert_eq(first.shapes, ["basic", "basic", "fork", "fork", "fork", "rework"])
-	assert_eq(first.forks, ["", "", "look_1", first.forks[3], first.forks[4], ""])
+	assert_eq(first.shapes.slice(0, 3), ["basic", "basic", "fork"])
+	assert_eq(first.forks[2], "look_1")
+	assert_eq(first.forks.filter(func(f: String) -> bool: return f != "").size() + first.ai_forks,
+			FORKS.size(), "every fork answered once, by the player or the AI")
+	assert_eq(first.shapes[-1], "rework")
 	assert_true(SaveGame.state().sessions[-1].kept, "the chain keeps it as it is")
-	assert_eq(first.versions, ["v0.0.1", "v0.0.2", "v0.1.0", "v0.1.1", "v0.1.2", "v0.1.2"])
+	assert_eq(first.versions.slice(0, 3), ["v0.0.1", "v0.0.2", "v0.1.0"])
 	assert_eq(DevSession.answers().size(), FORKS.size())
 	assert_true(DevSession.ready_forks().is_empty())
 	assert_eq(SaveGame.shipped().size(), 2 + FORKS.size(), "one answer per fork, the rest shelved")
@@ -696,14 +728,16 @@ func test_a_chain_of_sessions_answers_every_fork() -> void:
 
 func _chain() -> Dictionary:
 	_live(0, false)
-	var out := {"versions": [], "shapes": [], "forks": [], "file": ""}
-	for run in 6:
+	var out := {"versions": [], "shapes": [], "forks": [], "ai_forks": 0, "file": ""}
+	for run in 9:
 		SaveGame.record_run(&"topdown", &"lose", 60.0, SaveGame.state().taste)
 		var s := DevSession.plan(100 + run)
 		out.shapes.append(String(s.shape))
 		out.forks.append(String(s.fork.id) if s.fork else "")
 		if s.can_pick():
 			assert_true(s.pick(run % s.cards.size()))
+			if s.ai_fork() != "":
+				out.ai_forks += 1
 		else:
 			assert_true(s.finish())
 		out.versions.append(SaveGame.version().label())

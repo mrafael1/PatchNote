@@ -1,0 +1,14 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://core/mutation.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"well"
+title = "Experimental: gravity wells"
+description = "A killed enemy leaves a pull field for a second that drags nearby enemies (not you) to its centre."
+line_proposal = "Experimental. When they die they leave a small hole. The others fall in."
+line_applied = "Wells on. Each kill tidies up the ones next to it."
+line_reverted = "Wells off. The dead stay where they are."
+tags = Array[StringName]([&"odd"])
+starter = false

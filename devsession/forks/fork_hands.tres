@@ -6,5 +6,6 @@
 script = ExtResource("1")
 id = &"fork_hands"
 question = "How do you fight back?"
-options = Array[StringName]([&"patch_auto_attack", &"patch_motion_time", &"patch_horde_mode"])
+options = Array[StringName]([&"patch_auto_attack", &"patch_motion_time", &"patch_orbit"])
+requires_forks = Array[StringName]([])
 tags = Array[StringName]([&"weapon", &"time"])

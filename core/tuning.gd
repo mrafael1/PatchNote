@@ -49,6 +49,19 @@ var bomber_windup := 0.6
 var bomber_blast_radius := 1.6 * TILE
 var bomber_blast_damage := 1.0
 var bomber_blast_knockback := 360.0
+# The lancer (PLAN v6 3): walks in, stops, telegraphs a line, then charges along it
+# through everyone on it (enemies take its hit too, enemy faction, like the bomber).
+var lancer_speed := 140.0
+var lancer_hp := 3.0
+var lancer_contact_damage := 1.0
+var lancer_hop_cooldown := 0.6
+var lancer_knockback_scale := 0.6
+var lancer_trigger_range := 5.5 * TILE
+var lancer_windup := 0.7
+var lancer_charge_speed := 720.0
+var lancer_charge_distance := 8.0 * TILE
+var lancer_recover := 1.0
+var lancer_charge_damage := 1.0
 var shooter_speed := 150.0
 var shooter_hp := 2.0
 var shooter_fire_interval := 1.8
@@ -74,6 +87,8 @@ var spawn_tank_chance := 0.08   # M30: 0.15 cut the all-shipped mortal median by
 var spawn_tank_delay := 30.0
 var spawn_bomber_chance := 0.12
 var spawn_bomber_delay := 40.0
+var spawn_lancer_chance := 0.1
+var spawn_lancer_delay := 35.0
 ## A new save spawns only these (PLAN v5 2.3, read through Unlocks.enemies from M28).
 var starter_enemies: Array[StringName] = [&"chaser", &"shooter"]
 var chaser_headroom := 3.7 * TILE  # free space a chaser needs above it to hop up

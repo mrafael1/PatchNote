@@ -22,7 +22,9 @@ func _physics_process(_delta: float) -> void:
 	var here := origin()
 	var nearest: Node2D = null
 	var best := INF
-	for e in get_tree().get_nodes_in_group(&"enemy"):
+	# Enemies, and "threat" nodes that are not enemies but hurt on contact (M33: a
+	# patch's stalker). Without them the bot walked into what a player would dodge.
+	for e in get_tree().get_nodes_in_group(&"enemy") + get_tree().get_nodes_in_group(&"threat"):
 		var n := e as Node2D
 		if n == null or n.is_queued_for_deletion():
 			continue

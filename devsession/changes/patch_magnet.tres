@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"patch_magnet"
+title = "Experimental: magnetic enemies"
+pitch = "Experimental. Their bullets bend toward each other. Stand behind one of them and watch."
+kind = &"patch"
+bump = &"patch"
+unlocks = Array[StringName]([&"magnet"])
+tags = Array[StringName]([&"odd"])

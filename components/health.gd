@@ -4,11 +4,16 @@ extends Component
 ## the rules (enemy_hp_mult) and a rule change neither heals nor hurts anyone.
 
 signal died(info: DamageInfo)
+## A hit the shield took whole (shield_hits was above 0): no damage, no damage signal.
+signal shield_hit(info: DamageInfo)
 
 @export var base_max_hp := 3.0
 @export var scales_with_enemy_rule := true
 @export var invuln_time := 0.0   ## seconds of immunity after a hit
 
+## Hits absorbed whole before any damage lands, one per hit (M33: an elite's shield,
+## the hunter's stun count). 0 = no shield.
+var shield_hits := 0
 var hp_ratio := 1.0
 var dead := false
 var _invuln_until := -1.0
@@ -41,6 +46,10 @@ func heal(amount: float) -> void:
 ## Returns true if the damage was applied.
 func take(info: DamageInfo) -> bool:
 	if dead or is_invulnerable():
+		return false
+	if shield_hits > 0:
+		shield_hits -= 1
+		shield_hit.emit(info)
 		return false
 	var entity := get_parent()
 	var is_player := entity.is_in_group(&"player")

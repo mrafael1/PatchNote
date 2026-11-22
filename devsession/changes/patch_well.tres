@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"patch_well"
+title = "Experimental: gravity wells"
+pitch = "Experimental. Each kill leaves a small hole for a second. The ones next to it fall in."
+kind = &"patch"
+bump = &"patch"
+unlocks = Array[StringName]([&"well"])
+tags = Array[StringName]([&"odd"])
