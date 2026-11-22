@@ -1,24 +1,24 @@
-[gd_resource type="Resource" script_class="StageSet" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="StageSet" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://levels/stage_set.gd" id="1"]
 [ext_resource type="Script" path="res://levels/stage_def.gd" id="2"]
-[ext_resource type="Resource" path="res://levels/arenas/arena_0.tres" id="a0"]
-[ext_resource type="Resource" path="res://levels/arenas/arena_1.tres" id="a1"]
-[ext_resource type="Resource" path="res://levels/arenas/arena_2.tres" id="a2"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_0.tres" id="arena_0"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_1.tres" id="arena_1"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_2.tres" id="arena_2"]
 
 [sub_resource type="Resource" id="s0"]
 script = ExtResource("2")
-arena = ExtResource("a0")
-duration = 100.0
+arena = ExtResource("arena_0")
+duration = 100
 goal = &"survive"
 prompts = 1
-spawn_rate = 1.0
-spawn_cap = 1.0
+spawn_rate = 1
+spawn_cap = 1
 
 [sub_resource type="Resource" id="s1"]
 script = ExtResource("2")
-arena = ExtResource("a1")
-duration = 100.0
+arena = ExtResource("arena_1")
+duration = 100
 goal = &"survive"
 prompts = 1
 spawn_rate = 1.15
@@ -26,8 +26,8 @@ spawn_cap = 1.1
 
 [sub_resource type="Resource" id="s2"]
 script = ExtResource("2")
-arena = ExtResource("a2")
-duration = 100.0
+arena = ExtResource("arena_2")
+duration = 100
 goal = &"survive"
 prompts = 1
 spawn_rate = 1.3

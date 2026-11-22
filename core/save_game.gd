@@ -197,6 +197,18 @@ static func unship(id: StringName) -> bool:
 	return true
 
 
+## A genre's maturity step (STEPS), e.g. "stages" once the Stages take ships (M35).
+static func set_genre_step(genre: StringName, step: String) -> void:
+	if not step in STEPS:
+		return
+	var key := String(genre)
+	var d := state()
+	if not d.genres.has(key):
+		var def := GenreDB.get_genre(genre)
+		d.genres[key] = _new_genre(def) if def else {"step": "playable", "runs": 0, "play_time": 0.0}
+	(d.genres[key] as Dictionary).step = step
+
+
 ## The look a shipped look take sets (PLAN v5 1.7): {tier, take}. Written with the
 ## session (finish_session).
 static func set_look(tier: int, take: StringName) -> void:

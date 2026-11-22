@@ -32,9 +32,11 @@ func _physics_process(_delta: float) -> void:
 		if d < best:
 			best = d
 			nearest = n
+	# Breakout (M35): an open exit gate is where to go; shoot on the way.
+	var gate := get_tree().get_first_node_in_group(ExitGate.GROUP) as ExitGate
 	if nearest == null:
 		fire = false
-		move = Vector2.RIGHT.rotated(_tick * 0.01)
+		move = gate.direction_from(here) if gate else Vector2.RIGHT.rotated(_tick * 0.01)
 		return
 	var to_enemy := nearest.global_position - here
 	aim_dir = to_enemy.normalized()
@@ -43,6 +45,8 @@ func _physics_process(_delta: float) -> void:
 		move = -aim_dir.rotated(0.6)
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
+	if gate:
+		move = gate.direction_from(here)
 	jump_pressed = _tick % 90 == 0
 	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12

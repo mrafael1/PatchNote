@@ -93,7 +93,7 @@ func test_every_arena_passes_its_genre_checks() -> void:
 		for g in def.genres:
 			assert_eq(def.problems(g), [] as Array[String], "%s for %s" % [f, g])
 		ids.append(f.get_basename())
-	assert_eq(ids, ["arena_0", "arena_1", "arena_2"])
+	assert_eq(ids, ["arena_0", "arena_1", "arena_2", "arena_3a", "arena_3b", "arena_3c"])
 
 
 func test_arena_0_is_the_m14_arena() -> void:
@@ -133,7 +133,7 @@ func test_the_checks_catch_a_bad_layout() -> void:
 
 func test_every_stage_set_loads_with_valid_stages() -> void:
 	var ids := StageSet.ids()
-	assert_has(ids, &"gauntlet")
+	assert_eq(ids, [&"breakout", &"gauntlet", &"shifting"] as Array[StringName])
 	for set_id in ids:
 		var set := StageSet.named(set_id)
 		assert_eq(set.id, set_id)
@@ -142,7 +142,7 @@ func test_every_stage_set_loads_with_valid_stages() -> void:
 			var s := set.stage(i)
 			assert_not_null(s, "%s stage %d is a StageDef" % [set_id, i])
 			assert_not_null(s.arena, "%s stage %d has an arena" % [set_id, i])
-			assert_eq(s.goal, StageDef.SURVIVE)
+			assert_has(StageDef.GOALS, s.goal)
 			assert_gt(s.duration, 0.0)
 	var g := StageSet.named(&"gauntlet")
 	assert_eq(g.size(), 3)
@@ -280,6 +280,20 @@ func test_the_hunter_follows_you_into_the_next_stage() -> void:
 ## Same seed, same 3-stage run: the bot plays two compressed runs with prompts, and
 ## the world hash every 10 physics frames matches from the first frame to the report.
 func test_same_seed_same_three_stage_run() -> void:
+	await _same_run_twice(_short_set(), 1500)
+
+
+## M35: Breakout (the bot walks to each exit) and Shifting (the player stays put) replay
+## the same way, compressed to STAGE_TIME a stage.
+func test_same_seed_same_breakout_and_shifting_runs() -> void:
+	for set_id: StringName in [&"breakout", &"shifting"]:
+		var set := StageSet.named(set_id).duplicate(true) as StageSet
+		for st: StageDef in set.stages:
+			st.duration = STAGE_TIME
+		await _same_run_twice(set, 4000)
+
+
+func _same_run_twice(set: StageSet, frames: int) -> void:
 	Tuning.first_prompt_min_gap = 0.4
 	Tuning.prompt_min_gap = 0.4
 	Tuning.prompt_max_gap = 0.8
@@ -287,13 +301,13 @@ func test_same_seed_same_three_stage_run() -> void:
 	var traces: Array[Array] = []
 	var stages_seen: Array[int] = []
 	for run in 2:
-		await _start(4343, _short_set())
+		await _start(4343, set)
 		RunState.invincible = true
 		game.player.set_bot(true)
 		var rng := RandomNumberGenerator.new()
 		rng.seed = 9
 		var trace: Array[int] = []
-		for f in 1500:
+		for f in frames:
 			if game.report.is_open():
 				break
 			if game.prompt_panel.can_choose():
@@ -301,7 +315,7 @@ func test_same_seed_same_three_stage_run() -> void:
 			if f % 10 == 0:
 				trace.append(_world_hash())
 			await wait_physics_frames(1)
-		assert_true(game.report.is_open(), "run %d reached its report" % run)
+		assert_true(game.report.is_open(), "%s run %d reached its report" % [set.id, run])
 		stages_seen.append(game.run_loop.record.stages.reached)
 		assert_eq((game.run_loop.record.prompts as Array).size(), 3, "one prompt per stage")
 		traces.append(trace)

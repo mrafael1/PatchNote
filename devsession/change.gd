@@ -5,7 +5,8 @@ extends Resource
 ## that (Unlocks). The cards, the screens and the content come with M29.
 
 ## basic: one of the game's basics (Unlocks.BASICS), shipped by the AI before anything else.
-const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic"]
+## stages: a genre's Stages step (M35); its take's preset is a StageSet.
+const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic", &"stages"]
 
 @export var id: StringName
 @export var title := ""

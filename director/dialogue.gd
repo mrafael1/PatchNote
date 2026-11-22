@@ -18,6 +18,7 @@ static func prompt_line(prompt_index: int) -> String:
 
 
 const STAGE_CLEAR := "Stage %d of %d passes. Loading the next level."
+const EXIT_OPEN := "The exit is open. Get to it."
 const RELEASE_CANDIDATE := "That was the last patch. Tagging a release candidate. Survive the final test."
 
 

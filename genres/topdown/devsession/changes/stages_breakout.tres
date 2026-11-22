@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="Change" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+[ext_resource type="Resource" path="res://levels/stages/breakout.tres" id="3"]
+[ext_resource type="Texture2D" path="res://devsession/stills/stages_breakout.png" id="4"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"breakout"
+title = "Breakout"
+line = "Hold out, then an exit opens on the far side. Get there under fire, three times."
+image = ExtResource("4")
+preset = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+id = &"stages_breakout"
+title = "Stages: Breakout"
+pitch = "Hold out, then an exit opens on the far side. Get there under fire, three times."
+kind = &"stages"
+genre = &"topdown"
+bump = &"minor"
+tags = Array[StringName]([&"stages"])
+take = SubResource("take")

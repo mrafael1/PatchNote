@@ -18,6 +18,7 @@ signal phase_changed(phase: StringName)
 signal report_ready(outcome: StringName)
 signal stage_cleared(index: int)                       ## stage `index` is over (not the last)
 signal stage_starting(index: int, stage: StageDef)     ## build stage `index` now
+signal exit_opened(index: int)                         ## an EXIT stage's gate: place it now
 
 const PLAY := &"play"
 const RELEASE_CANDIDATE := &"release_candidate"
@@ -45,6 +46,8 @@ var stages: StageSet         ## the run's stages; set by the genre before begin(
 var stage_index := 0
 var stage_started_at := 0.0
 var stage_starts: Array[float] = []   ## game time each stage began (telemetry, tests)
+var exit_open := false                ## an EXIT stage's gate is open (reach_exit() ends it)
+var exit_reached := false
 
 var _report_at := -1.0
 var _clear_until := -1.0
@@ -113,12 +116,37 @@ func is_last_stage() -> bool:
 	return stages == null or stage_index >= stages.size() - 1
 
 
-## The stage's prompts are done and its time has passed.
+## The stage's prompts are done and its time has passed (and, for an EXIT stage, the
+## player reached the gate that then opens).
 func _stage_done() -> bool:
 	if not _prompts_done():
 		return false
 	var stage := current_stage()
-	return stage == null or RunState.game_time - stage_started_at >= stage.duration
+	if stage == null:
+		return true
+	if RunState.game_time - stage_started_at < stage.duration:
+		return false
+	if stage.goal == StageDef.EXIT and not exit_reached:
+		if not exit_open:
+			_open_exit()
+		return false
+	return true
+
+
+func _open_exit() -> void:
+	exit_open = true
+	RunState.log_event(&"exit_open", {"stage": stage_index})
+	if transition:
+		transition.say(Dialogue.EXIT_OPEN)
+	exit_opened.emit(stage_index)
+
+
+## The player reached the open gate: the stage ends on the next tick.
+func reach_exit() -> void:
+	if not exit_open or exit_reached:
+		return
+	exit_reached = true
+	RunState.log_event(&"exit_reached", {"stage": stage_index})
 
 
 func _clear_stage() -> void:
@@ -139,6 +167,8 @@ func _start_stage(index: int) -> void:
 	stage_index = index
 	stage_started_at = RunState.game_time
 	stage_starts.append(stage_started_at)
+	exit_open = false
+	exit_reached = false
 	phase = PLAY
 	stage_starting.emit(index, current_stage())
 	if director:

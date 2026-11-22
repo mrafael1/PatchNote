@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="Change" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+[ext_resource type="Resource" path="res://levels/stages/gauntlet.tres" id="3"]
+[ext_resource type="Texture2D" path="res://devsession/stills/stages_gauntlet.png" id="4"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"gauntlet"
+title = "Gauntlet"
+line = "Three arenas in a row. Clear one, the next loads. Your build carries over."
+image = ExtResource("4")
+preset = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+id = &"stages_gauntlet"
+title = "Stages: Gauntlet"
+pitch = "Three arenas in a row. Clear one, the next loads. Your build carries over."
+kind = &"stages"
+genre = &"topdown"
+bump = &"minor"
+tags = Array[StringName]([&"stages"])
+take = SubResource("take")

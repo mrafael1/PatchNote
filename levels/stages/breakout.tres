@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="StageSet" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://levels/stage_set.gd" id="1"]
+[ext_resource type="Script" path="res://levels/stage_def.gd" id="2"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_2.tres" id="arena_2"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_1.tres" id="arena_1"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_0.tres" id="arena_0"]
+
+[sub_resource type="Resource" id="s0"]
+script = ExtResource("2")
+arena = ExtResource("arena_2")
+duration = 90
+goal = &"exit"
+prompts = 1
+spawn_rate = 1
+spawn_cap = 1
+
+[sub_resource type="Resource" id="s1"]
+script = ExtResource("2")
+arena = ExtResource("arena_1")
+duration = 90
+goal = &"exit"
+prompts = 1
+spawn_rate = 1.15
+spawn_cap = 1.1
+
+[sub_resource type="Resource" id="s2"]
+script = ExtResource("2")
+arena = ExtResource("arena_0")
+duration = 90
+goal = &"exit"
+prompts = 1
+spawn_rate = 1.3
+spawn_cap = 1.2
+
+[resource]
+script = ExtResource("1")
+id = &"breakout"
+stages = Array[Resource]([SubResource("s0"), SubResource("s1"), SubResource("s2")])

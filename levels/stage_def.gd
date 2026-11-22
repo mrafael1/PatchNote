@@ -4,12 +4,16 @@ extends Resource
 ## lists them in order; the run loop plays them, the genre builds them.
 
 const SURVIVE := &"survive"   ## ends once its prompts are done and `duration` has passed
+## Breakout (M35): once its prompts are done and `duration` has passed an exit gate
+## opens (ExitGate); the stage ends when the player reaches it.
+const EXIT := &"exit"
+const GOALS: Array[StringName] = [SURVIVE, EXIT]
 
 @export var arena: ArenaDef
 ## Seconds of play before the stage can end (counted from its start). 0: it ends as
 ## soon as its prompts are done (the one-stage v0.0 run).
 @export var duration := 0.0
-## How the stage ends. Only SURVIVE exists (M34); the exit gate is M35's Breakout.
+## How the stage ends: SURVIVE or EXIT.
 @export var goal: StringName = SURVIVE
 ## Small prompts opened during this stage. -1: Tuning.prompts_per_run (the v0.0 run).
 @export var prompts := 1

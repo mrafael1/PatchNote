@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ArenaDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://levels/arena_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"arena_3b"
+title = "Yard: boxes"
+blocks = Array[Rect2]([Rect2(5, 4, 8, 1), Rect2(53, 4, 8, 1), Rect2(5, 17, 8, 1), Rect2(53, 17, 8, 1), Rect2(5, 5, 1, 3), Rect2(60, 5, 1, 3), Rect2(5, 14, 1, 3), Rect2(60, 14, 1, 3), Rect2(20, 7, 4, 2), Rect2(42, 7, 4, 2), Rect2(20, 13, 4, 2), Rect2(42, 13, 4, 2), Rect2(30, 9, 6, 4)])
+spawn_tiles = PackedVector2Array(3, 3, 3, 11, 3, 18, 62.5, 3, 62.5, 11, 62.5, 18, 16, 2, 50, 2, 16, 19.5, 50, 19.5, 12, 11, 54, 11)
+player_start = Vector2(26, 14.5)
+genres = Array[StringName]([&"topdown"])

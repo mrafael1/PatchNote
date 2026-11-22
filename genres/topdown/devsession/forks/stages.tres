@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="Fork" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/fork.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"stages"
+question = "The shooter needs a real run. I built three. Which one ships?"
+options = Array[StringName]([&"stages_gauntlet", &"stages_shifting", &"stages_breakout"])
+requires_forks = Array[StringName]([&"look_1", &"fork_enemy"])
+genre = &"topdown"
+play_runs = 6
+bump = &"minor"
+tags = Array[StringName]([&"stages"])
+mockup = true

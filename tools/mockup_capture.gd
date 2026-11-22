@@ -6,7 +6,10 @@ extends SceneTree
 ##
 ##   godot --path . -s tools/mockup_capture.gd -- [mockup fork id, default look_1]
 ##
-## Writes res://devsession/stills/<fork>_<take>.png (480x270), one per option. Run
+## Writes res://devsession/stills/<fork>_<take>.png (480x270), one per option. A
+## Stages take (its preset a StageSet, M35) gets a stage still instead: its three
+## stages as whole-arena frames mid-fight, the first large on top, the other two below
+## (Breakout's with the exit gate open). Run
 ## `godot --headless --path . --import` after it, then commit the PNGs. The change's
 ## .tres points at these files. Not part of the game.
 
@@ -43,7 +46,12 @@ func _run() -> void:
 	for option: Resource in fork.call(&"changes"):
 		var take: Resource = option.get(&"take")
 		var path := OUT_DIR + "%s_%s.png" % [fork_id, take.get(&"id")]
-		var image := await _capture(take.get(&"preset"))
+		var preset: Resource = take.get(&"preset")
+		var image: Image
+		if preset.get_script() and preset.get_script().get_global_name() == &"StageSet":
+			image = await _capture_stages(preset)
+		else:
+			image = await _capture(preset)
 		var err := image.save_png(path)
 		if err != OK:
 			failures += 1
@@ -126,3 +134,96 @@ func _crop(game: Node) -> Image:
 	var out := image.get_region(Rect2i(Vector2i(corner), Vector2i(size)))
 	out.resize(STILL_SIZE.x, STILL_SIZE.y, Image.INTERPOLATE_LANCZOS)
 	return out
+
+
+# --- Stage stills (M35) -----------------------------------------------------------
+
+const STAGE_FRAMES_WARM := 200
+const STAGE_FRAMES_WINDOW := 90
+## Where each stage goes in the 480x270 still: the first large, the other two below.
+const STAGE_SLOTS: Array[Rect2i] = [Rect2i(0, 6, 480, 160), Rect2i(4, 182, 234, 78), Rect2i(242, 182, 234, 78)]
+const STILL_BACKGROUND := Color(0.05, 0.055, 0.07)
+
+
+## Plays the take's stage set: each stage seeded with the same fight, the camera pulled
+## back over the whole arena; returns the composite of the busiest frame of each.
+func _capture_stages(stage_set: Resource) -> Image:
+	var set_script: GDScript = load("res://levels/stage_set.gd")
+	var main_script: GDScript = load("res://main.gd")
+	set_script.set(&"override", stage_set)
+	main_script.set(&"next_seed", SEED)
+	var game: Node = load("res://main.tscn").instantiate()
+	root.add_child(game)
+	current_scene = game
+	await physics_frame
+	await physics_frame
+	for child in game.get_children():
+		if child is CanvasLayer:
+			child.visible = false   # the game only: no HUD, no AI line
+	var run_state := root.get_node("RunState")
+	run_state.invincible = true
+	game.player.set_bot(true)
+	game.director.enabled = false
+	var run_loop: Node = game.genre.get(&"run_loop")
+	var out := Image.create(STILL_SIZE.x, STILL_SIZE.y, false, Image.FORMAT_RGBA8)
+	out.fill(STILL_BACKGROUND)
+	for i in stage_set.call(&"size"):
+		if i > 0:
+			run_loop.call(&"_start_stage", i)
+			await physics_frame
+		var best: Image = null
+		var best_score := -1
+		for f in STAGE_FRAMES_WARM + STAGE_FRAMES_WINDOW:
+			if f % (STAGE_FRAMES_WARM / WAVES) == 0 and f < STAGE_FRAMES_WARM:
+				game.spawn_wave(WAVE_SIZE)
+			if f == STAGE_FRAMES_WARM / 2 and stage_set.call(&"stage", i).get(&"goal") == &"exit":
+				run_loop.call(&"_open_exit")
+			await physics_frame
+			if f < STAGE_FRAMES_WARM:
+				continue
+			_frame_arena(game)
+			await process_frame
+			var score := 0
+			for child in game.get(&"world").get_children():
+				if child is CPUParticles2D or child.is_in_group(&"enemy"):
+					score += 1
+			if score > best_score:
+				best_score = score
+				best = _crop_arena(game)
+		var slot := STAGE_SLOTS[mini(i, STAGE_SLOTS.size() - 1)]
+		best.resize(slot.size.x, slot.size.y, Image.INTERPOLATE_LANCZOS)
+		out.blit_rect(best, Rect2i(Vector2i.ZERO, slot.size), slot.position)
+		print("[capture] %s stage %d busiest frame: score %d" % [stage_set.get(&"id"), i, best_score])
+	set_script.set(&"override", null)
+	game.queue_free()
+	current_scene = null
+	await process_frame
+	run_state.reset(0)
+	return out
+
+
+## The camera over the whole arena (it stops following and zooming for the still).
+func _frame_arena(game: Node) -> void:
+	var cam: Camera2D = game.camera
+	cam.set_process(false)
+	cam.position_smoothing_enabled = false
+	cam.limit_left = -100000
+	cam.limit_top = -100000
+	cam.limit_right = 100000
+	cam.limit_bottom = 100000
+	cam.offset = Vector2.ZERO
+	var bounds: Rect2 = game.genre.get(&"arena").bounds
+	var view := root.get_visible_rect().size
+	var z := minf(view.x / bounds.size.x, view.y / bounds.size.y)
+	cam.zoom = Vector2(z, z)
+	cam.global_position = bounds.get_center()
+
+
+func _crop_arena(game: Node) -> Image:
+	var image := root.get_texture().get_image()
+	var bounds: Rect2 = game.genre.get(&"arena").bounds
+	var screen := Vector2(image.get_size()) / root.get_visible_rect().size
+	var xf := root.get_canvas_transform()
+	var r := Rect2(xf * bounds.position * screen, bounds.size * xf.get_scale() * screen)
+	var rect := Rect2i(r).intersection(Rect2i(Vector2i.ZERO, image.get_size()))
+	return image.get_region(rect)

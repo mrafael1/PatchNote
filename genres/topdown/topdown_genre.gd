@@ -89,6 +89,7 @@ func begin_run() -> void:
 	run_loop.stages = stages
 	run_loop.stage_cleared.connect(_on_stage_cleared)
 	run_loop.stage_starting.connect(_on_stage_starting)
+	run_loop.exit_opened.connect(_on_exit_opened)
 	run_loop.begin()
 	var missing := Unlocks.missing_basics()
 	if not missing.is_empty():
@@ -144,7 +145,8 @@ func _on_stage_starting(_index: int, stage: StageDef) -> void:
 	_build_arena(stage.arena)
 	spawner.arena = arena
 	turn_clock.arena = arena
-	player.global_position = arena.player_start
+	if not (stages.keep_position and _clear_spot(player.global_position)):
+		player.global_position = arena.player_start
 	player.velocity = Vector2.ZERO
 	var rig := camera as CameraRig
 	rig.set_bounds(arena.bounds)
@@ -153,6 +155,20 @@ func _on_stage_starting(_index: int, stage: StageDef) -> void:
 	for node in get_tree().get_nodes_in_group(FOLLOW_GROUP):
 		if node is Node2D and world.is_ancestor_of(node) and not node.is_queued_for_deletion():
 			(node as Node2D).global_position = spawner.pick_point()
+
+
+## Shifting keeps the player in place when the new layout leaves the spot free.
+func _clear_spot(p: Vector2) -> bool:
+	return arena.distance_to_blocks(p) >= Tuning.TILE * 0.5
+
+
+## Breakout: the exit gate opens on the far side; reaching it ends the stage.
+func _on_exit_opened(_index: int) -> void:
+	var gate := ExitGate.new()
+	gate.name = "ExitGate"
+	world.add_child(gate)
+	gate.setup(arena, player)
+	gate.reached.connect(run_loop.reach_exit)
 
 
 ## Twice: now, and once the spawns queued this tick have entered the tree (RunState.spawn

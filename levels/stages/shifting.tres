@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="StageSet" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://levels/stage_set.gd" id="1"]
+[ext_resource type="Script" path="res://levels/stage_def.gd" id="2"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_3a.tres" id="arena_3a"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_3b.tres" id="arena_3b"]
+[ext_resource type="Resource" path="res://levels/arenas/arena_3c.tres" id="arena_3c"]
+
+[sub_resource type="Resource" id="s0"]
+script = ExtResource("2")
+arena = ExtResource("arena_3a")
+duration = 100
+goal = &"survive"
+prompts = 1
+spawn_rate = 1
+spawn_cap = 1
+
+[sub_resource type="Resource" id="s1"]
+script = ExtResource("2")
+arena = ExtResource("arena_3b")
+duration = 100
+goal = &"survive"
+prompts = 1
+spawn_rate = 1.15
+spawn_cap = 1.1
+
+[sub_resource type="Resource" id="s2"]
+script = ExtResource("2")
+arena = ExtResource("arena_3c")
+duration = 100
+goal = &"survive"
+prompts = 1
+spawn_rate = 1.3
+spawn_cap = 1.2
+
+[resource]
+script = ExtResource("1")
+id = &"shifting"
+stages = Array[Resource]([SubResource("s0"), SubResource("s1"), SubResource("s2")])
+keep_position = true

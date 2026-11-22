@@ -283,6 +283,29 @@ ROADMAP 1.3's ladder: Playable → **Stages**. The `stages` fork ships the step 
     - A 65 s first meter gave 88 s mortal: the first prompt (and its 1 HP heal) came too late.
   - The M33/M34 run hashes no longer apply: the prompts open at other times.
 
+### 4.3 As built (M35): the Stages step
+- **The question** `stages` asks "The shooter needs a real run. I built three. Which one ships?" (mockup stills, a minor bump).
+  - It comes once `look_1` and `fork_enemy` are answered and the shooter has 6 runs. On a fresh save it is session 6, after one AI-built patch.
+  - It is the genre's own question, so it lives in the genre's folder: `genres/topdown/devsession/forks/stages.tres` and `.../changes/stages_*.tres`. ChangeDB now also loads `genres/<id>/devsession/changes/` and `forks/`, so the shell still never names a genre.
+  - Its changes are of a new kind, `stages`: the take's preset is a `StageSet`. Shipping one writes the genre step `stages` (`SaveGame.set_genre_step`). The notes add "New run: Gauntlet, 3 stages".
+  - `StageSet.for_run()` plays the override, else the save's shipped take (`Unlocks.stage_set()`), else the one-arena run. While inert (tests, bot runs without a save) it stays one arena, so the v0.0 run and its hashes are unchanged.
+  - **A rework** swaps the set and keeps the step: the one-arena run is not an option, so it never comes back.
+- **The takes** (`levels/stages/`), 3 stages each, one prompt a stage, spawns ×1/×1.15/×1.3 in rate and ×1/×1.1/×1.2 in cap:
+  - **Gauntlet:** arena_0, 1 and 2, 100 s each.
+  - **Shifting:** "the Yard", `arena_3a/b/c`: the same frame (L-shaped corners) with a middle that moves (a cross, boxes, stairs), 100 s each. `StageSet.keep_position`: at a stage change the player stays where it stands unless the new layout puts a block there (then it goes to the start).
+  - **Breakout:** arena_2, 1 then 0. After 90 s (and the stage's prompt) an exit gate opens on the far side: the spawn marker farthest to walk from the player. Spawns go on; the stage ends when the player reaches it.
+    - The AI says "The exit is open. Get to it."; the HUD adds "EXIT OPEN: reach it"; an arrow by the player points at the gate while it is off screen.
+    - `ExitGate` (`levels/exit_gate.gd`) keeps a walking distance field over the tiles. The bot follows it (and keeps shooting); a test walks it from every marker in every Breakout arena.
+    - The run log adds `exit_open` and `exit_reached`.
+- **Stills:** `mockup_capture.gd` takes a Stages take's still as its three stages, whole-arena frames mid-fight (Breakout's with the gate open): the first large on top, the other two below.
+- **Tests:** `test_stages_step.gd` (the question, the step, the run, Breakout's gate and way, Shifting's stay) and same-seed replays of compressed Breakout and Shifting runs in `test_stages.gd`.
+- **Numbers (bot, 16 seeds each, `--fresh` with the basics, Punchy, the Tank and the take shipped):**
+  - **Invincible:** Gauntlet 350.1 s, Shifting 350.1 s, Breakout 342.9 s median (337–348; the walk to each exit adds ~6 s). All inside the 330–390 target; every run reaches stage 3/3 and wins.
+  - **Mortal (median time to death):** Gauntlet 86.3 s, Shifting 125.8 s, Breakout 129.2 s. The same save without Stages: 87.0 s (one arena; the Tank makes it shorter than M34.1's 104.5 s).
+    - Gauntlet's first stage is that arena, so it matches it. The Yard and Lanes are easier on the bot: Shifting and Breakout bots reach stage 2 more often (8 and 9 of 16, Gauntlet 4).
+  - **Unchanged before the question:** the one-arena run hash recorded on M34.2 (seeds 1–4, 190 s) matches.
+  - **Chains:** 4 fresh 8-run chains: the question came at session 6 in each, the save's step became `stages`, and the runs after it played 3 stages. One chain reworked the look in session 6 instead, which costs the question; it came again in session 7.
+
 ---
 
 ## 5. Bot and debug
@@ -346,7 +369,7 @@ ROADMAP 1.3's ladder: Playable → **Stages**. The `stages` fork ships the step 
   - **One-arena run unchanged:** `run_hash.gd` seeds 1–4, recorded at m33 before any change and compared after M34: same run over 182 s, 4 of 4.
   - **3-stage hash:** `--stages=gauntlet`, seeds 1–4 played twice: same run over 351 s, 4 of 4. Each run reached stage 3/3 and won.
   - **In the suite:** `test_stages.gd` replays a compressed 3-stage bot run with prompts twice in one process, and the per-10-frame hashes match. | — |
-| M35 | The Stages step | The `stages` fork, its 3 takes, stills, the genre step write, pacing, rework of the flavour. **Numbers:** invincible median 330–390 s with Stages shipped (each take); mortal time-to-death reported per take; v0.0 runs unchanged before the fork | — |
+| M35 | The Stages step | The `stages` fork, its 3 takes, stills, the genre step write, pacing, rework of the flavour. **Numbers:** invincible median 330–390 s with Stages shipped (each take); mortal time-to-death reported per take; v0.0 runs unchanged before the fork **As built:** section 4.3. Invincible 350.1/350.1/342.9 s (Gauntlet/Shifting/Breakout); mortal 86.3/125.8/129.2 s; the M34.2 one-arena hash matches. | — |
 | M36 | Playtest build | Export, the playtest sheet updated (forks, Rework, stages), boot line with forks. | **G12 — owner playtest.** A fresh save, about 10 runs: do two answers to one question feel like different games? Is Rework found, and does it feel like freedom rather than a chore? Are the new options creative enough? Is the 6-min staged run better than the 3-min one? |
 
 `tools/check.ps1` is green before every commit; each milestone gets a tag and a report, as before.

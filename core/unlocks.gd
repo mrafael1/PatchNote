@@ -53,6 +53,19 @@ static func missing_basics() -> Array[StringName]:
 	return out
 
 
+## The stage set the save's shipped Stages take plays (PLAN v6 4, M35); null when the
+## Stages step has not shipped, and while inert (the v0.0 run is the inert run).
+static func stage_set() -> StageSet:
+	if SaveGame.unlock_all:
+		return null
+	var out: StageSet = null
+	for id in SaveGame.shipped():
+		var c := ChangeDB.get_change(id)
+		if c != null and c.kind == &"stages" and c.take != null and c.take.preset is StageSet:
+			out = c.take.preset as StageSet
+	return out
+
+
 ## {tier, take}: the save's look (tier 0 when nothing shipped).
 static func look() -> Dictionary:
 	if SaveGame.unlock_all:

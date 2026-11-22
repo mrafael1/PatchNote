@@ -361,6 +361,8 @@ func _ship(c: Change, f: Fork, by: StringName) -> void:
 		return
 	if c.take != null and c.take.preset is LookPreset:
 		SaveGame.set_look((c.take.preset as LookPreset).tier, c.take.id)
+	if c.take != null and c.take.preset is StageSet:
+		SaveGame.set_genre_step(c.genre, "stages")   # a maturity step: a rework keeps it
 	shipped.append({"change": c, "take": c.take, "by": by, "fork": f})
 
 
@@ -589,6 +591,8 @@ static func unlock_lines(c: Change) -> Array[String]:
 	var out: Array[String] = []
 	if c.take != null and c.kind == &"look":
 		out.append("New look: %s" % c.take.title)
+	if c.take != null and c.kind == &"stages" and c.take.preset is StageSet:
+		out.append("New run: %s, %d stages" % [c.take.title, (c.take.preset as StageSet).size()])
 	for u in c.unlocks:
 		var m := MutationDB.get_mutation(u)
 		if m:

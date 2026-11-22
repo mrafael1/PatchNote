@@ -2,11 +2,15 @@ extends Node
 ## Autoload "ChangeDB" (PLAN v5 1.6). Finds every Change under res://devsession/changes/,
 ## like MutationDB: ResourceLoader.list_directory, sorted by id. Loads after MutationDB,
 ## whose patch ids a change may unlock. v5's chain of changes ships with M29; until then
-## the folder may be empty or missing.
+## the folder may be empty or missing. A genre's own changes and questions (its
+## maturity steps, M35) live in its folder, res://genres/<id>/devsession/changes/ and
+## forks/, so the shell never names a genre; they load the same way.
 
 const DIR := "res://devsession/changes/"
 ## The questions (PLAN v6 1.1): each groups 2-3 changes as alternatives.
 const FORK_DIR := "res://devsession/forks/"
+const GENRES_DIR := "res://genres/"
+const GENRE_SUBDIR := "/devsession/"
 
 var all: Array[Change] = []
 var forks: Array[Fork] = []
@@ -32,13 +36,13 @@ func summary_line() -> String:
 func reload() -> void:
 	all.clear()
 	_by_id.clear()
-	if DirAccess.dir_exists_absolute(DIR):
-		for entry in ResourceLoader.list_directory(DIR):
+	for dir in _dirs(DIR, "changes/"):
+		for entry in ResourceLoader.list_directory(dir):
 			if not entry.ends_with(".tres"):
 				continue
-			var c := load(DIR + entry) as Change
+			var c := load(dir + entry) as Change
 			if c == null:
-				push_error("Change at %s is not a Change" % (DIR + entry))
+				push_error("Change at %s is not a Change" % (dir + entry))
 				continue
 			if entry.get_basename() != String(c.id):
 				push_error("Change id '%s' does not match its file name %s" % [c.id, entry])
@@ -47,13 +51,13 @@ func reload() -> void:
 	_sort()
 	forks.clear()
 	_forks_by_id.clear()
-	if DirAccess.dir_exists_absolute(FORK_DIR):
-		for entry in ResourceLoader.list_directory(FORK_DIR):
+	for dir in _dirs(FORK_DIR, "forks/"):
+		for entry in ResourceLoader.list_directory(dir):
 			if not entry.ends_with(".tres"):
 				continue
-			var f := load(FORK_DIR + entry) as Fork
+			var f := load(dir + entry) as Fork
 			if f == null or entry.get_basename() != String(f.id):
-				push_error("Fork at %s is not a Fork named after its file" % (FORK_DIR + entry))
+				push_error("Fork at %s is not a Fork named after its file" % (dir + entry))
 				continue
 			_add_fork(f)
 	_link_forks()
@@ -63,6 +67,21 @@ func reload() -> void:
 	for f in forks:
 		for problem in fork_problems(f):
 			push_error(problem)
+
+
+## The shared folder, then each genre folder's `<sub>` (in folder name order), those that exist.
+func _dirs(shared: String, sub: String) -> Array[String]:
+	var out: Array[String] = []
+	if DirAccess.dir_exists_absolute(shared):
+		out.append(shared)
+	if DirAccess.dir_exists_absolute(GENRES_DIR):
+		var names := Array(DirAccess.get_directories_at(GENRES_DIR))
+		names.sort()
+		for g: String in names:
+			var dir := GENRES_DIR + g + GENRE_SUBDIR + sub
+			if DirAccess.dir_exists_absolute(dir):
+				out.append(dir)
+	return out
 
 
 func get_fork(id: StringName) -> Fork:
@@ -191,6 +210,14 @@ func problems(c: Change) -> Array[String]:
 			out.append("Change '%s' unlocks '%s', which is neither a patch nor an enemy" % [c.id, u])
 	if c.kind == &"look" and (c.take == null or c.take.preset == null):
 		out.append("Look change '%s' has no take with a preset" % c.id)
+	if c.kind == &"stages":
+		if c.take == null or not c.take.preset is StageSet:
+			out.append("Stages change '%s' has no take with a stage set" % c.id)
+		else:
+			for p in (c.take.preset as StageSet).problems():
+				out.append("Stages change '%s': %s" % [c.id, p])
+		if c.genre == &"":
+			out.append("Stages change '%s' names no genre" % c.id)
 	if _in_cycle(c):
 		out.append("Change '%s' is in a requires cycle" % c.id)
 	return out
