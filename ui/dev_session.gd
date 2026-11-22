@@ -132,7 +132,8 @@ func open(p_session: DevSession) -> void:
 	_buttons.clear()
 	_stills.clear()
 	_rework_card = null
-	var with_rework := session.shape == DevSession.FORK and session.can_rework()
+	var with_rework := (session.shape == DevSession.FORK or session.shape == DevSession.IMPLEMENT) \
+			and session.can_rework()
 	var mockup := session.fork != null and session.fork.mockup
 	var width := card_width(session.cards.size(), mockup, with_rework, _screen_width())
 	_still_size = STILL
@@ -239,7 +240,7 @@ func _add_card(i: int, width: float) -> void:
 
 ## The Rework card: last, outlined in its own colour, key 4.
 func _add_rework_card() -> void:
-	var b := _card_button(session.fork.mockup)
+	var b := _card_button(session.fork != null and session.fork.mockup)
 	b.custom_minimum_size.x = REWORK_CARD_WIDTH
 	b.self_modulate = REWORK_TINT
 	var outline := StyleBoxFlat.new()
@@ -398,6 +399,11 @@ func _ready_for_input() -> bool:
 
 
 ## True while the rework list shows and accepts a swap or its bottom button.
+## The screen is up and past its input delay (the bot waits for it before choosing).
+func input_ready() -> bool:
+	return _root.visible and _ready_for_input()
+
+
 func list_ready() -> bool:
 	return _ready_for_input() and _list.visible
 

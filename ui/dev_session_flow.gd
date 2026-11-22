@@ -4,7 +4,9 @@ extends Node
 ## scene (after the report, F9) and the start screen (a pending session). It owns both
 ## screens and ships through DevSession; whoever starts it decides what "Play" does.
 ##
-## BASIC goes straight to the patch notes (the AI shipped a basic itself);
+## BASIC goes straight to the patch notes (the AI shipped a basic itself), and so does
+## IMPLEMENT unless Rework is on offer (then the screen shows the AI's line, "Play" and
+## the Rework card; the AI's patch has shipped either way);
 ## NONE shows the line and "Play" with no bump; a pick ships, then shows the notes.
 
 ## The session is shipped and logged (the shell writes its telemetry line).
@@ -37,7 +39,9 @@ func is_open() -> bool:
 
 func start(p_session: DevSession) -> void:
 	session = p_session
-	if session.shape == DevSession.BASIC:
+	if session.shape == DevSession.IMPLEMENT:
+		session.implement()
+	if session.shape == DevSession.BASIC or (session.shape == DevSession.IMPLEMENT and not session.can_rework()):
 		session.finish()
 		session_done.emit(session)
 		notes.open(session)
@@ -60,4 +64,7 @@ func _on_rework(fork_id: StringName, to_id: StringName) -> void:
 func _on_nothing_to_ship() -> void:
 	if session.finish():
 		session_done.emit(session)
-	play_requested.emit()
+	if session.shape == DevSession.IMPLEMENT:
+		notes.open(session)   # the AI's patch has notes
+	else:
+		play_requested.emit()

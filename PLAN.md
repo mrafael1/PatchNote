@@ -26,6 +26,10 @@ Milestones continue from **M31**.
 - **G11:** "gameplay is basic for now => but it's not necessary a bad point"; "mockup integration is a first nice step"; "upgrades can be even more creative in the future"; the next-patch gauge (fixed in M30.2).
 - **Divergence:** "current dev session implement all features until there is no more. If we want each player to build smally / mediumly different final games without being frustrated and not be able to change a previous answer".
 - **The mechanism:** the owner was shown A (exclusive picks plus rework), B (limited slots) and C (version rollback) and answered **"A"**.
+- **After M34 (2026-11-22):** "dev session should never be about new patch in future run (ai will talk about implementing new patch but user never chose which one he want between 3 for example)"; "mockup and choices are only for big features, new mechanics impacting run from start".
+  - Asked which questions are big, the owner chose **Look, Enemy and Stages**.
+  - Asked how the AI adds in-run patches, the owner chose **one per session, by taste**.
+  - See 1.7.
 
 **Principles that hold:**
 - Power stays inside the run (ROADMAP 1.8 rule 5): forks change *how* you play, never your stats.
@@ -131,6 +135,21 @@ In order:
 - **F2:** one "rework <fork> <option>" button per shelved option (`Main.debug_rework`). It logs a session of its own, like Shift+F9.
 - **Fixed on the way:** three mockup cards were 1368 px wide on the 1280 px screen from M29 to M32, so the third card was clipped. Cards now shrink to fit (`DevSessionScreen.card_width`), and their stills shrink with them.
 
+### 1.7 As built (M34.2): big choices only
+- **Questions (forks)** are only for big features that change a run from its start: `look_1`, `fork_enemy`, and `stages` (M35). `fork_hands`, `fork_pressure` and `fork_odd` are gone.
+- **The AI builds the in-run patches itself.** IMPLEMENT is a new session shape, between FORK and REWORK in 1.2's order.
+  - It applies when no question is ready and an in-run patch (a change in no fork) is left to build.
+  - The AI draws one by taste (weight × `Taste.weight_mult_raw(tags)`, seeded as the fork draw), ships it with a patch step and says so: "No question this time. I built something for your runs: "Orbit"."
+  - The notes list it with "Built by the AI. It shows up among your patch offers."
+  - When Rework is on offer (2 answers and a shelf), the screen shows "Play" and the Rework card. A rework then comes on top of the AI's patch (two patch steps); otherwise the flow goes straight to the notes, as a BASIC.
+  - Without that, a save would wait ~9 sessions before it could change its mind.
+- **The AI never answers a question itself** (`Tuning.ai_own_ship_every = 0`; the code stays).
+- **A fresh save's sessions:** 2 basics, the look, the enemy (and Stages once it is ready), then 9 IMPLEMENT sessions, then REWORK-only.
+- **Saves are unchanged:** shipped answers to the old patch questions stay shipped, and the AI builds the rest.
+- **Divergence** now comes from the 2 questions (3 × 3) and Stages, plus the order the patches arrive in. A finished save has every patch.
+- **Numbers (bot):** 16 fresh 14-run invincible chains with rework chance 0.2. Each played 2 basic, 2 fork and 9 IMPLEMENT sessions; 0 failures, and every save ends with all 13 changes it can have. 25 IMPLEMENT sessions reworked as well (11 chains), with 0 mismatches in the next run. 8 distinct final answer sets of the 9 possible.
+  - Found on the way: the bot rolled its rework chance every frame while the screen's input delay ignored "open Rework" but not "Play", so it never reworked there. It now waits for `DevSessionScreen.input_ready()`.
+
 ---
 
 ## 2. The dev session screens
@@ -153,10 +172,10 @@ The bar for every option, from "upgrades can be even more creative" (G11) and RO
 |---|---|---|---|---|---|
 | `look_1` | "How should it feel?" | Punchy · Clean · Arcade (exist) | minor | — | mockup; due after the basics, as today |
 | `fork_enemy` | "Who joins the fight?" | **Tank** (exists) · **Bomber** (exists) · **Lancer** (new) | patch | — | |
-| `fork_hands` | "How do you fight back?" | **Auto-aim** (exists) · **Motion time** (exists) · **Orbit** (new) | patch | — | |
-| `fork_pressure` | "What makes a run tense?" | **Horde** (exists) · **Hunter** (new) · **Elite** (new) | patch | `fork_enemy` | was horde "requires tank" |
-| `fork_odd` | "Something I want to try" | **Echo** (new) · **Magnet** (new) · **Well** (new) | patch | `fork_hands` | the AI's own pitch voice ("Experimental:") |
-| `stages` | "The shooter needs a real run. Which one?" | Gauntlet · Shifting · Breakout | minor (maturity step) | 3 forks answered | mockup; `play_runs = 6`; section 4 |
+| ~~`fork_hands`~~ | (removed in M34.2) | Auto-aim · Motion time · Orbit | — | — | built by the AI, one per session (1.7) |
+| ~~`fork_pressure`~~ | (removed in M34.2) | Horde · Hunter · Elite | — | — | built by the AI (1.7) |
+| ~~`fork_odd`~~ | (removed in M34.2) | Echo · Magnet · Well | — | — | built by the AI (1.7); the "Experimental:" voice stays |
+| `stages` | "The shooter needs a real run. Which one?" | Gauntlet · Shifting · Breakout | minor (maturity step) | `look_1` and `fork_enemy` answered (M34.2) | mockup; `play_runs = 6`; section 4 |
 
 **New pieces** (one folder each; takes for `topdown` only; parity rule as v5 M30: mortal time-to-death within ±15% with the piece unlocked vs not, 16 seeds):
 - **Lancer** (enemy): stops, telegraphs a line for 0.7 s, then charges along it through other enemies (they take its hit too, as enemy-faction damage, like the bomber). Hp 3. It reuses `enemy_walker.gd` with a `lancer` archetype (v4 M20's design).

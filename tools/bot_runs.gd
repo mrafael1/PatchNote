@@ -288,9 +288,12 @@ func _answer_session(flow: Node, run_seed: int) -> String:
 				return _session_line(session)
 			var t: Array = targets[rng.randi_range(0, targets.size() - 1)]
 			flow.screen.rework(t[0], t[1])
-		elif flow.screen.is_open() and (session.cards as Array).is_empty() and not rework_only:
-			flow.screen.play()
-			return _session_line(session)
+		elif flow.screen.input_ready() and (session.cards as Array).is_empty() and not rework_only \
+				and not flow.screen.list_open():
+			if flow.screen.has_rework_card() and rng.randf() < rework_chance:
+				flow.screen.open_rework()   # IMPLEMENT: the AI's patch ships anyway
+			else:
+				flow.screen.play()
 		elif flow.notes.is_open():
 			var line := _session_line(session)
 			flow.notes.play()

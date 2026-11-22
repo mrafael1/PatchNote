@@ -177,7 +177,9 @@ var smoke_stop_read := 2.0
 # --- Dev session (PLAN v5 4) ---
 var session_cards := 3            # cards in a 3-changes session
 var agenda_min_available := 2     # a session showing at least this many cards has one agenda card
-var ai_own_ship_every := 4        # every Nth session the AI also ships a change of its own; 0 = never
+# 0 since the owner feedback after M34: questions are the player's (big features only);
+# the AI builds the in-run patches itself (DevSession IMPLEMENT).
+var ai_own_ship_every := 0        # every Nth session the AI also answers a fork; 0 = never
 # The AI answers a fork only when this many ready non-mockup forks are left after the
 # pick, so it never takes the player's last question (PLAN v6 1.2, M31).
 var ai_fork_min_ready := 2

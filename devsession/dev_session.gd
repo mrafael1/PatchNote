@@ -14,8 +14,15 @@ extends RefCounted
 ##   least Tuning.ai_fork_min_ready of them are left (it never takes the last one).
 ##   Once Tuning.rework_after_forks forks are answered and the shelf is not empty, it
 ##   also offers Rework (can_rework()): swapping a past answer costs the session.
-## - REWORK: no fork is ready but the shelf is not empty (PLAN v6 1.2-1.3): the rework
-##   list and "Keep it as it is" (no bump).
+## - IMPLEMENT: no fork is ready but a new in-run patch is left (a change in no fork,
+##   owner feedback after M34: "dev session should never be about new patch in future
+##   run"; questions are only for big features that change a run from its start). The
+##   AI builds one itself, drawn by taste (implement()), and says so. Once
+##   Tuning.rework_after_forks forks are answered and the shelf is not empty, the screen
+##   also offers Rework, on top of the AI's patch; otherwise the flow goes straight to
+##   the patch notes.
+## - REWORK: nothing new is left but the shelf is not empty (PLAN v6 1.2-1.3): the
+##   rework list and "Keep it as it is" (no bump).
 ## - NONE: nothing is ready and the shelf is empty: no card, no bump.
 ##
 ## The fork and its order come from a generator seeded with the run's seed and the
@@ -24,6 +31,7 @@ extends RefCounted
 
 const BASIC := &"basic"
 const FORK := &"fork"
+const IMPLEMENT := &"implement"
 const REWORK := &"rework"
 const NONE := &"none"
 
@@ -33,6 +41,8 @@ const AI := &"ai"
 const PENDING_LINE := "The last build is still on my desk."
 const NONE_LINE := "I'm working on something bigger."
 const BASIC_LINE := "That build was missing something basic. Fixed it."
+const IMPLEMENT_LINE := "No question this time. I built something for your runs: \"%s\"."
+const IMPLEMENT_NOTE := "Built by the AI. It shows up among your patch offers."
 const AGENDA_LABEL := "AI's wish"
 const AGENDA_LINE := "This is the one I want to build. You will not pick it. Pick it anyway."
 const SHELF_LINE := "On the shelf: %s."
@@ -46,6 +56,7 @@ const BACK_ON_SHELF_LINE := "Back on the shelf: %s."
 
 var shape: StringName = NONE
 var fork: Fork                ## the question asked (FORK)
+var new_patch: Change         ## what the AI builds (IMPLEMENT)
 ## {"id": String (change id), "change": Change, "take": MockupTake or null,
 ## "agenda": bool, "taste_id": StringName, "tags": Array}
 var cards: Array[Dictionary] = []
@@ -87,6 +98,9 @@ static func plan(run_seed: int, context := {}) -> DevSession:
 			s.shape = FORK
 			s.fork = s._choose_fork(ready)
 			s._deal()
+		elif not new_patches_left().is_empty():
+			s.shape = IMPLEMENT
+			s.new_patch = s._choose_patch(new_patches_left())
 		elif not rework_rows().is_empty():
 			s.shape = REWORK
 	s.opening = s._opening(context)
@@ -127,6 +141,34 @@ static func ready_forks() -> Array[Fork]:
 			continue
 		out.append(f)
 	return out
+
+
+## The in-run patches the AI still has to build (IMPLEMENT): changes in no fork that
+## are not basics, not shipped, with every requires shipped. In id order.
+static func new_patches_left() -> Array[Change]:
+	var out: Array[Change] = []
+	for c in ChangeDB.all:
+		if c.is_basic() or c.fork != &"" or SaveGame.has_shipped(c.id):
+			continue
+		if c.requires.all(func(r: StringName) -> bool: return SaveGame.has_shipped(r)):
+			out.append(c)
+	return out
+
+
+## One of them, drawn by taste over its tags (what the player picks in runs leans it).
+func _choose_patch(pool: Array[Change]) -> Change:
+	var weights: Array[float] = []
+	var total := 0.0
+	for c in pool:
+		var w := _taste.weight_mult_raw(&"", c.tags)
+		weights.append(w)
+		total += w
+	var roll := _rng.randf() * total
+	for i in pool.size():
+		roll -= weights[i]
+		if roll < 0.0:
+			return pool[i]
+	return pool[pool.size() - 1]
 
 
 static func _genre_playable(genre: StringName) -> bool:
@@ -225,7 +267,8 @@ static func rework_rows() -> Array[Dictionary]:
 func can_rework() -> bool:
 	if done or rework_rows().is_empty():
 		return false
-	return shape == REWORK or (shape == FORK and answers().size() >= Tuning.rework_after_forks)
+	return shape == REWORK or ((shape == FORK or shape == IMPLEMENT) \
+			and answers().size() >= Tuning.rework_after_forks)
 
 
 ## Swaps fork fork_id's answer for its shelved option to_id (PLAN v6 1.3): the old
@@ -240,6 +283,7 @@ func rework(fork_id: StringName, to_id: StringName) -> bool:
 	if f == null or to == null or not to in f.shelf():
 		return false
 	var from := f.answer()
+	implement()   # an IMPLEMENT session's patch ships whatever the player reworks
 	SaveGame.unship(from.id)
 	SaveGame.ship(to.id, GameVersion.PATCH)
 	if to.take != null and to.take.preset is LookPreset:
@@ -287,14 +331,23 @@ func pick(index: int) -> bool:
 	return true
 
 
-## A session with no choice: BASIC ships the next basic as the AI's own; NONE ships
-## nothing and does not bump; REWORK keeps everything (keep()). All are logged. False
-## if the session needs a pick.
+## IMPLEMENT: the AI ships its new patch (once). The session stays open for Rework
+## until finish() or rework().
+func implement() -> void:
+	if shape != IMPLEMENT or done or new_patch == null or SaveGame.has_shipped(new_patch.id):
+		return
+	_ship(new_patch, null, AI)
+
+
+## A session with no choice: BASIC ships the next basic as the AI's own; IMPLEMENT its
+## new patch; NONE ships nothing and does not bump; REWORK keeps everything (keep()).
+## All are logged. False if the session needs a pick.
 func finish() -> bool:
 	if done or can_pick():
 		return false
 	if shape == REWORK:
 		return keep()
+	implement()
 	if shape == BASIC:
 		var basics := basics_left()
 		if not basics.is_empty():
@@ -454,6 +507,8 @@ func _opening(context: Dictionary) -> String:
 	match shape:   # a fork's question is the screen's title (PLAN v6 2)
 		BASIC:
 			parts.append(BASIC_LINE)
+		IMPLEMENT:
+			parts.append(IMPLEMENT_LINE % new_patch.short_name())
 		REWORK:
 			parts.append(REWORK_LINE)
 		NONE:
@@ -482,6 +537,13 @@ func notes_lines() -> Array[String]:
 	if shipped.is_empty():
 		return out
 	out.append("Version %s" % version_after().short())
+	for s in shipped:
+		if s.by == AI and s.fork == null and shape == IMPLEMENT:
+			var c: Change = s.change
+			out.append("• %s: %s" % [c.title, c.pitch])
+			for line in unlock_lines(c):
+				out.append("    " + line)
+			out.append("    " + IMPLEMENT_NOTE)
 	if not reworked.is_empty():
 		var from: Change = reworked.from
 		var to: Change = reworked.to
@@ -491,6 +553,8 @@ func notes_lines() -> Array[String]:
 		out.append(BACK_ON_SHELF_LINE % from.short_name())
 		return out
 	for s in shipped:
+		if s.by == AI and s.fork == null and shape == IMPLEMENT:
+			continue   # listed above
 		var c: Change = s.change
 		var take: MockupTake = s.take
 		out.append("• %s: %s" % [c.title, take.line if take else c.pitch])
