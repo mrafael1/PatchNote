@@ -380,13 +380,16 @@ func test_the_start_screen_shows_the_save_and_resets_it_in_two_clicks() -> void:
 	assert_eq(StartScreen.save_line(), "v0.0.0 · 0 runs")
 	SaveGame.go_live(TEST_PATH, true)
 	SaveGame.record_run(&"topdown", &"win", 5.0, {})
-	assert_eq(StartScreen.save_line(), "v0.0.0 · 1 run")
+	# A run ended and its dev session never happened: the screen says so (PLAN v5 1.5).
+	var pending := "v0.0.0 · 1 run" + char(10) + DevSession.PENDING_LINE
+	assert_eq(StartScreen.save_line(), pending)
 	StartScreen.save_live = false   # the real save must not go live in a test
 	var screen: StartScreen = load("res://ui/start_screen.tscn").instantiate()
 	add_child_autofree(screen)   # save_live stays false: after_each puts it back
 	assert_true(SaveGame.persist, "the screen kept the test's save")
 	assert_eq(SaveGame.save_path, TEST_PATH)
-	assert_eq(screen.save_label.text, "v0.0.0 · 1 run")
+	assert_eq(screen.save_label.text, pending)
+	assert_eq(screen.start_button.text, StartScreen.START_PENDING)
 	assert_false(screen.reset_button.disabled)
 	screen.press_reset()
 	assert_eq(int(SaveGame.state().runs), 1, "the first click only arms")

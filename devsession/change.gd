@@ -20,5 +20,13 @@ const KINDS: Array[StringName] = [&"patch", &"enemy", &"look"]
 @export var takes: Array[MockupTake] = []        ## a mockup: exactly 3 takes
 
 
+## The name the AI's lines use: an enemy change is its archetype ("Tank"), anything
+## else its title.
+func short_name() -> String:
+	if kind == &"enemy" and not unlocks.is_empty():
+		return String(unlocks[0]).capitalize()
+	return title
+
+
 func is_mockup() -> bool:
 	return not takes.is_empty()

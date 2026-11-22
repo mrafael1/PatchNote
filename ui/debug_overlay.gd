@@ -2,7 +2,8 @@ class_name DebugOverlay
 extends CanvasLayer
 ## Debug tools (PLAN 9).
 ## F1 info overlay · F2 mutation console · F3 invincibility · F4 spawn wave ·
-## F5 restart with the same seed · F6 open a prompt now · F7 toggle bot.
+## F5 restart with the same seed · F6 open a prompt now · F7 toggle bot · F9 dev
+## session now (PLAN v5 5) · Shift+F9 ship the next change without the screen.
 
 var game: Node  ## the main scene: provides player, spawn_wave(), restart()
 
@@ -33,13 +34,21 @@ func _ready() -> void:
 	var title := Label.new()
 	title.text = "Mutation console (click to apply / revert; BIG: swap in; MED, BOSS: add / remove AI)"
 	box.add_child(title)
-	for m in MutationDB.all:
-		var b := Button.new()
-		b.focus_mode = Control.FOCUS_NONE
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.pressed.connect(toggle_mutation.bind(m.id))
-		box.add_child(b)
-		_buttons[m.id] = b
+	# Parked patches (PLAN v5 1.3) under their own heading; they apply as before (5).
+	for parked: bool in [false, true]:
+		if parked:
+			var heading := Label.new()
+			heading.text = "PARKED"
+			box.add_child(heading)
+		for m in MutationDB.all:
+			if m.parked != parked:
+				continue
+			var b := Button.new()
+			b.focus_mode = Control.FOCUS_NONE
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.pressed.connect(toggle_mutation.bind(m.id))
+			box.add_child(b)
+			_buttons[m.id] = b
 	add_child(_console)
 	_refresh_console()
 	EventBus.patch_applied.connect(func(_m: Resource) -> void: _refresh_console())
@@ -103,6 +112,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed(&"debug_prompt"):
 		if game and game.director and not RunState.is_paused_except(&"turn"):
 			game.director.open_prompt()
+	elif event.is_action_pressed(&"debug_session"):
+		if game and game.has_method(&"open_dev_session"):
+			var key := event as InputEventKey
+			if key and key.shift_pressed:
+				game.ship_next_change()
+			else:
+				game.open_dev_session()
 	elif event.is_action_pressed(&"debug_bot"):
 		if game and is_instance_valid(game.player):
 			game.player.set_bot(not game.player.is_bot())
@@ -121,7 +137,8 @@ func _refresh_console() -> void:
 		var big_tag := ""
 		if m:
 			big_tag = " BIG" if m.is_big else " MED" if m.is_medium else " BOSS" if m.boss_only else ""
-		(_buttons[id] as Button).text = "%s%s %s — %s" % [mark, big_tag, id, m.title if m else ""]
+		var parked := " (PARKED)" if m and m.parked else ""   # PLAN v5 5
+		(_buttons[id] as Button).text = "%s%s %s%s — %s" % [mark, big_tag, id, parked, m.title if m else ""]
 
 
 func _build_text() -> String:
@@ -149,7 +166,7 @@ func _build_text() -> String:
 		var changed := "  *" if rules[key] != base[key] else ""
 		lines.append("  %s = %s%s" % [key, rules[key], changed])
 	lines.append("kills by source: %s" % [RunState.kills_by_source])
-	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F6 prompt  F7 bot")
+	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F6 prompt  F7 bot  F9 dev session  Shift+F9 ship next")
 	return "\n".join(lines)
 
 

@@ -173,7 +173,7 @@ static func set_taste(taste: Dictionary) -> void:
 
 
 ## Ships a change: adds it to `shipped` (once) and bumps the version by kind. The dev
-## session (M29) calls this, then logs the session and writes. Returns false if it was
+## session (DevSession) calls this, then logs the session and writes. Returns false if it was
 ## already shipped or the kind is unknown.
 static func ship(id: StringName, bump: StringName) -> bool:
 	if has_shipped(id):
@@ -186,11 +186,25 @@ static func ship(id: StringName, bump: StringName) -> bool:
 	return true
 
 
-## The dev session is done: log it, clear pending_session, write.
-static func finish_session(entry: Dictionary) -> void:
+## The look a shipped look take sets (PLAN v5 1.7): {tier, take}. Written with the
+## session (finish_session).
+static func set_look(tier: int, take: StringName) -> void:
+	state().look = {"tier": tier, "take": String(take)}
+
+
+## The dev session is done: log it, keep the taste it ended with (when given), clear
+## pending_session, write.
+static func finish_session(entry: Dictionary, taste := {}) -> void:
 	(state().sessions as Array).append(entry)
+	if not taste.is_empty():
+		state().taste = _clean_taste(taste)
 	state().pending_session = false
 	write()
+
+
+## Dev sessions logged so far (the next one is number session_count() + 1).
+static func session_count() -> int:
+	return (state().sessions as Array).size()
 
 
 ## The start screen's "Reset save": a new save, written at once when live.

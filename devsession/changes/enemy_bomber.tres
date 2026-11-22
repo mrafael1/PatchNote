@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"enemy_bomber"
+title = "New enemy: Bomber"
+pitch = "It walks up, it blinks, it explodes. It hurts its friends too. I find that funny."
+kind = &"enemy"
+bump = &"patch"
+requires = Array[StringName]([&"enemy_tank"])
+unlocks = Array[StringName]([&"bomber"])
+tags = Array[StringName]([&"spawn"])

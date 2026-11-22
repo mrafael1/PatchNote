@@ -123,7 +123,37 @@ static func from_save(d: Dictionary) -> Taste:
 	return t
 
 
+# --- Dev session (PLAN v5 4.2) ---------------------------------------------------
+# A session card is a change (it moves its tags) or a look take (it moves its
+# "look:<take>" id). Each card is {"taste_id": StringName (&"" for none), "tags": Array}.
+
+## The player picked one of a session's cards: the same PICK and PASS steps as an offer.
+func on_session_pick(cards: Array[Dictionary], pick: Dictionary) -> void:
+	for c in cards:
+		if c != pick:
+			_nudge_raw(c.get("taste_id", &""), c.get("tags", []), PASS)
+	if not pick.is_empty():
+		_nudge_raw(pick.get("taste_id", &""), pick.get("tags", []), PICK)
+
+
+func score_raw(id: StringName, tags: Array) -> float:
+	var s := float(by_id.get(id, 0.0)) if id != &"" else 0.0
+	for tag: StringName in tags:
+		s += float(by_tag.get(tag, 0.0))
+	return s
+
+
+func weight_mult_raw(id: StringName, tags: Array) -> float:
+	return clampf(1.0 + LEAN * score_raw(id, tags), MIN_MULT, MAX_MULT)
+
+
 func _nudge(m: Mutation, amount: float) -> void:
-	by_id[m.id] = float(by_id.get(m.id, 0.0)) + amount
-	for tag in m.tags:
+	_nudge_raw(m.id, m.tags, amount)
+
+
+## Moves id by amount (when it is not empty) and each tag by TAG_SHARE of it.
+func _nudge_raw(id: StringName, tags: Array, amount: float) -> void:
+	if id != &"":
+		by_id[id] = float(by_id.get(id, 0.0)) + amount
+	for tag: StringName in tags:
 		by_tag[tag] = float(by_tag.get(tag, 0.0)) + amount * TAG_SHARE

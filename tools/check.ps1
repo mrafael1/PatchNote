@@ -90,9 +90,13 @@ if ($BotRuns) {
     # Two mortal runs chained through a fresh scratch save (PLAN v5 M27): the file counts both.
     $chain = Invoke-Godot 'bot_runs_save' '--fixed-fps 60 -s tools/bot_runs.gd -- --save=user://save_check/save.json --keep-save --fresh 1 2'
     Test-Errors 'bot_runs_save' $chain
-    Select-String -Path $chain.Log -Pattern '^\[botrun\] (save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+    Select-String -Path $chain.Log -Pattern '^\[botrun\] (save|session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($chain.Text -notmatch '\[botrun\] summary: 2 runs, 0 failures') { $failures += 'bot_runs_save: summary missing or failures' }
     if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=2 ') { $failures += 'bot_runs_save: the save does not count 2 runs' }
+    # Between the two runs the report opens the dev session (PLAN v5 M29): a fresh save's
+    # first session is the look mockup, and its pick ships v0.1.0.
+    if ($chain.Text -notmatch '\[botrun\] session=1 after_run=1 shape=mockup .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
+    if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=2 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check' }

@@ -11,7 +11,7 @@ const ACTIONS: Array[StringName] = [
 	&"patch_history", &"pause",
 	&"choose_1", &"choose_2", &"choose_3",
 	&"debug_overlay", &"debug_console", &"debug_invincible", &"debug_spawn",
-	&"debug_restart", &"debug_prompt", &"debug_bot",
+	&"debug_restart", &"debug_prompt", &"debug_bot", &"debug_session",
 ]
 
 
@@ -40,6 +40,7 @@ func _init() -> void:
 	_bind(&"debug_restart", [_key(KEY_F5)])
 	_bind(&"debug_prompt", [_key(KEY_F6)])
 	_bind(&"debug_bot", [_key(KEY_F7)])
+	_bind(&"debug_session", [_key(KEY_F9)])   # Shift+F9 ships without the screen
 
 
 func _bind(action: StringName, events: Array) -> void:

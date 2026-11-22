@@ -1,9 +1,13 @@
 class_name Telemetry
 extends RefCounted
 ## Playtest telemetry (PLAN 8): one JSON line per finished run, appended to a file.
+## Dev sessions append a "session" line each (PLAN v5 4.5).
 ## Nothing in the game ever reads it back.
 
 const DEFAULT_PATH := "user://playtest/runs.jsonl"
+## PLAN v5 4.5: schema 2 adds look, pool_size and enemies to schema 1's keys (genre and
+## game_version came with M27); dev sessions add "session" lines (DevSession).
+const SCHEMA := 2
 
 ## Where lines go. Tools and tests point it elsewhere so they never mix with real playtests.
 static var log_path := DEFAULT_PATH
@@ -66,7 +70,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 			&"history_open":
 				history_opens += 1
 	var record := {
-		"schema": 1,
+		"schema": SCHEMA,
 		"session_id": session(),
 		"run_index": _runs_this_session,
 		"timestamp": Time.get_datetime_string_from_system(true),
@@ -78,6 +82,9 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"build_number": RunState.build_number,
 		"game_version": SaveGame.version().label(),
 		"genre": String(RunState.genre),
+		"look": Unlocks.look(),
+		"pool_size": Unlocks.pool().size(),
+		"enemies": Unlocks.enemies().map(func(e: StringName) -> String: return String(e)),
 		"kills": RunState.kills,
 		"kills_by_source": _plain(RunState.kills_by_source),
 		"damage_by_source": _plain(RunState.damage_by_source),

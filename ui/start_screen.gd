@@ -9,10 +9,16 @@ extends Control
 ## has it: the save turns on when the screen starts a game. Nothing touches the save
 ## with --autostart (the export's smoke boot) or --inert-save (check.ps1's boot), or
 ## when a tool cleared save_live first (bot_runs.gd and run_hash.gd choose their own).
+##
+## A pending dev session (the game closed between a run's end and its session, PLAN v5
+## 1.5) comes first: the screen says so, and Start opens that session; its "Play"
+## starts the game.
 
 const GAME_SCENE := "res://main.tscn"
 const RESET_LABEL := "Reset save"
 const RESET_ARMED := "Click again to erase the save"
+const START := "Start"
+const START_PENDING := "Dev session"
 
 ## Tools set this to false before instancing the screen.
 static var save_live := true
@@ -23,6 +29,7 @@ var volume: HSlider
 var start_button: Button
 var save_label: Label
 var reset_button: Button
+var dev_flow: DevSessionFlow
 var _reset_armed := false
 
 
@@ -62,7 +69,7 @@ func _ready() -> void:
 	column.add_child(save_label)
 
 	start_button = Button.new()
-	start_button.text = "Start"
+	start_button.text = START
 	start_button.custom_minimum_size = Vector2(0, 54)
 	start_button.add_theme_font_size_override(&"font_size", 24)
 	start_button.pressed.connect(start)
@@ -91,6 +98,11 @@ func _ready() -> void:
 	reset_button.text = RESET_LABEL
 	reset_button.pressed.connect(press_reset)
 	column.add_child(reset_button)
+	dev_flow = DevSessionFlow.new()
+	dev_flow.name = "DevSession"
+	add_child(dev_flow)
+	dev_flow.play_requested.connect(_start_game)
+	dev_flow.session_done.connect(_on_session_done)
 	refresh_save()
 
 	start_button.grab_focus.call_deferred()
@@ -122,12 +134,20 @@ static func parse_seed(text: String) -> int:
 	return absi(hash(t)) % 1000000
 
 
-## "v0.1.2 · 4 runs", or why the save cannot be used.
+## "v0.1.2 · 4 runs", or why the save cannot be used. A pending session says so.
 static func save_line() -> String:
 	if SaveGame.read_only:
 		return "Save from a newer build (read-only)"
 	var runs := int(SaveGame.state().runs)
-	return "%s · %d run%s" % [SaveGame.version().label(), runs, "" if runs == 1 else "s"]
+	var line := "%s · %d run%s" % [SaveGame.version().label(), runs, "" if runs == 1 else "s"]
+	if session_pending():
+		line += "\n" + DevSession.PENDING_LINE
+	return line
+
+
+## The save holds a run whose dev session never happened.
+static func session_pending() -> bool:
+	return not SaveGame.read_only and bool(SaveGame.state().pending_session)
 
 
 ## False for tools and smoke boots: the screen then leaves the save as it is.
@@ -142,6 +162,7 @@ func refresh_save() -> void:
 	if reset_button.disabled:
 		_reset_armed = false
 	reset_button.text = RESET_ARMED if _reset_armed else RESET_LABEL
+	start_button.text = START_PENDING if session_pending() else START
 
 
 ## Two clicks: the first arms, the second erases the save (a new v0.0.0 save, written).
@@ -164,9 +185,25 @@ func _go_live() -> void:
 		SaveGame.go_live()
 
 
+## Start: the pending dev session first, if the (now live) save has one; else the game.
 func start() -> void:
+	if dev_flow.is_open():
+		return
 	_go_live()
 	Main.next_seed = parse_seed(seed_field.text)
+	if SaveGame.is_live() and session_pending():
+		dev_flow.start(DevSession.plan(int(SaveGame.state().runs), {"pending": true}))
+		return
+	_start_game()
+
+
+## A pending session is a session like any other: one telemetry line (PLAN v5 4.5).
+func _on_session_done(session: DevSession) -> void:
+	if SaveGame.is_live():
+		Telemetry.append(session.telemetry_record(0))
+
+
+func _start_game() -> void:
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 

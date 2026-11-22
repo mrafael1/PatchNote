@@ -309,11 +309,23 @@ func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
 				continue
 			var text := FileAccess.get_file_as_string(path)
 			if text.contains("\"%s\"" % m.id) or text.contains("mutations/%s" % m.id):
-				# requires/conflicts on another mutation's resource are the allowed form.
+				# requires/conflicts on another mutation's resource are the allowed form, and
+				# so is a change's unlocks field (PLAN v5 1.2).
 				if path.begins_with("res://mutations/") and path.ends_with(".tres"):
+					continue
+				if path.begins_with(ChangeDB.DIR) and path.ends_with(".tres") and _only_in_unlocks(text, String(m.id)):
 					continue
 				fail_test("%s names mutation '%s'" % [path, m.id])
 	pass_test("%d files checked" % files.size())
+
+
+## Every line of a change resource that names id is its unlocks field.
+func _only_in_unlocks(text: String, id: String) -> bool:
+	for line in text.split("\n"):
+		var names := line.contains("\"%s\"" % id) or line.contains("mutations/%s" % id)
+		if names and not line.begins_with("unlocks = "):
+			return false
+	return true
 
 
 func _source_files(dir: String, skip: Array) -> Array[String]:

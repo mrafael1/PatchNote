@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M28"
+const BUILD := "M29"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -18,6 +18,7 @@ var director: AiDirector
 var prompt_panel: PromptPanel
 var patch_history: PatchHistory
 var report: ReportScreen
+var dev_flow: DevSessionFlow   ## report -> dev session -> patch notes (PLAN v5 4)
 var sound: Sound
 
 ## Read-only forwarders to the genre's nodes, so tests and tools keep working. They
@@ -38,6 +39,7 @@ var run_loop: RunLoop:
 	get: return genre.get(&"run_loop") as RunLoop if genre else null
 
 var _notes_saved := false
+var _next_run_seed := -1   ## the seed "Play" starts after a dev session
 
 
 func _ready() -> void:
@@ -93,7 +95,13 @@ func _ready() -> void:
 
 	report = ReportScreen.new()
 	add_child(report)
-	report.new_build_requested.connect(start_new_build)
+	report.new_build_requested.connect(_on_report_continue)
+
+	dev_flow = DevSessionFlow.new()
+	dev_flow.name = "DevSession"
+	add_child(dev_flow)
+	dev_flow.session_done.connect(_on_session_done)
+	dev_flow.play_requested.connect(func() -> void: start_new_build(_next_run_seed))
 
 	var hud := Hud.new()
 	hud.player = player
@@ -133,6 +141,55 @@ func start_new_build(run_seed := -1) -> void:
 	next_seed = run_seed
 	next_genre = RunState.genre
 	get_tree().reload_current_scene()
+
+
+## The report's main button: "Dev session" when the save is live, else "New build".
+func _on_report_continue(run_seed := -1) -> void:
+	if SaveGame.is_live():
+		open_dev_session(run_seed)
+	else:
+		start_new_build(run_seed)
+
+
+## Opens the dev session for the save as it is now (PLAN v5 4.1). After a run its
+## opening line reads the run; F9 opens one at any time (an inert game plays it on the
+## in-memory save, which is never written). "Play" starts the next run with run_seed.
+func open_dev_session(run_seed := -1) -> void:
+	if dev_flow.is_open():
+		return
+	save_notes()   # the report's ratings feed the taste the session reads
+	_next_run_seed = run_seed
+	var context := DevSession.context_from_record(genre.run_record()) if genre.is_over() else {}
+	report.close()
+	prompt_panel.dismiss()
+	RunState.set_pause(&"dev_session", true)
+	dev_flow.start(DevSession.plan(RunState.run_seed, context))
+
+
+## Shift+F9: ships what the next session would (its first card, or the AI's last
+## change) without the screens.
+func ship_next_change() -> DevSession:
+	if dev_flow.is_open():
+		return null   # the open session ships; a second one would log twice
+	var session := DevSession.plan(RunState.run_seed)
+	var ok := session.pick(0) if session.can_pick() else session.finish()
+	if ok:
+		_on_session_done(session)
+		if transition and not session.shipped.is_empty():
+			var said := "Shipped %s: %s" % [session.version_after().label(),
+					(session.shipped[0].change as Change).title]
+			transition.say(said)
+			print("[debug] " + said)   # the toast sits under the report
+	return session
+
+
+func _on_session_done(session: DevSession) -> void:
+	# Mid-run (Shift+F9): the run carries on and writes its taste at its end, so it
+	# starts from the taste the session just wrote.
+	if SaveGame.is_live() and not genre.is_over() and director:
+		director.taste = Taste.from_save(SaveGame.state().taste)
+	if is_live_game():
+		Telemetry.append(session.telemetry_record(int(genre.run_record().get("run_index", 0))))
 
 
 func _on_player_died() -> void:

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"patch_horde_mode"
+title = "Horde mode"
+pitch = "Now there is some variety out there, I want a lot more of it. All at once."
+kind = &"patch"
+bump = &"patch"
+requires = Array[StringName]([&"enemy_tank"])
+unlocks = Array[StringName]([&"horde_mode"])
+tags = Array[StringName]([&"spawn"])

@@ -8,6 +8,7 @@ const SCENES := {
 	&"chaser": preload("res://entities/enemy_chaser.tscn"),
 	&"shooter": preload("res://entities/enemy_shooter.tscn"),
 	&"tank": preload("res://entities/enemy_tank.tscn"),
+	&"bomber": preload("res://entities/enemy_bomber.tscn"),
 }
 const VIEW_HALF := Vector2(640, 360)
 
@@ -46,17 +47,22 @@ func spawn_one() -> Node:
 
 
 ## One roll per pick. Archetypes the save has not unlocked (Unlocks.enemies, PLAN v5
-## 2.3) never come: a locked type's chance goes to chasers.
+## 2.3) never come: a locked type's chance goes to chasers. Bombers never come on the
+## parked turn grid (PLAN v5 3: B2 has no bomber role).
 func pick_type() -> StringName:
 	var allowed := Unlocks.enemies()
 	var roll := RunState.gameplay_rng.randf()
 	var tank_ok := _elapsed >= Tuning.spawn_tank_delay and allowed.has(&"tank")
 	var tank_chance := Tuning.spawn_tank_chance if tank_ok else 0.0
 	var shooter_chance := Tuning.spawn_shooter_chance if allowed.has(&"shooter") else 0.0
+	var bomber_ok := _elapsed >= Tuning.spawn_bomber_delay and allowed.has(&"bomber") and not RunState.rules.turn_based
+	var bomber_chance := Tuning.spawn_bomber_chance if bomber_ok else 0.0
 	if roll < tank_chance:
 		return &"tank"
 	if roll < tank_chance + shooter_chance:
 		return &"shooter"
+	if roll < tank_chance + shooter_chance + bomber_chance:
+		return &"bomber"
 	if allowed.has(&"chaser") or allowed.is_empty():
 		return &"chaser"
 	return allowed[0]

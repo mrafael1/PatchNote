@@ -617,13 +617,16 @@ func _source_key(info: DamageInfo) -> StringName:
 	return info.source_patch if info.source_patch != &"" else &"base"
 
 
+## Only the player's damage counts (a bomber's blast hurts enemies too, PLAN v5 3).
 func _on_entity_damaged(target: Node, info: RefCounted) -> void:
-	if target.is_in_group(&"enemy"):
+	if target.is_in_group(&"enemy") and (info as DamageInfo).faction == &"player":
 		var key := _source_key(info as DamageInfo)
 		damage_by_source[key] = float(damage_by_source.get(key, 0.0)) + (info as DamageInfo).amount
 
 
 func _on_enemy_killed(_enemy: Node, info: RefCounted) -> void:
+	if (info as DamageInfo).faction != &"player":
+		return
 	kills += 1
 	var key := _source_key(info as DamageInfo)
 	kills_by_source[key] = int(kills_by_source.get(key, 0)) + 1

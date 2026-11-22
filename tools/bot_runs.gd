@@ -21,6 +21,9 @@ extends SceneTree
 ##   --fresh                      start from a new save (v0.0.0) instead of the file, or,
 ##                                without --save, instead of everything unlocked
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
+## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
+## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
+## "[botrun] session" line per session.
 ## The real save file is never used: --save must name another path.
 ## The bot plays and cards are picked at random from the seed. Rollbacks are parked
 ## (PLAN v5 1.3): the bot never rolls anything back. Even seeds leave notes on the
@@ -90,6 +93,10 @@ func _run() -> void:
 	await process_frame
 	start.seed_field.text = _seed_of(specs[0])
 	start.start()
+	var pending_sessions := 0
+	if start.dev_flow.is_open():   # the save had a pending session (PLAN v5 1.5)
+		pending_sessions = 1
+		print(await _answer_session(start.dev_flow, int(_seed_of(specs[0]))))
 
 	for i in specs.size():
 		var spec := specs[i]
@@ -111,10 +118,16 @@ func _run() -> void:
 				for k in mini(2, ids.size()):
 					game.report.rate(ids[k], 1 if k == 0 else -1)
 			game.report.new_build(int(_seed_of(specs[i + 1])))
+			if game.dev_flow.is_open():
+				var line := await _answer_session(game.dev_flow, run_seed)
+				print(line)
+				if line.contains(" FAILED"):
+					failures += 1
 
 	var added := _line_count() - lines_before
 	var runs := 0
 	var notes := 0
+	var sessions := 0
 	var text := FileAccess.get_file_as_string(LOG).strip_edges().split("\n")
 	for line in text.slice(maxi(0, text.size() - added)):
 		var d: Variant = JSON.parse_string(line)
@@ -123,15 +136,23 @@ func _run() -> void:
 				runs += 1
 			elif d.get("type") == "notes":
 				notes += 1
+			elif d.get("type") == "session":
+				sessions += 1
 	# One run line per run; one notes line per "New build" (every run but the last).
+	# A live chain plays one dev session after every run but the last.
+	var sessions_expected := specs.size() - 1 + pending_sessions if save.call(&"is_live") else 0
+	if sessions != sessions_expected:
+		print("[botrun] telemetry: expected %d session lines, found %d" % [sessions_expected, sessions])
+		failures += 1
 	if runs != specs.size() or notes != specs.size() - 1:
 		print("[botrun] telemetry: expected %d run and %d notes lines, found %d and %d (%d lines)" % [
 			specs.size(), specs.size() - 1, runs, notes, added])
 		failures += 1
 	if keep_save:
 		var state: Dictionary = save.call(&"state")
-		print("[botrun] save: %s runs=%d wins=%d version=%s genres=%s" % [save_arg, state.runs,
-			state.wins, save.call(&"version").label(), state.genres])
+		print("[botrun] save: %s runs=%d wins=%d version=%s genres=%s shipped=%s look=%s sessions=%d" % [
+			save_arg, state.runs, state.wins, save.call(&"version").label(), state.genres, state.shipped,
+			state.look, (state.sessions as Array).size()])
 	print("[botrun] summary: %d runs, %d failures, %d telemetry lines, %.1f s wall" % [
 		specs.size(), failures, added, (Time.get_ticks_msec() - started) / 1000.0])
 	quit(1 if failures > 0 else 0)
@@ -210,6 +231,34 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
 		await physics_frame
 	return ""
+
+
+## Answers a dev session (PLAN v5 4.6): a card at random from the seed, then "Play" on
+## the patch notes (or on a session with nothing to ship). Returns the summary line.
+func _answer_session(flow: Node, run_seed: int) -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = run_seed * 7919 + 17
+	var session: RefCounted = flow.session
+	for f in 600:
+		if flow.screen.can_pick():
+			flow.screen.pick(rng.randi_range(0, (session.cards as Array).size() - 1))
+		elif flow.screen.is_open() and (session.cards as Array).is_empty():
+			flow.screen.play()
+			return _session_line(session)
+		elif flow.notes.is_open():
+			var line := _session_line(session)
+			flow.notes.play()
+			return line
+		await process_frame
+	return "[botrun] session FAILED: never finished (%s)" % [session.shape if session else "no session"]
+
+
+func _session_line(session: RefCounted) -> String:
+	var e: Dictionary = session.log_entry()
+	return "[botrun] session=%d after_run=%d shape=%s cards=%s pick=%s agenda=%s ai_ship=%s version=%s->%s" % [
+		session.number, session.after_run, e.shape, e.cards, e.pick if e.pick != "" else "-",
+		e.agenda if e.agenda != "" else "-", e.ai_ship if e.ai_ship != "" else "-",
+		session.version_before.label(), session.version_after().label()]
 
 
 ## "id+@time,id-rollback@time" from the record's ai_events; "-" when there are none.

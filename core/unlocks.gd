@@ -6,7 +6,7 @@ extends RefCounted
 ## this from M28 on (start content gating).
 
 ## Every enemy archetype the spawner knows (a change may unlock one of these).
-const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank"]
+const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber"]
 const FULL_LOOK := {"tier": 1, "take": "punchy"}
 
 

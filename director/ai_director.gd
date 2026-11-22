@@ -248,7 +248,9 @@ func on_revert(m: Mutation) -> void:
 	taste.on_revert(m)
 
 
-func _on_enemy_killed(enemy: Node, _info: RefCounted) -> void:
-	# Only enemies from the wave spawner count; copies and patch spawns do not.
-	if is_instance_valid(enemy) and enemy.get(&"from_spawner") == true and enemy.get(&"generation") == 0:
+func _on_enemy_killed(enemy: Node, info: RefCounted) -> void:
+	# Only the player's kills of enemies from the wave spawner count; copies, patch
+	# spawns and a bomber's blast victims do not.
+	var by_player := info == null or (info as DamageInfo).faction == &"player"
+	if by_player and is_instance_valid(enemy) and enemy.get(&"from_spawner") == true and enemy.get(&"generation") == 0:
 		_kills_since_prompt += 1

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"patch_motion_time"
+title = "Experimental: motion time"
+pitch = "Experimental. Time only moves when you move. I have not tested it. That is your job."
+kind = &"patch"
+bump = &"patch"
+requires = Array[StringName]([])
+unlocks = Array[StringName]([&"motion_time"])
+tags = Array[StringName]([&"time"])

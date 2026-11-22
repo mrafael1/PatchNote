@@ -1,11 +1,16 @@
 class_name ReportScreen
 extends CanvasLayer
 ## Playtest Report (PLAN 8), shown for both outcomes over the paused game.
-## "New build" starts a fresh run; "Copy report" puts the text on the clipboard.
+## Its main button is "Dev session" when the save is live (PLAN v5 4.1: the game scene
+## opens the dev session) and "New build" otherwise (a fresh run, as before); "Copy
+## report" puts the text on the clipboard.
 ## Optionally the player marks each patch of the run Keep or Cut; the AI reads those
 ## notes in the next run of the session (see Taste).
 
 signal new_build_requested(run_seed: int)
+
+const NEW_BUILD := "New build"
+const DEV_SESSION := "Dev session"
 
 var _root: Control
 var _title: Label
@@ -108,6 +113,7 @@ func open(outcome: StringName, record: Dictionary) -> void:
 	_ai.text = lines[lines.size() - 1]
 	_body.text = "\n".join(lines.slice(1, lines.size() - 1)).strip_edges()
 	_build_ratings(record)
+	_new_build.text = DEV_SESSION if SaveGame.is_live() else NEW_BUILD
 	RunState.set_pause(&"report", true)
 	_root.visible = true
 	_new_build.grab_focus.call_deferred()
@@ -115,6 +121,15 @@ func open(outcome: StringName, record: Dictionary) -> void:
 
 func text() -> String:
 	return _text
+
+
+func main_button_text() -> String:
+	return _new_build.text
+
+
+## Hides the report (the dev session takes over the screen); the game stays paused.
+func close() -> void:
+	_root.visible = false
 
 
 ## Plain-text report. First line is the title, last line the AI comment.

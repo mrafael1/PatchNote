@@ -35,6 +35,20 @@ var tank_hp := 12.0
 var tank_contact_damage := 1.0
 var tank_hop_cooldown := 2.0
 var tank_knockback_scale := 0.2
+# Bomber (PLAN v5 3): walks in, stops near the player, telegraphs, blows up (hurts
+# everyone in range, enemies too) and dies. Shipped by the enemy_bomber change.
+var bomber_speed := 165.0
+var bomber_hp := 2.0
+var bomber_contact_damage := 0.0  # it hurts by its blast only
+var bomber_hop_cooldown := 0.6
+var bomber_knockback_scale := 0.8
+# Centre distance at which it stops and lights its fuse. Inside the blast's reach (radius
+# plus the 12 px body margin), so standing still gets hit; 0.6 s is time to step away.
+var bomber_trigger_range := 1.3 * TILE
+var bomber_windup := 0.6
+var bomber_blast_radius := 1.6 * TILE
+var bomber_blast_damage := 1.0
+var bomber_blast_knockback := 360.0
 var shooter_speed := 150.0
 var shooter_hp := 2.0
 var shooter_fire_interval := 1.8
@@ -58,6 +72,8 @@ var spawn_min_distance := 8.0 * TILE
 var spawn_shooter_chance := 0.25
 var spawn_tank_chance := 0.15
 var spawn_tank_delay := 30.0
+var spawn_bomber_chance := 0.12
+var spawn_bomber_delay := 40.0
 ## A new save spawns only these (PLAN v5 2.3, read through Unlocks.enemies from M28).
 var starter_enemies: Array[StringName] = [&"chaser", &"shooter"]
 var chaser_headroom := 3.7 * TILE  # free space a chaser needs above it to hop up
@@ -125,6 +141,11 @@ var rc_duration := 45.0           # the "release candidate" wave after the last 
 var rc_spawn_rate := 1.6          # spawner phase multipliers during that wave
 var rc_spawn_cap := 1.5
 var report_delay := 1.0           # game time between the end of the run and the report
+
+# --- Dev session (PLAN v5 4) ---
+var session_cards := 3            # cards in a 3-changes session
+var agenda_min_available := 2     # a session showing at least this many cards has one agenda card
+var ai_own_ship_every := 4        # every Nth session the AI also ships a change of its own; 0 = never
 
 # --- Taste (adaptive offers) ---
 var agenda_cards := 1             # cards per offer the AI picks against the player's taste

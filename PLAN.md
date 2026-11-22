@@ -214,6 +214,16 @@ Today's records are `schema: 1` (v4's schema 2 was never built). v5's run record
 
 ---
 
+### 4.7 As built (M29)
+- **Logic in `DevSession`** (`devsession/dev_session.gd`): `plan(run_seed, context)` picks the shape and deals the cards; `pick(i)` / `finish()` ship, feed taste, log and write. `ui/dev_session.gd`, `ui/patch_notes.gd` and `ui/dev_session_flow.gd` only show it, so the game scene (after the report, F9) and the start screen (a pending session) share one flow.
+- **The deal:** due changes first, then the agenda card (least liked by tag, taken from the whole pool before the taste-weighted picks, so it is really what the player likes least), then taste-weighted picks; the agenda card is shown last. A mockup is only ever shown as its takes, never as a plain card. The generator is seeded from the run seed, the session number and the run count.
+- **"Fewer than 2 available"** can happen before the end of the chain: `enemy_tank` gates `patch_horde_mode` and `enemy_bomber`, so a chain that leaves the tank for last reaches a session where only the tank is ready. The AI ships it (its bump, no card) and the notes say "Only one change was ready, so I shipped it myself. More are coming."; "Last one on my list. I shipped it." is kept for the real last change. On that path the AI's own ship at session 4 does not happen (it follows a player's pick), and all 6 are out by session 6 instead of 5. Bot seeds 1–7 take that path; 11–17 and 21–27 take the planned one (gate numbers in the M29 report).
+- **Nothing left:** the session screen shows "I'm working on something bigger." and "Play"; the session is still logged (shape `none`, no bump) and `pending_session` is cleared.
+- **Taste:** change cards move their tags; take cards move only their `look:<take>` id (all three share the change's tags).
+- **Pending session:** opening the start screen still only reads the save. It shows "The last build is still on my desk." and Start becomes "Dev session"; pressing it makes the save live and opens the session, whose "Play" starts the game.
+- **The bomber** (3) is built in M29, ahead of M30: `enemy_bomber` must unlock a real archetype (`ChangeDB.problems()`). It has no contact damage and no rim. It lights its fuse at **1.3 tiles**, not 2, with a clear line: section 3's 2 tiles sits outside its own 1.6-tile blast (plus the 12 px body margin), so a player who stood still was never hit. 0.6 s is still plenty of time to step out. Its blast hurts the player and enemies, but it is enemy damage: neither its own death nor its victims count as the player's kills or pace the prompts, and they do not show in the report's damage by source. M30 keeps its sweep and parity numbers.
+- **Look takes:** `look_1_clean` and `look_1_arcade` are placeholder presets (numbers only, no flash/trail/muzzle) and the 3 stills are gradient placeholders; M30 tunes the takes and captures the stills.
+
 ## 5. Debug
 - F2 console lists parked patches under "PARKED" (apply through the old paths, as today).
 - New: **F9** opens the dev session at once (inert: on a temporary in-memory save); **Shift+F9** ships the next available change without the screen. F1 shows version, look, pool size and enemies.

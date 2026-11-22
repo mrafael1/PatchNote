@@ -15,8 +15,11 @@ var _age := 0.0
 
 
 ## Returns how many enemies took damage.
+## faction is who dealt it: the player's patches (default), or an enemy's blast (the
+## bomber), whose kills are not the player's.
 static func blast(pos: Vector2, p_radius: float, damage: float, knockback: float,
-		kind: StringName, source_patch: StringName, push_player := true) -> int:
+		kind: StringName, source_patch: StringName, push_player := true,
+		faction: StringName = &"player") -> int:
 	var tree := RunState.get_tree()
 	var hits := 0
 	for e in tree.get_nodes_in_group(&"enemy"):
@@ -27,7 +30,7 @@ static func blast(pos: Vector2, p_radius: float, damage: float, knockback: float
 		if away.length() > p_radius + BODY_MARGIN:
 			continue
 		var health := Component.find(enemy, Health) as Health
-		if health and health.take(DamageInfo.make(damage, kind, &"player", pos, source_patch)):
+		if health and health.take(DamageInfo.make(damage, kind, faction, pos, source_patch)):
 			hits += 1
 		_push(enemy, away, p_radius, knockback)
 	if push_player:

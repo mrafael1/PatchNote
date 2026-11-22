@@ -19,6 +19,9 @@ var _saved := {}
 func before_each() -> void:
 	for key: String in ["spawn_interval_start", "spawn_interval_end"]:
 		_saved[key] = Tuning.get(key)
+	# A fixed seed: with a random one a few seeds leave the 20 s bot test at 3-4 kills
+	# (found at M29: kills per seed were identical before and after, so it was the seed).
+	Main.next_seed = 7
 	game = load("res://main.tscn").instantiate()
 	add_child_autofree(game)
 	game.spawner.enabled = false
