@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M35"
+const BUILD := "M36"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -122,13 +122,23 @@ func _ready() -> void:
 ## Debug wave (F-key, screenshots): the genre's own, if it has one.
 ## "[boot] Patch Notes M30, game v0.1.2, genre <id> (playable: <ids>), Godot 4.7.0":
 ## the build, the save's version and the run's genre, for the export check and bug
-## reports (PLAN v5 M30).
+## reports (PLAN v5 M30), then the save's answers (PLAN v6 M36).
 static func boot_line() -> String:
 	var v: Dictionary = Engine.get_version_info()
-	return "[boot] Patch Notes %s, game %s, genre %s (playable: %s), Godot %s.%s.%s" % [BUILD,
+	return "[boot] Patch Notes %s, game %s, genre %s (playable: %s), Godot %s.%s.%s, %s" % [BUILD,
 			SaveGame.version().label(), RunState.genre,
 			", ".join(GenreDB.playable_ids().map(func(g: StringName) -> String: return String(g))),
-			v.major, v.minor, v.patch]
+			v.major, v.minor, v.patch, answers_text()]
+
+
+## "answers look_1=look_1_clean fork_enemy=enemy_tank" (fork id order), "answers -" for
+## none: which game this save became, for bug reports and the playtest files (M36).
+static func answers_text() -> String:
+	var a := DevSession.answers()
+	var ids: Array = a.keys()
+	ids.sort()
+	var parts := ids.map(func(f: String) -> String: return "%s=%s" % [f, a[f]])
+	return "answers " + (" ".join(parts) if not parts.is_empty() else "-")
 
 
 func spawn_wave(count := -1) -> void:

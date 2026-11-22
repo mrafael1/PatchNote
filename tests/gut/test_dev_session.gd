@@ -982,3 +982,16 @@ func test_a_pending_session_opens_first_from_the_start_screen() -> void:
 	screen.refresh_save()
 	assert_eq(screen.start_button.text, StartScreen.START)
 	assert_string_contains(screen.save_label.text, "1/%d forks" % FORKS.size())
+
+
+## M36: the boot lines end with the save's answers, so a bug report or a playtest log
+## says which game the save became.
+func test_the_boot_line_names_the_saves_answers() -> void:
+	assert_eq(Main.answers_text(), "answers -", "inert: none")
+	assert_string_contains(Main.boot_line(), ", answers -")
+	_live(3)
+	_answer(&"look_1")
+	_answer(&"fork_enemy")
+	var a := DevSession.answers()
+	assert_eq(Main.answers_text(), "answers fork_enemy=%s look_1=%s" % [a["fork_enemy"], a["look_1"]])
+	assert_true(Main.boot_line().ends_with(Main.answers_text()))

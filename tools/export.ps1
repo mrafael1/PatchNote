@@ -3,7 +3,7 @@
 # and a clean log.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
-# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G11 sheet)
+# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G12 sheet)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -37,6 +37,8 @@ if ($failures.Count -eq 0) {
     if ($text -match '\[boot\] Patch Notes .*, game (v\d+\.\d+\.\d+), genre (\w+) \(playable: ([^)]*)\)') {
         Write-Host "    boot: game $($Matches[1]), genre $($Matches[2]), playable: $($Matches[3])"
     } else { $failures += 'boot: game line without version and genres' }
+    # Both lines end with the save's fork answers (PLAN v6 M36); the inert smoke boot has none.
+    if (([regex]::Matches($text, '\[boot\] Patch Notes .*, answers -')).Count -lt 2) { $failures += 'boot: lines without the save''s answers' }
     $expected = (Get-ChildItem (Join-Path $root 'mutations') -Directory).Count
     if ($text -match '\[mutations\] (\d+): (.*)') {
         Write-Host "    mutations: $($Matches[1]) ($($Matches[2].Trim()))"
