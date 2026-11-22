@@ -22,6 +22,11 @@ func before_each() -> void:
 	# A fixed seed: with a random one a few seeds leave the 20 s bot test at 3-4 kills
 	# (found at M29: kills per seed were identical before and after, so it was the seed).
 	Main.next_seed = 7
+	# And a fixed look and save: Look is static, and a test that leaves tier 0 behind (no
+	# hit stop) changes how time runs here. M31 traced the 20 s bot test's rare 3 kills
+	# (7 when run alone) to that order dependence.
+	SaveGame.go_inert()
+	Look.use(Unlocks.FULL_LOOK)
 	game = load("res://main.tscn").instantiate()
 	add_child_autofree(game)
 	game.spawner.enabled = false

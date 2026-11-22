@@ -358,8 +358,8 @@ func test_the_tier_1_takes_differ_in_at_least_3_juice_fields() -> void:
 ## The look mockup's cards show stills captured from the game (tools/mockup_capture.gd),
 ## not placeholders, one per take, each named after its take.
 func test_the_look_mockup_shows_captured_stills() -> void:
-	var change: Change = ChangeDB.get_change(&"look_1")
-	for take: MockupTake in change.takes:
+	for change: Change in ChangeDB.get_fork(&"look_1").changes():
+		var take := change.take
 		assert_eq(take.image.resource_path, "res://devsession/stills/look_1_%s.png" % take.id)
 		assert_eq(take.image.get_size(), Vector2(480, 270))
 		assert_eq((take.preset as LookPreset).take, take.id)

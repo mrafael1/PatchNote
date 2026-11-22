@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="Fork" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/fork.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"look_1"
+question = "How should it feel? I built three takes of the same build."
+options = Array[StringName]([&"look_1_punchy", &"look_1_clean", &"look_1_arcade"])
+due_after_run = 1
+bump = &"minor"
+tags = Array[StringName]([&"look"])
+mockup = true

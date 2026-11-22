@@ -95,13 +95,13 @@ if ($BotRuns) {
     if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 ') { $failures += 'bot_runs_save: the save does not count 4 runs' }
     # Between runs the report opens the dev session (PLAN v5 M29, 4.8): the first two
     # ship the basics after two smoke tests, the third is the look mockup (v0.1.0).
-    if ($chain.Text -notmatch '\[botrun\] session=1 after_run=1 shape=basic .*ai_ship=basic_movement version=v0\.0\.0->v0\.0\.1') { $failures += 'bot_runs_save: session 1 did not ship movement' }
-    if ($chain.Text -notmatch '\[botrun\] session=2 after_run=2 shape=basic .*ai_ship=basic_world version=v0\.0\.1->v0\.0\.2') { $failures += 'bot_runs_save: session 2 did not ship enemies and the level' }
-    if ($chain.Text -notmatch '\[botrun\] session=3 after_run=3 shape=mockup .*version=v0\.0\.2->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
+    if ($chain.Text -notmatch '\[botrun\] session=1 after_run=1 kind=basic .*ai_ship=basic_movement .*version=v0\.0\.0->v0\.0\.1') { $failures += 'bot_runs_save: session 1 did not ship movement' }
+    if ($chain.Text -notmatch '\[botrun\] session=2 after_run=2 kind=basic .*ai_ship=basic_world .*version=v0\.0\.1->v0\.0\.2') { $failures += 'bot_runs_save: session 2 did not ship enemies and the level' }
+    if ($chain.Text -notmatch '\[botrun\] session=3 after_run=3 kind=fork fork=look_1 .*shelved=\["look_1_\w+", "look_1_\w+"\] .*version=v0\.0\.2->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
     if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
 }
 
-if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check' }
+if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }
 
 if ($failures.Count -gt 0) {
     Write-Host ''

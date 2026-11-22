@@ -18,6 +18,8 @@ extends RefCounted
 
 const DEFAULT_PATH := "user://save/save.json"
 const SCHEMA := 1
+## Old change ids and what they became (PLAN v6 1.1); %s is the save's look take.
+const RENAMED := {"look_1": "look_1_%s"}
 const LOOK_PREFIX := "look:"   ## taste ids that name a look take, not a patch
 ## A genre's maturity steps (ROADMAP 1.3); v5 uses only the first two.
 const STEPS: Array[String] = ["mockup", "playable", "stages", "boss", "deep"]
@@ -288,11 +290,16 @@ static func parse(parsed: Variant) -> Variant:
 					return null
 				entry[field] = int(src_entry[field]) if field == "runs" else float(src_entry[field])
 	out.genres = genres
-	# shipped: known change ids, once each, in order.
+	# shipped: known change ids, once each, in order. A v5 save's "look_1" (one change
+	# with 3 takes) is now the option of the look_1 fork named after the save's take.
 	var shipped: Array = []
-	for id: Variant in out.shipped:
-		if not id is String:
+	for raw: Variant in out.shipped:
+		if not raw is String:
 			return null
+		var id: String = raw
+		if RENAMED.has(id):
+			var take: Variant = (out.look as Dictionary).get("take", "")
+			id = String(RENAMED[id]) % (take if take is String and take != "" else "punchy")
 		if ChangeDB.get_change(StringName(id)) != null and not id in shipped:
 			shipped.append(id)
 	out.shipped = shipped

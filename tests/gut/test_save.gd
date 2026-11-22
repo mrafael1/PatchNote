@@ -366,12 +366,10 @@ func test_change_problems() -> void:
 	var loop_a := _change(&"fx_ch_loop_a", [], [&"fx_ch_loop_b"])
 	_change(&"fx_ch_loop_b", [], [&"fx_ch_loop_a"])
 	assert_has(ChangeDB.problems(loop_a), "Change 'fx_ch_loop_a' is in a requires cycle")
-	var mock := _change(&"fx_ch_mock", [], [], &"look")
-	var take := MockupTake.new()
-	take.id = &"only"
-	mock.takes.append(take)
-	assert_has(ChangeDB.problems(mock), "Mockup change 'fx_ch_mock' has 1 takes, not 3")
-	assert_has(ChangeDB.problems(mock), "Mockup change 'fx_ch_mock' has a take with no image")
+	var look := _change(&"fx_ch_look", [], [], &"look")
+	assert_has(ChangeDB.problems(look), "Look change 'fx_ch_look' has no take with a preset")
+	look.take = MockupTake.new()
+	assert_has(ChangeDB.problems(look), "Look change 'fx_ch_look' has no take with a preset")
 
 
 # --- Start screen --------------------------------------------------------------------

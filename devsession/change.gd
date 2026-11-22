@@ -18,12 +18,18 @@ const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic"]
 @export var tags: Array[StringName] = []         ## taste
 @export var weight := 1.0
 @export var due_after_run := 0                   ## offered first once runs >= this
-@export var takes: Array[MockupTake] = []        ## a mockup: exactly 3 takes
+## An option of a mockup fork (PLAN v6 1.1): its still, line and (for a look) preset.
+@export var take: MockupTake
+
+## The fork this change answers (set by ChangeDB from devsession/forks/; &"" = none).
+var fork: StringName = &""
 
 
-## The name the AI's lines use: an enemy change is its archetype ("Tank"), anything
-## else its title.
+## The name the AI's lines use: a mockup option is its take ("Punchy"), an enemy
+## change its archetype ("Tank"), anything else its title.
 func short_name() -> String:
+	if take != null:
+		return take.title
 	if kind == &"enemy" and not unlocks.is_empty():
 		return String(unlocks[0]).capitalize()
 	return title
@@ -34,4 +40,4 @@ func is_basic() -> bool:
 
 
 func is_mockup() -> bool:
-	return not takes.is_empty()
+	return take != null

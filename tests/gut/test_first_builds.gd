@@ -54,8 +54,9 @@ func test_a_new_save_misses_every_basic_and_inert_misses_none() -> void:
 
 func test_the_first_two_sessions_ship_the_basics_then_the_look_mockup_comes() -> void:
 	SaveGame.go_live(TEST_PATH, true)
-	var ids := DevSession.available().map(func(c: Change) -> String: return String(c.id))
-	assert_eq(ids, ["basic_movement"], "only basics while one is missing")
+	var ids := DevSession.basics_left().map(func(c: Change) -> String: return String(c.id))
+	assert_eq(ids, ["basic_movement"], "the next basic first")
+	assert_true(DevSession.ready_forks().is_empty(), "no question while a basic is missing")
 	var expected := [["basic_movement", "v0.0.1"], ["basic_world", "v0.0.2"]]
 	for step: Array in expected:
 		_run_ended()
@@ -69,10 +70,10 @@ func test_the_first_two_sessions_ship_the_basics_then_the_look_mockup_comes() ->
 		var notes := s.notes_lines()
 		assert_eq(notes[0], "Version %s" % step[1].trim_prefix("v"))
 		assert_string_contains(notes[1], (ChangeDB.get_change(StringName(step[0])) as Change).pitch)
-		assert_false(notes.has(DevSession.AI_LAST_LINE), "a basic is not the last of anything")
+		assert_eq(notes.size(), 2, "the version and the basic: no unlock or shelf line")
 	_run_ended()
 	var mock := DevSession.plan(3)
-	assert_eq(mock.shape, DevSession.MOCKUP, "the look comes once the game plays")
+	assert_eq(mock.fork.id, &"look_1", "the look comes once the game plays")
 	assert_true(mock.pick(0))
 	assert_eq(SaveGame.version().label(), "v0.1.0")
 

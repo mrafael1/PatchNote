@@ -9,6 +9,5 @@ title = "New enemy: Bomber"
 pitch = "It walks up, it blinks, it explodes. It hurts its friends too. I find that funny."
 kind = &"enemy"
 bump = &"patch"
-requires = Array[StringName]([&"enemy_tank"])
 unlocks = Array[StringName]([&"bomber"])
 tags = Array[StringName]([&"spawn"])

@@ -108,6 +108,19 @@ In order:
 - Run records add `forks: {fork_id: answer}`, which is what makes saves comparable.
 - The save itself stays schema 1: a v5 save loads unchanged. An old save with two options of one fork shipped counts the fork as answered with an empty shelf, and nothing is unshipped (tested).
 
+### 1.5 As built (M31)
+- **`Fork.options` are change ids** (`Array[StringName]`), not embedded changes; `Fork.changes()`, `answer()`, `is_answered()` and `shelf()` derive everything from the save. Forks and changes share one id namespace (`ChangeDB` rejects a clash).
+- **`Change.take: MockupTake`** replaces v5's `takes` array. A look option is `look_1_<take>` with its preset on the take; `Change.short_name()` is the take's title ("Punchy"). `ChangeDB.problems()` requires a look change to have a take with a preset.
+- **M31's forks:** `look_1` (Punchy · Clean · Arcade), `fork_enemy` (Tank · Bomber) and `fork_hands` (Auto-aim · Motion time · Horde, until M33). The v5 requires (bomber → tank, horde → tank) are gone.
+- **The AI answers a fork only when at least `Tuning.ai_fork_min_ready = 2` ready non-mockup forks are left after the pick**, so it never takes the player's last question. In a first bot chain it answered `fork_enemy` right after the player's `fork_hands`, so the player only ever answered 2 of 3 forks. With M31's 3 forks it never fires; it does once M33 brings 5.
+- **The question is spoken in the opening line** (`DevSession.opening` ends with `Fork.question`). A separate title over the cards is left for M32, which reworks the screen anyway.
+- **Session kinds:** `basic`, `fork`, `none` (`DevSession.shape`); v5's `mockup`, `changes` and `ai_last` are gone. The bot's line reads `kind=`.
+- **Old saves:** `SaveGame.RENAMED` maps `look_1` to `look_1_<the save's take>` (punchy if none) on load; everything else loads as is.
+- **Fixed on the way:**
+  - the patch notes no longer list a basic's unlocks as enemies ("New enemy: Enemies" since M29b);
+  - the 20 s bot test pins the look and the save (`test_combat.gd`); the count is 7 alone and in the suite;
+  - the stills are not byte-stable (unseeded particles, PLAN.v5 4.9 corrected).
+
 ---
 
 ## 2. The dev session screens
@@ -217,7 +230,7 @@ ROADMAP 1.3's ladder: Playable → **Stages**. The `stages` fork ships the step 
 
 | # | Milestone | Builder gate | Owner gate |
 |---|---|---|---|
-| M31 | Forks | 1.1, 1.2 (without Rework), 1.4: `Fork`, `ForkDB`, the 6 v5 changes regrouped into 3 forks: `look_1` (split into 3 changes), `fork_enemy` (Tank · Bomber) and, until M33, `fork_hands` (Auto-aim · Motion time · Horde); fork sessions, shelving, the AI answering a fork, telemetry schema 3, bot, old-save mapping, the flaky test fix. **Numbers:** 16 fresh 10-run bot chains: the final answer sets differ (at least 8 distinct of 16 with 3 × 2 × 3 = 18 combinations); every option is the final answer in at least one chain; same seeds → identical save | — |
+| M31 | Forks | 1.1, 1.2 (without Rework), 1.4: `Fork`, `ForkDB`, the 6 v5 changes regrouped into 3 forks: `look_1` (split into 3 changes), `fork_enemy` (Tank · Bomber) and, until M33, `fork_hands` (Auto-aim · Motion time · Horde); fork sessions, shelving, the AI answering a fork, telemetry schema 3, bot, old-save mapping, the flaky test fix. **Numbers:** 16 fresh 10-run bot chains: the final answer sets differ (at least 8 distinct of 16 with 3 × 2 × 3 = 18 combinations); every option is the final answer in at least one chain; same seeds → identical save. **As built:** 11 distinct final sets of 16 (chains seeded k·100+1…+10, invincible); final answers Tank 10 · Bomber 6 · Auto-aim 8 · Horde 5 · Motion time 3 · Punchy 7 · Arcade 6 · Clean 3; chain 1 replayed byte-identical; the AI answered no fork (3 forks, 1.5) | — |
 | M32 | Rework | 1.3, section 2: Rework card and list, REWORK-only sessions, "Keep it as it is", `SaveGame.unship`, look swaps, notes lines, taste nudges, bot `--rework-chance`, F2 `rework`. **Numbers:** in the 16-chain sweep with `--rework-chance=0.2`, at least half the chains rework at least once, and every rework's next run shows the swapped pool, enemies or look (checked from telemetry) | — |
 | M33 | Creative content | Section 3: Lancer, Orbit, Hunter, Elite, Echo, Magnet, Well; Horde moves from `fork_hands` to `fork_pressure`; the forks `fork_pressure` and `fork_odd`; an old save that answered `fork_hands` with Horde keeps it shipped and answers `fork_pressure` (tested); tests, card art lines. **Numbers:** parity for each new piece (±15%); invincible pacing with everything shipped still 170–200 s; the divergence sweep re-run on 5 forks: at least 12 distinct final sets of 16 | **G12a (short, optional):** the owner plays one save to v0.2.x. Do the new options feel creative? Is a fork question clear? |
 | M34 | Stage plumbing + arenas as data | Section 4's plumbing and arenas (no take yet): `StageDef`, sub-states, stage clear, carry, cross-stage hash test, `arena_0` + 2 arenas. A debug `--stages=gauntlet` bot flag runs a 3-stage run. **Numbers:** the same-seed 3-stage hash matches; the one-arena v0.0 run is unchanged (its M28 hash gate passes) | — |

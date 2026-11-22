@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Change" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+[ext_resource type="Resource" path="res://systems/looks/look_1_arcade.tres" id="3"]
+[ext_resource type="Texture2D" path="res://devsession/stills/look_1_arcade.png" id="4"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"arcade"
+title = "Arcade"
+line = "Everything louder: long tracers, huge kill pops, twice the particles, flashes, more shake and the longest hit stop."
+image = ExtResource("4")
+preset = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+id = &"look_1_arcade"
+title = "Look v1: Arcade"
+pitch = "Everything louder: long tracers, huge kill pops, twice the particles, flashes, more shake and the longest hit stop."
+kind = &"look"
+bump = &"minor"
+tags = Array[StringName]([&"look"])
+take = SubResource("take")

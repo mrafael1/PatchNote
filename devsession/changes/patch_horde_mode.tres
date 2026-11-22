@@ -9,6 +9,5 @@ title = "Horde mode"
 pitch = "Now there is some variety out there, I want a lot more of it. All at once."
 kind = &"patch"
 bump = &"patch"
-requires = Array[StringName]([&"enemy_tank"])
 unlocks = Array[StringName]([&"horde_mode"])
 tags = Array[StringName]([&"spawn"])

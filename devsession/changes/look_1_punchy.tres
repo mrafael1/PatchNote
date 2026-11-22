@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="Change" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+[ext_resource type="Resource" path="res://systems/looks/look_1_punchy.tres" id="3"]
+[ext_resource type="Texture2D" path="res://devsession/stills/look_1_punchy.png" id="4"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"punchy"
+title = "Punchy"
+line = "Heavy hits: screen shake, a muzzle flash on every shot, a white flash on explosions, and time stops for a frame on every hit."
+image = ExtResource("4")
+preset = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+id = &"look_1_punchy"
+title = "Look v1: Punchy"
+pitch = "Heavy hits: screen shake, a muzzle flash on every shot, a white flash on explosions, and time stops for a frame on every hit."
+kind = &"look"
+bump = &"minor"
+tags = Array[StringName]([&"look"])
+take = SubResource("take")

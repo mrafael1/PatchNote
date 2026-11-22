@@ -141,6 +141,9 @@ static func save_line() -> String:
 		return "Save from a newer build (read-only)"
 	var runs := int(SaveGame.state().runs)
 	var line := "%s · %d run%s" % [SaveGame.version().label(), runs, "" if runs == 1 else "s"]
+	var answered := DevSession.answers().size()
+	if answered > 0:   # PLAN v6 2: "· 2/3 forks"
+		line += " · %d/%d forks" % [answered, ChangeDB.forks.size()]
 	if session_pending():
 		line += "\n" + DevSession.PENDING_LINE
 	return line

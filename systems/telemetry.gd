@@ -7,7 +7,7 @@ extends RefCounted
 const DEFAULT_PATH := "user://playtest/runs.jsonl"
 ## PLAN v5 4.5: schema 2 adds look, pool_size and enemies to schema 1's keys (genre and
 ## game_version came with M27); dev sessions add "session" lines (DevSession).
-const SCHEMA := 2
+const SCHEMA := 3   # PLAN v6 1.4: session forks and shelves, run "forks"
 
 ## Where lines go. Tools and tests point it elsewhere so they never mix with real playtests.
 static var log_path := DEFAULT_PATH
@@ -85,6 +85,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"look": Unlocks.look(),
 		"pool_size": Unlocks.pool().size(),
 		"enemies": Unlocks.enemies().map(func(e: StringName) -> String: return String(e)),
+		"forks": DevSession.answers(),
 		"kills": RunState.kills,
 		"kills_by_source": _plain(RunState.kills_by_source),
 		"damage_by_source": _plain(RunState.damage_by_source),

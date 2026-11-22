@@ -156,9 +156,9 @@ func _run() -> void:
 		failures += 1
 	if keep_save:
 		var state: Dictionary = save.call(&"state")
-		print("[botrun] save: %s runs=%d wins=%d version=%s genres=%s shipped=%s look=%s sessions=%d" % [
+		print("[botrun] save: %s runs=%d wins=%d version=%s genres=%s shipped=%s look=%s sessions=%d forks=%s" % [
 			save_arg, state.runs, state.wins, save.call(&"version").label(), state.genres, state.shipped,
-			state.look, (state.sessions as Array).size()])
+			state.look, (state.sessions as Array).size(), load("res://devsession/dev_session.gd").call(&"answers")])
 	print("[botrun] summary: %d runs, %d failures, %d telemetry lines, %.1f s wall" % [
 		specs.size(), failures, added, (Time.get_ticks_msec() - started) / 1000.0])
 	quit(1 if failures > 0 else 0)
@@ -239,7 +239,7 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 	return ""
 
 
-## Answers a dev session (PLAN v5 4.6): a card at random from the seed, then "Play" on
+## Answers a dev session (PLAN v5 4.6, v6 5): a card at random from the seed, then "Play" on
 ## the patch notes (or on a session with nothing to ship). Returns the summary line.
 func _answer_session(flow: Node, run_seed: int) -> String:
 	var rng := RandomNumberGenerator.new()
@@ -261,9 +261,10 @@ func _answer_session(flow: Node, run_seed: int) -> String:
 
 func _session_line(session: RefCounted) -> String:
 	var e: Dictionary = session.log_entry()
-	return "[botrun] session=%d after_run=%d shape=%s cards=%s pick=%s agenda=%s ai_ship=%s version=%s->%s" % [
-		session.number, session.after_run, e.shape, e.cards, e.pick if e.pick != "" else "-",
-		e.agenda if e.agenda != "" else "-", e.ai_ship if e.ai_ship != "" else "-",
+	return "[botrun] session=%d after_run=%d kind=%s fork=%s cards=%s pick=%s shelved=%s agenda=%s ai_ship=%s ai_fork=%s version=%s->%s" % [
+		session.number, session.after_run, e.shape, e.fork if e.fork != "" else "-", e.cards,
+		e.pick if e.pick != "" else "-", e.shelved, e.agenda if e.agenda != "" else "-",
+		e.ai_ship if e.ai_ship != "" else "-", e.ai_fork if e.ai_fork != "" else "-",
 		session.version_before.label(), session.version_after().label()]
 
 

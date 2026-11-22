@@ -147,6 +147,7 @@ func _build_text() -> String:
 		Hud.version_text(), RunState.run_seed, Engine.get_frames_per_second(),
 		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
 	lines.append("save %s   %s   showing look %s" % [_save_mode(), Unlocks.summary(), Look.label()])
+	lines.append(forks_line())
 	lines.append("entities %d   enemies %d   t %.1fs%s%s" % [
 		RunState.live_entities().size(), RunState.count(&"enemy"), RunState.game_time,
 		"   INVINCIBLE" if RunState.invincible else "",
@@ -177,3 +178,15 @@ static func _save_mode() -> String:
 	if SaveGame.persist:
 		return "live"
 	return "inert" if SaveGame.unlock_all else "snapshot"
+
+
+## "forks look_1=look_1_clean fork_enemy=? | shelf look_1_punchy,look_1_arcade" (PLAN v6 2).
+static func forks_line() -> String:
+	var parts: Array[String] = []
+	var shelf: Array[String] = []
+	for f in ChangeDB.forks:
+		var a := f.answer()
+		parts.append("%s=%s" % [f.id, a.id if a else "?"])
+		for c in f.shelf():
+			shelf.append(String(c.id))
+	return "forks %s | shelf %s" % [" ".join(parts), ",".join(shelf) if not shelf.is_empty() else "-"]

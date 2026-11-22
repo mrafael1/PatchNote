@@ -1,12 +1,12 @@
 extends SceneTree
-## Captures the stills of a mockup change's takes (PLAN v5 1.6, 4.3, M30): for each
+## Captures the stills of a mockup fork's options (PLAN v5 4.3, v6 1.1, M30): for each
 ## take, the same seeded fight is played with that take's look, and the frame with the
 ## most effects on screen is saved as the take's still. Needs a real window (the
 ## headless renderer draws nothing):
 ##
-##   godot --path . -s tools/mockup_capture.gd -- [change id, default look_1]
+##   godot --path . -s tools/mockup_capture.gd -- [mockup fork id, default look_1]
 ##
-## Writes res://devsession/stills/<change>_<take>.png (480x270). Run
+## Writes res://devsession/stills/<fork>_<take>.png (480x270), one per option. Run
 ## `godot --headless --path . --import` after it, then commit the PNGs. The change's
 ## .tres points at these files. Not part of the game.
 
@@ -32,16 +32,17 @@ func _run() -> void:
 		quit(1)
 		return
 	var args := OS.get_cmdline_user_args()
-	var change_id := StringName(args[0]) if args.size() > 0 else &"look_1"
-	var change: Resource = root.get_node("ChangeDB").get_change(change_id)
-	if change == null or (change.get(&"takes") as Array).is_empty():
-		print("[capture] FAILED: %s is not a mockup change" % change_id)
+	var fork_id := StringName(args[0]) if args.size() > 0 else &"look_1"
+	var fork: Resource = root.get_node("ChangeDB").get_fork(fork_id)
+	if fork == null or not fork.get(&"mockup"):
+		print("[capture] FAILED: %s is not a mockup fork" % fork_id)
 		quit(1)
 		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	var failures := 0
-	for take: Resource in change.get(&"takes"):
-		var path := OUT_DIR + "%s_%s.png" % [change_id, take.get(&"id")]
+	for option: Resource in fork.call(&"changes"):
+		var take: Resource = option.get(&"take")
+		var path := OUT_DIR + "%s_%s.png" % [fork_id, take.get(&"id")]
 		var image := await _capture(take.get(&"preset"))
 		var err := image.save_png(path)
 		if err != OK:
