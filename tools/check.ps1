@@ -6,7 +6,7 @@
 # Usage (from anywhere):  powershell -ExecutionPolicy Bypass -File tools\check.ps1 [-BotRuns]
 # -BotRuns adds the M6 gate: five full-length seeded bot runs (about two minutes), plus
 # one run of the parked turn-based genre through the big-slot seam (PLAN v5 M25), plus
-# two runs chained through a scratch save (PLAN v5 M27).
+# four runs chained through a scratch save (PLAN v5 M27, M29).
 # Every step must leave the real save folder exactly as it was (PLAN v5 1.5, 6).
 
 param([switch]$BotRuns)
@@ -87,16 +87,18 @@ if ($BotRuns) {
     Test-Errors 'bot_runs_parked' $parked
     Select-String -Path $parked.Log -Pattern '^\[botrun\]' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($parked.Text -notmatch '\[botrun\] summary: 1 runs, 0 failures') { $failures += 'bot_runs_parked: summary missing or failures' }
-    # Two mortal runs chained through a fresh scratch save (PLAN v5 M27): the file counts both.
-    $chain = Invoke-Godot 'bot_runs_save' '--fixed-fps 60 -s tools/bot_runs.gd -- --save=user://save_check/save.json --keep-save --fresh 1 2'
+    # Four mortal runs chained through a fresh scratch save (PLAN v5 M27): the file counts them.
+    $chain = Invoke-Godot 'bot_runs_save' '--fixed-fps 60 -s tools/bot_runs.gd -- --save=user://save_check/save.json --keep-save --fresh 1 2 3 4'
     Test-Errors 'bot_runs_save' $chain
     Select-String -Path $chain.Log -Pattern '^\[botrun\] (save|session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
-    if ($chain.Text -notmatch '\[botrun\] summary: 2 runs, 0 failures') { $failures += 'bot_runs_save: summary missing or failures' }
-    if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=2 ') { $failures += 'bot_runs_save: the save does not count 2 runs' }
-    # Between the two runs the report opens the dev session (PLAN v5 M29): a fresh save's
-    # first session is the look mockup, and its pick ships v0.1.0.
-    if ($chain.Text -notmatch '\[botrun\] session=1 after_run=1 shape=mockup .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
-    if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=2 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
+    if ($chain.Text -notmatch '\[botrun\] summary: 4 runs, 0 failures') { $failures += 'bot_runs_save: summary missing or failures' }
+    if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 ') { $failures += 'bot_runs_save: the save does not count 4 runs' }
+    # Between runs the report opens the dev session (PLAN v5 M29, 4.8): the first two
+    # ship the basics after two smoke tests, the third is the look mockup (v0.1.0).
+    if ($chain.Text -notmatch '\[botrun\] session=1 after_run=1 shape=basic .*ai_ship=basic_movement version=v0\.0\.0->v0\.0\.1') { $failures += 'bot_runs_save: session 1 did not ship movement' }
+    if ($chain.Text -notmatch '\[botrun\] session=2 after_run=2 shape=basic .*ai_ship=basic_world version=v0\.0\.1->v0\.0\.2') { $failures += 'bot_runs_save: session 2 did not ship enemies and the level' }
+    if ($chain.Text -notmatch '\[botrun\] session=3 after_run=3 shape=mockup .*version=v0\.0\.2->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
+    if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check' }

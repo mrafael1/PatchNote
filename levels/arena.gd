@@ -62,6 +62,12 @@ func _init() -> void:
 	player_start = PLAYER_START_TILE * t
 
 
+## The first builds have no level yet (PLAN v5 4.8): only the border stays. Call it
+## before the arena enters the tree (its collision is built in _ready).
+func strip_layout() -> void:
+	blocks.resize(4)   # the border is the first four blocks
+
+
 func _add_block(col: float, row: float, w: float, h: float, t: float) -> void:
 	blocks.append(Rect2(col * t, row * t, w * t, h * t))
 

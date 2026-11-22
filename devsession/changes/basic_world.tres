@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"basic_world"
+title = "Enemies and a level"
+pitch = "Nothing to shoot and nowhere to hide. I wrote a spawner and drew you a level."
+kind = &"basic"
+bump = &"patch"
+requires = Array[StringName]([&"basic_movement"])
+unlocks = Array[StringName]([&"enemies", &"level"])
+tags = Array[StringName]([])

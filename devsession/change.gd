@@ -4,12 +4,13 @@ extends Resource
 ## Shipping it adds its id to the save's `shipped` list; what it unlocks follows from
 ## that (Unlocks). The cards, the screens and the content come with M29.
 
-const KINDS: Array[StringName] = [&"patch", &"enemy", &"look"]
+## basic: one of the game's basics (Unlocks.BASICS), shipped by the AI before anything else.
+const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic"]
 
 @export var id: StringName
 @export var title := ""
 @export var pitch := ""                          ## the AI's line on the card
-@export var kind: StringName = &"patch"          ## patch, enemy or look
+@export var kind: StringName = &"patch"          ## patch, enemy, look or basic
 @export var genre: StringName = &""              ## &"" = shared by every genre
 @export var bump: StringName = &"patch"          ## GameVersion.PATCH or GameVersion.MINOR
 @export var requires: Array[StringName] = []     ## change ids, all shipped first
@@ -26,6 +27,10 @@ func short_name() -> String:
 	if kind == &"enemy" and not unlocks.is_empty():
 		return String(unlocks[0]).capitalize()
 	return title
+
+
+func is_basic() -> bool:
+	return kind == &"basic"
 
 
 func is_mockup() -> bool:

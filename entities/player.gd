@@ -5,6 +5,9 @@ var kind: StringName = &"player"
 var input: PlayerInput
 
 var _facing := Vector2.RIGHT
+## The first build has no movement yet (PLAN v5 4.8): it can aim and shoot, nothing
+## else. The genre sets this from Unlocks when it builds the run.
+var movement_locked := false
 
 @onready var mover: Mover = $Mover
 @onready var health: Health = $Health
@@ -69,14 +72,18 @@ func _physics_process(_delta: float) -> void:
 		mover.wish = Vector2.ZERO
 		mover.jump_held = true   # a turn's jump is always a full jump
 		return   # auto-attack fires only on wait turns: the TurnClock calls auto_fire()
-	mover.wish = input.move
-	if input.move.length() > 0.2:
-		_facing = input.move.normalized()
-	mover.jump_held = input.jump_held
-	if input.jump_pressed:
-		mover.request_jump()
-	if input.dash_pressed:
-		dasher.try_dash(_facing)
+	if movement_locked:
+		mover.wish = Vector2.ZERO
+		mover.jump_held = false
+	else:
+		mover.wish = input.move
+		if input.move.length() > 0.2:
+			_facing = input.move.normalized()
+		mover.jump_held = input.jump_held
+		if input.jump_pressed:
+			mover.request_jump()
+		if input.dash_pressed:
+			dasher.try_dash(_facing)
 	if input.fire:
 		shooter.try_fire(input.aim_dir)
 	elif RunState.rules.auto_attack and shooter.can_fire():

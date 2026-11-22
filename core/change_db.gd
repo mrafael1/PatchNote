@@ -77,7 +77,7 @@ func problems(c: Change) -> Array[String]:
 		if m != null:
 			if m.parked:
 				out.append("Change '%s' unlocks the parked patch '%s'" % [c.id, u])
-		elif not u in Unlocks.ARCHETYPES:
+		elif not u in Unlocks.ARCHETYPES and not u in Unlocks.BASICS:
 			out.append("Change '%s' unlocks '%s', which is neither a patch nor an enemy" % [c.id, u])
 	if c.is_mockup():
 		if c.takes.size() != 3:

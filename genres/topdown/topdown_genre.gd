@@ -20,6 +20,8 @@ func build(p_shell: Node) -> void:
 	super(p_shell)
 	arena = Arena.new()
 	arena.name = "Arena"
+	if not Unlocks.has_basic(&"level"):
+		arena.strip_layout()   # PLAN v5 4.8: no level yet, an empty box
 	add_child(arena)
 
 	world = Node2D.new()
@@ -29,6 +31,7 @@ func build(p_shell: Node) -> void:
 
 	player = PLAYER_SCENE.instantiate()
 	player.position = arena.player_start
+	player.set(&"movement_locked", not Unlocks.has_basic(&"movement"))
 	world.add_child(player)
 
 	turn_clock = TurnClock.new()
@@ -57,6 +60,7 @@ func build(p_shell: Node) -> void:
 	spawner.name = "Spawner"
 	spawner.arena = arena
 	spawner.player = player
+	spawner.enabled = Unlocks.has_basic(&"enemies")
 	add_child(spawner)
 
 	run_loop = RunLoop.new()
@@ -73,9 +77,27 @@ func begin_run() -> void:
 	run_loop.spawner = spawner
 	run_loop.transition = shell.transition
 	run_loop.report_ready.connect(func(outcome: StringName) -> void: run_ended.emit(outcome))
+	var missing := Unlocks.missing_basics()
+	if not missing.is_empty():
+		# A build that misses a basic (PLAN v5 4.8) plays a short smoke test: no prompts.
+		run_loop.smoke_duration = Tuning.smoke_test_duration
+		shell.director.enabled = false
+		if shell.transition:
+			shell.transition.say(smoke_line(missing))
 	run_loop.phase_changed.connect(func(phase: StringName) -> void:
 		if phase == RunLoop.RELEASE_CANDIDATE and shell.sound:
 			shell.sound.play(&"release_candidate", 0.0))
+
+
+## The AI's line at the start of a smoke test, about the first basic still missing.
+static func smoke_line(missing: Array[StringName]) -> String:
+	match missing[0]:
+		&"movement":
+			return "Smoke test. Movement is not in yet: aim and shoot, that is all."
+		&"enemies":
+			return "Smoke test. You can move now. There is nothing to shoot yet."
+		_:
+			return "Smoke test. Something basic is still missing."
 
 
 func run_record() -> Dictionary:

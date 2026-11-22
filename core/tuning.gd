@@ -141,6 +141,9 @@ var rc_duration := 45.0           # the "release candidate" wave after the last 
 var rc_spawn_rate := 1.6          # spawner phase multipliers during that wave
 var rc_spawn_cap := 1.5
 var report_delay := 1.0           # game time between the end of the run and the report
+# The first builds miss a basic (PLAN v5 4.8): their run is a short smoke test with no
+# prompts, survived when this much game time has passed.
+var smoke_test_duration := 20.0
 
 # --- Dev session (PLAN v5 4) ---
 var session_cards := 3            # cards in a 3-changes session

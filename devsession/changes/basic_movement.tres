@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="Change" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"basic_movement"
+title = "Movement"
+pitch = "You tried to move. I saw that. WASD moves you now, and the dash works."
+kind = &"basic"
+bump = &"patch"
+requires = Array[StringName]([])
+unlocks = Array[StringName]([&"movement"])
+tags = Array[StringName]([])

@@ -4,7 +4,8 @@ extends Node
 ## scene (after the report, F9) and the start screen (a pending session). It owns both
 ## screens and ships through DevSession; whoever starts it decides what "Play" does.
 ##
-## AI_LAST goes straight to the patch notes (the AI shipped the last change itself);
+## BASIC and AI_LAST go straight to the patch notes (the AI shipped a basic, or the
+## last change, itself);
 ## NONE shows the line and "Play" with no bump; a pick ships, then shows the notes.
 
 ## The session is shipped and logged (the shell writes its telemetry line).
@@ -35,7 +36,7 @@ func is_open() -> bool:
 
 func start(p_session: DevSession) -> void:
 	session = p_session
-	if session.shape == DevSession.AI_LAST:
+	if session.shape == DevSession.AI_LAST or session.shape == DevSession.BASIC:
 		session.finish()
 		session_done.emit(session)
 		notes.open(session)

@@ -140,7 +140,8 @@ static func report_text(outcome: StringName, record: Dictionary) -> String:
 	var reverts: int = record.get("reverts_used", 0)
 	var lines: Array[String] = []
 	# PLAN v5 1.6: the run is a playtest of the game's version; the build is flavour.
-	lines.append("PLAYTEST OF %s  -  %s" % [game_version,
+	var smoke: bool = record.get("smoke_test", false)
+	lines.append("%s OF %s  -  %s" % ["SMOKE TEST" if smoke else "PLAYTEST", game_version,
 			"BUILD SURVIVED" if outcome == &"win" else "CRASHED AT BUILD %d" % build])
 	lines.append("")
 	lines.append("Time        %s" % _clock(duration))
@@ -174,8 +175,22 @@ static func report_text(outcome: StringName, record: Dictionary) -> String:
 				int(kills.get(key, 0)), float(damage.get(key, 0.0))])
 	lines.append("")
 	var patches := (record.get("final_stack", []) as Array).size()
-	lines.append("AI: " + Dialogue.report_line(outcome, duration, patches, reverts))
+	if smoke:
+		lines.append("AI: " + smoke_line(record.get("missing_basics", [])))
+	else:
+		lines.append("AI: " + Dialogue.report_line(outcome, duration, patches, reverts))
 	return "\n".join(lines)
+
+
+## The AI's comment on a smoke test (PLAN v5 4.8), about the first basic it missed.
+static func smoke_line(missing: Array) -> String:
+	match String(missing[0]) if not missing.is_empty() else "":
+		"movement":
+			return "You tried to move. I saw that. It is on my list."
+		"enemies":
+			return "Nothing to shoot, nowhere to hide. I know. Next build."
+		_:
+			return "Smoke test passed. Mostly because nothing happened."
 
 
 static func _clock(seconds: float) -> String:

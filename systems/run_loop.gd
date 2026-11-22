@@ -23,6 +23,9 @@ var build := ""              ## game build name written to telemetry
 var phase: StringName = PLAY
 var outcome: StringName = &""
 var rc_started_at := -1.0
+## > 0: this build misses a basic and its run is a smoke test (PLAN v5 4.8): no prompts,
+## survived once this much game time has passed.
+var smoke_duration := 0.0
 var record: Dictionary = {}  ## telemetry record of the finished run
 
 var _report_at := -1.0
@@ -35,7 +38,10 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	match phase:
 		PLAY:
-			if _prompts_done():
+			if smoke_duration > 0.0:
+				if RunState.game_time >= smoke_duration:
+					end(&"win")
+			elif _prompts_done():
 				_start_release_candidate()
 		RELEASE_CANDIDATE:
 			if rc_time_left() <= 0.0:
@@ -64,6 +70,13 @@ func _start_release_candidate() -> void:
 	if transition:
 		transition.say(Dialogue.RELEASE_CANDIDATE)
 	phase_changed.emit(phase)
+
+
+## Seconds of the smoke test still to go; -1 when the run is not one.
+func smoke_time_left() -> float:
+	if smoke_duration <= 0.0 or phase != PLAY:
+		return -1.0
+	return maxf(0.0, smoke_duration - RunState.game_time)
 
 
 ## Seconds of the final wave still to survive; -1 outside it.
@@ -98,6 +111,8 @@ func end(result: StringName) -> void:
 				"earned": director.charges_earned if director else 0,
 				"used": director.charges_earned - director.charges if director else 0},
 		"reached_release_candidate": rc_started_at >= 0.0,
+		"smoke_test": smoke_duration > 0.0,
+		"missing_basics": Unlocks.missing_basics().map(func(b: StringName) -> String: return String(b)),
 		"bot": player != null and player.has_method(&"is_bot") and player.is_bot(),
 		"invincible": RunState.invincible,
 	})

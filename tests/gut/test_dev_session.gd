@@ -3,8 +3,8 @@ extends GutTest
 ## TEST_PATH; after_each puts the save back to inert and deletes the scratch files.
 
 const TEST_PATH := "user://save_session_test/save.json"
-const ALL_SIX: Array[String] = ["enemy_bomber", "enemy_tank", "look_1", "patch_auto_attack",
-		"patch_horde_mode", "patch_motion_time"]
+const ALL: Array[String] = ["basic_movement", "basic_world", "enemy_bomber", "enemy_tank",
+		"look_1", "patch_auto_attack", "patch_horde_mode", "patch_motion_time"]
 
 var _changes: Array[Change] = []
 var _every := 0
@@ -38,9 +38,14 @@ func _delete_files() -> void:
 			DirAccess.remove_absolute(path)
 
 
-## A fresh live save that has played `runs` runs (each one a pending session).
-func _live(runs := 1) -> void:
+## A fresh live save that has played `runs` runs (each one a pending session). The
+## basics (PLAN v5 4.8) are shipped first unless told otherwise (v0.0.2): most tests are
+## about what comes after them; tests/gut/test_first_builds.gd covers them.
+func _live(runs := 1, basics := true) -> void:
 	SaveGame.go_live(TEST_PATH, true)
+	if basics:
+		for id: StringName in [&"basic_movement", &"basic_world"]:
+			SaveGame.ship(id, GameVersion.PATCH)
 	for i in runs:
 		SaveGame.record_run(&"topdown", &"lose", 60.0, SaveGame.state().taste)
 
@@ -57,14 +62,14 @@ func _ids(session: DevSession) -> Array:
 
 # --- The content -------------------------------------------------------------------
 
-func test_the_six_changes_are_valid() -> void:
+func test_the_eight_changes_are_valid() -> void:
 	var ids: Array[String] = []
 	for c in ChangeDB.all:
 		ids.append(String(c.id))
 		assert_eq(ChangeDB.problems(c), [] as Array[String], String(c.id))
 		assert_ne(c.title, "", String(c.id))
 		assert_ne(c.pitch, "", String(c.id))
-	assert_eq(ids, ALL_SIX)
+	assert_eq(ids, ALL)
 	var look := ChangeDB.get_change(&"look_1")
 	assert_true(look.is_mockup())
 	assert_eq(look.bump, GameVersion.MINOR)
@@ -324,7 +329,7 @@ func test_the_session_telemetry_line() -> void:
 	assert_eq(rec.type, "session")
 	assert_eq(rec.schema, 2)
 	assert_eq(rec.run_index, 3)
-	assert_eq(rec.version_before, "v0.0.0")
+	assert_eq(rec.version_before, "v0.0.2")
 	assert_eq(rec.version_after, "v0.1.0")
 	assert_eq(rec.shape, "mockup")
 	assert_eq(rec.pick, "look_1:punchy")
@@ -352,7 +357,7 @@ func test_a_chain_of_sessions_ships_everything_by_v0_1_5() -> void:
 	var first := _chain()
 	assert_eq(first.shapes, ["mockup", "changes", "changes", "changes", "ai_last", "none"])
 	assert_eq(first.versions, ["v0.1.0", "v0.1.1", "v0.1.2", "v0.1.4", "v0.1.5", "v0.1.5"])
-	assert_eq(SaveGame.shipped().size(), 6)
+	assert_eq(SaveGame.shipped().size(), ALL.size())
 	assert_true(DevSession.available().is_empty())
 	assert_true((first.agendas as Array).any(func(a: String) -> bool: return a != ""),
 			"at least one agenda card over the chain")

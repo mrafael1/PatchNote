@@ -5,6 +5,9 @@ extends RefCounted
 ## show it, the shell appends telemetry_record() to the playtest log.
 ##
 ## Shapes (4.2):
+## - BASIC: one of the game's basics is still missing (4.8): no card, the AI ships the
+##   next one itself (finish()) and the flow goes straight to the patch notes. Until
+##   every basic is out, nothing else is available.
 ## - MOCKUP: an available change with takes is due (due_after_run <= runs): its 3 takes
 ##   are the cards. Picking one ships the change and sets the look.
 ## - CHANGES: up to Tuning.session_cards available changes, taste-weighted by tag, and
@@ -20,6 +23,7 @@ extends RefCounted
 ## same-seed chain from the same save gets the same cards. Nothing here knows a genre or
 ## a change by name.
 
+const BASIC := &"basic"
 const MOCKUP := &"mockup"
 const CHANGES := &"changes"
 const AI_LAST := &"ai_last"
@@ -35,6 +39,7 @@ const AI_LAST_LINE := "Last one on my list. I shipped it."
 ## AI_LAST when more changes wait behind the one it shipped (their requires).
 const AI_ONLY_LINE := "Only one change was ready, so I shipped it myself. More are coming."
 const NONE_LINE := "I'm working on something bigger."
+const BASIC_LINE := "That build was missing something basic. Fixed it."
 const AGENDA_LABEL := "AI's wish"
 const AGENDA_LINE := "This is the one I want to build. You will not pick it. Pick it anyway."
 const AI_OWN_LINE := "I also shipped something you didn't ask for: %s."
@@ -72,6 +77,9 @@ static func plan(run_seed: int, context := {}) -> DevSession:
 	s._rng.seed = hash([run_seed, s.number, s.after_run])
 	var avail := available()
 	for c in avail:
+		if c.is_basic():
+			s.shape = BASIC
+			break
 		if c.is_mockup() and c.due_after_run <= s.after_run:
 			s.shape = MOCKUP
 			s.mockup = c
@@ -79,7 +87,7 @@ static func plan(run_seed: int, context := {}) -> DevSession:
 				s.cards.append({"id": "%s:%s" % [c.id, t.id], "change": c, "take": t, "agenda": false,
 						"taste_id": StringName(SaveGame.LOOK_PREFIX + String(t.id)), "tags": []})
 			break
-	if s.shape != MOCKUP:
+	if s.shape != MOCKUP and s.shape != BASIC:
 		var regular := _regular(avail)
 		if regular.size() >= 2:
 			s.shape = CHANGES
@@ -93,11 +101,14 @@ static func plan(run_seed: int, context := {}) -> DevSession:
 
 
 ## Changes the save can ship now: not shipped, every requires shipped, and a genre (if
-## any) at least Playable. In ChangeDB order (by id).
+## any) at least Playable. While a basic is unshipped, only basics (4.8). In ChangeDB
+## order (by id).
 static func available() -> Array[Change]:
 	var out: Array[Change] = []
+	var basics_left := ChangeDB.all.any(func(c: Change) -> bool:
+		return c.is_basic() and not SaveGame.has_shipped(c.id))
 	for c in ChangeDB.all:
-		if SaveGame.has_shipped(c.id):
+		if SaveGame.has_shipped(c.id) or (basics_left and not c.is_basic()):
 			continue
 		var ready := true
 		for req in c.requires:
@@ -215,12 +226,17 @@ func pick(index: int) -> bool:
 	return true
 
 
-## A session with no choice: AI_LAST ships the last change as the AI's own, NONE ships
-## nothing and does not bump. Both are logged. False if the session needs a pick.
+## A session with no choice: BASIC ships the next basic, AI_LAST the last change, both
+## as the AI's own; NONE ships nothing and does not bump. All are logged. False if the
+## session needs a pick.
 func finish() -> bool:
 	if done or can_pick():
 		return false
-	if shape == AI_LAST:
+	if shape == BASIC:
+		var basics := available()
+		if not basics.is_empty():
+			_ship(basics[0], null, AI)
+	elif shape == AI_LAST:
 		var left := _regular(available())
 		if not left.is_empty():
 			_ship(left[0], null, AI)
@@ -334,6 +350,8 @@ func _opening(context: Dictionary) -> String:
 			parts.append(MOCKUP_LINE)
 		CHANGES:
 			parts.append(CHANGES_LINE)
+		BASIC:
+			parts.append(BASIC_LINE)
 		AI_LAST:
 			parts.append(AI_LAST_LINE if _is_last(_regular(available())[0]) else AI_ONLY_LINE)
 		NONE:
@@ -371,7 +389,7 @@ func notes_lines() -> Array[String]:
 			if line != c.title:   # "New enemy: Tank" is already the bullet's title
 				out.append("    " + line)
 	for s in shipped:
-		if s.by == AI:
+		if s.by == AI and shape != BASIC:   # a basic's pitch already says it
 			var c: Change = s.change
 			if shape == AI_LAST:
 				out.append(AI_LAST_LINE if _is_last(c) else AI_ONLY_LINE)

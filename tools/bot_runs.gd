@@ -20,6 +20,9 @@ extends SceneTree
 ##                                end is written, as in the real game)
 ##   --fresh                      start from a new save (v0.0.0) instead of the file, or,
 ##                                without --save, instead of everything unlocked
+##   --ship=<id>,<id>             ship these changes into the save before the first run,
+##                                e.g. --fresh --ship=basic_movement,basic_world plays the
+##                                v0.0.2 run instead of the smoke tests (PLAN v5 4.8)
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
 ## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
 ## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
@@ -44,6 +47,7 @@ var start_big := &""
 var save_arg := ""
 var keep_save := false
 var fresh := false
+var ship_ids := PackedStringArray()
 
 
 func _initialize() -> void:
@@ -74,6 +78,8 @@ func _run() -> void:
 			keep_save = true
 		elif arg == "--fresh":
 			fresh = true
+		elif arg.begins_with("--ship="):
+			ship_ids = arg.trim_prefix("--ship=").split(",", false)
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -290,6 +296,12 @@ func _set_up_save() -> bool:
 	if save.read_only:
 		print("[botrun] FAILED: %s is from a newer build" % save_arg)
 		return false
+	for id in ship_ids:
+		var c: Resource = root.get_node("ChangeDB").get_change(StringName(id))
+		if c == null or save.unlock_all:
+			print("[botrun] FAILED: cannot ship %s (%s)" % [id, "inert save" if c else "no such change"])
+			return false
+		save.call(&"ship", c.id, c.bump)
 	print("[botrun] save: %s" % ("inert" if save.unlock_all else "%s%s%s" % [
 		save_arg if save_arg != "" else "in memory", " (fresh)" if fresh else "",
 		", chained" if keep_save else ", read-only"]))

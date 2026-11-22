@@ -8,6 +8,10 @@ extends RefCounted
 ## Every enemy archetype the spawner knows (a change may unlock one of these).
 const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber"]
 const FULL_LOOK := {"tier": 1, "take": "punchy"}
+## The game's basics (PLAN v5 4.8): the first builds miss them and the first dev
+## sessions ship them. Without movement the player can only aim and shoot; without
+## enemies nothing spawns; without the level the arena is an empty box.
+const BASICS: Array[StringName] = [&"movement", &"enemies", &"level"]
 
 
 ## Patches that may be offered: the starters plus what shipped changes unlock, never
@@ -35,6 +39,20 @@ static func enemies() -> Array[StringName]:
 	return out
 
 
+## Whether a basic has shipped (always, while inert).
+static func has_basic(id: StringName) -> bool:
+	return SaveGame.unlock_all or shipped_unlocks().has(id)
+
+
+## The basics still missing, in BASICS order (none while inert).
+static func missing_basics() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for b in BASICS:
+		if not has_basic(b):
+			out.append(b)
+	return out
+
+
 ## {tier, take}: the save's look (tier 0 when nothing shipped).
 static func look() -> Dictionary:
 	if SaveGame.unlock_all:
@@ -56,8 +74,10 @@ static func shipped_unlocks() -> Array[StringName]:
 	return out
 
 
-## "look=1:punchy pool=7 enemies=chaser,shooter,tank" for the bot line and F1.
+## "look=1:punchy pool=7 enemies=chaser,shooter,tank missing=-" for the bot line and F1.
 static func summary() -> String:
 	var l := look()
-	return "look=%d:%s pool=%d enemies=%s" % [l.tier, l.take if l.take != "" else "-", pool().size(),
-			",".join(enemies().map(func(a: StringName) -> String: return String(a)))]
+	var missing := missing_basics().map(func(b: StringName) -> String: return String(b))
+	return "look=%d:%s pool=%d enemies=%s missing=%s" % [l.tier, l.take if l.take != "" else "-", pool().size(),
+			",".join(enemies().map(func(a: StringName) -> String: return String(a))),
+			",".join(missing) if not missing.is_empty() else "-"]
