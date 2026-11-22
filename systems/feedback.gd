@@ -109,8 +109,11 @@ func _on_projectile_fired(projectile: Node) -> void:
 	if not Look.preset.muzzle_flash or not is_instance_valid(projectile) \
 			or projectile.get(&"faction") != &"player":
 		return
-	var dir: Vector2 = projectile.get(&"velocity")
-	burst((projectile as Node2D).global_position, MUZZLE, 4, 80.0, 200.0, 0.08, 5.0, dir.normalized(), 25.0)
+	var velocity: Variant = projectile.get(&"velocity")
+	if not projectile is Node2D or not velocity is Vector2:
+		return   # a test's stand-in shot: no direction to flash along
+	burst((projectile as Node2D).global_position, MUZZLE, 4, 80.0, 200.0, 0.08, 5.0,
+			(velocity as Vector2).normalized(), 25.0)
 
 
 ## The kill confirmation, in every look: never skipped by the effect cap.
@@ -130,7 +133,8 @@ func kill_pop(pos: Vector2, color: Color) -> void:
 ## or once the player is dead (the report is never slowed). The clear is bound to
 ## RunState, so it runs even if this node is gone by then.
 func hit_stop(seconds: float) -> void:
-	if seconds <= 0.0 or RunState.has_time_factor(&"hit_stop") or not is_inside_tree() 			or RunState.rules.turn_based or _player_dead():
+	if seconds <= 0.0 or RunState.has_time_factor(&"hit_stop") or not is_inside_tree() \
+			or RunState.rules.turn_based or _player_dead():
 		return
 	RunState.set_time_factor(&"hit_stop", 0.0)
 	get_tree().create_timer(seconds, true, false, true).timeout.connect(

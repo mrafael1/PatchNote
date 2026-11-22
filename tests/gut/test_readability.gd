@@ -336,3 +336,30 @@ func test_the_v0_run_is_three_prompts_and_a_45_second_wave() -> void:
 	var length := Tuning.first_prompt_min_gap + Tuning.prompt_min_gap * (Tuning.prompts_per_run - 1) \
 			+ Tuning.rc_duration
 	assert_between(length, 170.0, 200.0, "~3 min of game time")
+
+
+## M30 (PLAN v5 1.7): the 3 tier 1 takes are tuned apart. Each differs from each other
+## in at least 3 juice fields and keeps tier 0's palette (palettes are tier 2).
+func test_the_tier_1_takes_differ_in_at_least_3_juice_fields() -> void:
+	const FIELDS := ["shake_scale", "particle_scale", "hit_stop", "muzzle_flash", "kill_pop_scale",
+			"trail", "trail_scale", "screen_flash"]
+	var tier_0: LookPreset = load(Look.TIER_0)
+	var takes: Array[LookPreset] = []
+	for take in ["punchy", "clean", "arcade"]:
+		var p: LookPreset = load(Look.path_for(1, take))
+		assert_eq(p.palette, tier_0.palette, "%s keeps tier 0's palette" % take)
+		takes.append(p)
+	for i in takes.size():
+		for j in range(i + 1, takes.size()):
+			var differ := FIELDS.filter(func(f: String) -> bool: return takes[i].get(f) != takes[j].get(f))
+			assert_gte(differ.size(), 3, "%s vs %s: %s" % [takes[i].take, takes[j].take, differ])
+
+
+## The look mockup's cards show stills captured from the game (tools/mockup_capture.gd),
+## not placeholders, one per take, each named after its take.
+func test_the_look_mockup_shows_captured_stills() -> void:
+	var change: Change = ChangeDB.get_change(&"look_1")
+	for take: MockupTake in change.takes:
+		assert_eq(take.image.resource_path, "res://devsession/stills/look_1_%s.png" % take.id)
+		assert_eq(take.image.get_size(), Vector2(480, 270))
+		assert_eq((take.preset as LookPreset).take, take.id)

@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M29b"
+const BUILD := "M30"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -43,13 +43,11 @@ var _next_run_seed := -1   ## the seed "Play" starts after a dev session
 
 
 func _ready() -> void:
-	var v: Dictionary = Engine.get_version_info()
-	print("[boot] Patch Notes %s, Godot %s.%s.%s" % [BUILD, v.major, v.minor, v.patch])
-
 	var run_seed := next_seed if next_seed >= 0 else int(randi() % 1000000)
 	next_seed = -1
 	RunState.reset(run_seed, next_genre)
 	next_genre = &""
+	print(boot_line())
 	Look.use(Unlocks.look())   # the save's look (PLAN v5 1.7); punchy while inert
 
 	var def := GenreDB.get_genre(RunState.genre)
@@ -120,6 +118,17 @@ func _ready() -> void:
 
 
 ## Debug wave (F-key, screenshots): the genre's own, if it has one.
+## "[boot] Patch Notes M30, game v0.1.2, genre <id> (playable: <ids>), Godot 4.7.0":
+## the build, the save's version and the run's genre, for the export check and bug
+## reports (PLAN v5 M30).
+static func boot_line() -> String:
+	var v: Dictionary = Engine.get_version_info()
+	return "[boot] Patch Notes %s, game %s, genre %s (playable: %s), Godot %s.%s.%s" % [BUILD,
+			SaveGame.version().label(), RunState.genre,
+			", ".join(GenreDB.playable_ids().map(func(g: StringName) -> String: return String(g))),
+			v.major, v.minor, v.patch]
+
+
 func spawn_wave(count := -1) -> void:
 	if genre.has_method(&"spawn_wave"):
 		if count < 0:

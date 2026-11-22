@@ -1,65 +1,36 @@
-[gd_resource type="Resource" script_class="Change" load_steps=15 format=3]
+[gd_resource type="Resource" script_class="Change" load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://devsession/change.gd" id="1"]
 [ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
 [ext_resource type="Resource" path="res://systems/looks/look_1_punchy.tres" id="3"]
 [ext_resource type="Resource" path="res://systems/looks/look_1_clean.tres" id="4"]
 [ext_resource type="Resource" path="res://systems/looks/look_1_arcade.tres" id="5"]
-
-[sub_resource type="Gradient" id="grad_punchy"]
-colors = PackedColorArray(0.08, 0.09, 0.12, 1, 0.95, 0.3, 0.3, 1)
-
-[sub_resource type="GradientTexture2D" id="still_punchy"]
-gradient = SubResource("grad_punchy")
-width = 480
-height = 270
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(1, 1)
-
-[sub_resource type="Gradient" id="grad_clean"]
-colors = PackedColorArray(0.08, 0.09, 0.12, 1, 0.4, 0.85, 1, 1)
-
-[sub_resource type="GradientTexture2D" id="still_clean"]
-gradient = SubResource("grad_clean")
-width = 480
-height = 270
-fill_from = Vector2(0, 1)
-fill_to = Vector2(1, 0)
-
-[sub_resource type="Gradient" id="grad_arcade"]
-colors = PackedColorArray(0.08, 0.09, 0.12, 1, 1, 0.95, 0.5, 1)
-
-[sub_resource type="GradientTexture2D" id="still_arcade"]
-gradient = SubResource("grad_arcade")
-width = 480
-height = 270
-fill = 2
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(0.5, 0)
+[ext_resource type="Texture2D" path="res://devsession/stills/look_1_punchy.png" id="6"]
+[ext_resource type="Texture2D" path="res://devsession/stills/look_1_clean.png" id="7"]
+[ext_resource type="Texture2D" path="res://devsession/stills/look_1_arcade.png" id="8"]
 
 [sub_resource type="Resource" id="take_punchy"]
 script = ExtResource("2")
 id = &"punchy"
 title = "Punchy"
-line = "Heavy hits: full screen shake, and time stops for a frame on every hit."
-image = SubResource("still_punchy")
+line = "Heavy hits: screen shake, a muzzle flash on every shot, a white flash on explosions, and time stops for a frame on every hit."
+image = ExtResource("6")
 preset = ExtResource("3")
 
 [sub_resource type="Resource" id="take_clean"]
 script = ExtResource("2")
 id = &"clean"
 title = "Clean"
-line = "A light touch: little shake, fewer particles, a very short hit stop."
-image = SubResource("still_clean")
+line = "A light touch: thin tracers, few particles, barely any shake, a very short hit stop."
+image = ExtResource("7")
 preset = ExtResource("4")
 
 [sub_resource type="Resource" id="take_arcade"]
 script = ExtResource("2")
 id = &"arcade"
 title = "Arcade"
-line = "Everything louder: big kill pops, lots of particles, more shake, a longer hit stop."
-image = SubResource("still_arcade")
+line = "Everything louder: long tracers, huge kill pops, twice the particles, flashes, more shake and the longest hit stop."
+image = ExtResource("8")
 preset = ExtResource("5")
 
 [resource]

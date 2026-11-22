@@ -34,9 +34,10 @@ var _reset_armed := false
 
 
 func _ready() -> void:
-	print("[boot] Patch Notes %s, start screen" % Main.BUILD)
 	if uses_real_save():
 		SaveGame.use_snapshot(SaveGame.DEFAULT_PATH)
+	print("[boot] Patch Notes %s, start screen, game %s, %s" % [Main.BUILD, SaveGame.version().label(),
+			"real save" if uses_real_save() else "inert save"])
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var bg := ColorRect.new()

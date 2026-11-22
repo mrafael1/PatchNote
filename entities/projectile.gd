@@ -25,21 +25,23 @@ var bounces_used := 0
 var _age := 0.0
 var _dead := false
 var _trail := false
+var _trail_scale := 1.0
 
 
 func _ready() -> void:
 	($Visual as RectVisual).color = COLOR_PLAYER if faction == &"player" else COLOR_ENEMY
 	rotation = velocity.angle()
 	_trail = faction == &"player" and Look.preset.trail   # presentation only (PLAN v5 1.7)
+	_trail_scale = Look.preset.trail_scale
 	RunState.register_entity(self, kind)
 
 
 func _draw() -> void:
 	if not _trail:
 		return
-	var length := minf(velocity.length() * TRAIL_SECONDS, TRAIL_MAX)
+	var length := minf(velocity.length() * TRAIL_SECONDS, TRAIL_MAX) * _trail_scale
 	draw_polyline_colors(PackedVector2Array([Vector2(-length, 0), Vector2.ZERO]),
-			PackedColorArray([Color(COLOR_PLAYER, 0.0), Color(COLOR_PLAYER, 0.6)]), 4.0, true)
+			PackedColorArray([Color(COLOR_PLAYER, 0.0), Color(COLOR_PLAYER, 0.6)]), 4.0 * _trail_scale, true)
 
 
 func _physics_process(delta: float) -> void:

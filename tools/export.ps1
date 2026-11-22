@@ -3,7 +3,7 @@
 # and a clean log.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
-# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe)
+# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G11 sheet)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -31,6 +31,12 @@ if ($failures.Count -eq 0) {
     if (Select-String -Path $bootLog -Pattern $errorPattern) { $failures += 'boot: error lines in log' }
     if ($text -notmatch '\[boot\] Patch Notes .*start screen') { $failures += 'boot: start screen banner missing' }
     if ($text -notmatch '\[boot\] Patch Notes .*Godot') { $failures += 'boot: game banner missing' }
+    # The boot lines name the save's version and the run's genre (PLAN v5 M30); the smoke
+    # boot never touches the real save.
+    if ($text -notmatch '\[boot\] Patch Notes .*start screen, game v\d+\.\d+\.\d+, inert save') { $failures += 'boot: start screen line without version, or the real save' }
+    if ($text -match '\[boot\] Patch Notes .*, game (v\d+\.\d+\.\d+), genre (\w+) \(playable: ([^)]*)\)') {
+        Write-Host "    boot: game $($Matches[1]), genre $($Matches[2]), playable: $($Matches[3])"
+    } else { $failures += 'boot: game line without version and genres' }
     $expected = (Get-ChildItem (Join-Path $root 'mutations') -Directory).Count
     if ($text -match '\[mutations\] (\d+): (.*)') {
         Write-Host "    mutations: $($Matches[1]) ($($Matches[2].Trim()))"
@@ -50,6 +56,7 @@ if ($failures.Count -eq 0) {
             if ($marked -ne $flagged) { $failures += "boot: $marked $($tier[0]) patches marked, $flagged resources with $($tier[1])" }
         }
     } else { $failures += 'boot: mutation list missing' }
+    Copy-Item (Join-Path $root 'PLAYTEST.md') $outDir -Force
     $size = (Get-Item (Join-Path $outDir 'PatchNotes.exe')).Length / 1MB
     Write-Host ("    PatchNotes.exe {0:N1} MB" -f $size)
 }

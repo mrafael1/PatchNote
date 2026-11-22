@@ -6,11 +6,12 @@
 script = ExtResource("1")
 tier = 1
 take = &"clean"
-shake_scale = 0.35
-particle_scale = 0.6
-hit_stop = 0.04
+shake_scale = 0.25
+particle_scale = 0.5
+hit_stop = 0.03
 muzzle_flash = false
-kill_pop_scale = 1.0
-trail = false
+kill_pop_scale = 0.9
+trail = true
+trail_scale = 0.6
 screen_flash = false
 palette = Array[Color]([Color(0.08, 0.09, 0.12, 1), Color(0.32, 0.36, 0.45, 1), Color(0.4, 0.85, 1, 1), Color(1, 0.95, 0.5, 1)])

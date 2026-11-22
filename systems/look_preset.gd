@@ -12,6 +12,7 @@ extends Resource
 @export var muzzle_flash := false   ## a flash at the player's muzzle on each shot
 @export var kill_pop_scale := 1.0   ## the kill ring's size
 @export var trail := false          ## player projectiles draw a streak behind them
+@export var trail_scale := 1.0      ## the streak's length and width (with `trail`)
 @export var screen_flash := false   ## a short white flash on explosions
 ## 4 colours: background, walls, the player, accents. Tier 1 shares tier 0's (1.7).
 @export var palette: Array[Color] = []
