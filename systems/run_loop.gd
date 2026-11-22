@@ -26,6 +26,11 @@ var rc_started_at := -1.0
 ## > 0: this build misses a basic and its run is a smoke test (PLAN v5 4.8): no prompts,
 ## survived once this much game time has passed.
 var smoke_duration := 0.0
+## >= 0: the AI stops the smoke test at this game time with smoke_stop_line, and the
+## run ends Tuning.smoke_stop_read later (the build that cannot move, PLAN v5 4.8).
+var smoke_stop_at := -1.0
+var smoke_stop_line := ""
+var smoke_stopped := false
 var record: Dictionary = {}  ## telemetry record of the finished run
 
 var _report_at := -1.0
@@ -39,7 +44,13 @@ func _physics_process(_delta: float) -> void:
 	match phase:
 		PLAY:
 			if smoke_duration > 0.0:
-				if RunState.game_time >= smoke_duration:
+				if smoke_stop_at >= 0.0 and not smoke_stopped and RunState.game_time >= smoke_stop_at:
+					smoke_stopped = true
+					RunState.log_event(&"smoke_stopped")
+					if transition:
+						transition.say(smoke_stop_line)
+				var ends_at := smoke_stop_at + Tuning.smoke_stop_read if smoke_stopped else smoke_duration
+				if RunState.game_time >= ends_at:
 					end(&"win")
 			elif _prompts_done():
 				_start_release_candidate()
@@ -72,9 +83,10 @@ func _start_release_candidate() -> void:
 	phase_changed.emit(phase)
 
 
-## Seconds of the smoke test still to go; -1 when the run is not one.
+## Seconds of the smoke test still to go; -1 when the run is not one, or once the AI
+## has stopped it (the countdown never gets to finish).
 func smoke_time_left() -> float:
-	if smoke_duration <= 0.0 or phase != PLAY:
+	if smoke_duration <= 0.0 or phase != PLAY or smoke_stopped:
 		return -1.0
 	return maxf(0.0, smoke_duration - RunState.game_time)
 
@@ -112,6 +124,7 @@ func end(result: StringName) -> void:
 				"used": director.charges_earned - director.charges if director else 0},
 		"reached_release_candidate": rc_started_at >= 0.0,
 		"smoke_test": smoke_duration > 0.0,
+		"smoke_stopped": smoke_stopped,
 		"missing_basics": Unlocks.missing_basics().map(func(b: StringName) -> String: return String(b)),
 		"bot": player != null and player.has_method(&"is_bot") and player.is_bot(),
 		"invincible": RunState.invincible,

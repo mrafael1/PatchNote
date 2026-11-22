@@ -259,6 +259,11 @@ func queue_hint(line: String) -> void:
 	_hint = line
 
 
+## The AI line on screen ("" when none is showing).
+func last_toast() -> String:
+	return _toast.text if _toast.visible else ""
+
+
 func _show_toast(line: String) -> void:
 	if line == "" and _hint == "":
 		return

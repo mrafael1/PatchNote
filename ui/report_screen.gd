@@ -141,8 +141,10 @@ static func report_text(outcome: StringName, record: Dictionary) -> String:
 	var lines: Array[String] = []
 	# PLAN v5 1.6: the run is a playtest of the game's version; the build is flavour.
 	var smoke: bool = record.get("smoke_test", false)
-	lines.append("%s OF %s  -  %s" % ["SMOKE TEST" if smoke else "PLAYTEST", game_version,
-			"BUILD SURVIVED" if outcome == &"win" else "CRASHED AT BUILD %d" % build])
+	var result := "BUILD SURVIVED" if outcome == &"win" else "CRASHED AT BUILD %d" % build
+	if record.get("smoke_stopped", false):
+		result = "STOPPED BY THE AI"
+	lines.append("%s OF %s  -  %s" % ["SMOKE TEST" if smoke else "PLAYTEST", game_version, result])
 	lines.append("")
 	lines.append("Time        %s" % _clock(duration))
 	lines.append("Kills       %d" % int(record.get("kills", RunState.kills)))

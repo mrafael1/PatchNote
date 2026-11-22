@@ -81,12 +81,19 @@ func begin_run() -> void:
 	if not missing.is_empty():
 		# A build that misses a basic (PLAN v5 4.8) plays a short smoke test: no prompts.
 		run_loop.smoke_duration = Tuning.smoke_test_duration
+		if missing[0] == &"movement":
+			run_loop.smoke_stop_at = Tuning.smoke_stop_time
+			run_loop.smoke_stop_line = SMOKE_STOP_LINE
 		shell.director.enabled = false
 		if shell.transition:
 			shell.transition.say(smoke_line(missing))
 	run_loop.phase_changed.connect(func(phase: StringName) -> void:
 		if phase == RunLoop.RELEASE_CANDIDATE and shell.sound:
 			shell.sound.play(&"release_candidate", 0.0))
+
+
+## The AI gives up on the build that cannot move (owner, 2026-11-22).
+const SMOKE_STOP_LINE := "Okay. We're not going anywhere. Stopping the test."
 
 
 ## The AI's line at the start of a smoke test, about the first basic still missing.

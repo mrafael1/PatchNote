@@ -144,6 +144,11 @@ var report_delay := 1.0           # game time between the end of the run and the
 # The first builds miss a basic (PLAN v5 4.8): their run is a short smoke test with no
 # prompts, survived when this much game time has passed.
 var smoke_test_duration := 20.0
+# Without movement the AI gives up early (owner, 2026-11-22): it says so at this much
+# game time, with most of the countdown still on the clock, and the run ends once the
+# line has had smoke_stop_read seconds on screen.
+var smoke_stop_time := 5.0
+var smoke_stop_read := 2.0
 
 # --- Dev session (PLAN v5 4) ---
 var session_cards := 3            # cards in a 3-changes session

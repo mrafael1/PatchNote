@@ -153,3 +153,44 @@ func test_a_smoke_test_ends_survived_after_its_time_with_no_prompt() -> void:
 	assert_true(text.begins_with("SMOKE TEST OF v0.0.0"))
 	assert_string_contains(text, "You tried to move")
 	RunState.set_pause(&"report", false)
+
+
+## Owner, 2026-11-22: the first run is too long. Without movement the AI gives up at
+## 5 s, with most of the countdown left, and says so; the run ends once it is read.
+func test_the_ai_stops_the_build_that_cannot_move_after_5_seconds() -> void:
+	SaveGame.go_live(TEST_PATH, true)
+	var game := await _game()
+	RunState.game_time = Tuning.smoke_stop_time - 0.5
+	await wait_physics_frames(2)
+	assert_false(game.run_loop.smoke_stopped)
+	assert_gt(game.run_loop.smoke_time_left(), 10.0, "the countdown shows the planned 20 s")
+	RunState.game_time = Tuning.smoke_stop_time
+	await wait_physics_frames(2)
+	assert_true(game.run_loop.smoke_stopped)
+	assert_false(game.run_loop.is_over(), "the line gets its time on screen")
+	assert_eq(game.transition.last_toast(), "AI: " + TopdownGenre.SMOKE_STOP_LINE)
+	assert_lt(game.run_loop.smoke_time_left(), 0.0, "the countdown is gone")
+	RunState.game_time = Tuning.smoke_stop_time + Tuning.smoke_stop_read
+	await wait_physics_frames(2)
+	assert_true(game.run_loop.is_over())
+	var rec: Dictionary = game.run_loop.record
+	assert_true(rec.smoke_stopped)
+	assert_lt(Tuning.smoke_stop_time + Tuning.smoke_stop_read, Tuning.smoke_test_duration)
+	var text := ReportScreen.report_text(&"win", rec)
+	assert_true(text.begins_with("SMOKE TEST OF v0.0.0  -  STOPPED BY THE AI"), text.get_slice("\n", 0))
+	RunState.set_pause(&"report", false)
+
+
+func test_the_build_that_moves_plays_its_whole_smoke_test() -> void:
+	SaveGame.go_live(TEST_PATH, true)
+	SaveGame.ship(&"basic_movement", GameVersion.PATCH)
+	var game := await _game()
+	RunState.game_time = Tuning.smoke_test_duration - 1.0
+	await wait_physics_frames(2)
+	assert_false(game.run_loop.smoke_stopped)
+	assert_false(game.run_loop.is_over())
+	RunState.game_time = Tuning.smoke_test_duration
+	await wait_physics_frames(2)
+	assert_true(game.run_loop.is_over())
+	assert_false(game.run_loop.record.smoke_stopped)
+	RunState.set_pause(&"report", false)
