@@ -88,7 +88,7 @@ Squares → juice (shake, particles, hit stop, muzzle flash) → palette and sha
 ### 1.8 Rules progression must follow
 1. **Fun before meta.** Each genre must be fun with no AI at all. v0.0 is short and raw, but never boring.
 2. **Hidden systems, visible growth.** No XP bars. The player sees versions, proposals and changes.
-3. **Never locked out.** A refused proposal comes back later. Not yet built is not locked.
+3. **Never locked out.** A refused proposal comes back later. Not yet built is not locked. **Since v6:** answers not picked go to the shelf and are never lost; Rework reaches them (owner, 2026-11-22).
 4. **Push-back stays.** In a "3 different changes" session, one card can be the AI's agenda. It is a tuning value, never zero over a run of sessions.
 5. **Power stays inside the run.** Across runs the game gains variety and depth, never stats. A run-1 and a run-50 player start with the same HP.
 6. **No genre change during play.** Switches happen at stage ends, offered, never forced.
@@ -144,7 +144,7 @@ Big slot, B1 and B2, 2 BIG prompts per run, session taste. See `PLAN.v3.md`.
 ### Phase 3 — Stages and the AI boss (v4) · **stopped after M14**
 M14 built the AI layer, the medium tier and option D. The rest is replaced by this roadmap (section 5).
 
-### Phase 4 — Foundations: versions, the dev session, v0.0 (PLAN v5) · **next**
+### Phase 4 — Foundations: versions, the dev session, v0.0 (PLAN v5) · **done** (M25–M30.2, G11 played 2026-11-22)
 - Save on disk: game version, genre maturity, play time per genre, taste, dev-session history, look tier.
 - Thin shell + genre interface; the shooter ported as the first genre. Park the AI layer and rollbacks; turn B1 into a patch; remove the big slot.
 - Per-genre takes in the patch data model (only the shooter's take exists yet).
@@ -154,7 +154,9 @@ M14 built the AI layer, the medium tier and option D. The rest is replaced by th
 - **Content at the end:** 1 genre (shooter, Playable), 7 smalls (today's 6 + `motion_time`), a first chain of dev-session changes for the shooter (a new enemy, new patches, look tier 1).
 - **Must answer:** is v0.0 fun for 3 minutes? Does the dev session feel like a reward? Do players want "one more version"?
 
-### Phase 5 — Stages, the second genre and the build crossing over
+### Phase 5 — Stages, the second genre and the build crossing over · **next**
+- **5a (PLAN v6): divergence first** (owner, after G11): each dev session is one question (a *fork*) with 2–3 answers; the answers not picked go to a shelf; a **Rework** card swaps a past answer for a shelved one. More creative shooter content. Then stage plumbing and the shooter's **Stages** step as a fork.
+- **5b (PLAN v7):** the second genre and the stage-end switch, below.
 - Stage plumbing (M16's kept parts, section 5) and the shooter's Stages step. This comes first: the switch needs stage ends.
 - Turn-based (proposed, since it is closest) as a genre: its own map, its own run, pacing in turns, a controller that no longer hijacks the shooter player. It starts as a Mockup picked from 3 flavours, then grows to Playable.
 - Takes for every pool patch in turn-based; the stage-end switch with the build translated.
