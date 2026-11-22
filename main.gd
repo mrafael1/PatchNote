@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M31"
+const BUILD := "M32"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -190,6 +190,26 @@ func ship_next_change() -> DevSession:
 					(session.shipped[0].change as Change).title]
 			transition.say(said)
 			print("[debug] " + said)   # the toast sits under the report
+	return session
+
+
+## F2's rework buttons (PLAN v6 5): swaps fork_id's answer for to_id as a session of
+## its own (logged, one patch step), whatever the session would have asked. The next
+## run plays it. Null if a session is open or that swap is not on the shelf.
+func debug_rework(fork_id: StringName, to_id: StringName) -> DevSession:
+	if dev_flow.is_open() or not SaveGame.is_live():
+		return null
+	var session := DevSession.plan(RunState.run_seed)
+	session.shape = DevSession.REWORK   # whatever was due waits for the next session
+	session.fork = null
+	session.cards.clear()
+	if not session.rework(fork_id, to_id):
+		return null
+	_on_session_done(session)
+	var said := "Reworked %s: %s" % [session.version_after().label(), session.rework_id()]
+	if transition:
+		transition.say(said)
+	print("[debug] " + said)
 	return session
 
 

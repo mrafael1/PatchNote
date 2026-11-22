@@ -188,6 +188,15 @@ static func ship(id: StringName, bump: StringName) -> bool:
 	return true
 
 
+## Takes a change back out of the save (PLAN v6 1.3, a rework): no bump of its own,
+## the rework's ship bumps. False if it was not shipped.
+static func unship(id: StringName) -> bool:
+	if not has_shipped(id):
+		return false
+	(state().shipped as Array).erase(String(id))
+	return true
+
+
 ## The look a shipped look take sets (PLAN v5 1.7): {tier, take}. Written with the
 ## session (finish_session).
 static func set_look(tier: int, take: StringName) -> void:

@@ -136,6 +136,13 @@ func on_session_pick(cards: Array[Dictionary], pick: Dictionary) -> void:
 		_nudge_raw(pick.get("taste_id", &""), pick.get("tags", []), PICK)
 
 
+## A rework (PLAN v6 1.3): a strong signal. The new answer counts as a pick, the old
+## one as twice a pass. Each side is {"taste_id", "tags"}, as session cards are.
+func on_rework(from: Dictionary, to: Dictionary) -> void:
+	_nudge_raw(from.get("taste_id", &""), from.get("tags", []), PASS * 2.0)
+	_nudge_raw(to.get("taste_id", &""), to.get("tags", []), PICK)
+
+
 func score_raw(id: StringName, tags: Array) -> float:
 	var s := float(by_id.get(id, 0.0)) if id != &"" else 0.0
 	for tag: StringName in tags:

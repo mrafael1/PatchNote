@@ -1,7 +1,7 @@
 class_name DebugOverlay
 extends CanvasLayer
 ## Debug tools (PLAN 9).
-## F1 info overlay · F2 mutation console · F3 invincibility · F4 spawn wave ·
+## F1 info overlay · F2 mutation console (and rework buttons, PLAN v6 5) · F3 invincibility · F4 spawn wave ·
 ## F5 restart with the same seed · F6 open a prompt now · F7 toggle bot · F9 dev
 ## session now (PLAN v5 5) · Shift+F9 ship the next change without the screen.
 
@@ -9,6 +9,7 @@ var game: Node  ## the main scene: provides player, spawn_wave(), restart()
 
 var _info: Label
 var _console: PanelContainer
+var _rework_box: VBoxContainer
 var _buttons := {}
 var _frame := 0
 
@@ -49,6 +50,12 @@ func _ready() -> void:
 			b.pressed.connect(toggle_mutation.bind(m.id))
 			box.add_child(b)
 			_buttons[m.id] = b
+	# Rework (PLAN v6 5): one button per shelved option, rebuilt as the shelf changes.
+	var heading := Label.new()
+	heading.text = "REWORK (live save; the next run plays it)"
+	box.add_child(heading)
+	_rework_box = VBoxContainer.new()
+	box.add_child(_rework_box)
 	add_child(_console)
 	_refresh_console()
 	EventBus.patch_applied.connect(func(_m: Resource) -> void: _refresh_console())
@@ -101,6 +108,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_info.visible = not _info.visible
 	elif event.is_action_pressed(&"debug_console"):
 		_console.visible = not _console.visible
+		if _console.visible:
+			_refresh_rework()
 	elif event.is_action_pressed(&"debug_invincible"):
 		RunState.invincible = not RunState.invincible
 	elif event.is_action_pressed(&"debug_spawn"):
@@ -128,6 +137,21 @@ func _process(_delta: float) -> void:
 	_frame += 1
 	if _info.visible and _frame % 6 == 0:
 		_info.text = _build_text()
+
+
+func _refresh_rework() -> void:
+	for child in _rework_box.get_children():
+		child.queue_free()
+	for row in DevSession.rework_rows():
+		for to: Change in row.to:
+			var b := Button.new()
+			b.focus_mode = Control.FOCUS_NONE
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.text = "rework %s %s   (now %s)" % [row.fork.id, to.id, (row.from as Change).id]
+			b.pressed.connect(func() -> void:
+				if game and game.debug_rework(row.fork.id, to.id):
+					_refresh_rework())
+			_rework_box.add_child(b)
 
 
 func _refresh_console() -> void:

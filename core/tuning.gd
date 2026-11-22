@@ -157,6 +157,9 @@ var ai_own_ship_every := 4        # every Nth session the AI also ships a change
 # The AI answers a fork only when this many ready non-mockup forks are left after the
 # pick, so it never takes the player's last question (PLAN v6 1.2, M31).
 var ai_fork_min_ready := 2
+# The Rework card shows once this many forks are answered and the shelf is not empty
+# (PLAN v6 1.2).
+var rework_after_forks := 2
 
 # --- Taste (adaptive offers) ---
 var agenda_cards := 1             # cards per offer the AI picks against the player's taste

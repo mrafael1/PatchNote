@@ -12,7 +12,11 @@ extends RefCounted
 ##   AI's wish. Every Tuning.ai_own_ship_every sessions (counted in the save), after
 ##   the pick, the AI also answers a second ready non-mockup fork with its wish, if at
 ##   least Tuning.ai_fork_min_ready of them are left (it never takes the last one).
-## - NONE: nothing is ready: no card, no bump ("I'm working on something bigger.").
+##   Once Tuning.rework_after_forks forks are answered and the shelf is not empty, it
+##   also offers Rework (can_rework()): swapping a past answer costs the session.
+## - REWORK: no fork is ready but the shelf is not empty (PLAN v6 1.2-1.3): the rework
+##   list and "Keep it as it is" (no bump).
+## - NONE: nothing is ready and the shelf is empty: no card, no bump.
 ##
 ## The fork and its order come from a generator seeded with the run's seed and the
 ## session number, so a same-seed chain from the same save asks the same questions.
@@ -20,6 +24,7 @@ extends RefCounted
 
 const BASIC := &"basic"
 const FORK := &"fork"
+const REWORK := &"rework"
 const NONE := &"none"
 
 const PLAYER := &"player"
@@ -32,6 +37,12 @@ const AGENDA_LABEL := "AI's wish"
 const AGENDA_LINE := "This is the one I want to build. You will not pick it. Pick it anyway."
 const SHELF_LINE := "On the shelf: %s."
 const AI_FORK_LINE := "I answered \"%s\" myself: %s. Rework it if you disagree."
+const REWORK_LINE := "Nothing new on my list. Want to change something?"
+const REWORK_TITLE := "Rework…"
+const REWORK_PITCH := "Swap one of your past answers for one on the shelf. No new feature this time."
+const KEEP_LABEL := "Keep it as it is"
+const REWORKED_LINE := "• Reworked \"%s\": %s → %s"
+const BACK_ON_SHELF_LINE := "Back on the shelf: %s."
 
 var shape: StringName = NONE
 var fork: Fork                ## the question asked (FORK)
@@ -46,6 +57,9 @@ var opening := ""             ## the AI's opening line
 ## or AI, "fork": Fork or null}
 var shipped: Array[Dictionary] = []
 var pick_id := ""
+## {"fork": Fork, "from": Change, "to": Change} once a rework shipped, else empty.
+var reworked := {}
+var kept := false             ## REWORK: "Keep it as it is"
 var done := false
 
 var _rng := RandomNumberGenerator.new()
@@ -73,6 +87,8 @@ static func plan(run_seed: int, context := {}) -> DevSession:
 			s.shape = FORK
 			s.fork = s._choose_fork(ready)
 			s._deal()
+		elif not rework_rows().is_empty():
+			s.shape = REWORK
 	s.opening = s._opening(context)
 	return s
 
@@ -194,6 +210,62 @@ func can_pick() -> bool:
 	return not done and shape == FORK and not cards.is_empty()
 
 
+## What a rework can swap (PLAN v6 1.3): {"fork": Fork, "from": Change (the answer),
+## "to": Array[Change] (its shelf)} for every answered fork with a shelf, in fork order.
+static func rework_rows() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for f in ChangeDB.forks:
+		var shelf := f.shelf()
+		if f.is_answered() and not shelf.is_empty():
+			out.append({"fork": f, "from": f.answer(), "to": shelf})
+	return out
+
+
+## The Rework card (FORK) or list (REWORK) is on offer now.
+func can_rework() -> bool:
+	if done or rework_rows().is_empty():
+		return false
+	return shape == REWORK or (shape == FORK and answers().size() >= Tuning.rework_after_forks)
+
+
+## Swaps fork fork_id's answer for its shelved option to_id (PLAN v6 1.3): the old
+## answer goes back to the shelf, the new one ships with one patch step (never a minor
+## one), taste counts both, and the session is logged. No new fork is answered and the
+## AI answers none. False if that swap is not on offer.
+func rework(fork_id: StringName, to_id: StringName) -> bool:
+	if not can_rework():
+		return false
+	var f := ChangeDB.get_fork(fork_id)
+	var to := ChangeDB.get_change(to_id)
+	if f == null or to == null or not to in f.shelf():
+		return false
+	var from := f.answer()
+	SaveGame.unship(from.id)
+	SaveGame.ship(to.id, GameVersion.PATCH)
+	if to.take != null and to.take.preset is LookPreset:
+		SaveGame.set_look((to.take.preset as LookPreset).tier, to.take.id)
+	_taste.on_rework(_taste_side(from), _taste_side(to))
+	reworked = {"fork": f, "from": from, "to": to}
+	shipped.append({"change": to, "take": to.take, "by": PLAYER, "fork": f})
+	_finish()
+	return true
+
+
+## REWORK: "Keep it as it is". Logged, no bump.
+func keep() -> bool:
+	if done or shape != REWORK:
+		return false
+	kept = true
+	_finish()
+	return true
+
+
+## The taste side of a change, as a card has it.
+static func _taste_side(c: Change) -> Dictionary:
+	return {"taste_id": StringName(SaveGame.LOOK_PREFIX + String(c.take.id)) if c.take else &"",
+			"tags": [] if c.take else c.tags.duplicate()}
+
+
 # --- Shipping ----------------------------------------------------------------------
 
 ## The player picks card index: ships it (and, on the cadence, the AI's own answer to
@@ -216,10 +288,13 @@ func pick(index: int) -> bool:
 
 
 ## A session with no choice: BASIC ships the next basic as the AI's own; NONE ships
-## nothing and does not bump. Both are logged. False if the session needs a pick.
+## nothing and does not bump; REWORK keeps everything (keep()). All are logged. False
+## if the session needs a pick.
 func finish() -> bool:
 	if done or can_pick():
 		return false
+	if shape == REWORK:
+		return keep()
 	if shape == BASIC:
 		var basics := basics_left()
 		if not basics.is_empty():
@@ -285,7 +360,16 @@ func log_entry() -> Dictionary:
 		"agenda": String(agenda_card().get("id", "")),
 		"ai_ship": ai_ship_id(),
 		"ai_fork": ai_fork(),
+		"rework": rework_id(),
+		"kept": kept,
 	}
+
+
+## "fork_enemy:enemy_tank->enemy_bomber" for this session's rework, "" when none.
+func rework_id() -> String:
+	if reworked.is_empty():
+		return ""
+	return "%s:%s->%s" % [(reworked.fork as Fork).id, (reworked.from as Change).id, (reworked.to as Change).id]
 
 
 ## The "session" telemetry line (PLAN v6 1.4, schema 3).
@@ -307,8 +391,9 @@ func telemetry_record(run_index := 0) -> Dictionary:
 		"agenda": e.agenda,
 		"ai_ship": e.ai_ship,
 		"ai_fork": e.ai_fork,
-		"rework": null,
-		"kept": false,
+		"rework": {"fork": String((reworked.fork as Fork).id), "from": String((reworked.from as Change).id),
+				"to": String((reworked.to as Change).id)} if not reworked.is_empty() else null,
+		"kept": kept,
 	}
 
 
@@ -366,11 +451,11 @@ func _opening(context: Dictionary) -> String:
 		var worst := String(context.get("worst_hit", ""))
 		if worst != "":
 			parts.append("%s hits hurt you the most." % worst.capitalize())
-	match shape:
-		FORK:
-			parts.append(fork.question)
+	match shape:   # a fork's question is the screen's title (PLAN v6 2)
 		BASIC:
 			parts.append(BASIC_LINE)
+		REWORK:
+			parts.append(REWORK_LINE)
 		NONE:
 			parts.append(NONE_LINE)
 	return " ".join(parts)
@@ -397,6 +482,14 @@ func notes_lines() -> Array[String]:
 	if shipped.is_empty():
 		return out
 	out.append("Version %s" % version_after().short())
+	if not reworked.is_empty():
+		var from: Change = reworked.from
+		var to: Change = reworked.to
+		out.append(REWORKED_LINE % [(reworked.fork as Fork).question, from.short_name(), to.short_name()])
+		for line in removal_lines(from) + unlock_lines(to):
+			out.append("    " + line)
+		out.append(BACK_ON_SHELF_LINE % from.short_name())
+		return out
 	for s in shipped:
 		var c: Change = s.change
 		var take: MockupTake = s.take
@@ -411,6 +504,19 @@ func notes_lines() -> Array[String]:
 	for s in shipped:
 		if s.by == AI and s.fork != null:
 			out.append(AI_FORK_LINE % [(s.fork as Fork).question, (s.change as Change).short_name()])
+	return out
+
+
+## What a reworked-away change takes with it: "Out of the pool: Automate attacking",
+## "No more Tanks". A look needs no line: the new look's line says it.
+static func removal_lines(c: Change) -> Array[String]:
+	var out: Array[String] = []
+	for u in c.unlocks:
+		var m := MutationDB.get_mutation(u)
+		if m:
+			out.append("Out of the pool: %s" % m.title)
+		elif not u in Unlocks.BASICS:
+			out.append("No more %ss" % String(u).capitalize())
 	return out
 
 

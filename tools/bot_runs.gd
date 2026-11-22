@@ -20,6 +20,9 @@ extends SceneTree
 ##                                end is written, as in the real game)
 ##   --fresh                      start from a new save (v0.0.0) instead of the file, or,
 ##                                without --save, instead of everything unlocked
+##   --rework-chance=<0..1>       in a fork session that offers Rework, rework instead of
+##                                picking with this chance (default 0.2, PLAN v6 5); a
+##                                REWORK-only session reworks or keeps, 50/50
 ##   --ship=<id>,<id>             ship these changes into the save before the first run,
 ##                                e.g. --fresh --ship=basic_movement,basic_world plays the
 ##                                v0.0.2 run instead of the smoke tests (PLAN v5 4.8)
@@ -48,6 +51,7 @@ var save_arg := ""
 var keep_save := false
 var fresh := false
 var ship_ids := PackedStringArray()
+var rework_chance := 0.2
 
 
 func _initialize() -> void:
@@ -78,6 +82,8 @@ func _run() -> void:
 			keep_save = true
 		elif arg == "--fresh":
 			fresh = true
+		elif arg.begins_with("--rework-chance="):
+			rework_chance = float(arg.trim_prefix("--rework-chance="))
 		elif arg.begins_with("--ship="):
 			ship_ids = arg.trim_prefix("--ship=").split(",", false)
 		else:
@@ -239,16 +245,29 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 	return ""
 
 
-## Answers a dev session (PLAN v5 4.6, v6 5): a card at random from the seed, then "Play" on
-## the patch notes (or on a session with nothing to ship). Returns the summary line.
+## Answers a dev session (PLAN v5 4.6, v6 5): a card at random from the seed, or, where
+## Rework is offered, a random swap (--rework-chance; 50/50 against "Keep it as it is"
+## in a REWORK-only session); then "Play" on the patch notes (or on a session with
+## nothing to ship). Returns the summary line.
 func _answer_session(flow: Node, run_seed: int) -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = run_seed * 7919 + 17
 	var session: RefCounted = flow.session
+	var rework_only: bool = session.shape == &"rework"
 	for f in 600:
 		if flow.screen.can_pick():
-			flow.screen.pick(rng.randi_range(0, (session.cards as Array).size() - 1))
-		elif flow.screen.is_open() and (session.cards as Array).is_empty():
+			if flow.screen.has_rework_card() and rng.randf() < rework_chance:
+				flow.screen.open_rework()
+			else:
+				flow.screen.pick(rng.randi_range(0, (session.cards as Array).size() - 1))
+		elif flow.screen.list_ready():
+			var targets: Array = flow.screen.rework_targets()
+			if rework_only and rng.randf() < 0.5:
+				flow.screen.press_list_button()   # keep it as it is
+				return _session_line(session)
+			var t: Array = targets[rng.randi_range(0, targets.size() - 1)]
+			flow.screen.rework(t[0], t[1])
+		elif flow.screen.is_open() and (session.cards as Array).is_empty() and not rework_only:
 			flow.screen.play()
 			return _session_line(session)
 		elif flow.notes.is_open():
@@ -261,10 +280,11 @@ func _answer_session(flow: Node, run_seed: int) -> String:
 
 func _session_line(session: RefCounted) -> String:
 	var e: Dictionary = session.log_entry()
-	return "[botrun] session=%d after_run=%d kind=%s fork=%s cards=%s pick=%s shelved=%s agenda=%s ai_ship=%s ai_fork=%s version=%s->%s" % [
+	return "[botrun] session=%d after_run=%d kind=%s fork=%s cards=%s pick=%s shelved=%s agenda=%s ai_ship=%s ai_fork=%s rework=%s kept=%s version=%s->%s" % [
 		session.number, session.after_run, e.shape, e.fork if e.fork != "" else "-", e.cards,
 		e.pick if e.pick != "" else "-", e.shelved, e.agenda if e.agenda != "" else "-",
 		e.ai_ship if e.ai_ship != "" else "-", e.ai_fork if e.ai_fork != "" else "-",
+		e.rework if e.rework != "" else "-", e.kept,
 		session.version_before.label(), session.version_after().label()]
 
 

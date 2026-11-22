@@ -26,6 +26,8 @@ func _ready() -> void:
 	add_child(notes)
 	screen.picked.connect(_on_picked)
 	screen.play_requested.connect(_on_nothing_to_ship)
+	screen.rework_requested.connect(_on_rework)
+	screen.keep_requested.connect(_on_nothing_to_ship)
 	notes.play_requested.connect(func() -> void: play_requested.emit())
 
 
@@ -45,6 +47,12 @@ func start(p_session: DevSession) -> void:
 
 func _on_picked(index: int) -> void:
 	if session.pick(index):
+		session_done.emit(session)
+	notes.open(session)
+
+
+func _on_rework(fork_id: StringName, to_id: StringName) -> void:
+	if session.rework(fork_id, to_id):
 		session_done.emit(session)
 	notes.open(session)
 

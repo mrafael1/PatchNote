@@ -13,17 +13,20 @@ const LOOKS: Array[String] = ["look_1_punchy", "look_1_clean", "look_1_arcade"]
 var _changes: Array[Change] = []
 var _forks: Array[Fork] = []
 var _every := 0
+var _rework_after := 0
 
 
 func before_each() -> void:
 	_delete_files()
 	_every = Tuning.ai_own_ship_every
+	_rework_after = Tuning.rework_after_forks
 
 
 func after_each() -> void:
 	assert_ne(SaveGame.save_path if SaveGame.persist else "", SaveGame.DEFAULT_PATH,
 			"no test may leave the real save live")
 	Tuning.ai_own_ship_every = _every
+	Tuning.rework_after_forks = _rework_after
 	SaveGame.go_inert()
 	_delete_files()
 	for f in _forks:
@@ -87,6 +90,13 @@ func _test_fork(id: String, n := 3, tags: Array[StringName] = [], requires: Arra
 	ChangeDB.register_fork(f)
 	_forks.append(f)
 	return f
+
+
+## Ships every option of every fork: all answered, nothing on the shelf (as a v5 save
+## that shipped everything loads).
+func _ship_everything() -> void:
+	for c in ChangeDB.all:
+		SaveGame.ship(c.id, GameVersion.PATCH)
 
 
 func _answer(fork_id: StringName, option := 0) -> Change:
@@ -172,7 +182,7 @@ func test_the_first_fork_session_is_the_look_mockup() -> void:
 	assert_true(s.agenda_card().is_empty(), "a mockup has no agenda card")
 	assert_eq(s.number, 1)
 	assert_eq(s.after_run, 1)
-	assert_string_contains(s.opening, s.fork.question)
+	assert_false(s.opening.contains(s.fork.question), "the question is the screen's title, not in the line")
 
 
 func test_a_mockup_fork_waits_until_it_is_due() -> void:
@@ -253,10 +263,9 @@ func test_taste_leans_which_fork_comes_up() -> void:
 	assert_gt(enemy, 28, "a liked fork comes up more often (%d of 40)" % enemy)
 
 
-func test_every_fork_answered_means_no_bump_and_straight_to_the_next_run() -> void:
+func test_every_fork_answered_with_an_empty_shelf_means_no_bump_and_the_next_run() -> void:
 	_live(7)
-	for f: String in FORKS:
-		_answer(StringName(f))
+	_ship_everything()
 	var before := SaveGame.version()
 	var s := DevSession.plan(3)
 	assert_eq(s.shape, DevSession.NONE)
@@ -290,7 +299,7 @@ func test_picking_a_look_ships_it_bumps_minor_shelves_the_others_and_writes_tast
 	entry.erase("after_run")
 	assert_eq(entry, {"version": "0.1.0", "shape": "fork", "fork": "look_1", "cards": LOOKS,
 			"pick": "look_1_clean", "shelved": ["look_1_punchy", "look_1_arcade"], "agenda": "",
-			"ai_ship": "", "ai_fork": ""})
+			"ai_ship": "", "ai_fork": "", "rework": "", "kept": false})
 	assert_gt(float(written.taste.by_id["look:clean"]), 0.0)
 	assert_lt(float(written.taste.by_id["look:punchy"]), 0.0)
 	assert_false(s.pick(0), "a session ships once")
@@ -415,6 +424,7 @@ func test_run_records_are_schema_3_with_the_fork_answers() -> void:
 	assert_eq(rec.forks, {})
 	assert_eq(rec.look, {"tier": 0, "take": ""})
 	assert_eq(rec.pool_size, 4)
+	assert_eq((rec.pool as Array).size(), 4)
 	assert_eq(rec.enemies, ["chaser", "shooter"])
 	SaveGame.ship(&"enemy_bomber", GameVersion.PATCH)
 	assert_eq(Telemetry.build_record(&"win").forks, {"fork_enemy": "enemy_bomber"})
@@ -439,13 +449,244 @@ func test_a_v5_save_keeps_its_look_and_its_answers() -> void:
 			["look_1_punchy"], "no take on record: punchy, the v5 default")
 
 
+# --- Rework (PLAN v6 1.3) ------------------------------------------------------------
+
+## Look Punchy and the Tank answered (v0.1.1), fork_hands still open: a fork session
+## that offers Rework.
+func _two_answered() -> DevSession:
+	_live(3)
+	_answer(&"look_1")
+	_answer(&"fork_enemy")
+	var s := DevSession.plan(5)
+	assert_eq(s.fork.id, &"fork_hands")
+	return s
+
+
+## What the next run plays: the pool, the enemies and the look.
+func _next_run() -> Dictionary:
+	return {"pool": Unlocks.pool().map(func(m: Mutation) -> String: return String(m.id)),
+			"enemies": Unlocks.enemies(), "look": Unlocks.look()}
+
+
+func test_a_rework_swaps_one_answer_for_a_shelved_one_with_one_patch_step() -> void:
+	var s := _two_answered()
+	assert_true(s.can_rework())
+	var tags_before: Dictionary = SaveGame.state().taste.by_tag.duplicate()
+	assert_false(s.rework(&"fork_enemy", &"enemy_tank"), "the answer is not on the shelf")
+	assert_false(s.rework(&"fork_hands", &"patch_horde_mode"), "an open fork has no shelf")
+	assert_true(s.rework(&"fork_enemy", &"enemy_bomber"))
+	assert_false(SaveGame.has_shipped(&"enemy_tank"))
+	assert_true(SaveGame.has_shipped(&"enemy_bomber"))
+	assert_eq(SaveGame.version().label(), "v0.1.2")
+	assert_true(&"bomber" in Unlocks.enemies())
+	assert_false(&"tank" in Unlocks.enemies(), "the next run has no tank")
+	assert_eq(_fork(&"fork_enemy").shelf(), [ChangeDB.get_change(&"enemy_tank")] as Array[Change])
+	assert_false(_fork(&"fork_hands").is_answered(), "a rework costs the session: no new answer")
+	assert_eq(DevSession.answers().size(), 2, "a rework never unanswers a fork")
+	assert_false(s.pick(0), "nor a pick after it")
+	assert_false(s.rework(&"fork_enemy", &"enemy_tank"), "one rework per session")
+	var entry: Dictionary = SaveGame.state().sessions[-1]
+	assert_eq(entry.rework, "fork_enemy:enemy_tank->enemy_bomber")
+	assert_eq(entry.pick, "")
+	assert_eq(entry.shelved, [])
+	var rec := s.telemetry_record(4)
+	assert_eq(rec.rework, {"fork": "fork_enemy", "from": "enemy_tank", "to": "enemy_bomber"})
+	assert_false(rec.kept)
+	# A strong signal: the new answer's tags up, the old one's down.
+	var tags: Dictionary = SaveGame.state().taste.by_tag
+	for tag: StringName in ChangeDB.get_change(&"enemy_bomber").tags:
+		if not tag in ChangeDB.get_change(&"enemy_tank").tags:
+			assert_gt(float(tags.get(String(tag), 0.0)), float(tags_before.get(String(tag), 0.0)), String(tag))
+	var lines := s.notes_lines()
+	assert_eq(lines, ["Version 0.1.2",
+			DevSession.REWORKED_LINE % [_fork(&"fork_enemy").question, "Tank", "Bomber"],
+			"    No more Tanks", "    New enemy: Bomber",
+			DevSession.BACK_ON_SHELF_LINE % "Tank"] as Array[String])
+
+
+func test_reworking_back_restores_the_first_state_but_the_version() -> void:
+	var s := _two_answered()
+	var first := _next_run()
+	var shipped_first := SaveGame.shipped()
+	shipped_first.sort()
+	assert_true(s.rework(&"fork_enemy", &"enemy_bomber"))
+	assert_ne(_next_run(), first)
+	SaveGame.record_run(&"topdown", &"lose", 60.0, SaveGame.state().taste)
+	var again := DevSession.plan(6)
+	assert_true(again.rework(&"fork_enemy", &"enemy_tank"))
+	assert_eq(_next_run(), first)
+	var shipped_now := SaveGame.shipped()
+	shipped_now.sort()
+	assert_eq(shipped_now, shipped_first)
+	assert_eq(SaveGame.version().label(), "v0.1.3", "the version only goes up")
+	assert_eq(SaveGame.session_count(), 2)
+
+
+func test_reworking_a_look_swaps_the_look_with_a_patch_step() -> void:
+	var s := _two_answered()
+	assert_true(s.rework(&"look_1", &"look_1_arcade"))
+	assert_eq(Unlocks.look(), {"tier": 1, "take": "arcade"})
+	assert_eq(SaveGame.version().label(), "v0.1.2", "never a minor step, even on a minor fork")
+	assert_eq(s.notes_lines(), ["Version 0.1.2",
+			DevSession.REWORKED_LINE % [_fork(&"look_1").question, "Punchy", "Arcade"],
+			"    New look: Arcade", DevSession.BACK_ON_SHELF_LINE % "Punchy"] as Array[String])
+	var taste: Dictionary = SaveGame.state().taste.by_id
+	assert_gt(float(taste["look:arcade"]), 0.0)
+	assert_lt(float(taste["look:punchy"]), float(taste.get("look:clean", 0.0)), "the old look counts against")
+
+
+func test_reworking_a_patch_swaps_the_pool() -> void:
+	_live(3)
+	_answer(&"look_1")
+	_answer(&"fork_hands")   # Auto-aim
+	var s := DevSession.plan(5)
+	assert_true(s.rework(&"fork_hands", &"patch_horde_mode"))
+	var pool: Array = _next_run().pool
+	assert_has(pool, "horde_mode")
+	assert_does_not_have(pool, "auto_attack")
+	assert_has(s.notes_lines(), "    Out of the pool: %s" % MutationDB.get_mutation(&"auto_attack").title)
+
+
+func test_the_rework_card_needs_two_answers_and_a_shelf() -> void:
+	_live(1)
+	_answer(&"look_1")
+	var one := DevSession.plan(5)
+	assert_eq(one.shape, DevSession.FORK)
+	assert_false(one.can_rework(), "one answer: below rework_after_forks")
+	assert_false(one.rework(&"look_1", &"look_1_clean"))
+	Tuning.rework_after_forks = 1
+	assert_true(DevSession.plan(5).can_rework())
+	Tuning.rework_after_forks = 2
+	# Two answered with an empty shelf (a v5 save that shipped every option).
+	for id: StringName in [&"look_1_clean", &"look_1_arcade", &"enemy_tank", &"enemy_bomber"]:
+		SaveGame.ship(id, GameVersion.PATCH)
+	var bare := DevSession.plan(5)
+	assert_eq(bare.fork.id, &"fork_hands")
+	assert_false(bare.can_rework(), "nothing on the shelf")
+	assert_true(DevSession.rework_rows().is_empty())
+
+
+func test_no_question_left_but_a_shelf_is_a_rework_only_session() -> void:
+	Tuning.ai_own_ship_every = 1   # the AI answers nothing here even on its cadence
+	_live(7)
+	for f: String in FORKS:
+		_answer(StringName(f))
+	var before := SaveGame.version()
+	var s := DevSession.plan(3)
+	assert_eq(s.shape, DevSession.REWORK)
+	assert_true(s.cards.is_empty())
+	assert_false(s.can_pick())
+	assert_true(s.can_rework())
+	assert_string_contains(s.opening, DevSession.REWORK_LINE)
+	var rows := DevSession.rework_rows()
+	assert_eq(rows.map(func(r: Dictionary) -> String: return String((r.fork as Fork).id)), FORKS)
+	assert_eq((rows[0].to as Array).size(), 1, "fork_enemy: one option on the shelf")
+	assert_true(s.keep())
+	assert_true(SaveGame.version().equals(before), "keep it as it is: no bump")
+	assert_true(s.notes_lines().is_empty())
+	var entry: Dictionary = SaveGame.state().sessions[-1]
+	assert_eq(entry.shape, "rework")
+	assert_true(entry.kept)
+	assert_eq(entry.ai_fork, "")
+	assert_true(s.telemetry_record(1).kept)
+	# The next one can swap instead.
+	var swap := DevSession.plan(4)
+	assert_true(swap.rework(&"fork_hands", &"patch_motion_time"))
+	assert_eq(swap.ai_fork(), "")
+
+
+func test_cards_shrink_to_fit_the_screen() -> void:
+	assert_eq(DevSessionScreen.card_width(3, false, false, 1280.0), 340.0, "room enough")
+	assert_eq(DevSessionScreen.card_width(2, true, false, 1280.0), 440.0)
+	for n in [2, 3]:
+		for mockup in [false, true]:
+			for rework in [false, true]:
+				var w := DevSessionScreen.card_width(n, mockup, rework, 1280.0)
+				var total: float = n * w + DevSessionScreen.CARD_GAP * (n - 1) + 2 * DevSessionScreen.SIDE_MARGIN
+				if rework:
+					total += DevSessionScreen.REWORK_CARD_WIDTH + DevSessionScreen.CARD_GAP
+				assert_lte(total, 1280.0, "%d cards, mockup %s, rework %s" % [n, mockup, rework])
+
+
+func test_the_flow_offers_rework_as_a_fourth_card_and_back() -> void:
+	var s := _two_answered()
+	var flow := DevSessionFlow.new()
+	add_child_autofree(flow)
+	var done := []
+	flow.session_done.connect(func(d: DevSession) -> void: done.append(d))
+	flow.start(s)
+	await wait_seconds(Tuning.prompt_input_delay + 0.1)
+	assert_true(flow.screen.has_rework_card())
+	assert_eq(flow.screen.card_button(s.cards.size()).get_child(0).get_child(0).text,
+			"[4]  %s" % DevSession.REWORK_TITLE, "last, on key 4")
+	var key := InputEventAction.new()
+	key.action = &"choose_4"
+	key.pressed = true
+	flow.screen._unhandled_input(key)
+	assert_true(flow.screen.list_open())
+	assert_false(flow.screen.list_ready(), "the input delay again")
+	await wait_seconds(Tuning.prompt_input_delay + 0.1)
+	var targets := flow.screen.rework_targets().map(func(t: Array) -> String: return "%s:%s" % t)
+	assert_eq(targets, ["fork_enemy:enemy_bomber", "look_1:look_1_clean", "look_1:look_1_arcade"])
+	assert_not_null(flow.screen.row_button(1).icon, "a mockup fork shows its shelved stills")
+	assert_eq(flow.screen.list_button().text, "Back")
+	flow.screen.press_list_button()
+	assert_false(flow.screen.list_open())
+	await wait_seconds(Tuning.prompt_input_delay + 0.1)
+	assert_true(flow.screen.can_pick(), "back on the cards")
+	flow.screen.open_rework()
+	await wait_seconds(Tuning.prompt_input_delay + 0.1)
+	flow.screen.row_button(0).pressed.emit()
+	assert_false(flow.screen.is_open())
+	assert_eq(done.size(), 1)
+	assert_true(SaveGame.has_shipped(&"enemy_bomber"))
+	assert_true(flow.notes.is_open())
+	assert_string_contains(flow.notes.text(), "Tank → Bomber")
+
+
+func test_the_flow_of_a_rework_only_session_opens_on_the_list_with_keep() -> void:
+	_live(7)
+	for f: String in FORKS:
+		_answer(StringName(f))
+	var flow := DevSessionFlow.new()
+	add_child_autofree(flow)
+	var played := []
+	flow.play_requested.connect(func() -> void: played.append(true))
+	flow.start(DevSession.plan(1))
+	assert_true(flow.screen.list_open())
+	assert_eq(flow.screen.list_button().text, DevSession.KEEP_LABEL)
+	flow.screen.play()
+	assert_eq(played.size(), 0, "no Play button: keep or swap")
+	await wait_seconds(Tuning.prompt_input_delay + 0.1)
+	flow.screen.press_list_button()
+	assert_eq(played.size(), 1)
+	assert_false(flow.notes.is_open(), "nothing shipped: no notes")
+	assert_true(SaveGame.state().sessions[-1].kept)
+
+
+func test_the_f2_rework_swaps_between_runs() -> void:
+	_live(3)
+	_answer(&"look_1")
+	var game: Main = load("res://main.tscn").instantiate()
+	add_child_autofree(game)
+	await wait_physics_frames(1)
+	var s := game.debug_rework(&"look_1", &"look_1_clean")
+	assert_not_null(s)
+	assert_eq(Unlocks.look().take, "clean")
+	assert_eq(s.rework_id(), "look_1:look_1_punchy->look_1_clean")
+	assert_null(game.debug_rework(&"look_1", &"look_1_clean"), "not on the shelf any more")
+	SaveGame.go_inert()
+	assert_null(game.debug_rework(&"look_1", &"look_1_punchy"), "inert: nothing to swap")
+
+
 ## A chained run of sessions from a fresh save: two basics, the look mockup, then one
 ## fork per session until none is left. The same chain writes the same file.
 func test_a_chain_of_sessions_answers_every_fork() -> void:
 	Tuning.ai_own_ship_every = 4
 	var first := _chain()
-	assert_eq(first.shapes, ["basic", "basic", "fork", "fork", "fork", "none"])
+	assert_eq(first.shapes, ["basic", "basic", "fork", "fork", "fork", "rework"])
 	assert_eq(first.forks, ["", "", "look_1", first.forks[3], first.forks[4], ""])
+	assert_true(SaveGame.state().sessions[-1].kept, "the chain keeps it as it is")
 	assert_eq(first.versions, ["v0.0.1", "v0.0.2", "v0.1.0", "v0.1.1", "v0.1.2", "v0.1.2"])
 	assert_eq(DevSession.answers().size(), FORKS.size())
 	assert_true(DevSession.ready_forks().is_empty())
@@ -498,11 +739,19 @@ func test_the_flow_shows_the_mockup_stills_then_the_patch_notes() -> void:
 	assert_false(SaveGame.has_shipped(&"look_1_punchy"))
 	await wait_seconds(Tuning.prompt_input_delay + 0.1)
 	assert_true(flow.screen.can_pick())
-	assert_eq(flow.screen.still_size(1), DevSessionScreen.STILL)
+	var sizes := flow.screen.still_sizes()
+	assert_eq(flow.screen.still_size(1), sizes[0])
 	flow.screen.card_button(2).mouse_entered.emit()
-	assert_eq(flow.screen.still_size(2), DevSessionScreen.STILL_BIG, "hover enlarges the still")
+	assert_eq(flow.screen.still_size(2), sizes[1], "hover enlarges the still")
+	assert_gt(sizes[1].x, sizes[0].x)
 	flow.screen.card_button(2).mouse_exited.emit()
-	assert_eq(flow.screen.still_size(2), DevSessionScreen.STILL)
+	assert_eq(flow.screen.still_size(2), sizes[0])
+	# Every card fits the screen (three mockup cards overflowed from M29 to M32).
+	var right := 0.0
+	for i in 3:
+		right = maxf(right, flow.screen.card_button(i).get_global_rect().end.x)
+	assert_lte(right, 1280.0, "the cards fit the 1280 px screen")
+	assert_lte(flow.screen.card_button(1).size.x, 400.0)
 	flow.screen.pick(2)
 	assert_false(flow.screen.is_open())
 	assert_true(flow.notes.is_open())
@@ -517,8 +766,7 @@ func test_the_flow_shows_the_mockup_stills_then_the_patch_notes() -> void:
 
 func test_the_flow_with_nothing_to_ship_offers_play_only() -> void:
 	_live(7)
-	for f: String in FORKS:
-		_answer(StringName(f))
+	_ship_everything()
 	var flow := DevSessionFlow.new()
 	add_child_autofree(flow)
 	var played := []

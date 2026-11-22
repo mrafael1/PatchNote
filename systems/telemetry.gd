@@ -84,6 +84,7 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"genre": String(RunState.genre),
 		"look": Unlocks.look(),
 		"pool_size": Unlocks.pool().size(),
+		"pool": Unlocks.pool().map(func(m: Mutation) -> String: return String(m.id)),   # M32: reworks are checkable
 		"enemies": Unlocks.enemies().map(func(e: StringName) -> String: return String(e)),
 		"forks": DevSession.answers(),
 		"kills": RunState.kills,

@@ -9,7 +9,7 @@ const ACTIONS: Array[StringName] = [
 	&"aim_left", &"aim_right", &"aim_up", &"aim_down",
 	&"shoot", &"dash", &"jump", &"wait",
 	&"patch_history", &"pause",
-	&"choose_1", &"choose_2", &"choose_3",
+	&"choose_1", &"choose_2", &"choose_3", &"choose_4",
 	&"debug_overlay", &"debug_console", &"debug_invincible", &"debug_spawn",
 	&"debug_restart", &"debug_prompt", &"debug_bot", &"debug_session",
 ]
@@ -33,6 +33,7 @@ func _init() -> void:
 	_bind(&"choose_1", [_key(KEY_1)])
 	_bind(&"choose_2", [_key(KEY_2)])
 	_bind(&"choose_3", [_key(KEY_3)])
+	_bind(&"choose_4", [_key(KEY_4)])   # the Rework card (PLAN v6 2)
 	_bind(&"debug_overlay", [_key(KEY_F1)])
 	_bind(&"debug_console", [_key(KEY_F2)])
 	_bind(&"debug_invincible", [_key(KEY_F3)])
