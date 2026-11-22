@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="LookPreset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/look_preset.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+tier = 0
+take = &""
+shake_scale = 0.0
+particle_scale = 0.3
+hit_stop = 0.0
+muzzle_flash = false
+kill_pop_scale = 1.0
+trail = false
+screen_flash = false
+palette = Array[Color]([Color(0.08, 0.09, 0.12, 1), Color(0.32, 0.36, 0.45, 1), Color(0.4, 0.85, 1, 1), Color(1, 0.95, 0.5, 1)])

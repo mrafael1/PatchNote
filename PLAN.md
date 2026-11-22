@@ -138,7 +138,7 @@ The owner said "let's start the new roadmap" (2026-11-21). These ROADMAP section
 
 ### 2.1 Pacing (starting targets, game time)
 - The shooter's run: **3 small prompts**, then a **45 s release-candidate wave**, then the report. Target **~3 min** (170–200 s median, invincible bot).
-- `Tuning`: `first_prompt_min_gap = 35`, `prompt_min_gap = 40`, `prompt_max_gap = 55`, `first_prompt_kills = 10`, `prompt_kills_step = 6`, `prompts_per_run = 3`, `rc_duration = 45`, `spawn_ramp_time = 120`. Retuned from bot sweeps at M28.
+- `Tuning`: `first_prompt_min_gap = 35`, `prompt_min_gap = 40`, `prompt_max_gap = 55`, `first_prompt_kills = 10`, `prompt_kills_step = 6`, `prompts_per_run = 3`, `rc_duration = 45`, `spawn_ramp_time = 120`. Retuned from bot sweeps at M28. **M28:** the kill gates are met long before the gaps (the bot kills ~2/s), so the run is the sum of the gaps: 35 + 40 + 40 + 45 = 160 s. The gaps are now `first_prompt_min_gap = 40`, `prompt_min_gap = 48` and `prompt_max_gap = 60`, which gives 181 s. The kill numbers stay as listed.
 - **The prompt is announced visually** (ROADMAP 1.4, part of the core gimmick): once the kill gate is met, a HUD banner pulses "Next patch incoming" until the prompt opens (the remaining time gap, at most `prompt_min_gap`). It shows the existing gates, adds no rule, and never sits waiting on kills.
 - Picking still heals 1 HP. HP 5, as today.
 
@@ -149,6 +149,14 @@ Fun before meta (ROADMAP 1.8 rule 1). Bots cannot judge it; G11 does.
 - **Kill confirmation:** a short ring pop at the kill position and the `kill` sound in every look (`kill_pop_scale` sizes it); in tier 0 it is the only kill effect besides a small puff.
 - **Player hit:** a red screen-edge vignette for 0.3 s and the invulnerability blink (exists); no shake in tier 0.
 - **Camera lookahead:** the camera leads toward the aim direction by `Tuning.camera_lookahead = 0.12` of the view, smoothed (`camera_lookahead_lerp = 4.0`). The arena bounds still clamp it.
+- **As built (M28):**
+  - **Shooter windup:** the cooldown is `shooter_fire_interval - shooter_windup` and the windup runs after it, so shots stay 1.8 s apart. A started telegraph always ends in its shot, aimed where the player is at that moment.
+  - **Rim:** the rim range is measured past the walker's contact reach, not from its centre (1.5 tiles from the centre would sit almost inside the 40 px reach). It rises from faint to full at contact.
+  - **Readability drawing:** the HP bar, telegraph and rim are drawn by `RectVisual`, so a sprite swap must keep them. The kill pop skips the effect cap.
+  - **Hit stop:** the full `hit_stop` applies on a player hit. A kill gets 0.35 of it. A stop already running is not extended. There is none on the turn grid or once the player is dead (the report is never slowed). It is timed in unscaled seconds. TimeTint and Sound's pitch read `RunState.felt_time_scale()`, which leaves hit stop out, so a stop never looks or sounds like B1.
+  - **Spawner:** its hidden margin grows by the largest possible camera lead (`1 + 2 * camera_lookahead` of the half view), so a lead never reveals a fresh spawn. Spawning stays independent of camera state.
+  - **punchy:** for now this is the M14 feel plus hit stop (0.08 s, kill pop 1.3). The muzzle flash, trail and screen flash code paths exist, but no take turns them on until M30 tunes the three takes.
+  - **HUD:** it runs while paused, so the banner hides as the prompt opens.
 
 ### 2.3 Start content (a new save)
 - **Smalls in the pool (`starter = true`):** `bouncing_projectiles`, `explode_on_hit`, `enemies_split`, `jump_button`. **Shipped later:** `auto_attack`, `horde_mode`, `motion_time`. That is 7 smalls in all (ROADMAP Phase 4 content).

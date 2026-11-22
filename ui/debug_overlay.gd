@@ -129,7 +129,7 @@ func _build_text() -> String:
 	lines.append("%s   seed %d   FPS %d   physics %.2f ms" % [
 		Hud.version_text(), RunState.run_seed, Engine.get_frames_per_second(),
 		Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0])
-	lines.append("save %s   %s" % [_save_mode(), Unlocks.summary()])
+	lines.append("save %s   %s   showing look %s" % [_save_mode(), Unlocks.summary(), Look.label()])
 	lines.append("entities %d   enemies %d   t %.1fs%s%s" % [
 		RunState.live_entities().size(), RunState.count(&"enemy"), RunState.game_time,
 		"   INVINCIBLE" if RunState.invincible else "",

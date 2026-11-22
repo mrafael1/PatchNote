@@ -38,6 +38,8 @@ var tank_knockback_scale := 0.2
 var shooter_speed := 150.0
 var shooter_hp := 2.0
 var shooter_fire_interval := 1.8
+var shooter_windup := 0.35        # the telegraph before each shot (PLAN v5 2.2); inside the interval
+var contact_warn_range := 1.5     # tiles beyond contact reach at which a walker shows its red rim
 var shooter_projectile_speed := 320.0
 var shooter_near := 5.0 * TILE    # closer than this: back off
 var shooter_far := 8.0 * TILE     # farther than this: approach
@@ -80,6 +82,10 @@ var hop_impact_speed := 400.0     # impact reported by player_landed after a hop
 # --- Auto attack ---
 var auto_attack_range := 12.0 * TILE
 
+# --- Camera (presentation) ---
+var camera_lookahead := 0.12      # share of the view the camera leads toward the aim
+var camera_lookahead_lerp := 4.0
+
 # --- Projectiles ---
 var projectile_speed := 900.0
 var projectile_lifetime := 3.0
@@ -98,16 +104,14 @@ var transition_short := 0.3
 var toast_time := 2.2             # how long the AI line stays up after a patch
 
 # --- Director ---
-var first_prompt_kills := 15
-var prompt_kills_step := 10
-# Pacing retuned at M13 from bot runs (16 invincible seeds). The kill thresholds are met
-# well before the minimum gaps, so a full run is 60 + 3 x prompt_min_gap + the RC wave:
-# 10 min of game time, 60 s of base, then 5 min and 4 min in the two genre stretches.
-# (M12's 105 s was measured while the projectile cap leak stopped all shooting.)
-var first_prompt_min_gap := 60.0  # the first prompt (and the first BIG one right after it) comes early
-var prompt_min_gap := 150.0
-var prompt_max_gap := 180.0
-var prompts_per_run := 4
+var first_prompt_kills := 10
+var prompt_kills_step := 6
+# Pacing for the ~3 min v0.0 run (PLAN v5 2.1), retuned at M28 from bot sweeps (16 seeds,
+# --fresh): 3 small prompts, then the 45 s release-candidate wave.
+var first_prompt_min_gap := 40.0  # game seconds before the first prompt may open
+var prompt_min_gap := 48.0
+var prompt_max_gap := 60.0        # a prompt opens at this gap even if the kill gate is not met
+var prompts_per_run := 3
 var offer_size := 3
 var hotfix_heal := 1.0            # HP restored by every applied patch
 var prompt_input_delay := 0.5     # the prompt ignores input for this long after opening
@@ -117,7 +121,7 @@ var rollback_charges_start := 0
 var rollback_charges_per_stage := 1
 
 # --- Run loop ---
-var rc_duration := 90.0           # the "release candidate" wave after the last prompt
+var rc_duration := 45.0           # the "release candidate" wave after the last prompt
 var rc_spawn_rate := 1.6          # spawner phase multipliers during that wave
 var rc_spawn_cap := 1.5
 var report_delay := 1.0           # game time between the end of the run and the report

@@ -105,14 +105,16 @@ func test_the_gravity_pair_is_medium_with_its_boss_weights() -> void:
 	assert_false(gravity.starter)
 
 
-func test_the_starter_flags_are_the_six_kept_smalls_and_the_two_bigs() -> void:
+## PLAN v5 2.3: a new save offers 4 smalls; auto_attack, horde_mode and motion_time
+## ship later. turn_mode stays flagged for when Phase 5 unparks it.
+func test_the_starter_flags_are_the_four_v0_smalls_and_the_parked_big() -> void:
 	var starters: Array[String] = []
 	for m in MutationDB.all:
 		if m.starter:
 			starters.append(String(m.id))
 			assert_false(m.is_ai_tier(), "%s: AI-tier patches are not offered" % m.id)
-	assert_eq(starters, ["auto_attack", "bouncing_projectiles", "enemies_split", "explode_on_hit",
-			"horde_mode", "jump_button", "motion_time", "turn_mode"])
+	assert_eq(starters, ["bouncing_projectiles", "enemies_split", "explode_on_hit", "jump_button",
+			"turn_mode"])
 
 
 func test_summary_line_marks_mediums() -> void:

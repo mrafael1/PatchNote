@@ -4,7 +4,7 @@ extends GutTest
 ## Choices go through Director.on_choice / PromptPanel.choose; no synthetic clicks.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
-const TUNING_KEYS: Array[String] = ["first_prompt_min_gap", "prompt_min_gap", "transition_long",
+const TUNING_KEYS: Array[String] = ["first_prompt_min_gap", "prompt_min_gap", "prompt_max_gap", "transition_long",
 		"transition_short", "prompt_input_delay",
 		"rollback_charges_start",
 		"rollback_charges_per_stage"]
@@ -152,6 +152,7 @@ func test_kill_threshold_grows_and_the_run_has_four_prompts() -> void:
 func test_prompts_are_never_closer_than_the_minimum_gap() -> void:
 	Tuning.first_prompt_min_gap = 30.0
 	Tuning.prompt_min_gap = 70.0
+	Tuning.prompt_max_gap = 90.0
 	RunState.apply(MutationDB.get_mutation(&"horde_mode"))
 	RunState.apply(MutationDB.get_mutation(&"enemies_split"))
 	_auto_pick = 0

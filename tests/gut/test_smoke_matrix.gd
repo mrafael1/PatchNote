@@ -27,12 +27,15 @@ func before_each() -> void:
 	game = load("res://main.tscn").instantiate()
 	add_child_autofree(game)
 	await wait_physics_frames(2)
+	# Tier 0: no hit stop, so the time scale in the state snapshot is the rules' alone.
+	Look.use({"tier": 0, "take": ""})
 	RunState.invincible = true
 	game.player.set_bot(true)
 	game.director.enabled = false   # the matrix applies patches itself
 
 
 func after_each() -> void:
+	Look.use(Unlocks.FULL_LOOK)
 	for key: String in _saved:
 		Tuning.set(key, _saved[key])
 	RunState.reset(0)

@@ -330,12 +330,9 @@ func test_a_new_save_unlocks_the_starters_and_shipped_changes_add_to_them() -> v
 	_change(&"fx_ch_patch", [&"auto_attack"])
 	_change(&"fx_ch_enemy", [&"tank"], [], &"enemy")
 	SaveGame.go_live(TEST_PATH, true)
-	# Every small is still a starter until M28's gating; make auto_attack one to unlock.
 	var auto_attack := MutationDB.get_mutation(&"auto_attack")
-	_starters[auto_attack] = auto_attack.starter
-	auto_attack.starter = false
-	var starters := MutationDB.offerable().filter(func(m: Mutation) -> bool: return m.starter)
-	assert_eq(Unlocks.pool(), starters)
+	assert_eq(Unlocks.pool().map(func(m: Mutation) -> String: return String(m.id)),
+			["bouncing_projectiles", "enemies_split", "explode_on_hit", "jump_button"], "PLAN v5 2.3")
 	assert_does_not_have(Unlocks.pool(), auto_attack, "not a starter, not shipped")
 	assert_eq(Unlocks.enemies(), Tuning.starter_enemies)
 	assert_eq(Unlocks.look(), {"tier": 0, "take": ""})

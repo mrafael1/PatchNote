@@ -1,17 +1,25 @@
 class_name Hud
 extends CanvasLayer
-## Minimal HUD: HP, kills, build version, rollbacks, and the final-wave countdown.
+## Minimal HUD: HP, kills, build version, rollbacks, the final-wave countdown, and
+## the "Next patch incoming" banner (PLAN v5 2.1): it pulses once the Director's kill
+## gate is met, until the prompt opens.
 
 var player: Node
 var director: AiDirector
 var run_loop: RunLoop
 var turn_clock: TurnClock
 
+const INCOMING := "Next patch incoming"
+const PULSE_SPEED := 6.0
+
 var _label: Label
+var _banner: Label
+var _pulse := 0.0
 
 
 func _ready() -> void:
 	layer = 50
+	process_mode = Node.PROCESS_MODE_ALWAYS   # the banner hides as the prompt pauses the game
 	_label = Label.new()
 	_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -21,6 +29,18 @@ func _ready() -> void:
 	_label.add_theme_color_override(&"font_outline_color", Color.BLACK)
 	_label.add_theme_constant_override(&"outline_size", 5)
 	add_child(_label)
+	_banner = Label.new()
+	_banner.text = INCOMING
+	_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_banner.position.y += 54
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.add_theme_font_size_override(&"font_size", 28)
+	_banner.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.7))
+	_banner.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_banner.add_theme_constant_override(&"outline_size", 6)
+	_banner.visible = false
+	add_child(_banner)
 
 
 ## The game's version and the in-run build (PLAN v5 1.6): "v0.1.2 · build 5", or with
@@ -32,7 +52,18 @@ static func version_text() -> String:
 	return text
 
 
-func _process(_delta: float) -> void:
+func banner_shown() -> bool:
+	return _banner.visible
+
+
+func _process(delta: float) -> void:
+	var incoming := director != null and director.patch_incoming()
+	_banner.visible = incoming
+	if incoming:
+		_pulse += delta * PULSE_SPEED
+		_banner.modulate.a = 0.55 + 0.45 * sin(_pulse)
+	else:
+		_pulse = 0.0
 	var hp := 0
 	if is_instance_valid(player):
 		var health := Component.find(player, Health) as Health

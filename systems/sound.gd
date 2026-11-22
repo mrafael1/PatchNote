@@ -59,7 +59,7 @@ func play(key: StringName, pitch_jitter := 0.04) -> void:
 		return
 	_last_ms[key] = now
 	var p := _players[key] as AudioStreamPlayer
-	p.pitch_scale = (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)) * pitch_for(Engine.time_scale)
+	p.pitch_scale = (1.0 + _rng.randf_range(-pitch_jitter, pitch_jitter)) * pitch_for(RunState.felt_time_scale())
 	p.play()
 
 

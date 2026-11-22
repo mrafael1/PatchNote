@@ -13,6 +13,7 @@ extends Node
 
 const BASE_RULES_PATH := "res://core/base_rules.tres"
 const MIN_TIME_SCALE := 0.05
+const HIT_STOP := &"hit_stop"   ## the look's time factor (PLAN v5 1.7); not a slow-motion cue
 
 var base_rules: WorldRules
 var rules: WorldRules
@@ -395,7 +396,8 @@ func _log_ai_remove(going: Array[Mutation], reason: StringName) -> void:
 
 
 ## The product of every live time factor (B1's motion, hit stop): 1 when none is set.
-## Read by the HUD, TimeTint and Sound; RunState multiplies it into the time scale.
+## RunState multiplies it into the time scale. The slow-motion cues read
+## felt_time_scale() instead, which leaves hit stop out.
 func motion_factor() -> float:
 	var f := 1.0
 	for v: float in _time_factors.values():
@@ -414,6 +416,20 @@ func set_time_factor(owner_id: StringName, f: float) -> void:
 
 func clear_time_factor(owner_id: StringName) -> void:
 	_time_factors.erase(owner_id)
+
+
+func has_time_factor(owner_id: StringName) -> bool:
+	return _time_factors.has(owner_id)
+
+
+## The time scale the rules and patches set, without hit stop: what the slow-motion
+## cues (TimeTint, Sound's pitch) read, so a hit stop never looks or sounds like B1.
+func felt_time_scale() -> float:
+	var f := rules.time_scale
+	for id: StringName in _time_factors:
+		if id != HIT_STOP:
+			f *= float(_time_factors[id])
+	return maxf(f, MIN_TIME_SCALE)
 
 
 ## RunState is the only writer of Engine.time_scale: rules x time factors, every tick.

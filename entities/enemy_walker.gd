@@ -6,8 +6,9 @@ extends CharacterBody2D
 ## gravity it walks along surfaces and hops: over low walls, and upward when the
 ## player is above and there is headroom. Under a ledge it keeps walking the way it
 ## was going instead of turning back, so it comes out from under and can hop up.
-## Either way, if it makes no progress for a while it wanders briefly. On B2's grid
-## (TurnClock.on_grid) it does none of this.
+## Either way, if it makes no progress for a while it wanders briefly. Close to the
+## player it shows a red rim that brightens as it nears contact (PLAN v5 2.2). On
+## B2's grid (TurnClock.on_grid) it does none of this.
 
 @export var archetype: StringName = &"chaser"
 @export var half_width := 15.0
@@ -30,6 +31,7 @@ var _avoid_side := 1.0
 
 @onready var mover: Mover = $Mover
 @onready var health: Health = $Health
+@onready var visual: RectVisual = $Visual
 
 
 func _ready() -> void:
@@ -53,15 +55,19 @@ func _tuned(suffix: String) -> float:
 func _physics_process(delta: float) -> void:
 	if TurnClock.on_grid(self):
 		mover.wish = Vector2.ZERO   # B2: the turn logic moves it and resolves its attacks
+		visual.rim = 0.0
 		return
 	mover.speed = _tuned("speed")
 	_hop_cooldown = maxf(0.0, _hop_cooldown - delta)
 	var player := EnemyCommon.find_player(self)
 	if player == null:
 		mover.wish = Vector2.ZERO
+		visual.rim = 0.0
 		return
 	var to_player := player.global_position - global_position
 	var distance := to_player.length()
+	var reach := contact_reach()
+	visual.rim = EnemyCommon.contact_warning(distance - reach)
 	_track_progress(distance, delta)
 
 	var rules := RunState.rules
@@ -77,11 +83,16 @@ func _physics_process(delta: float) -> void:
 	var player_mover := Component.find(player, Mover) as Mover
 	if player_mover and player_mover.is_airborne():
 		return   # the player is above the ground plane
-	if distance <= Tuning.contact_range + half_width - 15.0:
+	if distance <= reach:
 		var target := Component.find(player, Health) as Health
 		if target and target.take(DamageInfo.make(_contact_damage, &"contact", &"enemy", global_position)):
 			if player_mover:
 				player_mover.knockback(to_player.normalized() * Tuning.player_hit_knockback)
+
+
+## Centre distance at which its contact hurts the player.
+func contact_reach() -> float:
+	return Tuning.contact_range + half_width - 15.0
 
 
 ## No gravity: head for the player, and if a wall is in the way try directions

@@ -13,4 +13,4 @@ line_reverted = "Time runs on its own again."
 tags = Array[StringName]([&"time"])
 conflicts = Array[StringName]([&"turn_mode"])
 is_mode_switch = true
-starter = true
+starter = false

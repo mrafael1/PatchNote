@@ -67,6 +67,14 @@ func should_prompt(ctx: Dictionary) -> bool:
 	return ctx.kills >= _kills_needed and gap >= min_gap()
 
 
+## The kill gate is met and only the time gap is left: the HUD announces the prompt
+## (PLAN v5 2.1). It reads the gates and adds none.
+func patch_incoming() -> bool:
+	if not enabled or pending != null or prompt_index >= Tuning.prompts_per_run:
+		return false
+	return _kills_since_prompt >= _kills_needed
+
+
 ## The minimum gap before the next small prompt. The first one comes sooner.
 func min_gap() -> float:
 	return Tuning.first_prompt_min_gap if prompt_index == 0 else Tuning.prompt_min_gap
@@ -98,7 +106,8 @@ func get_offer(_ctx: Dictionary) -> Offer:
 	offer.prompt_index = prompt_index
 	offer.line = Dialogue.prompt_line(prompt_index)
 	var pool: Array[Mutation] = []
-	for m in MutationDB.offerable():
+	# What the save has unlocked (PLAN v5 2.3), then the genre's takes on top.
+	for m in Unlocks.pool():
 		# can_apply refuses mediums and boss-only patches: they never reach a small offer.
 		if m.has_take(RunState.genre) and RunState.can_apply(m) and not reverted.has(m.id):
 			pool.append(m)

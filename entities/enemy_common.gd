@@ -32,6 +32,16 @@ static func apply_size(me: Node, mult: float) -> void:
 		visual.size *= mult
 
 
+## The contact telegraph (PLAN v5 2.2): 0 while the walker is more than
+## Tuning.contact_warn_range tiles beyond its contact reach, then from a faint rim
+## (0.05) up to 1 at contact. gap = centre distance minus the contact reach.
+static func contact_warning(gap: float) -> float:
+	var warn := Tuning.contact_warn_range * Tuning.TILE
+	if gap >= warn:
+		return 0.0
+	return clampf(1.0 - gap / warn, 0.05, 1.0)
+
+
 static func ray_hits_world(me: Node2D, from: Vector2, to: Vector2) -> bool:
 	var query := PhysicsRayQueryParameters2D.create(from, to, Tuning.LAYER_WORLD)
 	return not me.get_world_2d().direct_space_state.intersect_ray(query).is_empty()

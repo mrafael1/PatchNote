@@ -45,21 +45,32 @@ func spawn_one() -> Node:
 	return RunState.spawn(SCENES[pick_type()], pick_point() + jitter, {&"from_spawner": true})
 
 
+## One roll per pick. Archetypes the save has not unlocked (Unlocks.enemies, PLAN v5
+## 2.3) never come: a locked type's chance goes to chasers.
 func pick_type() -> StringName:
+	var allowed := Unlocks.enemies()
 	var roll := RunState.gameplay_rng.randf()
-	var tank_chance := Tuning.spawn_tank_chance if _elapsed >= Tuning.spawn_tank_delay else 0.0
+	var tank_ok := _elapsed >= Tuning.spawn_tank_delay and allowed.has(&"tank")
+	var tank_chance := Tuning.spawn_tank_chance if tank_ok else 0.0
+	var shooter_chance := Tuning.spawn_shooter_chance if allowed.has(&"shooter") else 0.0
 	if roll < tank_chance:
 		return &"tank"
-	if roll < tank_chance + Tuning.spawn_shooter_chance:
+	if roll < tank_chance + shooter_chance:
 		return &"shooter"
-	return &"chaser"
+	if allowed.has(&"chaser") or allowed.is_empty():
+		return &"chaser"
+	return allowed[0]
 
 
 ## A marker outside what the player can see and not too close. Falls back to the
 ## farthest marker if none qualifies.
 func pick_point() -> Vector2:
 	var here := player.global_position
-	var view := VIEW_HALF / RunState.rules.camera_zoom + Vector2.ONE * Tuning.TILE
+	# The camera leads toward the aim by up to camera_lookahead of the view (PLAN v5 2.2):
+	# widen the hidden margin by that much, so no lead shows a fresh spawn. A fixed margin
+	# keeps spawning independent of presentation state.
+	var view := VIEW_HALF / RunState.rules.camera_zoom * (1.0 + 2.0 * Tuning.camera_lookahead)
+	view += Vector2.ONE * Tuning.TILE
 	var good: Array[Vector2] = []
 	var farthest := arena.spawn_points[0]
 	for p in arena.spawn_points:

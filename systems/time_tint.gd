@@ -1,7 +1,8 @@
 class_name TimeTint
 extends CanvasLayer
 ## B1 readability (PLAN v3 section 2): desaturation and a vignette over the world
-## that fade in as time slows. Presentation only: reads Engine.time_scale, writes nothing.
+## that fade in as time slows. Presentation only: reads RunState.felt_time_scale() (the
+## time scale without hit stop), writes nothing.
 ## Sits under the HUD and every panel, so only the world is tinted.
 
 const SHADER := preload("res://systems/time_tint.gdshader")
@@ -29,11 +30,11 @@ static func amount_for(time_scale: float) -> float:
 
 
 func amount() -> float:
-	return amount_for(Engine.time_scale) if _rect.visible else 0.0
+	return amount_for(RunState.felt_time_scale()) if _rect.visible else 0.0
 
 
 func _process(_delta: float) -> void:
-	var a := amount_for(Engine.time_scale)
+	var a := amount_for(RunState.felt_time_scale())
 	_rect.visible = a > 0.01
 	if _rect.visible:
 		(_rect.material as ShaderMaterial).set_shader_parameter(&"amount", a)

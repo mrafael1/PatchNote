@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M27"
+const BUILD := "M28"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -48,6 +48,7 @@ func _ready() -> void:
 	next_seed = -1
 	RunState.reset(run_seed, next_genre)
 	next_genre = &""
+	Look.use(Unlocks.look())   # the save's look (PLAN v5 1.7); punchy while inert
 
 	var def := GenreDB.get_genre(RunState.genre)
 	genre = def.genre_script.new() as Genre

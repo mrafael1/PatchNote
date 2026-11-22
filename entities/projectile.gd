@@ -10,6 +10,8 @@ extends Node2D
 const COLOR_PLAYER := Color(1.0, 0.95, 0.5)
 const COLOR_ENEMY := Color(1.0, 0.55, 0.2)
 const MAX_CONTACTS_PER_TICK := 4
+const TRAIL_SECONDS := 0.035   ## a trail is as long as this much of the flight
+const TRAIL_MAX := 34.0
 
 var kind: StringName = &"player_projectile"
 var faction: StringName = &"player"
@@ -22,12 +24,22 @@ var bounces_used := 0
 
 var _age := 0.0
 var _dead := false
+var _trail := false
 
 
 func _ready() -> void:
 	($Visual as RectVisual).color = COLOR_PLAYER if faction == &"player" else COLOR_ENEMY
 	rotation = velocity.angle()
+	_trail = faction == &"player" and Look.preset.trail   # presentation only (PLAN v5 1.7)
 	RunState.register_entity(self, kind)
+
+
+func _draw() -> void:
+	if not _trail:
+		return
+	var length := minf(velocity.length() * TRAIL_SECONDS, TRAIL_MAX)
+	draw_polyline_colors(PackedVector2Array([Vector2(-length, 0), Vector2.ZERO]),
+			PackedColorArray([Color(COLOR_PLAYER, 0.0), Color(COLOR_PLAYER, 0.6)]), 4.0, true)
 
 
 func _physics_process(delta: float) -> void:
