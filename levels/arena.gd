@@ -1,36 +1,16 @@
 class_name Arena
 extends Node2D
-## The one arena (PLAN 3). Geometry is data: axis-aligned rectangles in tile units,
-## turned into a single StaticBody2D. Keeping it as data lets other views (and tests)
-## read the same layout.
+## An arena on screen (PLAN v6 4). Its layout is data, an ArenaDef in levels/arenas/
+## (rectangles in tile units, markers, the start), turned here into a single
+## StaticBody2D. Every arena is COLS x ROWS tiles inside a one-tile border.
 ##
-## Layout rule: ledges are one tile thick and sit on a 3-tile lattice (tops at rows
-## 18, 15, 12, 9, 6, 3), which makes the level the same staircase measured from the
-## floor or from the ceiling. Neighbouring tiers are at most 2 tiles apart sideways,
-## inside the jump (tests/gut/test_gravity.gd checks every ledge is reachable both ways).
+## arena_0 is the M14 arena. Its ledges are one tile thick and sit on a 3-tile lattice
+## (tops at rows 18, 15, 12, 9, 6, 3), the same staircase seen from the floor or the
+## ceiling; tests/gut/test_gravity.gd checks every ledge is reachable both ways.
 
 const COLS := 66
 const ROWS := 22
-
-## [row, first column, length]
-const LEDGES := [
-	[18, 6, 6], [18, 24, 7], [18, 40, 6], [18, 54, 6],
-	[15, 14, 6], [15, 32, 5], [15, 47, 6],
-	[12, 5, 6], [12, 22, 6], [12, 38, 7], [12, 54, 6],
-	[9, 13, 6], [9, 30, 6], [9, 46, 6],
-	[6, 6, 5], [6, 22, 6], [6, 39, 6], [6, 54, 6],
-	[3, 12, 5], [3, 30, 5], [3, 47, 5],
-]
-## [column, row, width, height] — chunky blocks standing on the floor or ceiling
-const CHUNKS := [[20, 19, 2, 2], [48, 19, 2, 2], [25, 1, 2, 2], [56, 1, 2, 2]]
-
-const SPAWN_TILES := [
-	Vector2(3, 5), Vector2(3, 11), Vector2(3, 17),
-	Vector2(62.5, 5), Vector2(62.5, 11), Vector2(62.5, 17),
-	Vector2(20, 14), Vector2(45, 14), Vector2(33, 8), Vector2(50, 11),
-	Vector2(12, 20), Vector2(58, 20), Vector2(28, 5), Vector2(33, 20),
-]
-const PLAYER_START_TILE := Vector2(33, 14)
+const DEFAULT := "res://levels/arenas/arena_0.tres"
 
 const COLOR_BACKGROUND := Color(0.09, 0.1, 0.13)
 const COLOR_GRID := Color(1, 1, 1, 0.035)
@@ -39,13 +19,15 @@ const COLOR_STANDABLE := Color(0.95, 0.97, 1.0)
 const COLOR_DEPTH := Color(0.0, 0.0, 0.0, 0.5)
 const STRIP := 5.0
 
+var def: ArenaDef                      ## the layout this arena was built from
 var blocks: Array[Rect2] = []          ## pixels
 var bounds: Rect2                      ## whole arena including the border, pixels
 var spawn_points: Array[Vector2] = []  ## pixels
 var player_start: Vector2
 
 
-func _init() -> void:
+func _init(p_def: ArenaDef = null) -> void:
+	def = p_def if p_def != null else load(DEFAULT) as ArenaDef
 	var t := Tuning.TILE
 	bounds = Rect2(0, 0, COLS * t, ROWS * t)
 	# Border, one tile thick on all four sides.
@@ -53,13 +35,11 @@ func _init() -> void:
 	_add_block(0, ROWS - 1, COLS, 1, t)
 	_add_block(0, 1, 1, ROWS - 2, t)
 	_add_block(COLS - 1, 1, 1, ROWS - 2, t)
-	for l: Array in LEDGES:
-		_add_block(l[1], l[0], l[2], 1, t)
-	for c: Array in CHUNKS:
-		_add_block(c[0], c[1], c[2], c[3], t)
-	for s: Vector2 in SPAWN_TILES:
-		spawn_points.append(s * t)
-	player_start = PLAYER_START_TILE * t
+	for r in def.blocks:
+		_add_block(r.position.x, r.position.y, r.size.x, r.size.y, t)
+	for tile in def.spawn_tiles:
+		spawn_points.append(tile * t)
+	player_start = def.player_start * t
 
 
 ## The first builds have no level yet (PLAN v5 4.8): only the border stays. Call it

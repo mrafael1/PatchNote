@@ -55,6 +55,7 @@ func _init() -> void:
 func _ready() -> void:
 	health.shield_hit.connect(_on_hit)
 	add_to_group(&"threat")   # the bot dodges and shoots it, as a player would
+	add_to_group(&"follows_across_stages")   # PLAN v6 4: it stalks you into the next stage
 	RunState.register_entity(self, kind)
 
 

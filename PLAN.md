@@ -131,40 +131,6 @@ In order:
 - **F2:** one "rework <fork> <option>" button per shelved option (`Main.debug_rework`). It logs a session of its own, like Shift+F9.
 - **Fixed on the way:** three mockup cards were 1368 px wide on the 1280 px screen from M29 to M32, so the third card was clipped. Cards now shrink to fit (`DevSessionScreen.card_width`), and their stills shrink with them.
 
-### 3.1 As built (M33)
-- **Five forks of three:**
-  - `look_1`;
-  - `fork_enemy`: Tank · Bomber · Lancer;
-  - `fork_hands`: Auto-aim · Motion time · Orbit;
-  - `fork_pressure`: Horde · Hunter · Elite (requires `fork_enemy`);
-  - `fork_odd`: Echo · Magnet · Well (requires `fork_hands`).
-- **Interpretations where section 3 left room:**
-  - **Lancer:** a `lancer` archetype of `enemy_walker.gd`.
-    - It telegraphs a visible line (a `Line2D`) and charges by `Mover.dash`. The charge stops at a wall.
-    - It hits everyone within reach once per charge, with damage kind `charge`.
-    - It spawns from 35 s with chance 0.1.
-  - **Elite:** the spawner sends single enemies, not waves, so "each wave has one" became **every 8th spawned enemy**.
-    - "Clears the 3 nearest enemies' shots" became **removes every enemy shot within 5 tiles** of the dead elite. Projectiles do not know who fired them.
-    - The shield is a new generic `Health.shield_hits` (whole hits absorbed, `shield_hit` signal). The elite's mark component owns it and takes it back on a revert.
-  - **Hunter:** it is not an enemy (its own group): no kill, no spawn cap, not an auto-aim target, explosions pass it by.
-    - It cannot be hurt: a shield that never runs out. Every 8th shield hit stuns it for 4 s.
-    - A watcher component on the player sends it at 60 s of run time from the spawner's off-screen point, and takes it away on a revert.
-    - A first version used a watcher node added to the world with `call_deferred`. It leaked when the world went first, and could send two hunters.
-    - Like the walkers, it wanders when stuck behind a wall.
-    - Its parity was measured before the wander rule.
-  - **Well:** a drag on the position (`move_and_collide`), not a velocity push.
-    - An enemy's own steering (accel 3200 px/s², friction 3600) cancels any push below that, so a push would not show.
-  - **Magnet:** the shot's damage, counted as the player's (the patch's kill, `source_patch` magnet).
-    - Enemies within 1.5 tiles of the muzzle are ignored, so a shot never curves back into its shooter.
-  - **Echo:** a physics-time timer that pauses with the tree. An echo is the patch's shot: it does not echo and does not pulse motion time.
-- **Old saves:**
-  - A v5 save that answered with Horde keeps it shipped and so answers `fork_pressure`; `fork_hands` is asked again.
-  - A v5 save with Tank and Bomber now has the Lancer on its shelf (1.4 said "empty shelf" before M33's third option).
-- **The smoke matrix samples** (M33): every single patch, every pair, the full stack, and 40 seeded larger subsets, about 132 per slot.
-  - The full matrix was 8191 subsets per slot with 13 smalls, and the suite never finished.
-  - Under motion time it no longer compares the time scale after a rebuild: B1's factor is smoothed over past ticks. The old matrix passed only because its seeds caught the bot at full speed.
-- **Numbers:** see the M33 row.
-
 ---
 
 ## 2. The dev session screens
@@ -205,6 +171,40 @@ The 4 starter smalls stay outside forks (always in the pool), and so do the basi
 
 **Divergence in numbers:** 6 forks (Stages included) with 3 answers each give 3⁶ = 729 possible saves. Two players share every answer by chance about once in 729 (uniform picks). Taste skews this, which is the point.
 
+### 3.1 As built (M33)
+- **Five forks of three:**
+  - `look_1`;
+  - `fork_enemy`: Tank · Bomber · Lancer;
+  - `fork_hands`: Auto-aim · Motion time · Orbit;
+  - `fork_pressure`: Horde · Hunter · Elite (requires `fork_enemy`);
+  - `fork_odd`: Echo · Magnet · Well (requires `fork_hands`).
+- **Interpretations where section 3 left room:**
+  - **Lancer:** a `lancer` archetype of `enemy_walker.gd`.
+    - It telegraphs a visible line (a `Line2D`) and charges by `Mover.dash`. The charge stops at a wall.
+    - It hits everyone within reach once per charge, with damage kind `charge`.
+    - It spawns from 35 s with chance 0.1.
+  - **Elite:** the spawner sends single enemies, not waves, so "each wave has one" became **every 8th spawned enemy**.
+    - "Clears the 3 nearest enemies' shots" became **removes every enemy shot within 5 tiles** of the dead elite. Projectiles do not know who fired them.
+    - The shield is a new generic `Health.shield_hits` (whole hits absorbed, `shield_hit` signal). The elite's mark component owns it and takes it back on a revert.
+  - **Hunter:** it is not an enemy (its own group): no kill, no spawn cap, not an auto-aim target, explosions pass it by.
+    - It cannot be hurt: a shield that never runs out. Every 8th shield hit stuns it for 4 s.
+    - A watcher component on the player sends it at 60 s of run time from the spawner's off-screen point, and takes it away on a revert.
+    - A first version used a watcher node added to the world with `call_deferred`. It leaked when the world went first, and could send two hunters.
+    - Like the walkers, it wanders when stuck behind a wall.
+    - Its parity was measured before the wander rule.
+  - **Well:** a drag on the position (`move_and_collide`), not a velocity push.
+    - An enemy's own steering (accel 3200 px/s², friction 3600) cancels any push below that, so a push would not show.
+  - **Magnet:** the shot's damage, counted as the player's (the patch's kill, `source_patch` magnet).
+    - Enemies within 1.5 tiles of the muzzle are ignored, so a shot never curves back into its shooter.
+  - **Echo:** a physics-time timer that pauses with the tree. An echo is the patch's shot: it does not echo and does not pulse motion time.
+- **Old saves:**
+  - A v5 save that answered with Horde keeps it shipped and so answers `fork_pressure`; `fork_hands` is asked again.
+  - A v5 save with Tank and Bomber now has the Lancer on its shelf (1.4 said "empty shelf" before M33's third option).
+- **The smoke matrix samples** (M33): every single patch, every pair, the full stack, and 40 seeded larger subsets, about 132 per slot.
+  - The full matrix was 8191 subsets per slot with 13 smalls, and the suite never finished.
+  - Under motion time it no longer compares the time scale after a rebuild: B1's factor is smoothed over past ticks. The old matrix passed only because its seeds caught the bot at full speed.
+- **Numbers:** see the M33 row.
+
 ---
 
 ## 4. The shooter's Stages step
@@ -223,6 +223,29 @@ ROADMAP 1.3's ladder: Playable → **Stages**. The `stages` fork ships the step 
 - **Pacing:** 3 small prompts per run as today, one per stage. The release candidate wave is the last stage's end. Target ~6 min (median 330–390 s, invincible bot, a save with the Stages step shipped).
 - **Stills:** `mockup_capture.gd` gains a stage scene (a stage-clear moment per take).
 - **Reworking `stages`** swaps the flavour. It never returns to the single arena: a maturity step does not go back.
+
+### 4.1 As built (M34)
+- **Arenas are data:** `ArenaDef` (`levels/arena_def.gd`) in `levels/arenas/`:
+  - `arena_0` "Ledges" is the M14 arena, with its blocks in the same order;
+  - `arena_1` "Pillars": 18 pillars, two walls shielding the middle;
+  - `arena_2` "Lanes": long walls cut it into three lanes.
+  - Every arena is 66 × 22 tiles inside the border (the parked turn grid and the camera rely on it). `Arena.new(def)`; with no def, `arena_0`.
+  - `problems(genre)` checks a layout for each genre it lists. For top-down: blocks inside the border, the start and markers 0.5 tile clear of blocks, at least 8 markers, and every marker walkable from the start. arena_0's gravity check stays in `test_gravity.gd`.
+- **Stages:** `StageDef` (arena, duration, goal, prompts, spawn rate and cap) and `StageSet` (`levels/stages/<id>.tres`, the stages in order).
+  - `StageSet.for_run()` gives `single()` unless an override is set: one stage on `arena_0`, with `Tuning.prompts_per_run` prompts and no minimum time. That is the v0.0 run.
+  - `gauntlet` (debug only until M35): arena_0, 1 and 2, 100 s each, one prompt each. Spawns are ×1, ×1.15 and ×1.3 in rate and ×1, ×1.1 and ×1.2 in cap.
+  - `goal` has one value, `survive`. Breakout's exit gate is M35's.
+- **The run loop:** play → (the stage's prompts are done and its duration has passed) → `stage_clear` for `Tuning.stage_clear_time` = 2.5 s → the next stage's play. The last stage's end is the release candidate.
+  - At the clear: the spawner stops, enemies deal no damage for the clear plus 1.5 s, the AI says "Stage 1 of 3 passes. Loading the next level." and the run log gets `stage_clear` and `stage_start`.
+  - The Director gets a per-stage limit (`prompt_limit`, `begin_stage`). A stage's first prompt uses the first-prompt gap. On a one-stage run nothing is set.
+- **The genre at a stage change:**
+  - It clears the world (enemies, shots, patch leftovers). It sweeps a second time once the spawns queued that tick have entered the tree.
+  - It swaps the arena, puts the player at the new start and resets the camera bounds.
+  - It points the spawner and the turn clock at the new arena; the turn clock's tile cache is reset.
+  - It forwards `stage_ended(index)`, which the shell relays as `EventBus.stage_ended`.
+  - The player, its components and the stack carry over. Two groups: `keeps_across_stages` stays where it is (the turn overlay); `follows_across_stages` is moved to one of the new arena's markers (the Hunter).
+- **Telemetry:** the run record adds `stages: {set, total, reached, starts}`. The HUD shows "Stage 2/3" on runs with more than one stage.
+- **Tools:** `bot_runs.gd --stages=<id>` (the run line shows `stage=reached/total`) and `run_hash.gd --stages=<id>`. One-stage hashes leave the stage index out, so the M33 recordings still compare.
 
 ---
 
@@ -283,7 +306,10 @@ ROADMAP 1.3's ladder: Playable → **Stages**. The `stages` fork ships the step 
   - **The bot now dodges and shoots a `threat` group** (the Hunter is in it, and is not an enemy). Before that the bot walked into it.
   - **Pacing:** invincible, everything unlocked: 181 s (16 of 16 runs).
   - **Divergence:** 16 chains as M31/M32 (rework chance 0.2): **16 distinct final sets of 16**. Every option is a final answer in 3 to 8 chains. 15 chains answered all 5 forks. The AI answered a fork 16 times; it did not fire in M31–M32. 35 reworks, 0 mismatches in the next run. Chain 1 replayed byte-identical. | **G12a (short, optional):** the owner plays one save to v0.2.x. Do the new options feel creative? Is a fork question clear? |
-| M34 | Stage plumbing + arenas as data | Section 4's plumbing and arenas (no take yet): `StageDef`, sub-states, stage clear, carry, cross-stage hash test, `arena_0` + 2 arenas. A debug `--stages=gauntlet` bot flag runs a 3-stage run. **Numbers:** the same-seed 3-stage hash matches; the one-arena v0.0 run is unchanged (its M28 hash gate passes) | — |
+| M34 | Stage plumbing + arenas as data | Section 4's plumbing and arenas (no take yet): `StageDef`, sub-states, stage clear, carry, cross-stage hash test, `arena_0` + 2 arenas. A debug `--stages=gauntlet` bot flag runs a 3-stage run. **Numbers:** the same-seed 3-stage hash matches; the one-arena v0.0 run is unchanged (its M28 hash gate passes). **As built (bot, invincible, inert save):**
+  - **One-arena run unchanged:** `run_hash.gd` seeds 1–4, recorded at m33 before any change and compared after M34: same run over 182 s, 4 of 4.
+  - **3-stage hash:** `--stages=gauntlet`, seeds 1–4 played twice: same run over 351 s, 4 of 4. Each run reached stage 3/3 and won.
+  - **In the suite:** `test_stages.gd` replays a compressed 3-stage bot run with prompts twice in one process, and the per-10-frame hashes match. | — |
 | M35 | The Stages step | The `stages` fork, its 3 takes, stills, the genre step write, pacing, rework of the flavour. **Numbers:** invincible median 330–390 s with Stages shipped (each take); mortal time-to-death reported per take; v0.0 runs unchanged before the fork | — |
 | M36 | Playtest build | Export, the playtest sheet updated (forks, Rework, stages), boot line with forks. | **G12 — owner playtest.** A fresh save, about 10 runs: do two answers to one question feel like different games? Is Rework found, and does it feel like freedom rather than a chore? Are the new options creative enough? Is the 6-min staged run better than the 3-min one? |
 

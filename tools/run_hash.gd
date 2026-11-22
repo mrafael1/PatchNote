@@ -5,6 +5,7 @@ extends SceneTree
 ##
 ##   godot --headless --path . --fixed-fps 60 -s tools/run_hash.gd -- --out=<file> [--seconds=120] 1 2 3 4
 ##   godot --headless --path . --fixed-fps 60 -s tools/run_hash.gd -- --compare=<file> 1 2 3 4
+##   ... --stages=gauntlet   every run plays that stage set (PLAN v6 M34: the 3-stage hash)
 ##
 ## Each second hashes: the player position (to 0.01 px), every live entity's group
 ## kind and position (sorted), kills, the build number and the stack ids. Cards are
@@ -27,6 +28,8 @@ func _run() -> void:
 			out_path = arg.trim_prefix("--out=")
 		elif arg.begins_with("--compare="):
 			compare_path = arg.trim_prefix("--compare=")
+		elif arg.begins_with("--stages="):
+			load("res://levels/stage_set.gd").call(&"use_override", StringName(arg.trim_prefix("--stages=")))
 		elif arg.begins_with("--seconds="):
 			seconds = int(arg.trim_prefix("--seconds="))
 		else:
@@ -130,6 +133,8 @@ func _hash(game: Node, run_state: Node) -> String:
 	ents.sort()
 	parts.append_array(ents)
 	parts.append("k%d b%d" % [run_state.kills, run_state.build_number])
+	if game.run_loop.stages != null and game.run_loop.stages.size() > 1:
+		parts.append("s%d" % game.run_loop.stage_index)   # absent on one-stage runs: M33 hashes hold
 	for m: Resource in run_state.stack:
 		parts.append(String(m.id))
 	return "|".join(parts).md5_text()

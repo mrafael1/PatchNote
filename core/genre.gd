@@ -8,7 +8,8 @@ extends Node
 ##   build(shell)    add the genre's own nodes under itself and place the player
 ##   begin_run()     the shell's nodes exist; wire to them and start the run
 ## and the genre tells the shell exactly two things, through its signals:
-##   stage_ended(index)   a stage is over (no genre has stages yet)
+##   stage_ended(index)   a stage is over and the next one follows (PLAN v6 4); the
+##                        last stage's end is the run's (run_ended)
 ##   run_ended(outcome)   the run is over and run_record() holds its telemetry record
 ## Patch prompts are still paced by the Director's rule (kills and gaps in game seconds),
 ## which suits the only genre so far; Phase 5 hands prompt points to the genres.

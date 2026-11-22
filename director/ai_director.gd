@@ -19,6 +19,10 @@ var charges_earned := 0      ## charges this run has had in all, the starting on
 var pending: Offer           ## an offer waiting for its choice
 var reverted := {}           ## small ids rolled back; never offered again. AI rollbacks never write it
 var taste: Taste             ## what the player seems to like; leans the offers
+## Prompts the run may have opened by the end of the current stage (PLAN v6 4); -1:
+## Tuning.prompts_per_run, the one-stage run. The run loop raises it stage by stage.
+var prompt_limit := -1
+var _stage_first_prompt := 0  ## prompt_index when the current stage began
 
 var _kills_since_prompt := 0
 var _last_prompt_time := 0.0
@@ -54,12 +58,12 @@ func poll() -> void:
 
 ## Every small prompt has been opened and answered (or skipped).
 func prompts_done() -> bool:
-	return prompt_index >= Tuning.prompts_per_run and pending == null
+	return prompt_index >= limit() and pending == null
 
 
 ## (enough counted kills AND the minimum gap) OR the maximum gap.
 func should_prompt(ctx: Dictionary) -> bool:
-	if prompt_index >= Tuning.prompts_per_run:
+	if prompt_index >= limit():
 		return false
 	var gap: float = ctx.time - _last_prompt_time
 	if gap >= Tuning.prompt_max_gap:
@@ -70,7 +74,7 @@ func should_prompt(ctx: Dictionary) -> bool:
 ## The kill gate is met and only the time gap is left: the HUD announces the prompt
 ## (PLAN v5 2.1). It reads the gates and adds none.
 func patch_incoming() -> bool:
-	if not enabled or pending != null or prompt_index >= Tuning.prompts_per_run:
+	if not enabled or pending != null or prompt_index >= limit():
 		return false
 	return _kills_since_prompt >= _kills_needed
 
@@ -79,7 +83,7 @@ func patch_incoming() -> bool:
 ## 2026-11-22); -1 when none is coming. It mirrors should_prompt(): the prompt opens at
 ## 1, and the value never goes back (kills and time only grow between prompts).
 func prompt_progress() -> float:
-	if not enabled or pending != null or prompt_index >= Tuning.prompts_per_run:
+	if not enabled or pending != null or prompt_index >= limit():
 		return -1.0
 	var gap := RunState.game_time - _last_prompt_time
 	var kills := 1.0 if _kills_needed <= 0 else float(_kills_since_prompt) / _kills_needed
@@ -87,9 +91,25 @@ func prompt_progress() -> float:
 	return clampf(maxf(both, gap / maxf(Tuning.prompt_max_gap, 0.001)), 0.0, 1.0)
 
 
-## The minimum gap before the next small prompt. The first one comes sooner.
+## The minimum gap before the next small prompt. A stage's first one comes sooner.
 func min_gap() -> float:
-	return Tuning.first_prompt_min_gap if prompt_index == 0 else Tuning.prompt_min_gap
+	return Tuning.first_prompt_min_gap if prompt_index == _stage_first_prompt else Tuning.prompt_min_gap
+
+
+func limit() -> int:
+	return Tuning.prompts_per_run if prompt_limit < 0 else prompt_limit
+
+
+## A new stage (PLAN v6 4): `count` more prompts, paced from now as at a run start
+## (the gap restarts, the kills since the last prompt reset; the kill gate keeps
+## growing). The first stage only sets the limit: the run start is its pacing.
+func begin_stage(count: int, first: bool) -> void:
+	prompt_limit = (0 if first else limit()) + count
+	if first:
+		return
+	_stage_first_prompt = prompt_index
+	_last_prompt_time = RunState.game_time
+	_kills_since_prompt = 0
 
 
 ## Also used by the debug key, which ignores the pacing rule.

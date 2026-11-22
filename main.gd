@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M33"
+const BUILD := "M34"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -90,6 +90,7 @@ func _ready() -> void:
 	add_child(patch_history)
 
 	genre.run_ended.connect(_on_report_ready)
+	genre.stage_ended.connect(func(index: int) -> void: EventBus.stage_ended.emit(index))
 	genre.begin_run()
 
 	report = ReportScreen.new()

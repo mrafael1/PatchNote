@@ -16,6 +16,8 @@ extends SceneTree
 ##   --apply=<mutation id>        apply that small patch at the start of every run, as if
 ##                                picked (M33 parity: a piece's own effect, without the
 ##                                offer pool's draws changing with the pool's size)
+##   --stages=<set id>            every run plays that stage set (levels/stages/<id>.tres,
+##                                PLAN v6 5), e.g. --stages=gauntlet: a 3-stage run
 ##   --log=<path>                 write telemetry there instead (parallel sweeps)
 ##   --save=<path>                play every run from that save, read-only: each run sees
 ##                                the same snapshot and nothing is written (PLAN v5 4.6)
@@ -76,6 +78,12 @@ func _run() -> void:
 			var big: Resource = root.get_node("MutationDB").get_mutation(start_big)
 			if big == null or not big.get(&"is_big"):
 				print("[botrun] FAILED: no big patch %s" % start_big)
+				quit(1)
+				return
+		elif arg.begins_with("--stages="):
+			var set_id := StringName(arg.trim_prefix("--stages="))
+			if not load("res://levels/stage_set.gd").call(&"use_override", set_id):
+				print("[botrun] FAILED: no stage set %s" % set_id)
 				quit(1)
 				return
 		elif arg.begins_with("--apply="):
@@ -247,9 +255,9 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 			var fail := " FAILED: %d BIG prompts" % big_prompts if big_prompts > 0 else ""
 			if rec.reverts_used > 0:
 				fail += " FAILED: %d rollbacks" % rec.reverts_used
-			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs genre=%s version=%s build=%s %s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
+			return "[botrun] seed=%d%s%s outcome=%s time=%.1fs real=%.1fs stage=%s genre=%s version=%s build=%s %s kills=%d prompts=%s big=%s genres=%s hits=%s kinds=%s reverts=%d ai=%s rc=%s agenda=%d first_offer_%s" % [
 				run_seed, " (invincible)" if invincible else "", fail, rec.outcome, rec.duration, rec.real_duration,
-				rec.genre, rec.game_version, rec.version, load("res://core/unlocks.gd").call(&"summary"), rec.kills, picks, rec.final_big if rec.final_big != "" else "-", rec.genre_seconds,
+				"%d/%d" % [rec.stages.reached, rec.stages.total], rec.genre, rec.game_version, rec.version, load("res://core/unlocks.gd").call(&"summary"), rec.kills, picks, rec.final_big if rec.final_big != "" else "-", rec.genre_seconds,
 				rec.genre_hits, rec.genre_hits_by_kind, rec.reverts_used, _ai_line(rec), rec.reached_release_candidate,
 				rec.agenda_cards, _first_line(game)]
 		if game.prompt_panel.can_choose():

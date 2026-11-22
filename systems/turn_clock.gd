@@ -24,7 +24,10 @@ const GRID_GROUP := &"on_grid"
 static var _current: TurnClock
 
 var player: CharacterBody2D
-var arena: Arena
+var arena: Arena:
+	set(value):
+		arena = value
+		_free.clear()   # a new stage's arena (PLAN v6 4)
 
 var turns := 0                 ## turns played this run
 var active := false            ## B2 is on and the run is going
@@ -54,7 +57,7 @@ var intents: Array[Dictionary] = []
 
 var _turn_left := 0.0          ## game seconds left in the current turn; 0 = waiting
 var _stopped := false          ## the run is over: never hold the world again
-var _free := {}                ## Vector2i tile -> is_free at its centre (the arena never changes)
+var _free := {}                ## Vector2i tile -> is_free at its centre, for the current arena
 
 
 ## The clock of the running game, or null (the turn logic finds it here).

@@ -1,8 +1,10 @@
 class_name TopdownGenre
 extends Genre
-## The top-down shooter (PLAN v5 1.1), the first genre: one arena, the player, the
+## The top-down shooter (PLAN v5 1.1), the first genre: the arena, the player, the
 ## wave spawner, the camera, the slow-motion tint, and the run pacing of RunLoop (play -> release candidate
-## -> over). The parked turn-based code (TurnClock, TurnOverlay) still lives here, as
+## -> over). A run plays a StageSet (PLAN v6 4): between two stages the field is cleared
+## and the next stage's arena replaces the last; the player, its components and the
+## stack carry over. The parked turn-based code (TurnClock, TurnOverlay) still lives here, as
 ## it did in M14's single scene, until Phase 5 makes it a genre of its own.
 
 const PLAYER_SCENE := preload("res://entities/player.tscn")
@@ -14,15 +16,21 @@ var arena: Arena
 var spawner: Spawner
 var turn_clock: TurnClock
 var run_loop: RunLoop
+var stages: StageSet
+
+
+## World nodes a stage change keeps where they are (the player is always kept).
+const KEEP_GROUP := &"keeps_across_stages"
+## World nodes a stage change keeps and moves to one of the next arena's spawn markers
+## (a stalker that follows you, PLAN v6 4).
+const FOLLOW_GROUP := &"follows_across_stages"
 
 
 func build(p_shell: Node) -> void:
 	super(p_shell)
-	arena = Arena.new()
-	arena.name = "Arena"
-	if not Unlocks.has_basic(&"level"):
-		arena.strip_layout()   # PLAN v5 4.8: no level yet, an empty box
-	add_child(arena)
+	# A smoke-test build (PLAN v5 4.8) is one short stage, whatever the set.
+	stages = StageSet.for_run() if Unlocks.missing_basics().is_empty() else StageSet.single()
+	_build_arena(stages.stage(0).arena)
 
 	world = Node2D.new()
 	world.name = "World"
@@ -43,6 +51,7 @@ func build(p_shell: Node) -> void:
 	var overlay := TurnOverlay.new()
 	overlay.name = "TurnOverlay"
 	overlay.player = player
+	overlay.add_to_group(KEEP_GROUP)
 	world.add_child(overlay)
 
 	var rig := CameraRig.new()
@@ -77,6 +86,10 @@ func begin_run() -> void:
 	run_loop.spawner = spawner
 	run_loop.transition = shell.transition
 	run_loop.report_ready.connect(func(outcome: StringName) -> void: run_ended.emit(outcome))
+	run_loop.stages = stages
+	run_loop.stage_cleared.connect(_on_stage_cleared)
+	run_loop.stage_starting.connect(_on_stage_starting)
+	run_loop.begin()
 	var missing := Unlocks.missing_basics()
 	if not missing.is_empty():
 		# A build that misses a basic (PLAN v5 4.8) plays a short smoke test: no prompts.
@@ -105,6 +118,57 @@ static func smoke_line(missing: Array[StringName]) -> String:
 			return "Smoke test. You can move now. There is nothing to shoot yet."
 		_:
 			return "Smoke test. Something basic is still missing."
+
+
+func _build_arena(def: ArenaDef) -> void:
+	arena = Arena.new(def)
+	arena.name = "Arena"
+	if not Unlocks.has_basic(&"level"):
+		arena.strip_layout()   # PLAN v5 4.8: no level yet, an empty box
+	add_child(arena)
+	move_child(arena, 0)   # drawn under the world, as when it was built first
+
+
+## The stage is over: its enemies, shots and patch leftovers go; the player stays.
+func _on_stage_cleared(index: int) -> void:
+	_clear_field()
+	stage_ended.emit(index)
+
+
+## The next stage: a fresh field, its arena, the player at its start.
+func _on_stage_starting(_index: int, stage: StageDef) -> void:
+	_clear_field()
+	var old := arena
+	remove_child(old)
+	old.queue_free()
+	_build_arena(stage.arena)
+	spawner.arena = arena
+	turn_clock.arena = arena
+	player.global_position = arena.player_start
+	player.velocity = Vector2.ZERO
+	var rig := camera as CameraRig
+	rig.set_bounds(arena.bounds)
+	rig.global_position = player.global_position
+	rig.reset_smoothing()
+	for node in get_tree().get_nodes_in_group(FOLLOW_GROUP):
+		if node is Node2D and world.is_ancestor_of(node) and not node.is_queued_for_deletion():
+			(node as Node2D).global_position = spawner.pick_point()
+
+
+## Twice: now, and once the spawns queued this tick have entered the tree (RunState.spawn
+## adds them deferred), so nothing spawned on the clearing tick survives it.
+func _clear_field() -> void:
+	_sweep()
+	_sweep.call_deferred()
+
+
+func _sweep() -> void:
+	if not is_instance_valid(world):
+		return
+	for child in world.get_children():
+		if child == player or child.is_in_group(KEEP_GROUP) or child.is_in_group(FOLLOW_GROUP) 				or child.is_queued_for_deletion():
+			continue
+		child.queue_free()
 
 
 func run_record() -> Dictionary:

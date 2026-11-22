@@ -17,6 +17,7 @@ static func prompt_line(prompt_index: int) -> String:
 	return PROMPT_LINES[clampi(prompt_index - 1, 0, PROMPT_LINES.size() - 1)]
 
 
+const STAGE_CLEAR := "Stage %d of %d passes. Loading the next level."
 const RELEASE_CANDIDATE := "That was the last patch. Tagging a release candidate. Survive the final test."
 
 

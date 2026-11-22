@@ -152,6 +152,8 @@ var rollback_charges_start := 0
 var rollback_charges_per_stage := 1
 
 # --- Run loop ---
+var stage_clear_time := 2.5       # PLAN v6 4: the beat between two stages (field cleared)
+var stage_start_grace := 1.5      # enemies deal no damage this long into the next stage
 var rc_duration := 45.0           # the "release candidate" wave after the last prompt
 var rc_spawn_rate := 1.6          # spawner phase multipliers during that wave
 var rc_spawn_cap := 1.5

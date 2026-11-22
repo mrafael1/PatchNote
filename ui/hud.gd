@@ -134,6 +134,8 @@ func _process(delta: float) -> void:
 		_label.text += "\nRollbacks: %d [Tab]" % director.charges
 	if turn_clock and turn_clock.active:
 		_label.text += "\nTurn %d%s" % [turn_clock.turns, "   [E] wait" if turn_clock.is_waiting() else ""]
+	if run_loop and run_loop.stages and run_loop.stages.size() > 1:
+		_label.text += "\nStage %d/%d" % [run_loop.stage_index + 1, run_loop.stages.size()]
 	if run_loop and run_loop.smoke_time_left() >= 0.0:
 		_label.text += "\nSMOKE TEST  %d s" % ceili(run_loop.smoke_time_left())
 	if run_loop and run_loop.rc_time_left() >= 0.0:

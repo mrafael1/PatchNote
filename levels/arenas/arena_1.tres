@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ArenaDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://levels/arena_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"arena_1"
+title = "Pillars"
+blocks = Array[Rect2]([Rect2(7, 4, 2, 2), Rect2(15, 4, 2, 2), Rect2(23, 4, 2, 2), Rect2(41, 4, 2, 2), Rect2(49, 4, 2, 2), Rect2(57, 4, 2, 2), Rect2(7, 10, 2, 2), Rect2(15, 10, 2, 2), Rect2(23, 10, 2, 2), Rect2(41, 10, 2, 2), Rect2(49, 10, 2, 2), Rect2(57, 10, 2, 2), Rect2(7, 16, 2, 2), Rect2(15, 16, 2, 2), Rect2(23, 16, 2, 2), Rect2(41, 16, 2, 2), Rect2(49, 16, 2, 2), Rect2(57, 16, 2, 2), Rect2(28, 5, 10, 1), Rect2(28, 16, 10, 1)])
+spawn_tiles = PackedVector2Array(3, 3, 3, 11, 3, 18, 62.5, 3, 62.5, 11, 62.5, 18, 20, 2, 45, 2, 20, 19.5, 45, 19.5, 33, 3, 33, 19, 12, 13, 54, 8.5)
+player_start = Vector2(33, 11)
+genres = Array[StringName]([&"topdown"])
