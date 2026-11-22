@@ -21,6 +21,8 @@ var _banner: Label
 var _gauge: Control
 var _gauge_label: Label
 var _gauge_fill: ColorRect
+var _kill_pulse := 0.0
+const KILL_PULSE_TIME := 0.15
 var _pulse := 0.0
 
 
@@ -49,6 +51,8 @@ func _ready() -> void:
 	_banner.visible = false
 	add_child(_banner)
 	_build_gauge()
+	if director:
+		director.kill_counted.connect(_on_kill_counted)
 
 
 ## The game's version and the in-run build (PLAN v5 1.6): "v0.1.2 · build 5", or with
@@ -97,9 +101,16 @@ func gauge_text() -> String:
 	return _gauge_label.text
 
 
-func _update_gauge() -> void:
+## A counted kill: the bar flashes bright, so the kill reads as filling it.
+func _on_kill_counted() -> void:
+	_kill_pulse = KILL_PULSE_TIME
+
+
+func _update_gauge(delta := 0.0) -> void:
 	var progress := director.prompt_progress() if director else -1.0
 	_gauge.visible = progress >= 0.0
+	_kill_pulse = maxf(0.0, _kill_pulse - delta)
+	_gauge_fill.color = GAUGE_FILL.lerp(Color.WHITE, 0.7 * _kill_pulse / KILL_PULSE_TIME)
 	if not _gauge.visible:
 		return
 	_gauge_label.text = "PATCH %d/%d" % [director.prompt_index + 1, Tuning.prompts_per_run]
@@ -118,7 +129,7 @@ func _process(delta: float) -> void:
 		_banner.modulate.a = 0.55 + 0.45 * sin(_pulse)
 	else:
 		_pulse = 0.0
-	_update_gauge()
+	_update_gauge(delta)
 	var hp := 0
 	if is_instance_valid(player):
 		var health := Component.find(player, Health) as Health

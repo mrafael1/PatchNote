@@ -10,10 +10,14 @@ const VIGNETTE := Color(0.9, 0.05, 0.05)
 const VIGNETTE_ALPHA := 0.55
 const VIGNETTE_DEPTH := 0.14   ## share of the shorter screen side
 const FLASH_TIME := 0.08
+## One flash per this many real seconds: exploding shots go off several times a second
+## and the flashes strobed (owner feedback after M34, 2026-11-22).
+const FLASH_COOLDOWN := 0.5
 
 var _vignette_left := 0.0
 var _flash_left := 0.0
 var _flash_alpha := 0.0
+var _flash_ready_in := 0.0
 
 
 func _ready() -> void:
@@ -26,10 +30,15 @@ func vignette() -> void:
 	queue_redraw()
 
 
-func flash(alpha := 0.35) -> void:
+## Returns false when a flash went off too recently (it is skipped).
+func flash(alpha := 0.35) -> bool:
+	if _flash_ready_in > 0.0:
+		return false
+	_flash_ready_in = FLASH_COOLDOWN
 	_flash_left = FLASH_TIME
 	_flash_alpha = alpha
 	queue_redraw()
+	return true
 
 
 func vignette_left() -> float:
@@ -37,9 +46,10 @@ func vignette_left() -> float:
 
 
 func _process(delta: float) -> void:
+	var real := delta / maxf(Engine.time_scale, 0.0001)
+	_flash_ready_in = maxf(0.0, _flash_ready_in - real)
 	if _vignette_left <= 0.0 and _flash_left <= 0.0:
 		return
-	var real := delta / maxf(Engine.time_scale, 0.0001)
 	_vignette_left = maxf(0.0, _vignette_left - real)
 	_flash_left = maxf(0.0, _flash_left - real)
 	queue_redraw()

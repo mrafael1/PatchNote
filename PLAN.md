@@ -247,6 +247,23 @@ ROADMAP 1.3's ladder: Playable → **Stages**. The `stages` fork ships the step 
 - **Telemetry:** the run record adds `stages: {set, total, reached, starts}`. The HUD shows "Stage 2/3" on runs with more than one stage.
 - **Tools:** `bot_runs.gd --stages=<id>` (the run line shows `stage=reached/total`) and `run_hash.gd --stages=<id>`. One-stage hashes leave the stage index out, so the M33 recordings still compare.
 
+### 4.2 As built (M34.1): owner feedback after M34 (2026-11-22)
+- **"Screen flickering on bullet explosion is a bit too much":**
+  - The explosion's white screen flash (Punchy and Arcade looks) went from 25% to 12%.
+  - At most one flash per 0.5 s (`ScreenFx.FLASH_COOLDOWN`). Exploding shots used to flash several times a second.
+  - The shake is unchanged.
+- **"Killing enemies should fill the gauge quicker, or at least bring the next patch sooner":**
+  - Before, a prompt needed a kill count *and* a time gap (40 s, then 48 s). Kills reached their count long before the time, so the gauge only followed the clock.
+  - Now there is one meter. Time fills it in `prompt_max_gap` = 80 s (55 s for the first meter of a run or stage, when few enemies have spawned). Each counted kill is worth `prompt_kill_seconds` = 1 s more, and the gauge flashes bright on every kill.
+  - A prompt never opens sooner than 20 s after the last one. "Next patch incoming" shows from 85% of the meter.
+  - `first_prompt_kills` and `prompt_kills_step` are gone.
+  - **Numbers (bot, 16 seeds, `--fresh` with the basics unless noted):**
+    - prompts open at 37/83/129 s (the old schedule was 40/88/136 s);
+    - invincible runs last 174.2 s, and 174.1 s with everything unlocked (target 170–200);
+    - mortal runs last 104.5 s, against 108.9 s with the old schedule, re-measured on this code.
+    - A 65 s first meter gave 88 s mortal: the first prompt (and its 1 HP heal) came too late.
+  - The M33/M34 run hashes no longer apply: the prompts open at other times.
+
 ---
 
 ## 5. Bot and debug

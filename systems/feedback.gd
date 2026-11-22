@@ -98,7 +98,7 @@ func _on_explosion(pos: Vector2, radius: float) -> void:
 	if camera:
 		camera.shake(3.0)
 	if screen and Look.preset.screen_flash:
-		screen.flash(0.25)
+		screen.flash(0.12)   # was 0.25 on every blast until the M34 feedback
 
 
 func _on_player_died() -> void:

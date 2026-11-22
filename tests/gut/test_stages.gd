@@ -6,7 +6,7 @@ extends GutTest
 
 const TUNING_KEYS: Array[String] = ["transition_long", "transition_short", "prompt_input_delay",
 		"rc_duration", "report_delay", "stage_clear_time", "first_prompt_min_gap", "prompt_min_gap",
-		"prompt_max_gap", "first_prompt_kills"]
+		"prompt_max_gap", "first_prompt_max_gap"]
 const STAGE_TIME := 1.0
 
 var game: Main
@@ -283,7 +283,7 @@ func test_same_seed_same_three_stage_run() -> void:
 	Tuning.first_prompt_min_gap = 0.4
 	Tuning.prompt_min_gap = 0.4
 	Tuning.prompt_max_gap = 0.8
-	Tuning.first_prompt_kills = 1000
+	Tuning.first_prompt_max_gap = 0.8
 	var traces: Array[Array] = []
 	var stages_seen: Array[int] = []
 	for run in 2:

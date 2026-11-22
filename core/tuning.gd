@@ -135,13 +135,20 @@ var transition_short := 0.3
 var toast_time := 2.2             # how long the AI line stays up after a patch
 
 # --- Director ---
-var first_prompt_kills := 10
-var prompt_kills_step := 6
 # Pacing for the ~3 min v0.0 run (PLAN v5 2.1), retuned at M28 from bot sweeps (16 seeds,
 # --fresh): 3 small prompts, then the 45 s release-candidate wave.
-var first_prompt_min_gap := 40.0  # game seconds before the first prompt may open
-var prompt_min_gap := 48.0
-var prompt_max_gap := 60.0        # a prompt opens at this gap even if the kill gate is not met
+# One meter since the owner's feedback after M34 (2026-11-22): time fills it in
+# prompt_max_gap, each counted kill adds prompt_kill_seconds, and a prompt never opens
+# sooner than the minimum gap. Bot sweeps (16 seeds): prompts at 37/83/129 s (the old
+# schedule was 40/88/136), invincible runs 174 s, mortal fresh 104.5 s (was 108.9; a 65 s
+# first meter gave 88 s: the first prompt's heal came too late). A player who kills
+# faster than the bot gets the patches sooner.
+var first_prompt_min_gap := 20.0  # game seconds before the first prompt may open
+var prompt_min_gap := 20.0
+var first_prompt_max_gap := 55.0  # the first meter: few enemies yet, so a shorter one
+var prompt_max_gap := 80.0        # time alone fills the meter in this long
+var prompt_kill_seconds := 1.0    # each counted kill is worth this much waiting
+var prompt_incoming_at := 0.85    # the HUD announces the patch from this much meter
 var prompts_per_run := 3
 var offer_size := 3
 var hotfix_heal := 1.0            # HP restored by every applied patch

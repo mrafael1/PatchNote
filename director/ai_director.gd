@@ -9,6 +9,7 @@ extends Node
 ## Tests drive it the same way, without any UI.
 
 signal prompt_requested(offer: Offer)
+signal kill_counted   ## a kill filled the meter (the HUD gauge pulses)
 
 var transition: Transition   ## optional: patches go through it when set
 var enabled := true
@@ -26,7 +27,6 @@ var _stage_first_prompt := 0  ## prompt_index when the current stage began
 
 var _kills_since_prompt := 0
 var _last_prompt_time := 0.0
-var _kills_needed := 0
 var _hint_given := false
 
 
@@ -34,7 +34,6 @@ func _ready() -> void:
 	charges = Tuning.rollback_charges_start
 	charges_earned = charges
 	taste = Taste.from_session()
-	_kills_needed = Tuning.first_prompt_kills
 	_last_prompt_time = RunState.game_time
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 
@@ -61,34 +60,35 @@ func prompts_done() -> bool:
 	return prompt_index >= limit() and pending == null
 
 
-## (enough counted kills AND the minimum gap) OR the maximum gap.
+## One meter (owner feedback after M34, 2026-11-22: "killing enemies should fill the
+## gauge quicker"): time fills it in Tuning.prompt_max_gap seconds and every counted
+## kill is worth Tuning.prompt_kill_seconds more. The prompt opens when it is full,
+## but never sooner than min_gap() after the last one.
 func should_prompt(ctx: Dictionary) -> bool:
 	if prompt_index >= limit():
 		return false
 	var gap: float = ctx.time - _last_prompt_time
-	if gap >= Tuning.prompt_max_gap:
-		return true
-	return ctx.kills >= _kills_needed and gap >= min_gap()
+	return gap >= min_gap() and _meter(gap, ctx.kills) >= 1.0
 
 
-## The kill gate is met and only the time gap is left: the HUD announces the prompt
-## (PLAN v5 2.1). It reads the gates and adds none.
+func _meter(gap: float, kills: int) -> float:
+	return (gap + kills * Tuning.prompt_kill_seconds) / maxf(max_gap(), 0.001)
+
+
+## The meter is nearly full: the HUD announces the prompt (PLAN v5 2.1). It reads the
+## meter and adds no rule.
 func patch_incoming() -> bool:
-	if not enabled or pending != null or prompt_index >= limit():
-		return false
-	return _kills_since_prompt >= _kills_needed
+	var p := prompt_progress()
+	return p >= Tuning.prompt_incoming_at
 
 
 ## How close the next small prompt is, 0..1, for the HUD gauge (G11 feedback,
-## 2026-11-22); -1 when none is coming. It mirrors should_prompt(): the prompt opens at
-## 1, and the value never goes back (kills and time only grow between prompts).
+## 2026-11-22); -1 when none is coming. The prompt opens at 1 (once the minimum gap
+## has passed), and the value never goes back (kills and time only grow between prompts).
 func prompt_progress() -> float:
 	if not enabled or pending != null or prompt_index >= limit():
 		return -1.0
-	var gap := RunState.game_time - _last_prompt_time
-	var kills := 1.0 if _kills_needed <= 0 else float(_kills_since_prompt) / _kills_needed
-	var both := minf(kills, gap / maxf(min_gap(), 0.001))
-	return clampf(maxf(both, gap / maxf(Tuning.prompt_max_gap, 0.001)), 0.0, 1.0)
+	return clampf(_meter(RunState.game_time - _last_prompt_time, _kills_since_prompt), 0.0, 1.0)
 
 
 ## The minimum gap before the next small prompt. A stage's first one comes sooner.
@@ -96,13 +96,18 @@ func min_gap() -> float:
 	return Tuning.first_prompt_min_gap if prompt_index == _stage_first_prompt else Tuning.prompt_min_gap
 
 
+## Time alone fills the meter in this long. A stage's first one is shorter: few enemies
+## have spawned yet, so kills fill it slowly.
+func max_gap() -> float:
+	return Tuning.first_prompt_max_gap if prompt_index == _stage_first_prompt else Tuning.prompt_max_gap
+
+
 func limit() -> int:
 	return Tuning.prompts_per_run if prompt_limit < 0 else prompt_limit
 
 
 ## A new stage (PLAN v6 4): `count` more prompts, paced from now as at a run start
-## (the gap restarts, the kills since the last prompt reset; the kill gate keeps
-## growing). The first stage only sets the limit: the run start is its pacing.
+## (the gap restarts, the meter empties). The first stage only sets the limit: the run start is its pacing.
 func begin_stage(count: int, first: bool) -> void:
 	prompt_limit = (0 if first else limit()) + count
 	if first:
@@ -119,7 +124,6 @@ func open_prompt(ctx := context()) -> void:
 	var offer := get_offer(ctx)
 	_last_prompt_time = ctx.time
 	_kills_since_prompt = 0
-	_kills_needed += Tuning.prompt_kills_step
 	if offer.cards.is_empty():
 		RunState.log_event(&"prompt_skipped", {"index": offer.prompt_index})
 		if transition:
@@ -286,3 +290,5 @@ func _on_enemy_killed(enemy: Node, info: RefCounted) -> void:
 	var by_player := info == null or (info as DamageInfo).faction == &"player"
 	if by_player and is_instance_valid(enemy) and enemy.get(&"from_spawner") == true and enemy.get(&"generation") == 0:
 		_kills_since_prompt += 1
+		if prompt_progress() >= 0.0:
+			kill_counted.emit()

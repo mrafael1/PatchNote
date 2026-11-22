@@ -271,17 +271,17 @@ func _assert_view_inside(center: Vector2, view: Vector2, bounds: Rect2) -> void:
 
 # --- The prompt announcement ---------------------------------------------------
 
-func test_the_banner_shows_once_the_kill_gate_is_met_until_the_prompt_opens() -> void:
+func test_the_banner_shows_once_the_meter_is_nearly_full_until_the_prompt_opens() -> void:
 	var hud := _hud()
 	game.director.enabled = true
 	await wait_physics_frames(2)
 	assert_false(game.director.patch_incoming())
-	assert_false(hud.banner_shown(), "not while kills are still needed")
-	game.director.set("_kills_since_prompt", Tuning.first_prompt_kills)
+	assert_false(hud.banner_shown(), "not while the meter is low")
+	game.director.set("_kills_since_prompt", ceili(game.director.max_gap() / Tuning.prompt_kill_seconds))
 	await wait_physics_frames(2)
 	assert_true(game.director.patch_incoming())
 	assert_true(hud.banner_shown(), "Next patch incoming")
-	assert_false(game.prompt_panel.is_open(), "it adds no rule: the time gap still holds")
+	assert_false(game.prompt_panel.is_open(), "it adds no rule: the minimum gap still holds")
 	game.director.open_prompt()
 	await wait_physics_frames(1)
 	assert_false(game.director.patch_incoming())
@@ -332,10 +332,15 @@ func test_the_v0_run_is_three_prompts_and_a_45_second_wave() -> void:
 	assert_eq(Tuning.prompts_per_run, 3)
 	assert_eq(Tuning.rc_duration, 45.0)
 	assert_lt(Tuning.prompt_min_gap, Tuning.prompt_max_gap)
-	# The kill gates are met well before the gaps for the bot, so the gaps set the length.
-	var length := Tuning.first_prompt_min_gap + Tuning.prompt_min_gap * (Tuning.prompts_per_run - 1) \
+	# Kills set the length now (one meter, owner feedback after M34); the bot's ~3 min is
+	# measured by the sweep. Here, the bounds: a run that never kills still ends under
+	# 5 min, and the fastest possible one still lasts 100 s.
+	var slowest := Tuning.first_prompt_max_gap + Tuning.prompt_max_gap * (Tuning.prompts_per_run - 1) \
 			+ Tuning.rc_duration
-	assert_between(length, 170.0, 200.0, "~3 min of game time")
+	var fastest := Tuning.first_prompt_min_gap + Tuning.prompt_min_gap * (Tuning.prompts_per_run - 1) \
+			+ Tuning.rc_duration
+	assert_lt(slowest, 300.0, "no kills: under 5 min")
+	assert_gte(fastest, 100.0, "every kill: still a run")
 
 
 ## M30 (PLAN v5 1.7): the 3 tier 1 takes are tuned apart. Each differs from each other
@@ -377,17 +382,29 @@ func test_the_next_patch_gauge_fills_until_the_prompt() -> void:
 	assert_almost_eq(hud.gauge_value(), 0.0, 0.05)
 	assert_eq(hud.gauge_text(), "PATCH 1/%d" % Tuning.prompts_per_run)
 	var last := 0.0
-	director._kills_since_prompt = Tuning.first_prompt_kills
 	for step in 3:
-		RunState.game_time += Tuning.first_prompt_min_gap * 0.3
+		RunState.game_time += director.max_gap() * 0.3
 		await wait_process_frames(1)
 		assert_gte(hud.gauge_value(), last, "it never goes back")
 		last = hud.gauge_value()
 	assert_gt(last, 0.85)
-	RunState.game_time += Tuning.first_prompt_min_gap * 0.1
+	RunState.game_time += director.max_gap() * 0.1
 	await wait_physics_frames(2)
 	assert_not_null(director.pending, "the prompt opened as the gauge filled")
 	assert_eq(hud.gauge_value(), -1.0, "hidden while the prompt is open")
 	director.enabled = false
 	await wait_process_frames(1)
 	assert_eq(hud.gauge_value(), -1.0, "hidden with no director (smoke tests)")
+
+
+## Owner feedback after M34: exploding shots strobed the screen. One faint flash per
+## ScreenFx.FLASH_COOLDOWN at most.
+func test_explosion_flashes_are_rate_limited() -> void:
+	var fx := ScreenFx.new()
+	add_child_autofree(fx)
+	assert_true(fx.flash(0.12))
+	assert_false(fx.flash(0.12), "a second blast right after: no flash")
+	fx._process(ScreenFx.FLASH_COOLDOWN * 0.5)
+	assert_false(fx.flash(0.12))
+	fx._process(ScreenFx.FLASH_COOLDOWN * 0.6)
+	assert_true(fx.flash(0.12), "flashes again after the cooldown")

@@ -90,13 +90,32 @@ func _mut(id: StringName) -> Mutation:
 
 # --- Pacing ----------------------------------------------------------------
 
-func test_prompt_needs_kills_and_the_minimum_gap_or_the_maximum_gap() -> void:
-	var n := Tuning.first_prompt_kills
-	var first := Tuning.first_prompt_min_gap
-	assert_false(director.should_prompt({"time": first + 1.0, "kills": n - 1}), "not enough kills")
-	assert_false(director.should_prompt({"time": first - 1.0, "kills": n * 3}), "too soon")
-	assert_true(director.should_prompt({"time": first, "kills": n}))
-	assert_true(director.should_prompt({"time": Tuning.prompt_max_gap, "kills": 0}), "the maximum gap alone is enough")
+## One meter (owner feedback after M34): time fills it in prompt_max_gap, each kill
+## takes prompt_kill_seconds off, and the minimum gap is a floor.
+func test_time_and_kills_fill_one_meter_over_the_minimum_gap() -> void:
+	var full := Tuning.first_prompt_max_gap
+	var per_kill := Tuning.prompt_kill_seconds
+	var floor_gap := Tuning.first_prompt_min_gap
+	assert_true(director.should_prompt({"time": full, "kills": 0}), "time alone fills it")
+	assert_false(director.should_prompt({"time": full - 1.0, "kills": 0}))
+	var t := floor_gap + 5.0
+	var needed := ceili((full - t) / per_kill)
+	assert_false(director.should_prompt({"time": t, "kills": needed - 1}), "one kill short")
+	assert_true(director.should_prompt({"time": t, "kills": needed}), "kills bring it sooner")
+	assert_false(director.should_prompt({"time": floor_gap - 0.5, "kills": 1000}), "never under the floor")
+	assert_true(director.should_prompt({"time": floor_gap, "kills": 1000}))
+
+
+func test_every_kill_moves_the_gauge() -> void:
+	RunState.game_time += 10.0
+	var before := director.prompt_progress()
+	_kill(1)
+	assert_almost_eq(director.prompt_progress() - before, Tuning.prompt_kill_seconds / director.max_gap(), 0.0001)
+	var pulses := [0]
+	director.kill_counted.connect(func() -> void: pulses[0] += 1)
+	_kill(2)
+	_kill(1, false)   # a patch's spawn: not counted, no pulse
+	assert_eq(pulses[0], 2)
 
 
 func test_the_first_prompt_has_its_own_minimum_gap() -> void:
@@ -104,22 +123,23 @@ func test_the_first_prompt_has_its_own_minimum_gap() -> void:
 	Tuning.prompt_min_gap = 60.0
 	assert_eq(director.min_gap(), 20.0)
 	assert_false(director.should_prompt({"time": 19.0, "kills": 1000}))
-	assert_true(director.should_prompt({"time": 20.0, "kills": Tuning.first_prompt_kills}))
+	assert_true(director.should_prompt({"time": 20.0, "kills": 1000}))
 	_auto_pick = 0
 	RunState.game_time += Tuning.first_prompt_min_gap
-	_kill(Tuning.first_prompt_kills)
+	_kill(1000)
 	director.poll()
 	assert_eq(offers.size(), 1)
 	assert_eq(director.min_gap(), 60.0)
-	var n := Tuning.first_prompt_kills + Tuning.prompt_kills_step
 	var t := RunState.game_time
-	assert_false(director.should_prompt({"time": t + Tuning.prompt_min_gap - 1.0, "kills": n * 3}), "later gaps are longer")
-	assert_true(director.should_prompt({"time": t + Tuning.prompt_min_gap, "kills": n}))
+	assert_false(director.should_prompt({"time": t + Tuning.prompt_min_gap - 1.0, "kills": 1000}), "later floors are longer")
+	assert_true(director.should_prompt({"time": t + Tuning.prompt_min_gap, "kills": 1000}))
 
 
-func test_shipped_pacing_brings_the_first_prompt_early() -> void:
+func test_shipped_pacing_lets_kills_matter() -> void:
 	assert_lte(_saved.first_prompt_min_gap, _saved.prompt_min_gap)
-	assert_lt(_saved.prompt_min_gap, Tuning.prompt_max_gap)
+	assert_lt(_saved.prompt_min_gap * 2.0, Tuning.first_prompt_max_gap, "a fast killer can halve the wait")
+	assert_lte(Tuning.first_prompt_max_gap, Tuning.prompt_max_gap)
+	assert_gt(Tuning.prompt_kill_seconds, 0.0)
 
 
 func test_only_spawner_generation_zero_kills_count() -> void:
@@ -129,18 +149,19 @@ func test_only_spawner_generation_zero_kills_count() -> void:
 	assert_eq(director.context().kills, 5)
 
 
-func test_kill_threshold_grows_and_the_run_has_four_prompts() -> void:
+func test_each_prompt_empties_the_meter_and_the_run_has_its_prompts() -> void:
 	_auto_pick = 0
-	var needed := Tuning.first_prompt_kills
 	for i in Tuning.prompts_per_run:
 		RunState.game_time += Tuning.prompt_min_gap
+		var needed := ceili((director.max_gap() - Tuning.prompt_min_gap) / Tuning.prompt_kill_seconds)
 		_kill(needed - 1)
 		director.poll()
 		assert_eq(offers.size(), i, "one kill short of %d" % needed)
 		_kill(1)
 		director.poll()
 		assert_eq(offers.size(), i + 1)
-		needed += Tuning.prompt_kills_step
+		if i < Tuning.prompts_per_run - 1:
+			assert_almost_eq(director.prompt_progress(), 0.0, 0.001, "empty again")
 	RunState.game_time += Tuning.prompt_max_gap * 2.0
 	_kill(500)
 	director.poll()
