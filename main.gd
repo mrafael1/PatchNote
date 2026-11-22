@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M30.1"
+const BUILD := "M30.2"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -13,6 +13,7 @@ static var next_genre: StringName = &""
 
 var genre: Genre
 var feedback: Feedback
+var hud: Hud
 var transition: Transition
 var director: AiDirector
 var prompt_panel: PromptPanel
@@ -101,7 +102,7 @@ func _ready() -> void:
 	dev_flow.session_done.connect(_on_session_done)
 	dev_flow.play_requested.connect(func() -> void: start_new_build(_next_run_seed))
 
-	var hud := Hud.new()
+	hud = Hud.new()
 	hud.player = player
 	hud.director = director
 	hud.run_loop = run_loop

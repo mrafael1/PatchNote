@@ -363,3 +363,31 @@ func test_the_look_mockup_shows_captured_stills() -> void:
 		assert_eq(take.image.resource_path, "res://devsession/stills/look_1_%s.png" % take.id)
 		assert_eq(take.image.get_size(), Vector2(480, 270))
 		assert_eq((take.preset as LookPreset).take, take.id)
+
+
+## G11 feedback (2026-11-22): "no gauge, nothing shows when it'll come". The gauge
+## mirrors the Director's rule: it fills with time and kills, never goes back, is full
+## when the prompt opens, and hides while no prompt is coming.
+func test_the_next_patch_gauge_fills_until_the_prompt() -> void:
+	var director: AiDirector = game.director
+	var hud: Hud = game.hud
+	director.enabled = true
+	director._last_prompt_time = RunState.game_time
+	await wait_physics_frames(2)
+	assert_almost_eq(hud.gauge_value(), 0.0, 0.05)
+	assert_eq(hud.gauge_text(), "PATCH 1/%d" % Tuning.prompts_per_run)
+	var last := 0.0
+	director._kills_since_prompt = Tuning.first_prompt_kills
+	for step in 3:
+		RunState.game_time += Tuning.first_prompt_min_gap * 0.3
+		await wait_process_frames(1)
+		assert_gte(hud.gauge_value(), last, "it never goes back")
+		last = hud.gauge_value()
+	assert_gt(last, 0.85)
+	RunState.game_time += Tuning.first_prompt_min_gap * 0.1
+	await wait_physics_frames(2)
+	assert_not_null(director.pending, "the prompt opened as the gauge filled")
+	assert_eq(hud.gauge_value(), -1.0, "hidden while the prompt is open")
+	director.enabled = false
+	await wait_process_frames(1)
+	assert_eq(hud.gauge_value(), -1.0, "hidden with no director (smoke tests)")

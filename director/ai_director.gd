@@ -75,6 +75,18 @@ func patch_incoming() -> bool:
 	return _kills_since_prompt >= _kills_needed
 
 
+## How close the next small prompt is, 0..1, for the HUD gauge (G11 feedback,
+## 2026-11-22); -1 when none is coming. It mirrors should_prompt(): the prompt opens at
+## 1, and the value never goes back (kills and time only grow between prompts).
+func prompt_progress() -> float:
+	if not enabled or pending != null or prompt_index >= Tuning.prompts_per_run:
+		return -1.0
+	var gap := RunState.game_time - _last_prompt_time
+	var kills := 1.0 if _kills_needed <= 0 else float(_kills_since_prompt) / _kills_needed
+	var both := minf(kills, gap / maxf(min_gap(), 0.001))
+	return clampf(maxf(both, gap / maxf(Tuning.prompt_max_gap, 0.001)), 0.0, 1.0)
+
+
 ## The minimum gap before the next small prompt. The first one comes sooner.
 func min_gap() -> float:
 	return Tuning.first_prompt_min_gap if prompt_index == 0 else Tuning.prompt_min_gap

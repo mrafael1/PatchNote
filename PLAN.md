@@ -299,6 +299,14 @@ Check, commit and report rules: as in v2 section 10. `tools/check.ps1` is green 
 4. Can the shell start and end a run of a genre it knows nothing about (the test genre)? (Prompt timing is the one shooter assumption left in the shell until Phase 5, 9.)
 5. Does a patch's behaviour live only in its take file?
 
+### G11 results (owner playtest, 2026-11-22, M30 export)
+- **v0.0 and its gameplay:** "gameplay is basic for now => but it's not necessary a bad point. it's only the beginning". Accepted for Phase 4.
+- **The look mockup:** "mockup integration is a first nice step, (of course it lack the polish... but on current state not bad)".
+- **Patches:** "upgrades can be even more creative in the future". This is input for the next content.
+- **Prompt timing:** "only sentence showing when next prompt will come is 'patch incoming', but no jauge nothing show when it'll come". **Fixed (M30.2):** a HUD gauge at the top centre, "PATCH n/3" over a bar. `AiDirector.prompt_progress()` mirrors `should_prompt()`: 1 exactly when the prompt opens, never going back. The "Next patch incoming" banner stays under it.
+- **The first run:** "first run test is too long". **Fixed (M30.1):** v0.0.0 stops at 5 s (4.8).
+- **Divergence:** "current dev session implement all features until there is no more. If we want each player to build smally / mediumly different final games without being frustrated and not be able to change a previous answer". Today every change ships eventually, so every save converges on the same game. This answers section 8 question 3 only in part, and it is the main design input for the next plan: picks should close off alternatives, and an earlier answer should be changeable. The mechanism is to be agreed with the owner.
+
 ## 9. Still open (each with a proposed default)
 After the alignment review (2026-11-21) the owner said "let's go": every default below stands until the owner says otherwise. The first five are ROADMAP section 6 defaults built as proposed.
 - **(1) Bump rule:** a pick is a patch step; a look tier or maturity step is a minor step. Alternative: every session is a minor step.
