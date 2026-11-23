@@ -30,6 +30,11 @@ var _was_on_floor := false
 var _gravity_key := Vector3(-1, 0, 0)   ## (enabled, dir.x, dir.y) seen last tick
 var _dash_left := 0.0
 var _dash_velocity := Vector2.ZERO
+var _pull_left := 0.0            ## the grapple's pull (M42.1): a safety cap, seconds
+var _pull_target := Vector2.ZERO
+var _pull_speed := 0.0
+var _hold_left := 0.0            ## held still after a pull (the grapple's latch)
+var _hold_pending := 0.0
 var _bounce_ready_at := -1.0   ## wall_bounce: game time of the next allowed bounce
 var _hop_t := -1.0             ## seconds into the current hop, -1 = not hopping
 
@@ -63,10 +68,41 @@ func dash(velocity: Vector2, duration: float) -> void:
 	_dash_left = duration
 
 
+## The grapple (M42.1): move straight to `target` at `p_speed`, landing exactly there at
+## rest, ignoring input and gravity. Separate from dash(): it never overshoots, never
+## bounces, and where it lands does not depend on the frame's delta (slow-mo).
+func pull_to(target: Vector2, p_speed: float) -> void:
+	var body := get_parent() as Node2D
+	if body == null or p_speed <= 0.0:
+		return
+	_dash_left = 0.0
+	_pull_target = target
+	_pull_speed = p_speed
+	_pull_left = body.global_position.distance_to(target) / p_speed + 0.1
+	_hold_pending = 0.0
+	_hold_left = 0.0
+
+
+## After the pull now running ends, hold still this long (the grapple's latch).
+func hold_after_pull(seconds: float) -> void:
+	_hold_pending = seconds
+
+
+func is_pulling() -> bool:
+	return _pull_left > 0.0
+
+
+func is_holding() -> bool:
+	return _hold_left > 0.0
+
+
 ## Ends any dash and drops the speed the body has, except falling under gravity.
 ## B2 calls it at every turn end so the player stops exactly on its tile.
 func stop() -> void:
 	_dash_left = 0.0
+	_pull_left = 0.0
+	_hold_left = 0.0
+	_hold_pending = 0.0
 	var body := get_parent() as CharacterBody2D
 	if body == null:
 		return
@@ -84,7 +120,7 @@ func is_airborne() -> bool:
 
 
 func is_dashing() -> bool:
-	return _dash_left > 0.0
+	return _dash_left > 0.0 or _pull_left > 0.0
 
 
 ## Entities with a Floating component ignore gravity entirely.
@@ -105,6 +141,11 @@ func _physics_process(delta: float) -> void:
 		_gravity_key = key
 	if _dash_left > 0.0:
 		_tick_dash(body, falls, g_dir, delta)
+	elif _pull_left > 0.0:
+		_tick_pull(body, delta)
+	elif _hold_left > 0.0:
+		body.velocity = Vector2.ZERO
+		_hold_left -= delta
 	elif falls:
 		_tick_gravity(body, rules, g_dir, delta)
 	else:
@@ -114,6 +155,9 @@ func _physics_process(delta: float) -> void:
 ## Gravity turned on, off or changed direction: drop any speed along the old and
 ## new gravity axes so nobody keeps flying, and forget jump bookkeeping.
 func _on_gravity_changed(body: CharacterBody2D, old_dir: Vector2, new_dir: Vector2) -> void:
+	if _pull_left > 0.0:
+		# A cut pull stops where it is: its 1400 px/s must not carry on past the hook.
+		body.velocity = Vector2.ZERO
 	for d: Vector2 in [old_dir, new_dir]:
 		if d != Vector2.ZERO:
 			body.velocity -= d * body.velocity.dot(d)
@@ -124,6 +168,31 @@ func _on_gravity_changed(body: CharacterBody2D, old_dir: Vector2, new_dir: Vecto
 	_was_on_floor = false
 	_hop_t = -1.0
 	height = 0.0
+	_pull_left = 0.0
+	_hold_left = 0.0
+	_hold_pending = 0.0
+
+
+## One frame of a pull_to: full speed toward the target, the last step exactly onto it,
+## then at rest (and the pending hold starts). Ends early, at rest, when the body is
+## blocked (under 1 px of progress: an enemy body in the way) or the cap runs out.
+func _tick_pull(body: CharacterBody2D, delta: float) -> void:
+	body.motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	var step := _pull_target - body.global_position
+	var before := body.global_position
+	var last := step.length() <= _pull_speed * delta
+	if delta <= 0.0:
+		return
+	body.velocity = step / delta if last else step.normalized() * _pull_speed
+	body.move_and_slide()
+	_pull_left -= delta
+	var moved := body.global_position.distance_to(before)
+	if last or moved < 1.0 or _pull_left <= 0.0:
+		body.velocity = Vector2.ZERO
+		_pull_left = 0.0
+		_was_on_floor = false
+		_hold_left = _hold_pending
+		_hold_pending = 0.0
 
 
 func _tick_dash(body: CharacterBody2D, falls: bool, g_dir: Vector2, delta: float) -> void:

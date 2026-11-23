@@ -49,6 +49,8 @@ const FORK_ENEMY := &"fork:fork_enemy"
 
 @export_group("After")
 @export var fork: StringName = &""
+## More forks asked after `fork`, in order (M42.1: S3 asks the face, then the dash).
+@export var more_forks: Array[StringName] = []
 @export var bump: StringName = &"minor"
 ## The patch notes: what changed with this session.
 @export var notes: PackedStringArray = []
@@ -108,6 +110,15 @@ func enemy_types() -> Array[StringName]:
 	return out
 
 
+## Every fork the debrief asks, in order: `fork` (if set), then `more_forks`.
+func asked_forks() -> Array[StringName]:
+	var out: Array[StringName] = []
+	if fork != &"":
+		out.append(fork)
+	out.append_array(more_forks)
+	return out
+
+
 ## Everything wrong with this session on its own (CampaignDB adds what needs the order).
 func problems() -> Array[String]:
 	var out: Array[String] = []
@@ -140,8 +151,13 @@ func problems() -> Array[String]:
 		out.append("%s: spawn_rate and spawn_cap must be > 0" % where)
 	if not bump in [GameVersion.PATCH, GameVersion.MINOR]:
 		out.append("%s: bump must be patch or minor" % where)
-	if fork != &"" and ChangeDB.get_fork(fork) == null:
-		out.append("%s: no fork %s" % [where, fork])
+	var asked := {}
+	for f in asked_forks():
+		if f == &"" or ChangeDB.get_fork(f) == null:
+			out.append("%s: no fork %s" % [where, f])
+		if asked.has(f):
+			out.append("%s: fork %s is asked twice" % [where, f])
+		asked[f] = true
 	for c in ships:
 		if ChangeDB.get_change(c) == null:
 			out.append("%s: ships unknown change %s" % [where, c])

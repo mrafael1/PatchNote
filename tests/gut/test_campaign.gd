@@ -326,16 +326,21 @@ func test_a_broken_campaign_reports_each_problem() -> void:
 	var b := _session(&"a", &"dance")
 	b.stage = 1
 	b.fork = &"fork_enemy"
+	b.more_forks = [&"fork_mascot", &"fork_mascot", &"no_such_fork"] as Array[StringName]
+	var d := _session(&"d")
+	d.stage = 1
+	d.more_forks = [&"fork_mascot"] as Array[StringName]
 	b.time_limit = 30.0
 	b.look = "neon"
 	b.bump = &"major"
-	c.sessions = [a, b]
+	c.sessions = [a, b, d]
 	var text := "\n".join(CampaignDB.problems(c))
 	for expected in ["unknown basic teleport", "enemies listed without the enemies basic",
 			"intro line cannot depend on the outcome", "unknown event no_such_event", "a cue line cannot depend on an event", "unknown edit edit_nope", "unknown cue time",
 			"cannot depend on the outcome", "ships unknown change no_such_change", "unknown goal dance",
 			"time_limit is for kills goals only", "no look neon", "bump must be patch or minor",
-			"listed twice", "goes back to stage 1", "fork fork_enemy is asked twice"]:
+			"listed twice", "goes back to stage 1", "fork fork_enemy is asked twice",
+			"fork fork_mascot is asked twice", "no fork no_such_fork", "fork fork_mascot is asked twice (a, d)"]:
 		assert_string_contains(text, expected)
 
 
@@ -505,6 +510,28 @@ func test_a_death_offers_retry_and_move_on() -> void:
 	assert_eq(SaveGame.version().label(), "v0.1.0")
 
 
+## A Space tap meant for the line before the cards cannot press the focused card: the
+## cards wait input_delay like the buttons (M42.1 review).
+func test_the_cards_ignore_a_press_right_after_they_show() -> void:
+	var game := await _game(&"s1_03_shooting")
+	game.run_loop.goal_clock = 120.0
+	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
+	var d := game.debrief
+	d.input_delay = 0.0
+	d.finish_lines()
+	assert_eq(d.phase, DebriefScreen.FORK)
+	d.input_delay = 0.4   # the cards' clock started as they showed
+	await wait_physics_frames(1)
+	assert_false(d.cards_ready())
+	(d._cards.get_child(0) as Button).pressed.emit()
+	assert_eq(d.phase, DebriefScreen.FORK, "the stray press picked nothing")
+	assert_true(d.picks.is_empty())
+	d._cards_msec -= 1000   # a second later (the debrief pauses the tree: no wait_seconds)
+	assert_true(d.cards_ready())
+	(d._cards.get_child(0) as Button).pressed.emit()
+	assert_eq(d.picks.size(), 1, "a press after the delay picks")
+
+
 func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	var game := await _game(&"s1_03_shooting")
 	game.run_loop.goal_clock = 120.0
@@ -524,11 +551,33 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_eq(game.debrief.choices(), [] as Array[String], "no way on before a pick")
 	assert_true(game.debrief.pick(2))
 	assert_eq(game.debrief.big_body.id, &"blob", "the picked body pops in at once")
+	# M42.1: then the dash, in the owner's words, three cards.
+	assert_eq(RunState.session.asked_forks(), [&"fork_mascot", &"fork_dash"] as Array[StringName])
 	game.debrief.finish_lines()
-	assert_eq(game.debrief.said[-1], "Better. Right? I feel... squishy.")
+	assert_eq(game.debrief.phase, DebriefScreen.FORK)
+	assert_true(game.debrief.said.has("Better. Right? I feel... squishy."))
+	assert_eq(game.debrief.said[-1], "I think a dash would feel good. What do you want?")
+	assert_eq(game.debrief.fork_options().map(func(c: Change) -> StringName: return c.id),
+			[&"dash_classic", &"dash_grapple", &"dash_teleport"])
+	assert_eq(game.debrief.choices(), [] as Array[String], "no way on before the second pick")
+	assert_true(game.debrief.pick(1))
+	assert_eq(game.debrief.big_body.id, &"blob", "the body stays")
+	game.debrief.finish_lines()
+	assert_eq(game.debrief.said[-1], "A hook! I've always wanted to throw something.")
 	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
-	assert_eq(DebriefScreen.notes_text(RunState.session, game.debrief.picked),
-			"v0.1.0 · what changed\n  • Bullets that hit things now\n  • A level\n  • A dash (Shift or right click)\n  • Enemies that shoot back\n  • A face: Blob")
+	assert_eq(game.debrief.picked.id, &"mascot_blob", "picked: the first pick")
+	assert_eq(game.debrief.more_picks().map(func(c: Change) -> StringName: return c.id), [&"dash_grapple"])
+	assert_eq(DebriefScreen.notes_text(RunState.session, game.debrief.picked, game.debrief.more_picks()),
+			"v0.1.0 · what changed\n  • Bullets that hit things now\n  • A level\n  • Enemies that shoot back\n  • A face: Blob\n  • A grappling hook (Shift or right click)")
+	assert_eq(game.debrief._notes.text, DebriefScreen.notes_text(RunState.session, game.debrief.picked,
+			game.debrief.more_picks()))
+	var rec := CampaignDB.telemetry_record(RunState.session, {}, &"stopped", 0, &"next", "", game.debrief.picked,
+			[] as Array[String], [], [], game.debrief.more_picks())
+	assert_eq(rec.fork.id, "fork_mascot", "fork: the first pick, as before")
+	assert_eq((rec.forks as Array).size(), 2)
+	assert_eq(rec.forks[1], {"id": "fork_dash", "pick": "dash_grapple", "shelved": ["dash_classic", "dash_teleport"]})
+	assert_eq(rec.dash, "grapple")
+	assert_eq(rec.mascot, "blob")
 	var ended := []
 	game.debrief.next_requested.connect(func() -> void: ended.append(true))
 	assert_true(game.debrief.choose(DebriefScreen.NEXT))
@@ -538,6 +587,9 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_eq(SaveGame.mascot(), &"blob", "the pick gives the AI its body")
 	assert_true(SaveGame.has_shipped(&"mascot_blob"))
 	assert_true(ChangeDB.get_fork(&"fork_mascot").is_answered())
+	assert_true(SaveGame.has_shipped(&"dash_grapple"))
+	assert_eq(Unlocks.dash_answer(), &"grapple")
+	assert_eq(SaveGame.version().label(), "v0.1.0", "one bump for the session, none per pick")
 
 
 func test_move_on_asks_the_fork_then_moves_on() -> void:
@@ -553,11 +605,60 @@ func test_move_on_asks_the_fork_then_moves_on() -> void:
 	assert_eq(game.debrief.phase, DebriefScreen.FORK)
 	assert_true(game.debrief.pick(1))
 	game.debrief.finish_lines()
+	assert_eq(game.debrief.phase, DebriefScreen.FORK, "M42.1: then the dash")
+	assert_eq(moved.size(), 0)
+	assert_true(game.debrief.pick(2))
+	game.debrief.finish_lines()
 	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
 	assert_string_contains(game.debrief._notes.text, "A face: Window")
+	assert_string_contains(game.debrief._notes.text, "A teleport (Shift or right click)")
 	assert_true(game.debrief.choose(DebriefScreen.NEXT))
 	assert_eq(moved.size(), 1, "its Next moves on")
 	assert_eq(SaveGame.mascot(), &"window")
+	assert_true(SaveGame.has_shipped(&"dash_teleport"))
+	assert_false(SaveGame.has_shipped(&"dash_classic"))
+
+
+## M42.1: Retry asks no fork; a save already past S3 (an old save) is never asked the
+## dash and plays classic.
+func test_retry_asks_no_fork_and_an_old_save_stays_classic() -> void:
+	var game := await _game(&"s1_03_shooting")
+	game.run_loop.end(&"lose")
+	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
+	_through_lines(game)
+	assert_null(game.debrief.fork())
+	assert_true(game.debrief.choose(DebriefScreen.RETRY))
+	assert_true(game.debrief.picks.is_empty())
+	assert_false(ChangeDB.get_fork(&"fork_dash").is_answered())
+	game.queue_free()
+	await wait_physics_frames(2)
+	SaveGame.go_inert()
+	SaveGame.ship(&"mascot_blob", GameVersion.PATCH)
+	SaveGame.set_mascot(&"blob")
+	for id: StringName in [&"s1_04_level", &"s1_05_wrong", &"s1_06_playground"]:
+		var d := _debrief()
+		d.open(CampaignDB.get_session(id), &"win", 0)
+		d.finish_lines()
+		assert_true(d.fork() == null or d.fork().id != &"fork_dash", "%s never asks the dash" % id)
+		d.close()
+	var s4 := await _game(&"s1_04_level")
+	assert_eq(Unlocks.dash_style(), &"classic")
+	assert_eq((Component.find(s4.player, Dasher) as Dasher).style, &"classic")
+	await wait_physics_frames(1)
+	assert_string_contains(s4.hud._label.text, "dash ready")
+
+
+func test_a_dash_line_condition_reads_the_saves_answer() -> void:
+	SaveGame.go_inert()
+	var ctx := CampaignDB.line_context(CampaignDB.get_session(&"s1_04_level"))
+	assert_true(Line.parse("dash:classic happy: x").passes(ctx), "unanswered: classic")
+	assert_false(Line.parse("dash:teleport happy: x").passes(ctx))
+	SaveGame.ship(&"dash_teleport", GameVersion.PATCH)
+	ctx = CampaignDB.line_context(CampaignDB.get_session(&"s1_04_level"))
+	assert_true(Line.parse("dash:teleport happy: x").passes(ctx))
+	assert_false(Line.parse("dash:classic happy: x").passes(ctx))
+	assert_eq(Line.parse("dash:teleport happy: x").problem, "")
+	assert_string_contains(Line.parse("dash:jetpack happy: x").problem, "unknown dash")
 
 
 func test_debrief_lines_type_and_can_not_be_skipped_at_once() -> void:
@@ -748,10 +849,15 @@ func test_s4_is_short_and_its_intro_names_the_walls_and_the_dash() -> void:
 	assert_eq(s.goal, &"survive")
 	assert_eq(s.goal_value, 30.0)
 	assert_true(&"level" in s.basics and &"dash" in s.basics)
-	for mascot: StringName in Change.MASCOTS:
-		SaveGame.set_mascot(mascot)
-		var said := " ".join(Line.passing(s.intro_lines(), CampaignDB.line_context(s)).map(
-				func(l: Line) -> String: return l.text)).to_lower()
-		assert_string_contains(said, "walls", "%s talks about the walls" % mascot)
-		assert_string_contains(said, "dash", "%s talks about the dash" % mascot)
-		assert_string_contains(said, "shift", "%s says how to dash" % mascot)
+	var words := {&"classic": "dash", &"grapple": "hook", &"teleport": "teleport"}
+	for style: StringName in Change.DASHES:
+		SaveGame.go_inert()
+		SaveGame.ship(StringName("dash_%s" % style), GameVersion.PATCH)
+		for mascot: StringName in Change.MASCOTS:
+			SaveGame.set_mascot(mascot)
+			var lines := Line.passing(s.intro_lines(), CampaignDB.line_context(s))
+			assert_eq(lines.size(), 3, "3 spoken lines (PENDING timing): %s %s" % [mascot, style])
+			var said := " ".join(lines.map(func(l: Line) -> String: return l.text)).to_lower()
+			assert_string_contains(said, "walls", "%s talks about the walls" % mascot)
+			assert_string_contains(said, String(words[style]), "%s talks about the %s" % [mascot, style])
+			assert_string_contains(said, "shift", "%s says how to use the %s" % [mascot, style])

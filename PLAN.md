@@ -456,6 +456,56 @@ Owner, 2026-11-23: "game strength is to play with rules so current top right UI 
   - the S5 version-line test could not fail. It now checks that the intro and then the version line are queued by 20 s. Whether the mascot shows the line by then cannot be tested headless, because the runner paces lines by wall-clock reading time.
 - **Fixes:** 6.6 said S5 shows v0.5.0; its notes read v0.6.0, the version after the session.
 
+### 6.8 As built (M42.1): G13 feedback
+The owner played Stage 1 to v0.7.0: "interactions were fun, gravity changes were good". They asked for two changes: the dash becomes a pick, and a killed bomber explodes, with a bigger blast.
+- **The dash pick (`fork_dash`):**
+  - Asked in S3's debrief, right after the face (new `SessionDef.more_forks`): "I think a dash would feel good. What do you want?".
+  - The three cards are Classic dash / Grappling hook / Teleport. The pick ships with S3's own version bump, and it is exclusive and permanent.
+  - **Grappling hook:** a box cast up to 7 tiles in the move direction, in a cone (0 / ±12 / ±24°).
+    - It catches walls only.
+    - `Mover.pull_to` pulls the player at 1400 px/s and stops 2 px short, at rest; slow-mo doesn't change that.
+    - Cooldown 1.1 s. A miss costs 0.4 s and is visible and audible.
+    - Under gravity it latches for 0.3 s on side walls only, and gives no air jumps back.
+  - **Teleport:** 4 tiles in the move direction, through walls, to the nearest free spot.
+    - It stays inside the border and never lands in a sealed pocket (a flood fill from the start).
+    - 0.25 s of i-frames, cooldown 1.3 s. A fizzle (no free spot) costs nothing.
+  - **Where the pick shows:** S4's intro says how to use the pick (new `dash:<style>` line condition), and so do first_dash's lines. The HUD reads "dash / hook / teleport ready".
+  - **Old saves** already past S3 stay on the classic dash.
+  - Telemetry adds `forks` and `dash`.
+- **The bomber (campaign only; the v6 hashes are unchanged):**
+  - A killed bomber blinks for 0.3 s, then explodes.
+  - Both blasts reach 2.0 tiles (was 1.6).
+  - Victims of a blast the player set off count as the player's kills.
+  - Chains need an already-hurt bomber.
+  - No blast hurts the player once the session is won.
+  - bomber_seen says so: "Bomber! Stay back, it blows up even if you shoot it.".
+- **Bot:**
+  - `--dash=<classic|grapple|teleport|none>`;
+  - the second pick is decorrelated from the first;
+  - `pick=mascot_x,dash_y`;
+  - per seed `dash= uses= misses= fizzles= air=`;
+  - `by_dash=` in `deaths:`.
+  - The check forces S4 with the grapple and with the teleport. Its invincible chain plays the grapple and its mortal chain the teleport.
+  - The export boots S4 with the teleport.
+- **Numbers (mortal bot; it dashes blindly every 2.5 s, so this is a sanity check, not balance):**
+
+  | | classic | grapple | teleport | band |
+  |---|---|---|---|---|
+  | S4 deaths (16) | 0 | 0 | 0 | ≤ 3 |
+  | S5 deaths (32) | 6 | 6 | 4 | ≤ 8 |
+  | S6 deaths (32) | 5 | **13** | 12 | ≤ 12 |
+  | S4 lifted, time to death vs classic | 1 | 1.08 (paired 1.32) | 1.07 | ±20% |
+
+  - Classic is within 5% of no dash at all, so the bot can't value a dash.
+  - **The grapple misses the S6 band** (7/16 on seeds 1-16). The blind hook carries the bot to walls, where shooters hit it: 88 projectile hits against 69 for classic. No lever in the map (range 6-10 T, cooldowns) moves it outside noise, so the numbers stay; the owner judges the feel at G13.1.
+  - Grapple misses are 39-46% of presses, and teleport fizzles 23-31%: the bot backs into the border.
+  - The bomber change adds 3-4 explosion hits per 32 runs. S5 classic goes from 4/32 to 6/32 deaths and S6 from 4/32 to 5/32, both in band. S6 is still not harder than S5 for classic, as at M42.
+  - The invincible chain with the classic dash plays 295.75 s (M42: 295.9). Reading grows by about 14 s: the second question, its take line and the per-style lines.
+- **Review (5 reviewers, 3 skeptics per finding; 2 upheld, both fixed, each test checked to fail without its fix):**
+  - a gravity change mid-pull cut the pull but kept its 1400 px/s, flinging the player about 3 tiles past the hook. A cut pull now stops at rest;
+  - a Space tap meant for the dash question could press the focused Classic card. Cards now take player input only after the buttons' 0.4 s delay.
+- PatchNotes.exe is 104.8 MB. PLAYTEST.md is the G13.1 sheet. It re-asks where the dash is asked, the bomber's blink, and the open G13 items.
+
 ## 7. What v8 must answer (G13)
 1. Is Stage 1 fun and quick (~20 min), with something new every session?
 2. Is the mascot charming, not annoying? Too chatty, too quiet? Which body did you pick, and why?

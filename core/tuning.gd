@@ -22,6 +22,17 @@ var shoot_cooldown := 0.18
 var dash_distance := 3.5 * TILE
 var dash_time := 0.15
 var dash_cooldown := 0.8
+# The campaign's other dashes (PLAN v8 6.8, fork_dash; owner G13). Classic is the three above.
+var grapple_range := 7.0 * TILE       ## the hook's box cast reaches a wall this far
+var grapple_cone_deg := 12.0          ## tried at 0, +-1x, +-2x this angle off the move direction
+var grapple_speed := 1400.0           ## the pull, px/s; it lands 2 px short of the wall, at rest
+var grapple_cooldown := 1.1
+var grapple_miss_cooldown := 0.4
+var grapple_latch := 0.3              ## under gravity, hangs this long on a side wall
+var grapple_aims := false             ## true: the hook follows the aim, not the move direction
+var teleport_distance := 4.0 * TILE   ## steps back by 8 px down to one tile to find a free spot
+var teleport_cooldown := 1.3
+var teleport_iframes := 0.25
 
 # --- Enemies ---
 # Walkers read "<archetype>_<name>": chaser_* and tank_*.
@@ -47,6 +58,8 @@ var bomber_knockback_scale := 0.8
 var bomber_trigger_range := 1.3 * TILE
 var bomber_windup := 0.6
 var bomber_blast_radius := 1.6 * TILE
+var bomber_campaign_blast_radius := 2.0 * TILE   # (campaign, owner G13: a bit bigger)
+var bomber_death_fuse := 0.3   # (campaign: a killed bomber blinks this long, then blows)
 var bomber_blast_damage := 1.0
 var bomber_blast_knockback := 360.0
 # The lancer (PLAN v6 3): walks in, stops, telegraphs a line, then charges along it

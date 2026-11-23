@@ -1,7 +1,9 @@
 class_name Explosion
 extends Node2D
 ## One-shot area effect plus its ring visual (PLAN 5). Not an entity: nothing can
-## hit it and it emits no projectile signals, so explosions cannot chain off each other.
+## hit it and it emits no projectile signals. But in a campaign session a blast that
+## kills a bomber starts its death fuse (enemy_walker.gd `_on_died`): chains are
+## bounded, since each bomber blows once.
 ##
 ## Use Explosion.blast(). Damage goes to enemies only, through Health.take like all
 ## damage. Knockback goes to every enemy in range and, if push_player, to the player.

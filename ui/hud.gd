@@ -174,7 +174,7 @@ func _process(delta: float) -> void:
 	if is_instance_valid(player):
 		var dasher := Component.find(player, Dasher) as Dasher
 		if dasher and not player.get(&"dash_locked"):
-			dash = "dash ready" if dasher.is_ready() else "dash ..."
+			dash = "%s ready" % dasher.label() if dasher.is_ready() else "%s ..." % dasher.label()
 	if RunState.session != null:
 		_label.text = session_text(hp, dash)
 		return

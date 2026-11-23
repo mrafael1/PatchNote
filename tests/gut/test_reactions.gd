@@ -486,3 +486,35 @@ func test_speaking_time_does_not_use_the_pending_window_up() -> void:
 			EventBus.player_dashed.emit()   # mid-intro, as the intro tells
 		game.reactions.tick()
 	assert_eq(_ids(game), ["first_dash", "shooter_seen"], "both, one after the other")
+
+
+## M42.1: first_dash speaks for the dash picked (fork_dash; classic while unanswered),
+## whatever the body: no mascot line would override it.
+func test_first_dash_speaks_for_the_dash_picked() -> void:
+	SaveGame.go_inert()
+	var d: ReactionDef = null
+	for r in CampaignDB.reactions:
+		if r.id == &"first_dash":
+			d = r
+	assert_not_null(d)
+	var s4 := CampaignDB.get_session(&"s1_04_level")
+	var expected := {
+		&"": ["Whoosh!", "Oh, the dash works!"],
+		&"classic": ["Whoosh!", "Oh, the dash works!"],
+		&"grapple": ["Yoink!", "It caught! It actually caught."],
+		&"teleport": ["Where did you... oh. There.", "Bwip!"],
+	}
+	for style: StringName in expected:
+		SaveGame.go_inert()
+		if style != &"":
+			SaveGame.ship(StringName("dash_%s" % style), GameVersion.PATCH)
+		for mascot: StringName in Change.MASCOTS:
+			SaveGame.set_mascot(mascot)
+			var pool := Line.passing(d.line_list(), CampaignDB.line_context(s4))
+			assert_eq(pool.map(func(l: Line) -> String: return l.text), expected[style], "%s %s" % [style, mascot])
+			assert_false(pool.any(func(l: Line) -> bool: return String(l.when).begins_with("mascot:")))
+	SaveGame.go_inert()
+	SaveGame.ship(&"dash_grapple", GameVersion.PATCH)
+	var game := await _quiet_game()
+	for nth in 4:
+		assert_true(game.reactions.pick_line(d, nth).text in expected[&"grapple"])

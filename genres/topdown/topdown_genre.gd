@@ -32,6 +32,9 @@ func apply_basics() -> void:
 	player.set(&"movement_locked", not Unlocks.has_basic(&"movement"))
 	player.set(&"shooting_locked", not Unlocks.has_basic(&"shooting"))
 	player.set(&"dash_locked", not Unlocks.has_basic(&"dash"))
+	var dasher := Component.find(player, Dasher) as Dasher
+	if dasher != null:
+		dasher.style = Unlocks.dash_style()
 	player.set(&"damage_locked", not Unlocks.has_basic(&"health"))
 
 

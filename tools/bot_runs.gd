@@ -56,6 +56,14 @@ extends SceneTree
 ##                                on a copy of it, exactly as the .tres would ship it. In
 ##                                the chain it applies to every session; <session id>.<key>
 ##                                applies to that one only
+##   --dash=<classic|grapple|teleport|none>   with --campaign (M42.1): the dash style.
+##                                With --only, ships dash_<style> before the session (none:
+##                                the player's dash stays locked, a control); in the chain,
+##                                S3's debrief picks that option of fork_dash. Without it
+##                                --only plays classic (fork_dash unanswered) and the chain
+##                                picks by the seed. Each --only line ends with
+##                                dash=<style> uses=n misses=n fizzles=n air=<s> (air: seconds
+##                                off the floor under gravity), and "deaths:" adds by_dash=
 ## With --only the session's forks are answered by the seed (enemy=), and a session with
 ## a scripted event prints event=<id>@start-end steps=n/N hits_in_event=n (unblocked,
 ## by kind) per seed and an "events:" summary: played fully, died during it (M41 gate).
@@ -102,6 +110,7 @@ var ship_ids := PackedStringArray()
 var rework_chance := 0.2
 var campaign := false
 var only := &""
+var dash_arg := ""                           ## --dash (M42.1): "" = by the seed / classic
 
 
 func _initialize() -> void:
@@ -163,6 +172,12 @@ func _run() -> void:
 			events_off = true
 		elif arg.begins_with("--session-set="):
 			session_set.append_array(arg.trim_prefix("--session-set=").split(",", false))
+		elif arg.begins_with("--dash="):
+			dash_arg = arg.trim_prefix("--dash=")
+			if not StringName(dash_arg) in Change.DASHES and dash_arg != "none":
+				print("[botrun] FAILED: bad --dash=%s (%s or none)" % [dash_arg, Change.DASHES])
+				quit(1)
+				return
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -370,7 +385,13 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	var outcomes := {}       ## outcome -> runs (M42 "deaths:")
 	var durations: Array = []
 	var by_enemy := {}       ## forked enemy -> [deaths, runs]
+	var by_dash := {}        ## dash style -> [deaths, runs] (M42.1)
 	var all_kinds := {}      ## whole-run unblocked hits by kind
+	var bus: Node = root.get_node("EventBus")
+	var dash_count := {"uses": 0, "misses": 0, "fizzles": 0}
+	bus.player_dashed.connect(func() -> void: dash_count.uses = int(dash_count.uses) + 1)
+	bus.player_hook_missed.connect(func(_f: Vector2, _t: Vector2) -> void: dash_count.misses = int(dash_count.misses) + 1)
+	bus.player_dash_fizzled.connect(func() -> void: dash_count.fizzles = int(dash_count.fizzles) + 1)
 	for spec in specs:
 		var run_seed := int(_seed_of(spec))
 		var invincible := spec.ends_with("i")
@@ -381,6 +402,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			print("[botrun] FAILED: no session %s" % only)
 			return failures + 1
 		var forked := _answer_forks(db.get_session(only), run_seed)
+		if dash_arg != "" and dash_arg != "none":
+			db.answer_dash(StringName(dash_arg))
 		main_script.set(&"next_seed", run_seed)
 		var game: Node = load("res://main.tscn").instantiate()
 		root.add_child(game)
@@ -388,6 +411,11 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		await physics_frame
 		run_state.invincible = invincible
 		game.player.set_bot(true)
+		dash_count.uses = 0
+		dash_count.misses = 0
+		dash_count.fizzles = 0
+		var air := 0.0
+		var dash_name: String = "none" if dash_arg == "none" else String(game.player.dasher.style)
 		if lift > 0.0:
 			game.run_loop.goal_value = lift
 		if cond != "":
@@ -402,7 +430,13 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			if game.debrief.is_open():
 				opened = true
 				break
+			if dash_arg == "none":
+				game.player.dash_locked = true   # a cue's apply_basics would unlock it
+			var t0: float = run_state.game_time
 			await physics_frame
+			if run_state.rules.gravity_enabled and is_instance_valid(game.player) \
+					and not game.player.is_on_floor():
+				air += float(run_state.game_time) - t0
 		if not opened:
 			print("[botrun] session=%s seed=%d FAILED: no debrief" % [only, run_seed])
 			failures += 1
@@ -449,6 +483,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		if forked != "" and forked != "-":
 			var e: Array = by_enemy.get(forked, [0, 0])
 			by_enemy[forked] = [int(e[0]) + (1 if died else 0), int(e[1]) + 1]
+		var dd: Array = by_dash.get(dash_name, [0, 0])
+		by_dash[dash_name] = [int(dd[0]) + (1 if died else 0), int(dd[1]) + 1]
 		var kinds := _hit_kinds()
 		for k: String in kinds:
 			all_kinds[k] = int(all_kinds.get(k, 0)) + int(kinds[k])
@@ -456,6 +492,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		if cond == "":
 			landed_text = " landed=%s" % _join_or_dash(landed.map(
 					func(l: Dictionary) -> String: return "%s@%.1f" % [l.id, l.at]))
+		# M42.1: at the very end, after landed= (check.ps1 reads landed= as before).
+		landed_text += " dash=%s uses=%d misses=%d fizzles=%d air=%.1f" % [dash_name, dash_count.uses,
+				dash_count.misses, dash_count.fizzles, air]
 		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
@@ -480,10 +519,16 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	enemy_ids.sort()
 	for e: String in enemy_ids:
 		enemy_parts.append("%s:%d/%d" % [e, by_enemy[e][0], by_enemy[e][1]])
-	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s hits=%s%s" % [
+	var dash_parts: Array = []
+	var dash_ids: Array = by_dash.keys()
+	dash_ids.sort()
+	for d: String in dash_ids:
+		dash_parts.append("%s:%d/%d" % [d, by_dash[d][0], by_dash[d][1]])
+	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s hits=%s%s" % [
 		only, int(outcomes.get("lose", 0)) + int(outcomes.get("died", 0)), specs.size(),
 		int(outcomes.get("win", 0)), int(outcomes.get("stopped", 0)), _median(durations),
-		_join_or_dash(enemy_parts), _kinds_text(all_kinds), " edit=%s" % cond if cond != "" else ""])
+		_join_or_dash(enemy_parts), _join_or_dash(dash_parts), _kinds_text(all_kinds),
+		" edit=%s" % cond if cond != "" else ""])
 	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
 		var reached := int(ev_stats.reached)
 		var rate := float(ev_stats.died_during) / maxf(1.0, reached)
@@ -584,22 +629,32 @@ func _event_report(game: Node, rec: Dictionary, cue_at: float, stats: Dictionary
 
 
 ## Plays the debrief to its buttons the way a player would, faster: every line at once,
-## a card picked by the seed when the session asks a fork. Returns the pick's id or "".
+## a card picked by the seed when the session asks a fork. Several forks (M42.1, S3: the
+## face then the dash): the k-th fork's index is posmod(int(pick_seed / the product of
+## the earlier forks' option counts), n), so the first pick is as before and the second is
+## not tied to it; --dash= picks its option in fork_dash. Returns the picks' ids joined by
+## "," or "".
 func _through_debrief(debrief: Node, pick_seed: int) -> String:
-	var pick := ""
-	for i in 4:
+	var picks: Array[String] = []
+	var div := 1
+	for i in 6:
 		debrief.finish_lines()
 		if debrief.phase == &"fork":
 			var options: Array = debrief.fork_options()
-			var index := posmod(pick_seed, options.size())
-			pick = String(options[index].id)
+			var index := posmod(floori(float(pick_seed) / float(div)), options.size())
+			if dash_arg != "" and dash_arg != "none":
+				for k in options.size():
+					if String(options[k].id) == "dash_" + dash_arg:
+						index = k
+			div *= options.size()
+			picks.append(String(options[index].id))
 			debrief.pick(index)
 			continue
 		break
 	var until := Time.get_ticks_msec() + 3000   # the buttons' input delay is real time
 	while not debrief.can_choose() and Time.get_ticks_msec() < until:
 		await process_frame
-	return pick
+	return ",".join(picks)
 
 
 ## The campaign (PLAN v8 4): the start screen's Continue/New game, then every session to
@@ -681,7 +736,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 				return failures + 1
 		if pick != "":
 			line += " pick=" + pick
-			read_sum += FORK_SECONDS
+			read_sum += FORK_SECONDS * pick.split(",").size()
 		read_sum += _read_estimate(game)
 		var last: bool = db.is_done()   # the title screen comes next
 		print(line + " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()])
@@ -711,8 +766,8 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		print("[botrun] telemetry: expected %d campaign lines, found %d" % [played, lines])
 		failures += 1
 	var state: Dictionary = save.call(&"state")
-	print("[botrun] save: %s version=%s campaign=%s" % [save_arg if save_arg != "" else "in memory",
-			save.call(&"version").label(), JSON.stringify(state.campaign)])
+	print("[botrun] save: %s version=%s campaign=%s shipped=%s" % [save_arg if save_arg != "" else "in memory",
+			save.call(&"version").label(), JSON.stringify(state.campaign), JSON.stringify(state.shipped)])
 	return failures
 
 

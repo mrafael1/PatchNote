@@ -42,11 +42,21 @@ func _ready() -> void:
 	EventBus.player_died.connect(func() -> void: play(&"player_died"))
 	EventBus.player_jumped.connect(func() -> void: play(&"jump"))
 	EventBus.player_landed.connect(func(_p: Vector2, _s: float) -> void: play(&"land"))
-	EventBus.player_dashed.connect(func() -> void: play(&"dash"))
+	# Classic plays `dash`; the hook and the teleport have their own sounds (M42.1).
+	EventBus.player_dashed.connect(_on_player_dashed)
+	EventBus.player_hooked.connect(func(_a: Vector2) -> void: play(&"hook"))
+	EventBus.player_hook_missed.connect(func(_f: Vector2, _t: Vector2) -> void: play(&"hook_miss"))
+	EventBus.player_teleported.connect(func(_f: Vector2, _t: Vector2) -> void: play(&"teleport"))
+	EventBus.player_dash_fizzled.connect(func() -> void: play(&"teleport_fizzle"))
 	EventBus.explosion.connect(func(_p: Vector2, _r: float) -> void: play(&"explosion"))
 	EventBus.patch_applied.connect(func(_m: Resource) -> void: play(&"patch_apply"))
 	EventBus.patch_reverted.connect(func(_m: Resource) -> void: play(&"patch_revert"))
 	EventBus.run_ended.connect(_on_run_ended)
+
+
+func _on_player_dashed() -> void:
+	if Unlocks.dash_style() == &"classic":
+		play(&"dash")
 
 
 ## A campaign session that simply stops (S0, S1) is no loss: no jingle (M39.2).
@@ -115,6 +125,11 @@ func _build_all() -> void:
 	# Appended last: the shared generator is drawn in order, so earlier sounds keep their
 	# bytes. A rule edit's warning (PLAN v8 1.4): short and rising.
 	streams[&"edit_warn"] = _wav(_seq([440, 587, 784], 0.09, Wave.SQUARE, 0.16))
+	# The campaign's other dashes (M42.1), appended after edit_warn for the same reason.
+	streams[&"hook"] = _wav(_tone(0.08, 300, 900, Wave.SQUARE, 0.16))
+	streams[&"hook_miss"] = _wav(_tone(0.04, 500, 400, Wave.TRIANGLE, 0.14))
+	streams[&"teleport"] = _wav(_tone(0.1, 1200, 300, Wave.SINE, 0.22))
+	streams[&"teleport_fizzle"] = _wav(_tone(0.05, 200, 160, Wave.SQUARE, 0.12))
 
 
 ## One voice: frequency sweeps exponentially from f0 to f1, the envelope rises over

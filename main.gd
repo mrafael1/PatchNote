@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M42"
+const BUILD := "M42.1"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -337,11 +337,11 @@ func _end_session(choice: StringName) -> void:
 	if is_live_game():
 		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
 				session_runner.hits, choice, BUILD, debrief.picked, reactions.fired_ids(), rule_book.landed,
-				event_player.played_ids()))
+				event_player.played_ids(), debrief.more_picks()))
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:
-		CampaignDB.complete(s, debrief.picked)
+		CampaignDB.complete(s, debrief.picked, debrief.more_picks())
 	if get_tree().current_scene != self:
 		return   # a test's copy: the save moved on, nothing reloads
 	debrief.close()

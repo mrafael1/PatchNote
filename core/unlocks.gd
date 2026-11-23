@@ -71,6 +71,20 @@ static func missing_basics() -> Array[StringName]:
 	return out
 
 
+## fork_dash's answer in the save (a style in Change.DASHES), classic while unanswered.
+## Reads the save only, so Line conditions work with no session running.
+static func dash_answer() -> StringName:
+	var f: Fork = ChangeDB.get_fork(&"fork_dash")
+	var a: Change = f.answer() if f != null else null
+	return a.take.id if a != null and a.take != null else &"classic"
+
+
+## The player's dash: the answer in a campaign session, always classic outside one
+## (the v6 loop, run_hash, B2).
+static func dash_style() -> StringName:
+	return dash_answer() if RunState.session != null else &"classic"
+
+
 ## The stage set the save's shipped Stages take plays (PLAN v6 4, M35); null when the
 ## Stages step has not shipped, and while inert (the v0.0 run is the inert run).
 static func stage_set() -> StageSet:

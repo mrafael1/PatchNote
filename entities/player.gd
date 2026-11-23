@@ -33,6 +33,10 @@ func _ready() -> void:
 	mover.jumped.connect(func() -> void: EventBus.player_jumped.emit())
 	mover.landed.connect(_on_landed)
 	dasher.dashed.connect(func() -> void: EventBus.player_dashed.emit())
+	dasher.hooked.connect(func(a: Vector2) -> void: EventBus.player_hooked.emit(a))
+	dasher.hook_missed.connect(func(f: Vector2, t: Vector2) -> void: EventBus.player_hook_missed.emit(f, t))
+	dasher.teleported.connect(func(f: Vector2, t: Vector2) -> void: EventBus.player_teleported.emit(f, t))
+	dasher.fizzled.connect(func() -> void: EventBus.player_dash_fizzled.emit())
 	shooter.faction = &"player"
 	set_input(HumanInput.new())
 	# Shadow left on the ground while the body is up on the height axis.
@@ -94,7 +98,7 @@ func _physics_process(_delta: float) -> void:
 		if input.jump_pressed:
 			mover.request_jump()
 		if input.dash_pressed and not dash_locked:
-			dasher.try_dash(_facing)
+			dasher.use(_facing, input.aim_dir)
 	if shooting_locked:
 		return
 	if input.fire:

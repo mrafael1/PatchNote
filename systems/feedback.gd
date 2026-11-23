@@ -15,6 +15,7 @@ const DUST := Color(0.75, 0.78, 0.85)
 const HIT := Color(1.0, 0.35, 0.35)
 const KILL_STOP_SHARE := 0.35   ## a kill's hit stop, as a share of the preset's
 const MUZZLE := Color(1.0, 0.95, 0.7)
+const DASH := Color(0.4, 0.9, 1.0)   ## the dash burst's colour (the hook, the teleport)
 
 var camera: CameraRig
 var effects_parent: Node
@@ -39,6 +40,10 @@ func _ready() -> void:
 	EventBus.projectile_hit_wall.connect(_on_hit_wall)
 	EventBus.player_landed.connect(_on_player_landed)
 	EventBus.player_dashed.connect(_on_player_dashed)
+	EventBus.player_hooked.connect(_on_player_hooked)
+	EventBus.player_hook_missed.connect(_on_player_hook_missed)
+	EventBus.player_teleported.connect(_on_player_teleported)
+	EventBus.player_dash_fizzled.connect(_on_player_dash_fizzled)
 	EventBus.explosion.connect(_on_explosion)
 
 
@@ -91,6 +96,72 @@ func _on_player_dashed() -> void:
 	var player := _player()
 	if player:
 		burst(player.global_position, Color(0.4, 0.9, 1.0, 0.8), 10, 20.0, 90.0, 0.3, 6.0)
+
+
+## The hook (M42.1): a line from the player to the anchor for the pull, a burst there.
+func _on_player_hooked(anchor: Vector2) -> void:
+	burst(anchor, DASH, 6, 20.0, 90.0, 0.25, 4.0)
+	var player := _player()
+	if player == null or not is_instance_valid(effects_parent):
+		return
+	var line := _dash_line(2.0, Color(DASH, 0.9))
+	var follow := func(u: float) -> void:
+		if is_instance_valid(player) and is_instance_valid(line):
+			line.points = PackedVector2Array([player.global_position, anchor])
+			line.modulate.a = 1.0 - u * u
+	var t := line.create_tween()
+	t.tween_method(follow, 0.0, 1.0, 0.25)
+	t.tween_callback(line.queue_free)
+
+
+## A hook that caught nothing: always seen (and heard, Sound): out to full range and back.
+func _on_player_hook_missed(from: Vector2, to: Vector2) -> void:
+	if not is_instance_valid(effects_parent):
+		return
+	var line := _dash_line(2.0, Color(DASH, 0.7))
+	var fly := func(u: float) -> void:
+		if is_instance_valid(line):
+			line.points = PackedVector2Array([from, from.lerp(to, 1.0 - absf(1.0 - 2.0 * u))])
+	var t := line.create_tween()
+	t.tween_method(fly, 0.0, 1.0, 0.15)
+	t.tween_callback(line.queue_free)
+
+
+## A blink: a fading ghost where the player was, the dash burst at both ends, a faint line.
+func _on_player_teleported(from: Vector2, to: Vector2) -> void:
+	burst(from, Color(DASH, 0.8), 8, 20.0, 90.0, 0.25, 5.0)
+	burst(to, Color(DASH, 0.8), 8, 20.0, 90.0, 0.25, 5.0)
+	if not is_instance_valid(effects_parent):
+		return
+	var ghost := RectVisual.new()
+	ghost.size = Vector2(34, 34)
+	ghost.color = Color(DASH, 0.5)
+	ghost.position = from
+	effects_parent.add_child(ghost)
+	var gt := ghost.create_tween()
+	gt.tween_property(ghost, "modulate:a", 0.0, 0.25)
+	gt.tween_callback(ghost.queue_free)
+	var line := _dash_line(1.0, Color(DASH, 0.25))
+	line.points = PackedVector2Array([from, to])
+	var lt := line.create_tween()
+	lt.tween_property(line, "modulate:a", 0.0, 0.25)
+	lt.tween_callback(line.queue_free)
+
+
+## A teleport with no free spot: a small grey puff, nothing spent.
+func _on_player_dash_fizzled() -> void:
+	var player := _player()
+	if player:
+		burst(player.global_position, DUST, 5, 10.0, 50.0, 0.2, 3.0)
+
+
+func _dash_line(width: float, color: Color) -> Line2D:
+	var line := Line2D.new()
+	line.width = width
+	line.default_color = color
+	line.z_index = 5
+	effects_parent.add_child(line)
+	return line
 
 
 func _on_explosion(pos: Vector2, radius: float) -> void:

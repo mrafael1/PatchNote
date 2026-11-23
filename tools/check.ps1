@@ -124,12 +124,25 @@ if ($BotRuns) {
     if ($camp.Text -notmatch '\[botrun\] chain: sessions=7 ') { $failures += 'bot_campaign: no chain total' }
     Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
-    if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+') { $failures += 'bot_campaign: S3 did not ask fork_mascot' }
+    # M42.1: then fork_dash. The chains pick by seed: this invincible chain (1i) has
+    # pick_seed 5 at S3 -> mascot index 2 (blob), dash index floor(5/3) mod 3 = 1 (grapple);
+    # the mortal chain (2) has pick_seed 6 -> mascot 0, dash 2 (teleport). So the S4-S6
+    # checks below run under the two new dashes, on purpose.
+    if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+,dash_(classic|grapple|teleport)') { $failures += 'bot_campaign: S3 did not ask fork_mascot then fork_dash' }
     if ($camp.Text -notmatch '"mascot":"(cursor|window|blob)"') { $failures += 'bot_campaign: the save has no mascot' }
+    if ($camp.Text -notmatch '"dash_(classic|grapple|teleport)"') { $failures += 'bot_campaign: the save shipped no dash' }
     $campMortal = Invoke-Godot 'bot_campaign_mortal' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign 2'
     Test-Errors 'bot_campaign_mortal' $campMortal
     Select-String -Path $campMortal.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($campMortal.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign_mortal: summary missing or failures' }
+    # M42.1: S4 with each new dash forced: it wins (invincible) and the dash is used.
+    foreach ($style in @('grapple', 'teleport')) {
+        $dashRun = Invoke-Godot "bot_dash_$style" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_04_level --dash=$style 3i"
+        Test-Errors "bot_dash_$style" $dashRun
+        Select-String -Path $dashRun.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+        if ($dashRun.Text -notmatch "outcome=win .*dash=$style uses=[1-9]") { $failures += "bot_dash_${style}: not won, or the $style was never used" }
+        if ($dashRun.Text -notmatch '\[botrun\] summary: .*, 0 failures') { $failures += "bot_dash_${style}: summary missing or failures" }
+    }
     # PLAN v8 M40: each rule edit forced into S4 lands through the rule book.
     $edits = Invoke-Godot 'bot_edits' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_04_level --lift=30 --edits=edit_bouncy_walls,edit_big_enemies,edit_tiny_enemies,edit_inverted,edit_slowmo,edit_gift_explode 3i'
     Test-Errors 'bot_edits' $edits

@@ -12,7 +12,8 @@ extends RefCounted
 ## (the player's hits taken), first_try, retry (the attempt), mascot:<id> (the save's
 ## mascot), answer:<change id> (a shipped fork answer), event:<id> (that scripted event
 ## played in this attempt), ended (the session is over for good: won, stopped, or moved on
-## after a death; M42). Each is checked against a
+## after a death; M42), dash:<style> (the save's fork_dash answer, a style in
+## Change.DASHES; classic while unanswered, M42.1). Each is checked against a
 ## context dictionary (passes()); a key the context lacks fails the line.
 
 const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried", &"surprised",
@@ -20,7 +21,7 @@ const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried",
 const OUTCOMES: Array[StringName] = [&"won", &"died", &"stopped"]
 const PLAIN_CONDITIONS: Array[StringName] = [&"won", &"died", &"stopped", &"hit_none", &"hit_lots",
 		&"first_try", &"retry", &"ended"]
-const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:"]
+const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:", "dash:"]
 ## Hits taken at or above this are "hit_lots".
 const HIT_LOTS := 3
 
@@ -62,6 +63,8 @@ static func parse(source: String) -> Line:
 		l.problem = "empty line '%s'" % source
 	elif l.when != &"" and not condition_known(l.when):
 		l.problem = "unknown condition '%s' in '%s'" % [l.when, source]
+	elif String(l.when).begins_with("dash:") and not StringName(String(l.when).trim_prefix("dash:")) in Change.DASHES:
+		l.problem = "unknown dash '%s' in '%s' (%s)" % [String(l.when).trim_prefix("dash:"), source, Change.DASHES]
 	return l
 
 
@@ -106,7 +109,7 @@ static func parse_all(sources: PackedStringArray) -> Array[Line]:
 
 
 ## ctx keys: outcome (StringName), moved_on (bool), hits (int), attempt (int, 1 = first), mascot
-## (StringName), shipped (Array of change ids).
+## (StringName), shipped (Array of change ids), dash (StringName, the dash style).
 func passes(ctx: Dictionary) -> bool:
 	if when == &"":
 		return true
@@ -131,6 +134,8 @@ func passes(ctx: Dictionary) -> bool:
 		return ctx.has("shipped") and StringName(w.trim_prefix("answer:")) in (ctx.shipped as Array)
 	if w.begins_with("event:"):
 		return ctx.has("events") and w.trim_prefix("event:") in (ctx.events as Array)
+	if w.begins_with("dash:"):
+		return ctx.has("dash") and String(ctx.dash) == w.trim_prefix("dash:")
 	return false
 
 

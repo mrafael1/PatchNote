@@ -14,6 +14,12 @@ signal projectile_hit_wall(projectile: Node, pos: Vector2, normal: Vector2)
 signal player_jumped
 signal player_landed(pos: Vector2, impact_speed: float)
 signal player_dashed
+## The campaign's other dashes (M42.1, fork_dash): the hook caught a wall at anchor, or
+## flew out and caught nothing; a teleport blinked; a teleport found no free spot.
+signal player_hooked(anchor: Vector2)
+signal player_hook_missed(from: Vector2, to: Vector2)
+signal player_teleported(from: Vector2, to: Vector2)
+signal player_dash_fizzled
 ## Campaign (PLAN v8 M39.2): a basic was added during the session ("add health").
 signal basic_added(id: StringName)
 ## Something tried to hurt the player before the session has `health`: nothing happens.

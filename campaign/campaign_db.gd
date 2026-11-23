@@ -88,10 +88,14 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 		if s.stage < last_stage:
 			out.append("campaign: session %s goes back to stage %d" % [s.id, s.stage])
 		last_stage = maxi(last_stage, s.stage)
-		if s.fork != &"":
-			if forks.has(s.fork):
-				out.append("campaign: fork %s is asked twice (%s, %s)" % [s.fork, forks[s.fork], s.id])
-			forks[s.fork] = s.id
+		var mine := {}   # a fork repeated within one session is the session's own problem
+		for f in s.asked_forks():
+			if mine.has(f):
+				continue
+			mine[f] = true
+			if forks.has(f):
+				out.append("campaign: fork %s is asked twice (%s, %s)" % [f, forks[f], s.id])
+			forks[f] = s.id
 	for i in c.sessions.size() - 1:
 		var s := c.sessions[i]
 		var next := c.sessions[i + 1]
@@ -137,19 +141,37 @@ func attempt(id: StringName) -> int:
 
 ## The game scene's session: the save's current one while the campaign is active, else
 ## null (the run loop). A --session=<id> argument makes the campaign active and jumps
-## there, once per process.
+## there, once per process. --dash=<style> (M42.1, with --session=) answers fork_dash with
+## that style first, so a jump plays S4-S6 with any dash (keep --autostart with it: the
+## pick is shipped like a debrief's, and only --autostart keeps it off the real save).
 func session_for_game() -> SessionDef:
 	if not _arg_read:
 		_arg_read = true
-		for arg in OS.get_cmdline_user_args():
+		var args := OS.get_cmdline_user_args()
+		for arg in args:
 			if arg.begins_with("--session="):
 				var id := StringName(arg.trim_prefix("--session="))
 				if jump_to(id):
 					active = true
+					for a in args:
+						if a.begins_with("--dash="):
+							answer_dash(StringName(a.trim_prefix("--dash=")))
 					answer_forks(get_session(id))
 				else:
 					push_warning("No session %s" % id)
 	return current() if active else null
+
+
+## Ships dash_<style> unless fork_dash is answered (a jump's --dash=; the bot's too).
+## False for a style that is not in Change.DASHES.
+func answer_dash(style: StringName) -> bool:
+	if not style in Change.DASHES:
+		push_warning("No dash %s (%s)" % [style, Change.DASHES])
+		return false
+	var f := ChangeDB.get_fork(&"fork_dash")
+	if f != null and not f.is_answered():
+		SaveGame.ship(StringName("dash_%s" % style), GameVersion.PATCH)
+	return true
 
 
 ## Answers, with their first option, the forks a session's enemies name ("fork:<id>")
@@ -181,7 +203,7 @@ func jump_to(id: StringName) -> bool:
 func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: Array = [],
 		moved_on := false) -> Dictionary:
 	var ctx := {"attempt": attempt(s.id), "mascot": SaveGame.mascot(), "shipped": SaveGame.shipped(),
-			"events": events}
+			"events": events, "dash": Unlocks.dash_answer()}
 	if outcome != &"":
 		ctx.outcome = outcome
 		ctx.moved_on = moved_on
@@ -199,14 +221,21 @@ func version_after(s: SessionDef) -> GameVersion:
 
 
 ## Session s is done (won, stopped, or moved on after a death): ship and move on.
-## pick: the option chosen in the debrief's fork (shipped with the session; a mascot
-## option also gives the AI its body), or null.
-func complete(s: SessionDef, pick: Change = null) -> void:
+## pick: the option chosen in the debrief's first fork (shipped with the session; a
+## mascot option also gives the AI its body), or null. more_picks: the options of its
+## later forks (M42.1), in order. One version bump for the session, none per pick.
+func complete(s: SessionDef, pick: Change = null, more_picks: Array[Change] = []) -> void:
 	var ships: Array[StringName] = s.ships.duplicate()
+	var all: Array[Change] = []
 	if pick != null:
-		ships.append(pick.id)
-		if pick.kind == &"mascot":
-			SaveGame.set_mascot(pick.take.id)
+		all.append(pick)
+	all.append_array(more_picks)
+	for c in all:
+		if c == null:
+			continue
+		ships.append(c.id)
+		if c.kind == &"mascot":
+			SaveGame.set_mascot(c.take.id)
 	SaveGame.campaign_done(s.id, s.bump, ships, index_of(s.id) + 1)
 
 
@@ -217,22 +246,31 @@ func retry(s: SessionDef) -> void:
 
 ## The telemetry line of one played attempt (PLAN v8 1.8, schema 4). choice: next,
 ## retry or move_on. Call before complete()/retry(), so attempt and version are this
-## attempt's. reactions, edits, events and fork fill in from M38-M41.
+## attempt's. reactions, edits, events and fork fill in from M38-M41. M42.1 (additive,
+## schema still 4): `fork` stays the first pick's record; `forks` lists every pick of the
+## attempt (pick, then more_picks), `dash` is the dash style after them.
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
 		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = [],
-		edits: Array = [], events: Array = []) -> Dictionary:
+		edits: Array = [], events: Array = [], more_picks: Array[Change] = []) -> Dictionary:
 	var fork_record: Variant = null
 	var mascot := SaveGame.mascot()
+	var dash := Unlocks.dash_answer()
+	var all: Array[Change] = []
 	if pick != null:
-		var shelved: Array[String] = []
-		var f := ChangeDB.fork_of(pick)
-		if f != null:
-			for c in f.changes():
-				if c != pick:
-					shelved.append(String(c.id))
-		fork_record = {"id": String(pick.fork), "pick": String(pick.id), "shelved": shelved}
-		if pick.kind == &"mascot":
-			mascot = pick.take.id
+		all.append(pick)
+	all.append_array(more_picks)
+	var fork_records: Array = []
+	for c in all:
+		if c == null:
+			continue
+		var rec := _fork_record(c)
+		fork_records.append(rec)
+		if c == pick:
+			fork_record = rec
+		if c.kind == &"mascot":
+			mascot = c.take.id
+		elif c.kind == &"dash":
+			dash = c.take.id
 	return {
 		"schema": Telemetry.CAMPAIGN_SCHEMA,
 		"type": "campaign",
@@ -257,9 +295,22 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"edits": edits,
 		"events": events,
 		"fork": fork_record,
+		"forks": fork_records,
+		"dash": String(dash),
 		"mascot": String(mascot),
 		"reduce_flashing": bool(SaveGame.setting("reduce_flashing")),
 		"game_version": SaveGame.version().label(),
 		"bot": bool(run_record.get("bot", false)),
 		"invincible": RunState.invincible,
 	}
+
+
+## {id, pick, shelved} of one fork pick (telemetry).
+func _fork_record(pick: Change) -> Dictionary:
+	var shelved: Array[String] = []
+	var f := ChangeDB.fork_of(pick)
+	if f != null:
+		for c in f.changes():
+			if c != pick:
+				shelved.append(String(c.id))
+	return {"id": String(pick.fork), "pick": String(pick.id), "shelved": shelved}

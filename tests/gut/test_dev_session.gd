@@ -6,14 +6,15 @@ extends GutTest
 ## back to inert and deletes the scratch files.
 
 const TEST_PATH := "user://save_session_test/save.json"
-const ALL: Array[String] = ["basic_movement", "basic_world", "enemy_bomber", "enemy_lancer",
+const ALL: Array[String] = ["basic_movement", "basic_world", "dash_classic", "dash_grapple",
+		"dash_teleport", "enemy_bomber", "enemy_lancer",
 		"enemy_tank", "look_1_arcade", "look_1_clean", "look_1_punchy", "mascot_blob",
 		"mascot_cursor", "mascot_window", "patch_auto_attack",
 		"patch_echo", "patch_elite", "patch_horde_mode", "patch_hunter", "patch_magnet",
 		"patch_motion_time", "patch_orbit", "patch_well", "stages_breakout", "stages_gauntlet",
 		"stages_shifting"]
-const FORKS: Array[String] = ["fork_enemy", "fork_mascot", "look_1", "stages"]
-## The questions the v6 loop asks (fork_mascot is the campaign's only).
+const FORKS: Array[String] = ["fork_dash", "fork_enemy", "fork_mascot", "look_1", "stages"]
+## The questions the v6 loop asks (fork_mascot and fork_dash are campaign-only).
 const LOOP_FORKS: Array[String] = ["fork_enemy", "look_1", "stages"]
 ## The in-run patches the AI builds itself, one per IMPLEMENT session.
 const NEW_PATCHES: Array[String] = ["patch_auto_attack", "patch_echo", "patch_elite", "patch_horde_mode",
@@ -132,11 +133,11 @@ func test_the_changes_and_forks_are_valid() -> void:
 		assert_eq(ChangeDB.fork_problems(f), [] as Array[String], String(f.id))
 		assert_ne(f.question, "", String(f.id))
 	assert_eq(fork_ids, FORKS)
-	# Looks, enemies, the Stages step and the campaign's mascot answer a question; basics
+	# Looks, enemies, the Stages step and the campaign's mascot and dash answer a question; basics
 	# and in-run patches answer none (the AI builds those itself, owner feedback after M34).
 	for c in ChangeDB.all:
-		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot"]
-		assert_eq(c.fork != &"", asked, "%s: in a fork only if a look, an enemy, stages or a mascot" % c.id)
+		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash"]
+		assert_eq(c.fork != &"", asked, "%s: in a fork only if a look, an enemy, stages, a mascot or a dash" % c.id)
 	assert_eq(DevSession.new_patches_left().map(func(c: Change) -> String: return String(c.id)), NEW_PATCHES,
 			"a fresh save: every in-run patch is still to build")
 	var look := _fork(&"look_1")

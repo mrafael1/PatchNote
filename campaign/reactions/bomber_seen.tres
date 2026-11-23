@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = &"bomber_seen"
 trigger = "enemy_seen bomber"
-lines = PackedStringArray("worried: Bomber! Don't stand too close.", "proud: Your bomber. It goes boom.")
+lines = PackedStringArray("worried: Bomber! Stay back, it blows up even if you shoot it.", "proud: Your bomber. It goes boom, even if you shoot it. Bigger now.")
 priority = 2
 cooldown = 30.0
 once_per_session = true

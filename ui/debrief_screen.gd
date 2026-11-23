@@ -36,7 +36,11 @@ var session: SessionDef
 var outcome: StringName = &""   ## won, died or stopped
 var lines: Array[Line] = []     ## the debrief lines that passed their conditions
 var phase: StringName = &""
-var picked: Change              ## the fork option chosen here, or null
+var picks: Array[Change] = []   ## the fork options chosen here, in the order asked (M42.1)
+## The first pick (the mascot at S3, the enemy at S4), or null. Read-only.
+var picked: Change:
+	get:
+		return picks.front() if not picks.is_empty() else null
 var moved_on := false           ## Move on was pressed (the fork, if any, comes after)
 var big_body: MascotBody
 ## The seed the next scene plays; -1 = random. Tools set it for a repeatable chain.
@@ -57,8 +61,9 @@ var _typing: Label
 var _line: Line
 var _chars := 0.0
 var _line_t := 0.0
-var _asked := false
+var _asked: StringName = &""    ## the fork whose question is queued
 var _buttons_msec := 0
+var _cards_msec := 0
 
 
 var events: Array = []   ## the events played this attempt (open())
@@ -144,9 +149,9 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 	events = p_events
 	hits_seen = hits
 	lines = Line.passing(session.debrief_lines(), CampaignDB.line_context(session, outcome, hits, events))
-	picked = null
+	picks.clear()
 	moved_on = false
-	_asked = false
+	_asked = &""
 	said.clear()
 	_title.text = "SESSION %d · %s" % [CampaignDB.index_of(session.id), session.title.to_upper()]   # S0 is the first
 	_clear(_body)
@@ -182,14 +187,26 @@ func death_expected() -> bool:
 	return session != null and session.goal == SessionDef.OVERRUN
 
 
-## The session's fork, while it still has to be asked here (null otherwise).
+## The session's next fork still to ask here, in asked_forks() order: not answered in
+## the save nor picked in this debrief (null when none is left).
 func fork() -> Fork:
-	if session == null or session.fork == &"" or picked != null:
+	if session == null:
 		return null
 	if outcome == &"died" and not death_expected() and not moved_on:
 		return null
-	var f := ChangeDB.get_fork(session.fork)
-	return f if f != null and not f.is_answered() else null
+	for id in session.asked_forks():
+		var f := ChangeDB.get_fork(id)
+		if f == null or f.is_answered():
+			continue
+		if picks.any(func(c: Change) -> bool: return c.fork == id):
+			continue
+		return f
+	return null
+
+
+## The picks after the first (M42.1: S3's dash).
+func more_picks() -> Array[Change]:
+	return picks.slice(1)
 
 
 func fork_options() -> Array[Change]:
@@ -277,8 +294,8 @@ func _process(delta: float) -> void:
 ## show the notes and the way on.
 func _after_lines() -> void:
 	var f := fork()
-	if f != null and not _asked:
-		_asked = true
+	if f != null and _asked != f.id:
+		_asked = f.id
 		_pending.append(Line.make(f.question, &"thinking"))
 		_next_line()
 		return
@@ -298,6 +315,7 @@ func _show_cards(f: Fork) -> void:
 	for i in options.size():
 		_cards.add_child(_card(options[i], i))
 	big_body.set_expression(&"thinking")
+	_cards_msec = Time.get_ticks_msec()
 	_focus_card.call_deferred()
 
 
@@ -354,8 +372,16 @@ func _card(c: Change, index: int) -> Button:
 	pitch.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.75))
 	pitch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(pitch)
-	b.pressed.connect(func() -> void: pick(index))
+	b.pressed.connect(func() -> void:
+		if cards_ready():
+			pick(index))
 	return b
+
+
+## The cards take player input input_delay after they show: a Space tap meant for the
+## line before cannot pick the focused card (M42.1 review). pick() itself is ungated.
+func cards_ready() -> bool:
+	return phase == FORK and Time.get_ticks_msec() - _cards_msec >= int(input_delay * 1000.0)
 
 
 func _focus_card() -> void:
@@ -371,15 +397,18 @@ func pick(index: int) -> bool:
 	var options := fork_options()
 	if index < 0 or index >= options.size():
 		return false
-	picked = options[index]
+	var c: Change = options[index]
+	picks.append(c)
 	_clear(_cards)
 	phase = LINES
-	if picked.kind == &"mascot":
-		_set_body(picked.take.id)
+	if c.kind == &"mascot":
+		_set_body(c.take.id)
 		big_body.set_expression(&"surprised")
 		big_body.glitch(0.35)
-	if picked.take != null and picked.take.line != "":
-		_pending.append(Line.make(picked.take.line, &"happy"))
+	elif c.kind == &"dash":
+		big_body.set_expression(&"happy")
+	if c.take != null and c.take.line != "":
+		_pending.append(Line.make(c.take.line, &"happy"))
 	_next_line()
 	return true
 
@@ -397,7 +426,7 @@ func _finish() -> void:
 		_add_button(RETRY, func() -> void: choose(RETRY))
 		_add_button(MOVE_ON, func() -> void: choose(MOVE_ON))
 	else:
-		_notes.text = notes_text(session, picked)
+		_notes.text = notes_text(session, picked, more_picks())
 		var last := CampaignDB.index_of(session.id) + 1 >= CampaignDB.size()
 		var label := LAST if last else NEXT
 		_add_button(label, func() -> void: choose(label))
@@ -405,13 +434,16 @@ func _finish() -> void:
 	_focus_first.call_deferred()
 
 
-## "v0.2.0 · what changed" and a bullet per note, then the fork's pick.
-static func notes_text(s: SessionDef, pick: Change = null) -> String:
+## "v0.2.0 · what changed" and a bullet per note, then one per fork pick, in order.
+static func notes_text(s: SessionDef, pick: Change = null, more: Array[Change] = []) -> String:
 	var text := "%s · what changed" % CampaignDB.version_after(s).label()
 	for n in s.notes:
 		text += "\n  • " + n
 	if pick != null:
 		text += "\n  • " + pick.title
+	for c in more:
+		if c != null:
+			text += "\n  • " + c.title
 	return text
 
 
@@ -519,7 +551,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			var i := key.keycode - KEY_1
 			if i >= 0 and i < 3:
 				get_viewport().set_input_as_handled()
-				pick(i)
+				if cards_ready():
+					pick(i)
 		DONE:
 			if not can_choose():
 				return

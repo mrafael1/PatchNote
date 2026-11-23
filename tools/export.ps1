@@ -1,9 +1,9 @@
 # Windows export check (playtest builds; G13): export the release build, boot the
 # exported game headless, and require the game banner, the campaign data, the full
-# mutation list (big patches marked) and a clean log; then boot S5 in the export too.
+# mutation list (big patches marked) and a clean log; then boot S5 and S4 (teleport) too.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
-# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G13 sheet)
+# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G13.1 sheet)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -75,6 +75,16 @@ if ($failures.Count -eq 0) {
     if (Select-String -Path $bootLog5 -Pattern $errorPattern) { $failures += 'boot S5: error lines in log' }
     if ($text5 -notmatch ', session s1_05_wrong ') { $failures += 'boot S5: the export did not jump to S5' }
     else { Write-Host '    boot S5: session s1_05_wrong, clean log' }
+    # M42.1: a third boot into S4 with a non-classic dash (--dash= answers fork_dash in the
+    # boot's own save; --autostart keeps it off the real save).
+    $bootLog4 = Join-Path $logDir 'export_boot_s4.log'
+    cmd /c "`"$exe`" --headless --quit-after 300 -- --autostart --session=s1_04_level --dash=teleport > `"$bootLog4`" 2>&1"
+    $text4 = Get-Content $bootLog4 -Raw
+    if ($LASTEXITCODE -ne 0) { $failures += "boot S4: exit code $LASTEXITCODE" }
+    if (Select-String -Path $bootLog4 -Pattern $errorPattern) { $failures += 'boot S4: error lines in log' }
+    if ($text4 -notmatch ', session s1_04_level ') { $failures += 'boot S4: the export did not jump to S4' }
+    elseif ($text4 -notmatch 'answers .*fork_dash=dash_teleport') { $failures += 'boot S4: --dash=teleport did not answer fork_dash' }
+    else { Write-Host '    boot S4: session s1_04_level, dash teleport, clean log' }
     Copy-Item (Join-Path $root 'PLAYTEST.md') $outDir -Force
     $size = (Get-Item (Join-Path $outDir 'PatchNotes.exe')).Length / 1MB
     Write-Host ("    PatchNotes.exe {0:N1} MB" -f $size)

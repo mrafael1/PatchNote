@@ -54,6 +54,13 @@ func _run() -> void:
 	game.debrief.finish_lines()
 	for i in 20:
 		await process_frame
+	await _shot("fork_dash")   # M42.1: S3 then asks the dash
+	game.debrief.pick(0)
+	for i in 60:
+		await process_frame
+	game.debrief.finish_lines()
+	for i in 20:
+		await process_frame
 	await _shot("notes")
 	quit()
 

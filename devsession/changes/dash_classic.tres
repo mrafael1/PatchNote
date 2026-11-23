@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="Change" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"classic"
+title = "Classic dash"
+line = "Classic. Can't go wrong with classic."
+
+[resource]
+script = ExtResource("1")
+id = &"dash_classic"
+title = "A dash (Shift or right click)"
+pitch = "A quick burst where you're going. Nothing can touch you during it."
+kind = &"dash"
+bump = &"patch"
+tags = Array[StringName]([&"move"])
+take = SubResource("take")

@@ -25,6 +25,8 @@ var bounds: Rect2                      ## whole arena including the border, pixe
 var spawn_points: Array[Vector2] = []  ## pixels
 var player_start: Vector2
 
+var _reach := PackedByteArray()        ## is_reachable's flood fill, built on first use
+
 
 func _init(p_def: ArenaDef = null) -> void:
 	def = p_def if p_def != null else load(DEFAULT) as ArenaDef
@@ -77,6 +79,64 @@ func distance_to_blocks(p: Vector2) -> float:
 		var dy := maxf(maxf(rect.position.y - p.y, 0.0), p.y - rect.end.y)
 		best = minf(best, Vector2(dx, dy).length())
 	return best
+
+
+## Is p on a tile the player can walk to from player_start (4-neighbour flood fill over
+## the tiles no block covers, built once)? False in a sealed pocket and outside the arena.
+## The teleport (M42.1) reads it: only it could reach a pocket, and nothing could follow.
+func is_reachable(p: Vector2) -> bool:
+	var t := Tuning.TILE
+	var c := int(floorf(p.x / t))
+	var r := int(floorf(p.y / t))
+	if c < 0 or r < 0 or c >= COLS or r >= ROWS:
+		return false
+	if _reach.is_empty():
+		_build_reach()
+	return _reach[r * COLS + c] == 2
+
+
+## The sealed pockets: open tiles (no block) the flood fill from player_start never
+## reaches, as tile coordinates (tests list them).
+func sealed_tiles() -> Array[Vector2i]:
+	if _reach.is_empty():
+		_build_reach()
+	var out: Array[Vector2i] = []
+	for r in ROWS:
+		for c in COLS:
+			if _reach[r * COLS + c] == 1:
+				out.append(Vector2i(c, r))
+	return out
+
+
+## 0 = a block covers the tile's centre, 1 = open, 2 = open and reachable.
+func _build_reach() -> void:
+	var t := Tuning.TILE
+	_reach.resize(COLS * ROWS)
+	for r in ROWS:
+		for c in COLS:
+			var centre := Vector2((c + 0.5) * t, (r + 0.5) * t)
+			var open := 1
+			for rect in blocks:
+				if rect.has_point(centre):
+					open = 0
+					break
+			_reach[r * COLS + c] = open
+	var start := Vector2i(int(floorf(player_start.x / t)), int(floorf(player_start.y / t)))
+	if start.x < 0 or start.y < 0 or start.x >= COLS or start.y >= ROWS:
+		return
+	var todo: Array[Vector2i] = [start]
+	while not todo.is_empty():
+		var tile: Vector2i = todo.pop_back()
+		if tile.x < 0 or tile.y < 0 or tile.x >= COLS or tile.y >= ROWS:
+			continue
+		var i := tile.y * COLS + tile.x
+		if _reach[i] != 1:
+			continue
+		_reach[i] = 2
+		todo.append(tile + Vector2i.LEFT)
+		todo.append(tile + Vector2i.RIGHT)
+		todo.append(tile + Vector2i.UP)
+		todo.append(tile + Vector2i.DOWN)
 
 
 ## Readability cues, driven by the rules: without gravity the floor is a flat grid

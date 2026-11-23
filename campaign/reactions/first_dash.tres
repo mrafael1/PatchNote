@@ -6,7 +6,7 @@
 script = ExtResource("1")
 id = &"first_dash"
 trigger = "first_dash"
-lines = PackedStringArray("happy: Whoosh!", "surprised: Oh, the dash works!", "mascot:blob happy: Zoom! I want one.")
+lines = PackedStringArray("dash:classic happy: Whoosh!", "dash:classic surprised: Oh, the dash works!", "dash:grapple happy: Yoink!", "dash:grapple surprised: It caught! It actually caught.", "dash:teleport surprised: Where did you... oh. There.", "dash:teleport happy: Bwip!")
 priority = 2
 cooldown = 30.0
 once_per_session = true
