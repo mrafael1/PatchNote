@@ -328,10 +328,10 @@ func test_session_half_and_last_seconds_on_a_survive_goal() -> void:
 	var last := _def("last_seconds", ["Almost."], 2)
 	last.id = &"test_last"
 	game.reactions._defs.assign([half, last])
-	game.run_loop.goal_clock = 45.0
+	game.run_loop.goal_clock = 16.0   # S4: survive 30 s
 	game.reactions.tick()
 	assert_eq(_ids(game), ["test_reaction"])
-	game.run_loop.goal_clock = 86.0
+	game.run_loop.goal_clock = 26.0
 	game.reactions._busy_until = -1.0
 	game.reactions.tick()
 	assert_eq(_ids(game), ["test_reaction", "test_last"])
@@ -385,7 +385,7 @@ func test_the_same_events_and_seed_react_the_same() -> void:
 			if frame == 60 * 12 or frame == 60 * 30:
 				_hit()
 			if frame == 60 * 5:
-				r._dashed_at = RunState.game_time
+				r._dashed_at = r._free_time
 			r._physics_process(1.0 / 60.0)
 		var times: Array = r.fired.map(func(f: Dictionary) -> Array: return [f.id, snappedf(float(f.at) - start, 0.01), f.text])
 		runs.append(times)
@@ -427,9 +427,32 @@ func test_a_new_enemy_seen_while_busy_waits_its_turn() -> void:
 
 func test_a_new_enemy_seen_too_long_ago_is_let_go() -> void:
 	var game := await _quiet_game()
-	_only(game, [&"shooter_seen"])
+	_only(game, [&"first_dash"])   # listens, so the ticks below are not empty
+	game.reactions.tick()
 	game.genre.spawn_archetype(&"shooter", 1)
 	await wait_physics_frames(1)
+	_only(game, [&"shooter_seen"])
+	game.reactions._busy_until = -1.0
 	RunState.game_time += Reactions.PENDING + 1.0
 	game.reactions.tick()
-	assert_eq(_ids(game).size(), 0)
+	assert_eq(_ids(game).size(), 0, "free for longer than PENDING: let go")
+
+
+## Time spent speaking does not use the window up: a long intro, then a dash line, and
+## the first shooter (seen at the very start) is still announced (M39.1 review).
+func test_speaking_time_does_not_use_the_pending_window_up() -> void:
+	var game := await _quiet_game()
+	_only(game, [&"shooter_seen", &"first_dash"])
+	game.reactions.tick()
+	game.genre.spawn_archetype(&"shooter", 1)
+	await wait_physics_frames(1)
+	var start := RunState.game_time
+	for text in ["Look, I can point now.", "Better. Right? I made walls too.", "And you can dash now. Shift or right click."]:
+		game.reactions.note_spoken(Line.parse("happy: " + text), 2)
+	assert_gt(game.reactions._busy_until - start, Reactions.PENDING + 2.0, "a 10 s intro")
+	for step in 4 * 30:   # 30 s at 4 Hz
+		RunState.game_time = start + step * 0.25
+		if step == 4 * 8:
+			EventBus.player_dashed.emit()   # mid-intro, as the intro tells
+		game.reactions.tick()
+	assert_eq(_ids(game), ["first_dash", "shooter_seen"], "both, one after the other")

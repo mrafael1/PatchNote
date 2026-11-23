@@ -536,3 +536,19 @@ func test_reduce_flashing_halves_shake_and_drops_the_white_flash() -> void:
 	assert_false(fx.flash(0.3))
 	SaveGame.state().settings.reduce_flashing = false
 	assert_true(fx.flash(0.3))
+
+
+## Owner feedback (M39.1): S4 is 30 s, and the AI says what is new in it (the walls
+## and the dash) before the player meets them, whatever its body.
+func test_s4_is_short_and_its_intro_names_the_walls_and_the_dash() -> void:
+	var s := CampaignDB.get_session(&"s1_04_level")
+	assert_eq(s.goal, &"survive")
+	assert_eq(s.goal_value, 30.0)
+	assert_true(&"level" in s.basics and &"dash" in s.basics)
+	for mascot: StringName in Change.MASCOTS:
+		SaveGame.set_mascot(mascot)
+		var said := " ".join(Line.passing(s.intro_lines(), CampaignDB.line_context(s)).map(
+				func(l: Line) -> String: return l.text)).to_lower()
+		assert_string_contains(said, "walls", "%s talks about the walls" % mascot)
+		assert_string_contains(said, "dash", "%s talks about the dash" % mascot)
+		assert_string_contains(said, "shift", "%s says how to dash" % mascot)

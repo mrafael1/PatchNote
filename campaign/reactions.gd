@@ -20,8 +20,9 @@ signal line_said(line: Line, priority: int)
 const TICK_HZ := 4.0
 const GAP := 8.0
 const NEAR_MISS_CONFIRM := 0.3   ## a close shot counts once the player is still unhit this long after
-## A new enemy or the first dash is still worth a line this long after, if the AI was
-## busy when it happened (S4's intro talks through its first spawns).
+## A new enemy or the first dash is still worth a line until the AI has had this long
+## FREE since it happened: time spent speaking does not count, so a long intro (S4
+## talks through its first spawns) cannot use the window up (M39.1 review).
 const PENDING := 6.0
 
 var session: SessionDef
@@ -48,8 +49,10 @@ var _hits := 0                   ## hits since the last tick
 var _last_hit_at := 0.0
 var _hit_gap := 0.0              ## seconds without a hit before the latest one
 var _last_shot_at := 0.0
-var _dashed_at := -1.0           ## game time of the latest dash (-1: none yet)
-var _seen := {}                  ## enemy archetype -> game time first seen this session
+var _free_time := 0.0            ## game seconds the AI has been free (not speaking) this session
+var _last_tick_at := -1.0        ## game time of the previous tick (-1: none yet)
+var _dashed_at := -1.0           ## _free_time at the latest dash (-1: none yet)
+var _seen := {}                  ## enemy archetype -> _free_time when first seen this session
 var _camp_anchor := Vector2.INF
 var _camp_since := 0.0
 var _enemy_peak := 0             ## most enemies alive since the arena was last empty
@@ -65,7 +68,7 @@ func _ready() -> void:
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.player_hit.connect(_on_player_hit)
 	EventBus.projectile_fired.connect(_on_projectile_fired)
-	EventBus.player_dashed.connect(func() -> void: _dashed_at = now())
+	EventBus.player_dashed.connect(func() -> void: _dashed_at = _free_time)
 	EventBus.entity_spawned.connect(_on_entity_spawned)
 	EventBus.projectile_hit.connect(_on_projectile_hit)
 
@@ -132,7 +135,7 @@ func _on_entity_spawned(entity: Node) -> void:
 		return
 	var arch := entity.scene_file_path.get_file().get_basename().trim_prefix("enemy_")
 	if arch != "" and not _seen.has(arch):
-		_seen[arch] = now()
+		_seen[arch] = _free_time
 
 
 ## A shot that reached the player was not a miss, even when the hit did no damage
@@ -183,6 +186,10 @@ static func near_miss_reach() -> float:
 ## One check of every trigger (TICK_HZ; tests call it directly). Says at most one line.
 func tick() -> void:
 	var t := now()
+	# The free part of the time since the last tick: after whatever was being spoken.
+	if _last_tick_at >= 0.0:
+		_free_time += maxf(0.0, t - maxf(_last_tick_at, _busy_until))
+	_last_tick_at = t
 	var pos := player.global_position
 	if _camp_anchor == Vector2.INF or pos.distance_to(_camp_anchor) > ReactionDef.CAMP_RADIUS:
 		_camp_anchor = pos
@@ -226,7 +233,7 @@ func _happened(d: ReactionDef, t: float, enemies: int) -> bool:
 			return _edge(d, enemies >= int(n))
 		&"enemy_seen":
 			var seen_at := float(_seen.get(d.trigger_word(), -INF))
-			return not _count.has(d.id) and t - seen_at <= PENDING
+			return not _count.has(d.id) and _free_time - seen_at <= PENDING
 		&"player_hp_at_most":
 			var hp := _player_hp()
 			return _edge(d, hp > 0.0 and hp <= n)
@@ -251,7 +258,7 @@ func _happened(d: ReactionDef, t: float, enemies: int) -> bool:
 			var left := _survive_left()
 			return _edge(d, left > 0.0 and left <= ReactionDef.LAST_SECONDS)
 		&"first_dash":
-			return _dashed_at >= 0.0 and not _count.has(d.id) and t - _dashed_at <= PENDING
+			return _dashed_at >= 0.0 and not _count.has(d.id) and _free_time - _dashed_at <= PENDING
 		&"quiet":
 			return _edge(d, t - maxf(_busy_until, 0.0) >= n)
 	return false
