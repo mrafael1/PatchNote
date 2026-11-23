@@ -11,7 +11,10 @@ extends Resource
 const SURVIVE := &"survive"   ## won once the goal clock reaches goal_value seconds
 const KILLS := &"kills"       ## won at goal_value kills; time_limit > 0 ends it "stopped"
 const STOP := &"stop"         ## the AI ends it at goal_value seconds ("stopped")
-const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP]
+## More and more enemies (the cues) until you go down: going down is the expected end
+## (the debrief offers Next, not Retry). Still standing at goal_value seconds: "stopped".
+const OVERRUN := &"overrun"
+const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN]
 const FORK_ENEMY := &"fork:fork_enemy"
 
 @export var id: StringName

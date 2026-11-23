@@ -6,7 +6,8 @@ extends CanvasLayer
 ##
 ## Won or stopped: "Next session" (or "To be continued" after the campaign's last
 ## session). Died: "Retry" (same session, a new seed) and "Move on" (the session counts
-## as done, the AI owns it). Enter presses the first button; 1 and 2 pick by order.
+## as done, the AI owns it), except in an overrun session, where going down is the end
+## and the way on is Next session. Enter presses the first button; 1 and 2 pick by order.
 ## The game stays paused while it is open.
 
 signal next_requested
@@ -93,7 +94,7 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int) -> void:
 		_body.add_child(l)
 	for child in _buttons.get_children():
 		child.queue_free()
-	if outcome == &"died":
+	if outcome == &"died" and not death_expected():
 		_notes.text = ""
 		_add_button(RETRY, func() -> void: retry_requested.emit())
 		_add_button(MOVE_ON, func() -> void: move_on_requested.emit())
@@ -104,6 +105,11 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int) -> void:
 	RunState.set_pause(&"debrief", true)
 	_root.visible = true
 	_focus_first.call_deferred()
+
+
+## An overrun session ends when you go down: that death is the way on, not a retry.
+func death_expected() -> bool:
+	return session != null and session.goal == SessionDef.OVERRUN
 
 
 ## "v0.2.0 · what changed" and a bullet per note.
@@ -153,15 +159,15 @@ func choose(label: String) -> bool:
 		return false
 	match label:
 		NEXT, LAST:
-			if outcome == &"died":
+			if outcome == &"died" and not death_expected():
 				return false
 			next_requested.emit()
 		RETRY:
-			if outcome != &"died":
+			if outcome != &"died" or death_expected():
 				return false
 			retry_requested.emit()
 		MOVE_ON:
-			if outcome != &"died":
+			if outcome != &"died" or death_expected():
 				return false
 			move_on_requested.emit()
 		_:

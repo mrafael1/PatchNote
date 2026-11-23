@@ -214,27 +214,54 @@ func test_the_first_session_cannot_move_and_has_nothing() -> void:
 	assert_string_contains(Main.boot_line(), "session s1_00_nothing")
 
 
-func test_movement_comes_alone() -> void:
+func test_movement_comes_alone_for_five_seconds() -> void:
 	var game := await _game(&"s1_01_move")
 	assert_false(game.player.movement_locked)
 	assert_true(game.player.shooting_locked)
 	assert_false(game.spawner.enabled, "no enemies basic: nothing spawns")
-	game.run_loop.goal_clock = 12.0
+	assert_eq(game.run_loop.goal, SessionDef.STOP)
+	assert_eq(game.hud.goal_shown(), "", "no goal text (owner, 2026-11-23)")
+	assert_eq(game.run_loop.goal_value + Tuning.smoke_stop_read, 5.0, "5 s in all")
+	game.run_loop.goal_clock = 3.0
 	await wait_physics_frames(3)
-	assert_eq(RunState.count(&"enemy"), 0)
-	assert_eq(game.session_runner.fired_count(), 1, "the AI's '...' at 12 s")
-	assert_eq(game.hud.goal_shown(), "Survive 0:08")
+	assert_eq(game.session_runner.fired_count(), 1, "the AI's 'ok!' at 3 s")
+	game.run_loop.goal_clock = 5.0
+	await wait_physics_frames(3)
+	assert_eq(game.run_loop.outcome, RunLoop.STOPPED)
 
 
-func test_enemies_come_with_no_gun_and_a_low_cap() -> void:
+func test_enemies_overrun_you_and_dying_is_the_way_on() -> void:
 	var game := await _game(&"s1_02_enemies")
 	assert_true(game.spawner.enabled)
 	assert_true(game.player.shooting_locked, "dodge only: the gun ships after this session")
+	assert_eq(game.run_loop.goal, SessionDef.OVERRUN)
+	assert_eq(game.hud.goal_shown(), "", "no goal text: more just keep coming")
 	assert_eq(game.spawner.current_cap(), int(RunState.rules.max_enemies * 0.12))
 	game.run_loop.goal_clock = 1.0
 	await wait_physics_frames(3)
 	assert_gte(RunState.count(&"enemy"), 1, "the AI drops the first chaser by hand")
-	assert_eq(game.session_runner.fired_count(), 1)
+	game.run_loop.goal_clock = 50.0
+	await wait_physics_frames(3)
+	assert_gt(RunState.count(&"enemy"), game.spawner.current_cap(),
+			"the cues pile on past the spawner's cap")
+	game.run_loop.end(&"lose")
+	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
+	assert_eq(game.debrief.outcome, &"died")
+	assert_true(game.debrief.death_expected())
+	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT], "no Retry: going down is the end")
+	assert_false(game.debrief.choose(DebriefScreen.RETRY))
+	var texts := game.debrief.lines.map(func(l: Line) -> String: return l.text)
+	assert_eq(texts[0], "too many. my fault. sorry.")
+	game._end_session(&"next")
+	assert_eq(CampaignDB.current().id, &"s1_03_shooting")
+	assert_eq(SaveGame.version().label(), "v0.1.0", "the session counts as done")
+
+
+func test_an_overrun_survived_to_the_end_is_stopped() -> void:
+	var loop := _loop(SessionDef.OVERRUN, 90.0, 0.0)
+	loop.goal_clock = 90.0
+	loop._update_goal()
+	assert_eq(loop.outcome, RunLoop.STOPPED)
 
 
 func test_shooting_comes_with_a_kill_count() -> void:

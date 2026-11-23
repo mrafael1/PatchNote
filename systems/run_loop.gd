@@ -141,6 +141,9 @@ func _update_goal() -> void:
 				end(&"win")
 			elif time_limit > 0.0 and goal_clock >= time_limit:
 				end(STOPPED)
+		SessionDef.OVERRUN:
+			if goal_clock >= goal_value:
+				end(STOPPED)
 		SessionDef.STOP:
 			if not stop_said and goal_clock >= goal_value:
 				stop_said = true
@@ -156,7 +159,8 @@ func goal_pct() -> float:
 	return clampf(100.0 * goal_clock / goal_value, 0.0, 100.0)
 
 
-## "Survive 0:45" (time left), "Kills 12/40", or "" (no goal, a stop goal, or over).
+## "Survive 0:45" (time left), "Kills 12/40", or "" (no goal, a stop or overrun goal,
+## or over).
 func goal_text() -> String:
 	if phase != PLAY:
 		return ""
