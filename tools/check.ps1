@@ -113,6 +113,8 @@ if ($BotRuns) {
     if ($camp.Text -notmatch '"index":5') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
     # PLAN v8 M39: from S3 on the AI reacts live.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*reactions=[1-9]') { $failures += 'bot_campaign: no live reactions in S4' }
+    # PLAN v8 M40: S4 bends its walls at 12 s; the rule book lands it.
+    if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*edits=1') { $failures += 'bot_campaign: S4 rule edit did not land' }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
     if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+') { $failures += 'bot_campaign: S3 did not ask fork_mascot' }
     if ($camp.Text -notmatch '"mascot":"(cursor|window|blob)"') { $failures += 'bot_campaign: the save has no mascot' }
@@ -120,6 +122,12 @@ if ($BotRuns) {
     Test-Errors 'bot_campaign_mortal' $campMortal
     Select-String -Path $campMortal.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($campMortal.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign_mortal: summary missing or failures' }
+    # PLAN v8 M40: each rule edit forced into S4 lands through the rule book.
+    $edits = Invoke-Godot 'bot_edits' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_04_level --lift=30 --edits=edit_bouncy_walls,edit_big_enemies,edit_tiny_enemies,edit_inverted,edit_slowmo,edit_gift_explode 3i'
+    Test-Errors 'bot_edits' $edits
+    Select-String -Path $edits.Log -Pattern '^\[botrun\] edits:' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if (([regex]::Matches($edits.Text, '\[botrun\] summary: s1_04_level x1, .* 0 failures')).Count -ne 6) { $failures += 'bot_edits: a forced edit run failed' }
+    if (([regex]::Matches($edits.Text, 'edit=edit_\w+ landed=edit_\w+@13\.5')).Count -ne 6) { $failures += 'bot_edits: a forced edit did not land at 13.5 s' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }

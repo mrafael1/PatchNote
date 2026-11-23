@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_tiny_enemies/edit_tiny_enemies.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_tiny_enemies"
+title = "Tiny enemies"
+description = "Enemies x0.5 size, x1.4 speed, 1 HP."
+conflicts = Array[StringName]([&"edit_big_enemies"])
+target = &"enemies"
+warn_line = "thinking: What if they were tiny?"
+done_line = "happy: Okay. Normal size again."
+warn_seconds = 1.5
+duration = 20.0
+point_at = &"nearest_enemy"
+photosensitive = false

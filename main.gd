@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M39.2"
+const BUILD := "M40"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -23,6 +23,8 @@ var dev_flow: DevSessionFlow   ## report -> dev session -> patch notes (PLAN v5 
 var session_runner: SessionRunner   ## a campaign session's script (PLAN v8); null in the run loop
 var mascot: Mascot                  ## the AI in the corner (PLAN v8 1.3); null in the run loop
 var reactions: Reactions            ## the AI's live reactions (PLAN v8 1.7); null in the run loop
+var rule_book: RuleBook   ## the AI's rule edits (PLAN v8 1.4); null in the run loop
+var debug: DebugOverlay        ## F1-F9 tools (tests reach F2 through it)
 var debrief: DebriefScreen          ## after a campaign session (PLAN v8 1.2)
 var sound: Sound
 
@@ -125,6 +127,16 @@ func _ready() -> void:
 			reactions.note_spoken(line, SessionRunner.PRIORITY))
 		session_runner.line_said.connect(func(line: Line) -> void: mascot.say(line, SessionRunner.PRIORITY))
 		reactions.line_said.connect(func(line: Line, priority: int) -> void: mascot.say(line, priority))
+		rule_book = RuleBook.new()
+		rule_book.name = "RuleBook"
+		rule_book.game = self
+		rule_book.mascot = mascot
+		rule_book.reactions = reactions
+		rule_book.session_runner = session_runner
+		rule_book.sound = sound
+		rule_book.muted = session_runner.muted
+		add_child(rule_book)
+		session_runner.rule_book = rule_book
 		debrief = DebriefScreen.new()
 		debrief.name = "Debrief"
 		add_child(debrief)
@@ -149,7 +161,7 @@ func _ready() -> void:
 	hud.turn_clock = turn_clock
 	add_child(hud)
 
-	var debug := DebugOverlay.new()
+	debug = DebugOverlay.new()
 	debug.game = self
 	add_child(debug)
 
@@ -312,7 +324,7 @@ func _end_session(choice: StringName) -> void:
 		return
 	if is_live_game():
 		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
-				session_runner.hits, choice, BUILD, debrief.picked, reactions.fired_ids()))
+				session_runner.hits, choice, BUILD, debrief.picked, reactions.fired_ids(), rule_book.landed))
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:

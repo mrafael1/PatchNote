@@ -295,6 +295,49 @@ Owner, 2026-11-23: "game strength is to play with rules so current top right UI 
 - **Numbers (12 mortal bot sessions each, seeds 1-12):** S2 still always ends in death, at 17-28 s (median 23.7 s; it was 18-23 s with health from the start); S3 is won in 30-34 s (the gun broken for its first 9.5 s, and no spawner until then; it was 22-25 s).
 - **Left for later (Stage 2 candidates):** death as its own gag ("HP 0 and nothing happens"), no i-frames or knockback, enemies that never die, a one-way gun, S1 gags (S1 stays 5 s), Kills back as a score, the Tab log back as the AI's notebook.
 
+### 6.5 As built (M40): the rule book
+- **`RuleEdit`** (`core/rule_edit.gd`) extends `Mutation` as planned and is always AI-tier. **`RuleDB`** (`core/rule_db.gd`) loads `rules/<id>/<id>.tres` and checks each edit: the id starts with `edit_` and is not a patch id, target and point_at are known, warn and duration are ≥ 0, no `requires`, conflicts are known edits, and the lines parse. `CampaignDB.problems()` includes these checks.
+- **`RuleBook`** (`systems/rule_book.gd`, a campaign shell node) counts **its own physics ticks**: a warning or duration is the seconds the player lives through (slow motion does not stretch them), and the same seed lands the same edits on the same frames (tested). It ticks before the session runner, so an edit asked for mid-frame still gets its whole warning (90 frames at 1.5 s, tested).
+  - `request(id, by, seconds = -1, warn = true)` refuses when the game is over, the id is unknown, the edit is pending or live, or it conflicts with one that is.
+  - The warning: the warn line at **priority 3** (straight to the mascot, noted by Reactions), the mascot points (`Mascot.point_at_screen`), the **`EditMarker`** (the target's icon on a pulsing ring at the screen edge, towards the point, never over the HUD or the mascot; a slow pulse with reduce_flashing), and the `edit_warn` sound (appended last, so the other sounds keep their bytes).
+  - It lands with `add_ai(e, &"edit")`. It expires with `remove_ai(…, &"expired")`, and the done line queues behind the script.
+  - `remove()` (F2, M41) says no line. `clear()` runs on `run_ended`: everything back (`expire_ai(&"edit", &"cleared")`), pending edits never land, no lines. A gravity change starts `Tuning.edit_gravity_grace` (0.5 s).
+  - `--mute-ai` mutes the lines; the marker and the edits stay.
+- **New `WorldRules` fields**, each an exact no-op at its default (the v6 run hashes match M39's, both stage sets):
+  - `input_rotation_deg`: the movement turns, aim does not;
+  - `player_speed_mult`, `enemy_speed_mult`;
+  - `enemy_scale_mult`: live collision and visual scale through `EnemyCommon.follow_scale`; `body_half()` replaces `half_width` in reach and steering;
+  - `enemy_hp_add`, `enemy_hp_one`;
+  - `wall_bounce`: `Mover._slide` sends a body back off a wall, only the speed *into* the wall comes back (×0.6) plus a 240 px/s kick, along-wall speed (a jump, a fall) is kept, never off a floor or ceiling of a falling body, one bounce per 0.3 s.
+- **The 9 edits** follow the 1.4 table. The gift is its own listener copy of explode_on_hit's take (no patch id named). The gravity edits are the one rule allowed to assign `gravity_dir`, and they also give one jump. Lines not in 3.2 are mine: tiny "What if they were tiny?", done lines "Back to normal size." · "Okay. Normal size again." · "Fixed. Sorry about that." · "Okay, full speed.".
+- **The `edit` cue** takes an optional duration: "at 12: edit edit_bouncy_walls 10". **S4** has it (lands at 13.5 s, gone at 23.5 s, done line before the end). The runner copies its cues (`drop_cues`, `inject` for the bot and tests). Telemetry's `edits` lists `{id, at, by}`.
+- **F1** lists the live edits with their seconds left. **F2** has a RULE EDITS section on top (request with the warning / cancel / take back), and the console scrolls.
+- **The bot:** `--only=<session> --edits=none,<id>[:<s>],… --lift=<s> --edit-at=<s>` plays each condition and prints a table against none. The campaign line adds `edits=`. The check wants S4's edit to land, plus a forced smoke run of the 6 edits (each lands at 13.5 s).
+- **Review (5 reviewers, 3 skeptics per finding; 15 findings, 11 upheld = 8 distinct, all fixed):**
+  - a cue-asked edit landed one frame early (the tick order);
+  - cancelling one pending edit hid the marker of another still warning;
+  - the bounce scaled along-wall speed (a jump against a wall lost 40%);
+  - floating shooters skipped the wrong walls under a gravity edit;
+  - the marker could sit on the mascot's corner;
+  - a bad `--edits` condition left a live game behind;
+  - two tests were vacuous (aim, speed).
+- **Numbers (16 mortal bot sessions per condition, seeds 1-16, S4 lifted to 180 s, the edit forced at 12 s and landing at 13.5 s):**
+
+  | Edit | Median time to death | Against none | Paired per-seed | Gate |
+  |---|---|---|---|---|
+  | none | 91.3 s | — | — | — |
+  | `edit_bouncy_walls` (after the bounce fix) | 78.6 s | 0.86 | 0.90 | pass |
+  | `edit_big_enemies` | 84.2 s | 0.92 | 0.91 | pass |
+  | `edit_tiny_enemies` | 97.2 s | 1.06 | 1.07 | pass |
+  | `edit_slowmo` | 82.3 s | 0.90 | 0.87 | pass |
+  | `edit_gift_explode` for 20 s | 81.3 s | 0.89 | 0.93 | pass |
+  | `edit_gift_explode` until the end (as designed) | 141.1 s | 1.55 | 1.50 | reported: a gift, 5 of 16 lived to 180 s |
+  | `edit_inverted` | 83.2 s | 0.91 | 0.82 | reported (shortest: 21.2 s) |
+
+  - No seed died before its edit landed.
+  - The whole-session gift is the one edit that changes the odds a lot. It is meant to: "Try this.". On the real 30 s S4 it would last 18 s at most.
+  - Reversibility: each of the 9 edits added and removed leaves the rules, every enemy's scale, half, speed and HP, the time scale and the player's speed exactly as before, including an enemy born under the edit (tested).
+
 ## 7. What v8 must answer (G13)
 1. Is Stage 1 fun and quick (~20 min), with something new every session?
 2. Is the mascot charming, not annoying? Too chatty, too quiet? Which body did you pick, and why?

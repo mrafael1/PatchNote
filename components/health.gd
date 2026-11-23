@@ -20,8 +20,13 @@ var _invuln_until := -1.0
 
 
 func max_hp() -> float:
-	var mult := RunState.rules.enemy_hp_mult if scales_with_enemy_rule else 1.0
-	return base_max_hp * mult
+	if not scales_with_enemy_rule:
+		return base_max_hp
+	var rules := RunState.rules
+	var m := base_max_hp * rules.enemy_hp_mult + rules.enemy_hp_add
+	if rules.enemy_hp_one:
+		m = minf(m, 1.0)   # edit_tiny_enemies: one hit each
+	return m
 
 
 func hp() -> float:

@@ -117,7 +117,7 @@ func test_a_broken_campaign_reports_each_problem() -> void:
 	a.basics = [&"teleport"]
 	a.enemies = [&"chaser"]
 	a.intro = PackedStringArray(["won happy: too early"])
-	a.cues = PackedStringArray(["at 5: edit edit_bouncy_walls", "soon: say hi", "at 3: say died: no"])
+	a.cues = PackedStringArray(["at 5: event wrong_variable", "at 6: edit edit_nope", "soon: say hi", "at 3: say died: no"])
 	a.ships = [&"no_such_change"]
 	a.fork = &"fork_enemy"
 	var b := _session(&"a", &"dance")
@@ -129,7 +129,7 @@ func test_a_broken_campaign_reports_each_problem() -> void:
 	c.sessions = [a, b]
 	var text := "\n".join(CampaignDB.problems(c))
 	for expected in ["unknown basic teleport", "enemies listed without the enemies basic",
-			"intro line cannot depend on the outcome", "edits come with M40", "unknown cue time",
+			"intro line cannot depend on the outcome", "events come with M41", "unknown edit edit_nope", "unknown cue time",
 			"cannot depend on the outcome", "ships unknown change no_such_change", "unknown goal dance",
 			"time_limit is for kills goals only", "no look neon", "bump must be patch or minor",
 			"listed twice", "goes back to stage 1", "fork fork_enemy is asked twice"]:

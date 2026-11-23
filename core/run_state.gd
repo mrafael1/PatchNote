@@ -334,16 +334,17 @@ func remove_ai(m: Mutation, reason: StringName) -> Array[Mutation]:
 	return _drop_ai(_ai_closure([m] as Array[Mutation]), reason)
 
 
-## Removes every AI patch of owner_id (with their AI dependents), reason expired, as
-## one build. Returns what was removed.
-func expire_ai(owner_id: StringName) -> Array[Mutation]:
+## Removes every AI patch of owner_id (with their AI dependents) as one build. reason:
+## &"expired" by default; RuleBook clears the edits with &"cleared". Returns what was
+## removed.
+func expire_ai(owner_id: StringName, reason := &"expired") -> Array[Mutation]:
 	var hit: Array[Mutation] = []
 	for x in ai:
 		if ai_owner.get(x.id) == owner_id:
 			hit.append(x)
 	if hit.is_empty():
 		return hit
-	return _drop_ai(_ai_closure(hit), &"expired")
+	return _drop_ai(_ai_closure(hit), reason)
 
 
 ## The patches of `roots` that are in the layer, plus every AI patch that requires one

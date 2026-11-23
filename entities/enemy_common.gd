@@ -32,6 +32,22 @@ static func apply_size(me: Node, mult: float) -> void:
 		visual.size *= mult
 
 
+## The rule edits' live size (PLAN v8 1.4): scales the collision shape and the visual
+## by rules.enemy_scale_mult, exactly back to 1. me keeps the scale it applied in
+## `_rule_scale`. At 1.0 it never writes (the legacy loop is untouched).
+static func follow_scale(me: Node) -> void:
+	var m := RunState.rules.enemy_scale_mult
+	if is_equal_approx(m, float(me.get(&"_rule_scale"))):
+		return
+	me.set(&"_rule_scale", m)
+	var cs := me.get_node_or_null("CollisionShape2D") as Node2D
+	if cs:
+		cs.scale = Vector2.ONE * m
+	var visual := me.get_node_or_null("Visual") as Node2D
+	if visual:
+		visual.scale = Vector2.ONE * m
+
+
 ## The contact telegraph (PLAN v5 2.2): 0 while the walker is more than
 ## Tuning.contact_warn_range tiles beyond its contact reach, then from a faint rim
 ## (0.05) up to 1 at contact. gap = centre distance minus the contact reach.

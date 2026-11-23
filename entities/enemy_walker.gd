@@ -27,6 +27,7 @@ extends CharacterBody2D
 
 @export var archetype: StringName = &"chaser"
 @export var half_width := 15.0
+var _rule_scale := 1.0   ## the live size a rule edit gave it (EnemyCommon.follow_scale)
 
 var kind: StringName = &"enemy"
 var generation := 0
@@ -79,11 +80,12 @@ func _tuned(suffix: String) -> float:
 
 
 func _physics_process(delta: float) -> void:
+	EnemyCommon.follow_scale(self)
 	if TurnClock.on_grid(self):
 		mover.wish = Vector2.ZERO   # B2: the turn logic moves it and resolves its attacks
 		visual.rim = 0.0
 		return
-	mover.speed = _tuned("speed")
+	mover.speed = _tuned("speed") * RunState.rules.enemy_speed_mult
 	_hop_cooldown = maxf(0.0, _hop_cooldown - delta)
 	var player := EnemyCommon.find_player(self)
 	if player == null:
@@ -125,7 +127,12 @@ func _physics_process(delta: float) -> void:
 
 ## Centre distance at which its contact hurts the player.
 func contact_reach() -> float:
-	return Tuning.contact_range + half_width - 15.0
+	return Tuning.contact_range + body_half() - 15.0
+
+
+## Half its width as it is now: half_width under a rule edit's live size (PLAN v8 1.4).
+func body_half() -> float:
+	return half_width * RunState.rules.enemy_scale_mult
 
 
 ## No gravity: head for the player, and if a wall is in the way try directions
@@ -144,7 +151,7 @@ func _steer_around_walls(dir: Vector2, distance: float) -> Vector2:
 
 
 func _blocked(dir: Vector2, length: float) -> bool:
-	var across := dir.orthogonal() * half_width
+	var across := dir.orthogonal() * body_half()
 	return EnemyCommon.ray_hits_world(self, global_position + across, global_position + across + dir * length) \
 		or EnemyCommon.ray_hits_world(self, global_position - across, global_position - across + dir * length)
 
@@ -193,14 +200,14 @@ func _track_progress(distance: float, delta: float) -> void:
 
 
 func _overhead_clear(g: Vector2) -> bool:
-	var across := Vector2(-g.y, g.x) * half_width
+	var across := Vector2(-g.y, g.x) * body_half()
 	var up := -g * Tuning.chaser_headroom
 	return not EnemyCommon.ray_hits_world(self, global_position + across, global_position + across + up) \
 		and not EnemyCommon.ray_hits_world(self, global_position - across, global_position - across + up)
 
 
 func _wall_ahead(side: Vector2) -> bool:
-	return EnemyCommon.ray_hits_world(self, global_position, global_position + side * (half_width + 12.0))
+	return EnemyCommon.ray_hits_world(self, global_position, global_position + side * (body_half() + 12.0))
 
 
 func is_bomber() -> bool:
@@ -277,8 +284,12 @@ func _charge_hits() -> void:
 			var other := n as Node2D
 			if other == self or other == null or _lance_hit.has(other):
 				continue
-			var other_half: float = other.get(&"half_width") if other.get(&"half_width") != null else 15.0
-			if global_position.distance_to(other.global_position) > half_width + other_half + 6.0:
+			var other_half := 15.0
+			if other.has_method(&"body_half"):
+				other_half = other.call(&"body_half")
+			elif other.get(&"half_width") != null:
+				other_half = other.get(&"half_width")
+			if global_position.distance_to(other.global_position) > body_half() + other_half + 6.0:
 				continue
 			var other_mover := Component.find(other, Mover) as Mover
 			if other_mover and other_mover.is_airborne():

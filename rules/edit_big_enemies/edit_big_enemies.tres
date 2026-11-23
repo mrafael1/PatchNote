@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_big_enemies/edit_big_enemies.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_big_enemies"
+title = "Big enemies"
+description = "Enemies x1.8 size, x0.7 speed, +1 HP."
+conflicts = Array[StringName]([&"edit_tiny_enemies"])
+target = &"enemies"
+warn_line = "proud: Bigger targets. You're welcome."
+done_line = "happy: Back to normal size."
+warn_seconds = 1.5
+duration = 20.0
+point_at = &"nearest_enemy"
+photosensitive = false

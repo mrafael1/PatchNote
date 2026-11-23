@@ -157,8 +157,10 @@ func problems() -> Array[String]:
 			out.append("%s: cue '%s': unknown basic %s" % [where, c.source, c.target])
 		elif c.action == &"add" and c.target in basics:
 			out.append("%s: cue '%s': the session already has %s" % [where, c.source, c.target])
-		elif c.action in [&"edit", &"event"]:
-			out.append("%s: cue '%s': %ss come with M40/M41" % [where, c.source, c.action])
+		elif c.action == &"edit" and RuleDB.get_edit(c.target) == null:
+			out.append("%s: cue '%s': unknown edit %s" % [where, c.source, c.target])
+		elif c.action == &"event":
+			out.append("%s: cue '%s': events come with M41" % [where, c.source])
 		elif c.when == &"pct" and goal != SURVIVE:
 			out.append("%s: cue '%s': pct needs a survive goal" % [where, c.source])
 	for l in intro_lines():

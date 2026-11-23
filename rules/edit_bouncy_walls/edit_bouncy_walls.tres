@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_bouncy_walls/edit_bouncy_walls.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_bouncy_walls"
+title = "Bouncy walls"
+description = "Bodies bounce off walls; shots bounce twice more."
+conflicts = Array[StringName]([])
+target = &"walls"
+warn_line = "thinking: Walls are boring. Let me try something."
+done_line = "happy: Hm. Keep or not? Kidding, it's temporary."
+warn_seconds = 1.5
+duration = 20.0
+point_at = &"walls"
+photosensitive = false

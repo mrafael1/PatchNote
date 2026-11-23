@@ -26,6 +26,8 @@ var windups := 0           ## telegraphs started (tests)
 @onready var visual: RectVisual = $Visual
 
 
+var _rule_scale := 1.0   ## the live size a rule edit gave it (EnemyCommon.follow_scale)
+
 func _ready() -> void:
 	health.base_max_hp = Tuning.shooter_hp * hp_mult
 	EnemyCommon.apply_size(self, size_mult)
@@ -39,11 +41,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	EnemyCommon.follow_scale(self)
 	if TurnClock.on_grid(self):
 		mover.wish = Vector2.ZERO   # B2: the turn logic moves it and fires its shots
 		_end_windup()
 		return
-	mover.speed = Tuning.shooter_speed
+	mover.speed = Tuning.shooter_speed * RunState.rules.enemy_speed_mult
 	var player := EnemyCommon.find_player(self)
 	if player == null:
 		mover.wish = Vector2.ZERO

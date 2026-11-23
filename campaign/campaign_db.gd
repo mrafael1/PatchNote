@@ -101,6 +101,8 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 			if cue.action == &"add" and cue.problem == "" and not cue.target in next.basics:
 				out.append("campaign: %s adds %s but %s does not have it" % [s.id, cue.target, next.id])
 	if c == campaign:
+		for e in RuleDB.all():
+			out.append_array(RuleDB.problems(e))
 		for r in reactions:
 			out.append_array(r.problems())
 	return out
@@ -195,7 +197,8 @@ func retry(s: SessionDef) -> void:
 ## retry or move_on. Call before complete()/retry(), so attempt and version are this
 ## attempt's. reactions, edits, events and fork fill in from M38-M41.
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
-		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = []) -> Dictionary:
+		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = [],
+		edits: Array = []) -> Dictionary:
 	var fork_record: Variant = null
 	var mascot := SaveGame.mascot()
 	if pick != null:
@@ -229,7 +232,7 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"kills": RunState.kills,
 		"hits_taken": hits,
 		"reactions": reactions,
-		"edits": [],
+		"edits": edits,
 		"events": [],
 		"fork": fork_record,
 		"mascot": String(mascot),

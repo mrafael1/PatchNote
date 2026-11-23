@@ -112,6 +112,9 @@ func _build_all() -> void:
 	streams[&"release_candidate"] = _wav(_seq([620, 820, 620, 820, 620, 820], 0.11, Wave.SQUARE, 0.16))
 	streams[&"win"] = _wav(_seq([523, 659, 784, 1046, 1046], 0.12, Wave.SQUARE, 0.2))
 	streams[&"lose"] = _wav(_seq([392, 330, 262, 196], 0.18, Wave.SAW, 0.22))
+	# Appended last: the shared generator is drawn in order, so earlier sounds keep their
+	# bytes. A rule edit's warning (PLAN v8 1.4): short and rising.
+	streams[&"edit_warn"] = _wav(_seq([440, 587, 784], 0.09, Wave.SQUARE, 0.16))
 
 
 ## One voice: frequency sweeps exponentially from f0 to f1, the envelope rises over

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_gift_explode/edit_gift_explode.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_gift_explode"
+title = "Explosive shots"
+description = "Every shot of yours explodes where it lands."
+conflicts = Array[StringName]([])
+target = &"player"
+warn_line = "happy: Try this."
+done_line = ""
+warn_seconds = 1.5
+duration = 0.0
+point_at = &"player"
+photosensitive = false

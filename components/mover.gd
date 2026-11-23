@@ -7,6 +7,8 @@ extends Component
 
 signal jumped
 signal landed(impact_speed: float)
+## The wall_bounce rule edit sent the body back off a wall (normal: the wall's).
+signal bounced(normal: Vector2)
 
 var speed := 300.0
 var accel := 3200.0
@@ -28,6 +30,7 @@ var _was_on_floor := false
 var _gravity_key := Vector3(-1, 0, 0)   ## (enabled, dir.x, dir.y) seen last tick
 var _dash_left := 0.0
 var _dash_velocity := Vector2.ZERO
+var _bounce_ready_at := -1.0   ## wall_bounce: game time of the next allowed bounce
 var _hop_t := -1.0             ## seconds into the current hop, -1 = not hopping
 
 
@@ -131,7 +134,7 @@ func _tick_dash(body: CharacterBody2D, falls: bool, g_dir: Vector2, delta: float
 		body.motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 		_tick_hop(delta)
 	body.velocity = _dash_velocity
-	body.move_and_slide()
+	_slide(body, _dash_velocity, true)
 	_dash_left -= delta
 	if _dash_left <= 0.0:
 		# Leave the dash at normal speed, with no speed along the gravity axis.
@@ -146,8 +149,33 @@ func _tick_flat(body: CharacterBody2D, delta: float) -> void:
 	var target := wish.limit_length(1.0) * speed
 	var rate := accel if wish != Vector2.ZERO else friction
 	body.velocity = body.velocity.move_toward(target, rate * delta)
-	body.move_and_slide()
+	_slide(body, body.velocity)
 	_tick_hop(delta)
+
+
+## move_and_slide, then the wall_bounce rule edit (PLAN v8 1.4): off a wall (not a floor
+## or ceiling under gravity) the body bounces back with a short kick. pre: the velocity
+## just before the slide. At most one bounce per Tuning.wall_bounce_cooldown.
+func _slide(body: CharacterBody2D, pre: Vector2, dashing := false) -> void:
+	body.move_and_slide()
+	var rules := RunState.rules
+	if not rules.wall_bounce or rules.turn_based or RunState.game_time < _bounce_ready_at:
+		return
+	for i in body.get_slide_collision_count():
+		var n := body.get_slide_collision(i).get_normal()
+		if rules.gravity_enabled and not ignores_gravity() 				and absf(n.dot(rules.gravity_dir.normalized())) > 0.7:
+			continue   # standing on it, or under it (a floating body has no floor)
+		var into := pre.dot(n)
+		if into >= 0.0:
+			continue
+		# Only the speed into the wall comes back (scaled); along the wall (a jump, a fall,
+		# a slide) it is kept.
+		body.velocity = pre - n * into * (1.0 + Tuning.wall_bounce_restitution) + n * Tuning.wall_bounce_kick
+		if dashing:
+			_dash_velocity = _dash_velocity.bounce(n)
+		_bounce_ready_at = RunState.game_time + Tuning.wall_bounce_cooldown
+		bounced.emit(n)
+		return
 
 
 ## Without gravity a jump is a hop on the height axis: a fixed arc, no air jumps.
@@ -217,7 +245,7 @@ func _tick_gravity(body: CharacterBody2D, rules: WorldRules, g_dir: Vector2, del
 
 	var impact := v_fall
 	body.velocity = v_lateral + g_dir * v_fall
-	body.move_and_slide()
+	_slide(body, body.velocity)
 
 	var now_on_floor := body.is_on_floor()
 	if now_on_floor and not _was_on_floor:

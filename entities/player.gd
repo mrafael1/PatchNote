@@ -65,7 +65,7 @@ func is_bot() -> bool:
 
 
 func _physics_process(_delta: float) -> void:
-	mover.speed = Tuning.player_speed
+	mover.speed = Tuning.player_speed * RunState.rules.player_speed_mult
 	mover.accel = Tuning.player_accel
 	mover.friction = Tuning.player_friction
 	shooter.cooldown = Tuning.shoot_cooldown
@@ -83,9 +83,13 @@ func _physics_process(_delta: float) -> void:
 		mover.wish = Vector2.ZERO
 		mover.jump_held = false
 	else:
-		mover.wish = input.move
-		if input.move.length() > 0.2:
-			_facing = input.move.normalized()
+		var move := input.move
+		var turn := fposmod(RunState.rules.input_rotation_deg, 360.0)
+		if turn != 0.0:
+			move = move.rotated(deg_to_rad(turn))   # edit_inverted: the controls turn, aim does not
+		mover.wish = move
+		if move.length() > 0.2:
+			_facing = move.normalized()
 		mover.jump_held = input.jump_held
 		if input.jump_pressed:
 			mover.request_jump()

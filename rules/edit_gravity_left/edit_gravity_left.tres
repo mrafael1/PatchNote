@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_gravity_left/edit_gravity_left.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_gravity_left"
+title = "Gravity left"
+description = "Gravity pulls left; one jump."
+conflicts = Array[StringName]([&"edit_gravity_up", &"edit_gravity_down"])
+target = &"world"
+warn_line = ""
+done_line = ""
+warn_seconds = 1.5
+duration = 0.0
+point_at = &"centre"
+photosensitive = true

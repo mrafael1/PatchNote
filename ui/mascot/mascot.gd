@@ -119,6 +119,12 @@ func say(line: Line, priority := 2) -> void:
 		_next()
 
 
+## Points the body at a spot on the screen for `seconds` (a rule edit's warning).
+func point_at_screen(screen_pos: Vector2, seconds := 1.5) -> void:
+	if body != null and _corner != null:
+		body.point_at(screen_pos - _corner.global_position, seconds)
+
+
 func is_speaking() -> bool:
 	return _current != null
 

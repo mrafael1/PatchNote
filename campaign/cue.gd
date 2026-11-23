@@ -12,7 +12,8 @@ extends RefCounted
 ##   "touch 5: say surprised: ...?"   the same, only before 5 s; dropped after (the AI has
 ##                                    moved on by then)
 ##   "at 11: add health"              the AI adds a basic, live (M39.2)
-##   "at 50: edit edit_bouncy_walls"  a rule edit (M40)
+##   "at 12: edit edit_bouncy_walls"  a rule edit (M40), for the edit's own duration
+##   "at 12: edit edit_bouncy_walls 10"  the same, live for 10 s
 ##   "at 40: event wrong_variable"    a scripted event (M41)
 ##
 ## Every cue fires once. The text after "say" is a Line (Line.parse).
@@ -30,6 +31,7 @@ var line: Line                 ## say
 var archetype: StringName      ## spawn
 var count := 1                 ## spawn
 var target: StringName         ## add: the basic; edit / event: the id
+var seconds := -1.0            ## edit: how long it stays (-1: the edit's own duration)
 var problem := ""
 var source := ""
 
@@ -80,7 +82,15 @@ static func parse(p_source: String) -> Cue:
 						c.problem = "cue '%s': bad count" % p_source
 					else:
 						c.count = words[2].to_int()
-		&"add", &"edit", &"event":
+		&"edit":
+			if words.size() == 3 and words[2].is_valid_float() and words[2].to_float() > 0.0:
+				c.target = StringName(words[1])
+				c.seconds = words[2].to_float()
+			elif words.size() != 2:
+				c.problem = "cue '%s': edit takes an id and optional seconds" % p_source
+			else:
+				c.target = StringName(words[1])
+		&"add", &"event":
 			if words.size() != 2:
 				c.problem = "cue '%s': %s needs one id" % [p_source, c.action]
 			else:

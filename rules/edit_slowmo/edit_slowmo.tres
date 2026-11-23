@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_slowmo/edit_slowmo.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_slowmo"
+title = "Slow motion"
+description = "Time x0.6."
+conflicts = Array[StringName]([])
+target = &"world"
+warn_line = "Breathe. I've got you."
+done_line = "happy: Okay, full speed."
+warn_seconds = 1.5
+duration = 8.0
+point_at = &"centre"
+photosensitive = false

@@ -42,6 +42,14 @@ extends SceneTree
 ##                                the seed), and sum up the AI's reactions (PLAN v8 M39):
 ##                                chatter per 90 s, the shortest chatter gap, priority 3
 ##                                lines heard
+##   --edits=none,<id>,...        with --only: one pass per condition (PLAN v8 M40). The
+##                                session's own edit cues are dropped; <id> is forced in
+##                                as a cue at --edit-at (default 12 s), warning included;
+##                                <id>:<s> keeps it <s> seconds instead of its own duration.
+##                                The summary sets each condition's median time against
+##                                none's (inside 0.8..1.2: PASS; edit_inverted reported)
+##   --lift=<s>                   with --only: the session's goal value becomes <s> (a
+##                                30 s survive lasts <s>), so deaths can be compared
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
 ## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
 ## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
@@ -57,6 +65,10 @@ extends SceneTree
 
 const MAX_FRAMES := 60 * 60 * 45      # 45 real minutes at 60 physics frames a second (PLAN v4 9.4)
 const DEFAULT_LOG := "user://playtest/bot_runs.jsonl"
+
+var edit_conditions := PackedStringArray()   ## --edits (PLAN v8 M40)
+var edit_at := 12.0                          ## --edit-at
+var lift := 0.0                              ## --lift
 
 var LOG := DEFAULT_LOG
 ## core/save_game.gd, loaded in _run: naming SaveGame (or loading it this early) would
@@ -122,6 +134,12 @@ func _run() -> void:
 			campaign = true
 		elif arg.begins_with("--only="):
 			only = StringName(arg.trim_prefix("--only="))
+		elif arg.begins_with("--edits="):
+			edit_conditions = arg.trim_prefix("--edits=").split(",", false)
+		elif arg.begins_with("--edit-at="):
+			edit_at = float(arg.trim_prefix("--edit-at="))
+		elif arg.begins_with("--lift="):
+			lift = float(arg.trim_prefix("--lift="))
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -219,6 +237,67 @@ func _run() -> void:
 ## One session once per spec (PLAN v8 M39): the AI's reactions, summed up. Returns the
 ## number of failures.
 func _run_only(specs: PackedStringArray) -> int:
+	if edit_conditions.is_empty():
+		return await _run_only_condition(specs, "")
+	var failures := 0
+	var times := {}   ## condition -> {seed: [duration, died]}
+	for cond in edit_conditions:
+		times[cond] = {}
+		failures += await _run_only_condition(specs, cond, times[cond])
+	_edit_summary(times)
+	return failures
+
+
+## The M40 table: each condition's median time-to-death (a run that lives to the end
+## counts at its length) against none's, as a ratio and a median of per-seed ratios.
+func _edit_summary(times: Dictionary) -> void:
+	var base: Dictionary = times.get("none", {})
+	for cond: String in times:
+		var runs: Dictionary = times[cond]
+		var durations: Array = runs.values().map(func(r: Array) -> float: return float(r[0]))
+		var deaths := runs.values().filter(func(r: Array) -> bool: return bool(r[1])).size()
+		var med := _median(durations)
+		var ratio_text := "-"
+		var paired_text := "-"
+		var verdict := ""
+		if not base.is_empty() and cond != "none":
+			var base_med := _median(base.values().map(func(r: Array) -> float: return float(r[0])))
+			var ratio := med / maxf(base_med, 0.001)
+			var paired: Array = []
+			for s: int in runs:
+				if base.has(s):
+					paired.append(float(runs[s][0]) / maxf(float(base[s][0]), 0.001))
+			ratio_text = "%.2f" % ratio
+			paired_text = "%.2f" % _median(paired)
+			if cond.begins_with("edit_inverted"):
+				verdict = " (reported)"
+			else:
+				verdict = " PASS" if ratio >= 0.8 and ratio <= 1.2 else " OUTSIDE"
+		print("[botrun] edits: %s median t=%.1f deaths=%d/%d ratio=%s paired=%s%s" % [
+			cond, med, deaths, runs.size(), ratio_text, paired_text, verdict])
+
+
+static func _median(values: Array) -> float:
+	if values.is_empty():
+		return 0.0
+	var v := values.duplicate()
+	v.sort()
+	var mid := v.size() / 2
+	return float(v[mid]) if v.size() % 2 == 1 else (float(v[mid - 1]) + float(v[mid])) / 2.0
+
+
+func _edit_cue(cond: String) -> String:
+	return "at %s: edit %s" % [edit_at, cond.replace(":", " ")]
+
+
+func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) -> int:
+	if cond != "" and cond != "none":
+		var problem: String = load("res://campaign/cue.gd").call(&"parse", _edit_cue(cond)).get(&"problem")
+		if problem == "" and load("res://core/rule_db.gd").call(&"get_edit", StringName(cond.get_slice(":", 0))) == null:
+			problem = "unknown edit %s" % cond
+		if problem != "":
+			print("[botrun] FAILED: %s" % problem)
+			return 1
 	var db: Node = root.get_node("CampaignDB")
 	var run_state: Node = root.get_node("RunState")
 	var main_script: GDScript = load("res://main.gd")
@@ -243,6 +322,12 @@ func _run_only(specs: PackedStringArray) -> int:
 		await physics_frame
 		run_state.invincible = invincible
 		game.player.set_bot(true)
+		if lift > 0.0:
+			game.run_loop.goal_value = lift
+		if cond != "":
+			game.session_runner.drop_cues(&"edit")
+			if cond != "none":
+				game.session_runner.inject(_edit_cue(cond))
 		var opened := false
 		for frame in MAX_FRAMES:
 			if game.debrief.is_open():
@@ -261,13 +346,24 @@ func _run_only(specs: PackedStringArray) -> int:
 		min_gap = minf(min_gap, gap)
 		var duration := maxf(1.0, float(rec.get("duration", 1.0)))
 		per_90.append(chatter.size() * 90.0 / duration)
+		if cond != "":
+			times[run_seed] = [duration, String(rec.get("outcome", "")) in ["lose", "died"]]
 		var p3 := fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 3)
 		var heard := p3.filter(func(f: Dictionary) -> bool: return String(f.text) in game.mascot.shown)
 		p3_said += p3.size()
 		p3_heard += heard.size()
-		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s" % [
+		var landed: Array = game.rule_book.landed
+		var edit_text := ""
+		if cond != "":
+			edit_text = " edit=%s landed=%s real=%.1f" % [cond,
+					",".join(landed.map(func(l: Dictionary) -> String: return "%s@%.1f" % [l.id, l.at])),
+					float(rec.get("real_duration", 0.0))]
+			if cond != "none" and landed.is_empty() and duration > edit_at + 2.0:
+				print("[botrun] session=%s seed=%d FAILED: %s never landed" % [only, run_seed, cond])
+				failures += 1
+		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), rec.get("outcome", "?"),
-			duration, fired.size(), chatter.size(),
+			duration, edit_text, fired.size(), chatter.size(),
 			fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 2).size(),
 			heard.size(), p3.size(), "-" if gap == INF else "%.1f" % gap,
 			",".join(fired.map(func(f: Dictionary) -> String: return String(f.id)))])
@@ -360,6 +456,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			rec.real_duration, rec.kills, game.session_runner.hits, game.session_runner.line_count(),
 			game.session_runner.fired_count(), choice.to_snake_case()]
 		line += " reactions=%d" % game.reactions.fired.size()
+		line += " edits=%d" % game.rule_book.landed.size()
 		game.debrief.next_seed = base * 100 + step
 		if not game.debrief.choose(choice):
 			print(line + " FAILED: could not choose")

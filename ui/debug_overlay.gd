@@ -11,6 +11,7 @@ var _info: Label
 var _console: PanelContainer
 var _rework_box: VBoxContainer
 var _buttons := {}
+var _edit_buttons := {}   ## rule edit id -> Button (PLAN v8 1.4; a campaign session only)
 var _frame := 0
 
 
@@ -30,8 +31,24 @@ func _ready() -> void:
 	_console = PanelContainer.new()
 	_console.position = Vector2(300, 40)
 	_console.visible = false
+	var scroll := ScrollContainer.new()   # 16 patches, 9 edits and the rework rows: more than a screen
+	scroll.custom_minimum_size = Vector2(640, 600)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_console.add_child(scroll)
 	var box := VBoxContainer.new()
-	_console.add_child(box)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
+	# Rule edits first (PLAN v8 1.4): through the rule book, warning included.
+	var edits_heading := Label.new()
+	edits_heading.text = "RULE EDITS (campaign session: click to request with its warning / take back)"
+	box.add_child(edits_heading)
+	for e in RuleDB.all():
+		var eb := Button.new()
+		eb.focus_mode = Control.FOCUS_NONE
+		eb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		eb.pressed.connect(toggle_edit.bind(e.id))
+		box.add_child(eb)
+		_edit_buttons[e.id] = eb
 	var title := Label.new()
 	title.text = "Mutation console (click to apply / revert; BIG: swap in; MED, BOSS: add / remove AI)"
 	box.add_child(title)
@@ -63,6 +80,29 @@ func _ready() -> void:
 	EventBus.big_swapped.connect(func(_o: Resource, _n: Resource, _d: Array) -> void: _refresh_console())
 	EventBus.ai_patch_added.connect(func(_m: Resource, _o: StringName) -> void: _refresh_console())
 	EventBus.ai_patch_removed.connect(func(_m: Resource, _r: StringName) -> void: _refresh_console())
+
+
+## F2's rule edit row: live, take it back; pending, cancel it; otherwise request it
+## (with its warning). Only in a campaign session (the rule book).
+func toggle_edit(id: StringName) -> void:
+	var book: RuleBook = game.get(&"rule_book") if game else null
+	if book == null:
+		return
+	if book.is_live(id) or book.is_pending(id):
+		book.remove(id, &"console")
+	else:
+		book.request(id, &"console")
+	_refresh_edits()
+
+
+func _refresh_edits() -> void:
+	var book: RuleBook = game.get(&"rule_book") if game else null
+	for id: StringName in _edit_buttons:
+		var e := RuleDB.get_edit(id)
+		var mark := "[-]"
+		if book != null:
+			mark = "[x]" if book.is_live(id) else "[~]" if book.is_pending(id) else "[ ]"
+		(_edit_buttons[id] as Button).text = "%s %s (%s) — %s" % [mark, id, e.target, e.title]
 
 
 ## Apply the mutation if it is not in the stack, otherwise revert it. Ignores
@@ -137,6 +177,8 @@ func _process(_delta: float) -> void:
 	_frame += 1
 	if _info.visible and _frame % 6 == 0:
 		_info.text = _build_text()
+	if _console.visible and _frame % 6 == 0:
+		_refresh_edits()   # pending -> live -> gone happens on its own
 
 
 func _refresh_rework() -> void:
@@ -185,6 +227,13 @@ func _build_text() -> String:
 	for m in RunState.ai:
 		ai_ids.append("%s (%s)" % [m.id, RunState.ai_owner.get(m.id, &"")])
 	lines.append("ai: " + (", ".join(ai_ids) if not ai_ids.is_empty() else "(empty)"))
+	var book: RuleBook = game.get(&"rule_book") if game else null
+	if book != null:
+		var live: Array[String] = []
+		for id in book.live_ids():
+			var left := book.seconds_left(id)
+			live.append("%s (%s)" % [id, "%.1f s left" % left if left >= 0.0 else "session"])
+		lines.append("rule book: " + (", ".join(live) if not live.is_empty() else "(nothing live)"))
 	var rules := RunState.rules.to_dict()
 	var base := RunState.base_rules.to_dict()
 	for key: String in rules:

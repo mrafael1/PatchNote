@@ -23,6 +23,7 @@ const READ_PER_CHAR := 0.05
 var session: SessionDef
 var genre: Genre
 var hits := 0
+var rule_book: RuleBook   ## set by main.gd: where "edit" cues go
 var touched := false   ## something tried to hurt the player before `health` (cue "touch")
 ## --mute-ai (PLAN v8 4): nothing is said; cues that act still fire. The fun-before-
 ## meta check.
@@ -37,7 +38,7 @@ var _free_at_msec := 0
 
 func _ready() -> void:
 	muted = muted or "--mute-ai" in OS.get_cmdline_user_args()
-	_cues = session.cue_list()
+	_cues = session.cue_list().duplicate()   # the parse is cached and shared: never change it
 	_fired.resize(_cues.size())
 	_fired.fill(false)
 	EventBus.player_hit.connect(_on_player_hit)
@@ -102,8 +103,28 @@ func _fire(cue: Cue, index: int) -> void:
 				push_warning("Session %s: the genre cannot spawn %s" % [session.id, cue.archetype])
 		&"add":
 			RunState.add_basic(cue.target)
+		&"edit":
+			if rule_book == null or not rule_book.request(cue.target, &"cue", cue.seconds):
+				push_warning("Session %s: edit %s refused" % [session.id, cue.target])
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
+
+
+## The bot and tests (PLAN v8 M40): drop every cue of one action (the session's own
+## edits), or add one (a forced edit at 12 s). Only this runner's copy changes.
+func drop_cues(action: StringName) -> void:
+	for i in range(_cues.size() - 1, -1, -1):
+		if _cues[i].action == action:
+			_cues.remove_at(i)
+			_fired.remove_at(i)
+
+
+func inject(text: String) -> Cue:
+	var c := Cue.parse(text)
+	if c.problem == "":
+		_cues.append(c)
+		_fired.append(false)
+	return c
 
 
 ## Lines said or waiting their turn: what the session gave the AI to say, whatever the
