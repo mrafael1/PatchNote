@@ -1,217 +1,207 @@
-# Roadmap v2 — the game grows by versions
+# Roadmap v3 — the campaign: building a game with an AI developer
 
-Where the game is going, in phases. Each phase becomes a builder plan (`PLAN.md`) only when it starts. This file holds the direction, the progression model and the scope of each phase. Numbers are starting targets, to retune from playtests.
+Where the game is going, in phases. Each phase becomes a builder plan (`PLAN.md`) only when it starts. This file holds the direction, the structure and the scope of each phase. Numbers are starting targets, to retune from playtests.
 
-**Supersedes:** `ROADMAP.v1.md` (owner direction change, 2026-11-21, from the concept doc `alone_alone_lab_progression.html` and the discussion that followed). PLAN v4 (`PLAN.md`) is **on hold after M14**; section 5 says which of its pieces survive.
+**Supersedes:** `ROADMAP.v2.md` (owner's "final idea of the product", 2026-11-23, given by voice and then as a written breakdown). `PLAN.md` v7 (the tactical deckbuilder) is **dropped before any of it was built**. Section 4 says what happens to the existing work.
 
-**The game in one line:** a roguelike where an AI developer builds the game with you. Every run is a playtest of the current build. Between runs the AI ships the next version, so the game itself (its genres, its runs and its look) is the progression.
+**The game in one line (owner):** *"The core concept is not simply to play a roguelike, but to experience the creation of one."* A story-driven game where the player helps an AI developer build a video game from scratch. A campaign of scripted development sessions (first target ~2–3 h, growing toward ~5 h) ends on a final boss, then unlocks a replayable roguelike made of the game you built together.
 
-**Never in scope:** RTS / squad control. Real generative AI at runtime (the AI stays scripted; mockup images and clips are authored, never generated).
+**Never in scope:** real generative AI at runtime. The AI developer is authored (lines, reactions and rule edits are written by us), so it can feel like a developer without API keys, per-player costs or unpredictable edits. RTS or squad control. The platformer, the card dungeon crawler, the tactical deckbuilder (v7) and a 5th genre are **cut** (owner, 2026-11-23). There are two genres.
 
-**Working name:** none for now (owner, 2026-11-21). "Patch Notes" stays in code and banners until a name is chosen.
+**Working name:** none for now. "Patch Notes" stays in code and banners.
 
 ---
 
 ## 1. The model
 
-### 1.1 Three loops
-| Loop | Where | What the player does |
+### 1.1 Two modes
+| Mode | What it is | Length |
 |---|---|---|
-| **Inside a run** | in a genre | plays; takes small and medium patches at prompts; at a stage end may switch genre |
-| **Between runs** | the dev session | reads the playtest report, picks 1 of ~3 proposals, reads the patch notes of the new version |
-| **Across runs** | the save | the game's version goes up; genres mature; the look improves; the AI remembers |
+| **Campaign** | scripted development sessions, grouped in 5 stages, ending on a final boss and the game's 1.0 | **first ~2–3 h**, then grown toward ~5 h by polishing and adding sessions little by little (owner, 2026-11-23) |
+| **Endgame** | a replayable roguelike built from the player's campaign choices. The AI keeps experimenting during runs. | open-ended |
 
-### 1.2 The game's version is the meta-progression
-- A new save starts at **v0.0**: squares, one shooter arena, short runs (~3 min), very readable first prompts. Nobody sits through a long run on a flat prototype.
-- Every dev session ships the change the player picked, so the version moves every run. No XP bars, no gauges: progress shows only as versions, patch notes and things that changed.
-- The game reaches a **1.0 ending** (a "release" moment), then **keeps getting 1.x updates**: more depth, more genres, later features.
-- **Proposed bump rule:** each dev-session pick is a patch step (v0.3.1 → v0.3.2). A genre stepping up its maturity ladder (1.3) or a look tier (1.6) is a minor step (v0.3.x → v0.4.0). **Proposed 1.0 rule:** 1.0 ships when the save reaches a total number of maturity steps, from any genres, so a player who sticks to one genre is never forced through all of them. To confirm (section 6).
-- The in-run build counter stays as flavour: "v0.4.2 · build 5" during a run. The report no longer says "v1.0 shipped" at the end of a won run.
+There are **no roguelike runs during the campaign.** Each session is a test of the current build. It's a bit different every time, and it's there to try a variation, have fun and learn something (owner). The roguelike is what the campaign builds.
 
-### 1.3 Genres, each a project of its own
-**Genres ("at least 4/5 big games"):** top-down shooter, platformer, turn-based, a card dungeon crawler (owner: "card game could be one too"), and **a 5th slot left open**. Whether the 5th ships before or after 1.0 is undecided (section 6). Time-moves-when-you-move (B1) and horde are **patches, not genres**.
+### 1.2 A session
+1. **Intro:** the AI developer says what this build tries ("today: enemies that shoot back").
+2. **Play the build.** A session has a goal (survive 90 s, clear the room, beat the boss) and lasts 1–4 min early on and 5–12 min later. The AI reacts live and may change rules (1.4). Scripted events can fire (1.5).
+3. **Debrief:** the AI talks about what happened. It notices how you played, admits its mistakes and draws conclusions.
+4. **A choice, in some sessions:** 3 development options (1.6).
+5. **Patch notes:** the version goes up and the next session starts.
 
-Every genre climbs the same ladder, on its own. A step is a state **in the player's save**:
+- **The version is the story's progress marker:** v0.0 at the first session, **v1.0 at the release in Stage 5**, 1.x in the endgame.
+- **Dying in a normal session never blocks the story.** It ends the session early, the debrief still happens, and the AI owns the problem ("that was too hard, my bad"). It tunes the build or lets you retry (owner-confirmed).
+- **Bosses are checkpoints** (owner): a stage's boss must be beaten to move on. Retries are unlimited and restart at the boss, never the whole stage. After a few losses the AI offers help (tuning, a hint, a rule edit in your favour), but the boss still has to fall.
 
-| Step | What it means for the player |
+### 1.3 The AI developer (the mascot)
+The main character and the main mechanic. It replaces the old "patch every X kills" gauge.
+- **On screen:** a small character in a screen corner that never hides play. It has expressions and speech bubbles, and it can grab attention (point, shake, cover its eyes).
+- **It reacts to what is on screen:** enemy count, near deaths, a corner you camp in, a weapon you never use, a streak. Reactions are authored lines with triggers, priorities and cooldowns, so it never spams.
+- **It hosts every conversation:** session intros, debriefs, choices (the choice cards come out of its speech) and patch notes. There is no separate dev-session screen any more.
+- **The player picks it, from 3 mascots** (owner, 2026-11-23). It's a fork in Stage 1, the moment the AI "gets a face", and the player's first real choice. Proposed trio: **the Cursor** (a text caret that later becomes a mouse pointer and does its edits by hand), **the App window** (a tiny window with a face, whose own title bar says "Not Responding" during the crash) and **the Blob** (squishy and expressive). **Cost rule:** all three share the same lines and triggers; they differ in body, animations and a few signature lines each. They're drawn from shapes, so the look path's shaders restyle them for free (sum, not product).
+- **It grows:** in Stage 1 it has no words (blinks, symbols, broken text), then learns to talk. Its look follows the art path (1.8).
+- **It remembers:** your choices, how you play (taste), your deaths. It brings them up later.
+- **Its power:** it is **the main force of the game, also in the endgame** (owner). The finished game must not feel like a "natural" game. The AI changes how things work.
+
+### 1.4 The rule book: what the AI can change
+Every rule the AI might touch is a **live variable**, not code baked into walls, enemies or the player. An AI edit is a layer on top of the build's rules: it can last a few seconds, a session or forever, and it always reverts cleanly.
+
+| Target | Example edits |
 |---|---|
-| **Mockup** | a rough test build: one stage, rough look, a fixed starter set of patches. Born from a dev-session pick among 3 mockup takes (1.5). |
-| **Playable** | the full pool of patches is offered in it. Can be a switch target. |
-| **Stages** | its run has several stages with their own layouts and pacing. Its first mediums can arrive from here on. |
-| **Boss** | it has a boss at the end of its run, designed for that genre. |
-| **Deep** | its own enemies, more mediums, more patches built around it. |
+| **Walls** | bouncy, damaging, solid for enemies only, moving, gone (the screen edges wrap around), walls that become enemies |
+| **Enemies** | allies for 10 s, copy your moves, tiny or huge, heal each other, flee from you |
+| **Player** | controls inverted or rotated 90°, can't stop moving, bullets that heal enemies then explode |
+| **World** | gravity sideways, gravity **through the screen** (1.5), time follows your movement, the camera rotates, the arena shrinks |
+| **The game itself** | UI overload, flicker, a fake crash, the score becomes your HP |
 
-- **What makes a genre grow: both picks and play.** A dev-session pick chooses the direction; a genre can't step up until it has been played enough (a hidden threshold, never shown as a bar). A Mockup genre gets that play from runs started in it (next point).
-- **Each genre owns its run.** Its stages, pacing units (seconds, turns, rooms), controls, enemies, camera and boss belong to it. A genre is never limited by another genre.
-- **The shell is thin and only shared where it adds something:** the save and version, run start, prompt points, stage ends, run end, report, dev session and patch notes. A genre tells the shell two things: "a stage ended" and "the run ended". Nothing in the shell may block a genre's feature.
-- **Run start:** the player picks one of their Playable genres. The top-down shooter is the only Playable genre at v0.0. **Proposed:** Mockup genres are also listed, marked "test build", so the player chooses to try them. Never forced. To confirm (section 6).
+- **The AI always announces before it edits:** the mascot reacts, there's a short warning (1–2 s), then the edit lands. The chaos must feel intentional and funny, never cheap.
+- **Campaign:** edits are scripted per session. **Endgame:** the AI picks them from the rule book based on how the run is going.
 
-### 1.4 Patches and the build
-| Tier | Scope | Where it comes from |
+### 1.5 Scripted events ("what is happening?!")
+Planned moments the player doesn't see coming:
+- **The AI changes the wrong thing:** gravity flips to the left, the top or the bottom, and the AI apologises in words a non-developer understands ("oops, I flipped the wrong thing!"), not in developer jokes.
+- **Gravity through the screen:** everything falls toward the player's face. Units grow, smack against the glass (squashed, maybe a crack), then slide down and pile up at the bottom edge. Owner-confirmed.
+- **Overload:** too much UI, too many numbers, then flicker.
+- **The fake crash:** an in-game simulation of a Windows app that stops responding. The screen fades to white and a "Not Responding" bar appears.
+
+Rules for events:
+- Each one fires **once per save**.
+- **The fake crash must not be too convincing:** 3–5 s at most, with the music or cursor still slightly alive and the mascot reacting right after. We want "wait… WHAT?", not an Alt+F4 or a bug report.
+- **Photosensitivity setting:** flicker and flashes have a gentle alternative, offered at first launch.
+
+### 1.6 Choices
+After some sessions the AI offers **3 development options**. They cover gameplay mechanics, visuals, UI/UX, enemies, bosses and level design (owner).
+- **Big forks:** the shooter path, the RPG path and the look. **Smaller forks:** an enemy type, the HUD style, a level layout, a boss.
+- **Different players finish with clearly different games** (owner). About 10–12 forks across the campaign.
+- **Content rule (for us):** forks are **independent slots**, so content grows as the *sum* of the answers, not their product. The story is written to work on every path, with path-specific lines on top.
+- **The shelf stays:** answers not picked are kept, never lost (v6). **Rework is parked until the endgame:** revisiting decisions is a future feature (owner), and a scripted campaign can't have its past rewritten mid-story.
+
+### 1.7 The two genres
+Each genre has **3 paths that share one foundation** (owner), so development stays manageable.
+
+**Top-down shooter** (the first genre, Stages 1–2):
+| Path | Identity | In-run growth |
 |---|---|---|
-| **Small** | one mechanic (bounces, explosions, splitting enemies) | prompts in every genre |
-| **Medium** | how one genre moves or sees: a *change* to that genre's base (for the platformer, a gravity change such as reversed gravity) | prompts inside that genre; never a genre change |
-| ~~Big~~ | ~~the genre~~ | gone: genres are picked at run start and switched between stages |
+| **Arsenal** | weapons are cards (pistol, shotgun, laser); upgrading a card upgrades the weapon | card picks and card upgrades |
+| **Auto** | Vampire Survivors-inspired: automatic attacks, increasingly powerful upgrades | level-up picks |
+| **Survival** | resources: weapons and ammo come from enemies and the ground, kills give HP | pickups |
 
-- **Patches and mockups are the core gimmick (owner)** and must feel rewarding. Each patch must be strong and visible. The next prompt is announced visually.
-- **The build follows you.** A genre switch happens only **at a stage end, never during play**. The AI offers it and the player can always say no. Every patch in the build carries over.
-- **No dormant patches.** Every patch, medium included, has its own take in every genre a switch can reach. A take is a **creative reinterpretation, not a literal port**: platformer gravity can be a card that throws enemies into the void, a black hole card, or a double-jump card that nods to Mario. The player should recognise their earlier build in the new genre.
-- **Content rule (for us, at build time):** a patch ships in the pool only with a take in every genre past Mockup; a genre ships past Mockup only with a take for every pool patch. So content grows as patches × genres. Prefer fewer, stronger patches.
-- **Inside a Mockup genre (for the player):** only its fixed starter set is offered, so every patch it offers has a take. A Mockup genre is never a switch target, so a build never has to cross into one.
-
-Example takes (illustration only, to show the spirit):
-
-| Patch | Shooter | Platformer | Turn-based | Card crawler |
-|---|---|---|---|---|
-| explode_on_hit | shots blast on contact | stomps blast | hits blast the 8 tiles around | "Volatile": attack cards hit neighbours |
-| enemies_split | killed enemies split in 2 | split into falling halves | split into 2 grid actors | "Mitosis" enemy intent |
-| gravity_reversed (platformer medium) | shots arc upward, enemies float | gravity flips | push an enemy off the grid edge | "Void" card throws an enemy out of the room |
-
-### 1.5 Between runs: the dev session
-1. **Playtest report:** what happened in the run. Wins and deaths both count and both lead to a dev session.
-2. **About 3 proposals**, in one of two shapes:
-   - **3 different changes**: "add stages to the platformer", "new enemy", "better hit feel".
-   - **3 mockup takes on one change**: the same feature, genre or look done three ways. Each is shown as a still image or short clip plus one line. Short playable tastes come later if time allows. **Scope rule:** the three takes are presets of one build (parameters, rule sets, palettes or skins), never three separate builds. For a new genre, they are three flavours of the same Mockup code. An unpicked take can come back later as its own proposal.
-3. **The player picks one.** **Proposed:** now and then the AI also ships a change of its own, shown in the notes. To confirm (section 6).
-4. **Patch notes screen:** "Version 0.x.y" and what changed. Then the next run starts.
-
-Proposals lean on what the AI learned you like (taste, hidden), what you played, and the AI's own agenda.
-
-### 1.6 The look grows (shared by all genres)
-Squares → juice (shake, particles, hit stop, muzzle flash) → palette and shaders → sprites and animation → music, menus and UI. Each tier is a dev-session proposal, often as 3 mockup takes ("which look do you prefer?").
-- **The line between feel and look:** v0.0 has the **readability** that "fun before meta" needs (enemy telegraphs, a clear hit and kill confirmation). The **spectacle** is look tier 1. The shake and particles the shooter already has are turned down at v0.0 and come back as the first look ship, a cheap and visible first reward. **Shared art direction first:** a limited palette and assets reused across genres; genre-specific variants only where needed. Cheap steps (palette, shaders, juice, layered music) come before real sprites.
-
-### 1.7 The AI
-- It remembers your attempts, voices preferences, pushes back, and proposes its own ideas in dev sessions.
-- **Later features (not core):** live patches during a run (it saves you, nerfs a monster that's too strong, or offers to keep a broken build), and rollbacks. A rollback could itself be something the AI ships ("I added an undo button").
-
-### 1.8 Rules progression must follow
-1. **Fun before meta.** Each genre must be fun with no AI at all. v0.0 is short and raw, but never boring.
-2. **Hidden systems, visible growth.** No XP bars. The player sees versions, proposals and changes.
-3. **Never locked out.** A refused proposal comes back later. Not yet built is not locked. **Since v6:** answers not picked go to the shelf and are never lost; Rework reaches them (owner, 2026-11-22).
-4. **Push-back stays.** In a "3 different changes" session, one card can be the AI's agenda. It is a tuning value, never zero over a run of sessions.
-5. **Power stays inside the run.** Across runs the game gains variety and depth, never stats. A run-1 and a run-50 player start with the same HP.
-6. **No genre change during play.** Switches happen at stage ends, offered, never forced.
-7. **No dormant patches** (1.4).
-8. **The shell never blocks a genre** (1.3).
-
----
-
-## 2. Inside a run
-
-- **Prompts:** small (and, in a genre that has them, medium) patches at prompt points the genre places. Picking heals 1 HP as today.
-- **Stage end:** the genre reports it; the shell may offer a switch to another Playable genre (the build is translated, 1.4).
-- **Run length:** ~3 min at v0.0, growing as the start genre matures (stages, then a boss); ~20–25 min is the 1.0 target for a full run.
-- **Proposed run shape:** the start genre's maturity sets the run's stages. A switch target only needs to be Playable; until it has a boss, a genre without one plays its own harder final stage. To confirm (section 6).
-
----
-
-## 3. What happens to the existing work
-
-| Piece (built through M14, `875912f`) | Becomes |
+**Turn-based RPG** (the second genre, Stage 3), inspired by Final Fantasy and Dragon Quest:
+| Path | Identity |
 |---|---|
-| Top-down shooter (arena, player, 3 enemies, spawner, run loop) | the starting genre, ported into the genre interface |
-| Gravity code (`gravity_on`'s rules, Mover physics, gravity-aware enemies) | the platformer's **base rules** (gravity is always on there). `gravity_on` stops being a patch. The platformer still needs levels with goals, pits/void and its own attack |
-| `gravity_reversed` | a **platformer medium** (a gravity change); its `requires gravity_on` goes away |
-| `jump_button` | stays a small patch (shooter take: hop + slam; platformer take: double jump) |
-| Turn-based (B2: `turn_mode`, TurnClock, TurnLogic, overlay, ~1,400 test lines) | a genre, the closest to standalone. Also the seed for the card crawler's grid and enemy intents |
-| B1 `motion_time` | a patch. Its logic moves out of RunState into the patch |
-| `horde_mode` | already a small patch |
-| Card dungeon crawler | new genre, built later |
-| AI layer, option D rollbacks, hidden stage patches, M14 scaffold | **parked**: switched off, kept in git; may come back as live patches or rollbacks |
-| Big slot, BIG prompts, `swap_big` | replaced by the run-start genre choice and the stage-end switch |
-| In-run `build_number` as version | replaced by the saved game version |
-| Session-only taste | saved on disk |
-| Telemetry, bots, `check.ps1`, smoke matrix, export | kept; their genre keys change from "big patch id" to "genre" |
+| **Classic** | traditional turn-based combat: abilities, weaknesses, strategic decisions |
+| **Cards** | combat with cards, combinations and synergies (v7's "cards that change other cards" ideas live here) |
+| **Timing** | Mario & Luigi- and Clair Obscur-inspired: dodge, block and parry in real time during enemy turns |
 
-**Architecture contracts that change:**
-- v3's "nothing branches on genre" is replaced by **per-genre takes**: a patch keeps one id and one folder, with a take per genre in `mutations/<id>/<genre>.gd` (the folder-isolation test still holds).
-- `RunState` gets a `genre` field separate from the patch layers. Hooks dispatch to the active genre's take. `patch_state` is reset on a switch.
-- `WorldRules` splits into a shared part plus per-genre rule bags (a card crawler has no gravity or projectiles).
-- `main.gd` shrinks to the shell. Arena, spawner, TurnClock, TurnOverlay and TimeTint become genre-owned.
-- Mediums get a genre field. Requires/conflicts become per-genre, and the cross-genre conflicts (e.g. `gravity_on` vs `turn_mode`) go away.
+- **The RPG path is a free choice and is not shaped by the shooter path** (owner: a 1:1 mapping is "a wrong concept"). Shared across both genres: the look, the AI, and its memory of you.
+- No genre switching during play. Combining and switching genres is a future feature (owner).
 
----
+### 1.8 The look: 3 art paths, cheap by design
+The look is picked early and then grows in tiers inside the chosen path (juice → palette and shaders → richer assets → music and UI).
+- **One set of shapes, three renderings.** Each path is mostly shaders, palettes and a small set of textures, never three full sprite sets. Proposed:
+  1. **Pixel:** low-resolution render with a limited palette, a retro feel.
+  2. **Dark / neon:** a black background, glowing outlines and bloom. The darker option, and the closest to today's squares.
+  3. **Paper / sketch:** wobbly hand-drawn lines on a paper texture. Totally different, and needs almost no assets.
+- The mascot and the UI follow the look.
 
-## 4. Phases
-
-### Phase 1 — Core prototype (v2, M0–M7) · **done**
-One arena, 8 small patches, scripted Director, rollbacks, report, telemetry, Windows export.
-
-### Phase 2 — Big patches (v3, M8–M13) · **done**
-Big slot, B1 and B2, 2 BIG prompts per run, session taste. See `PLAN.v3.md`.
-
-### Phase 3 — Stages and the AI boss (v4) · **stopped after M14**
-M14 built the AI layer, the medium tier and option D. The rest is replaced by this roadmap (section 5).
-
-### Phase 4 — Foundations: versions, the dev session, v0.0 (PLAN v5) · **done** (M25–M30.2, G11 played 2026-11-22)
-- Save on disk: game version, genre maturity, play time per genre, taste, dev-session history, look tier.
-- Thin shell + genre interface; the shooter ported as the first genre. Park the AI layer and rollbacks; turn B1 into a patch; remove the big slot.
-- Per-genre takes in the patch data model (only the shooter's take exists yet).
-- Dev-session screen (report → 3 proposals → patch notes), with **both shapes**. The first mockup session is look tier 1 for the shooter: 3 takes on its juice, each an image or clip with one line. That's cheap, and it tests the core gimmick from the start.
-- Short v0.0 runs (~3 min, one arena).
-- Readability pass on the shooter (fun before meta): enemy telegraphs, clear hit and kill confirmation, camera lookahead. The existing shake and particles are turned down at v0.0 for look tier 1.
-- **Content at the end:** 1 genre (shooter, Playable), 7 smalls (today's 6 + `motion_time`), a first chain of dev-session changes for the shooter (a new enemy, new patches, look tier 1).
-- **Must answer:** is v0.0 fun for 3 minutes? Does the dev session feel like a reward? Do players want "one more version"?
-
-### Phase 5 — Stages, the second genre and the build crossing over · **next**
-- **5a (PLAN v6): divergence first** (owner, after G11): each dev session is one question (a *fork*) with 2–3 answers; the answers not picked go to a shelf; a **Rework** card swaps a past answer for a shelved one. More creative shooter content. Then stage plumbing and the shooter's **Stages** step as a fork.
-- **5b (PLAN v7):** the second genre and the stage-end switch, below. **The second genre is the owner's tactical deckbuilder** (2026-11-23): turn-based grid fights (action and movement points) with a deck of evolving, combinable cards. It merges the turn-based genre and Phase 7's card crawler (PLAN v7 section 0).
-- Stage plumbing (M16's kept parts, section 5) and the shooter's Stages step. This comes first: the switch needs stage ends.
-- Turn-based (proposed, since it is closest) as a genre: its own map, its own run, pacing in turns, a controller that no longer hijacks the shooter player. It starts as a Mockup picked from 3 flavours, then grows to Playable.
-- Takes for every pool patch in turn-based; the stage-end switch with the build translated.
-- **Must answer:** do players recognise their build after a switch? Do takes feel creative, not like a port?
-
-### Phase 6 — Platformer, mediums, the look track
-- Platformer as a genre: levels with goals, pits and void, a native attack; gravity always on; gravity changes (`gravity_reversed`, `low_gravity`) as its mediums.
-- Look tiers 2–3 (palette and shaders, first music layers) as dev-session proposals.
-- First bosses (shooter first), each designed for its genre.
-- **Must answer:** does each genre stand on its own? Does the look improving feel rewarding?
-
-### Phase 7 — Card dungeon crawler and 1.0
-- Card dungeon crawler (seeded by TurnLogic's grid and intents).
-- **Build goal:** every genre that ships for 1.0 has a boss built. **In-save goal:** the 1.0 rule (1.2), which never forces a player through every genre.
-- Sprites, animation, menus and UI; the 1.0 ending.
-- Content pass and balance from telemetry, a public demo (itch.io / Steam Next Fest), then release.
-- **Must answer:** does the arc from v0.0 to 1.0 hold? Does the 1.0 moment land?
-
-### After 1.0 — 1.x updates
-Live patches, rollbacks, more depth per genre, playable mockup tastes, and the 5th genre if it doesn't make 1.0.
+### 1.9 Rules for us
+1. **Fun before meta:** every session is fun to play with no AI involvement. The AI is the main force, but the base has to stand on its own.
+2. **Something new every session:** a mechanic, an event, a joke, a visual step. Early sessions are short (owner: "they are not really interesting").
+3. **The AI announces before it edits** (1.4).
+4. **Content = sum, not product** (1.6).
+5. **Story never stalled:** no death or choice can lock the campaign. Bosses are the only gates (checkpoints with unlimited retries and AI help).
+6. **Events once per save, and never too real** (1.5).
+7. **Power stays in the session:** the campaign adds variety and features, not stats.
 
 ---
 
-## 5. PLAN v4 pieces that survive
+## 2. The campaign (5 stages; first version ~2–3 h)
+A first cut, to rewrite while building. **First version: ~2 h 30, about 22 sessions.** Each stage is then grown toward the ~5 h vision (the "full" column) by adding sessions in its middle, never by stretching existing ones. Stage-end bosses are checkpoints (1.2).
 
-| v4 milestone | Fate |
+| Stage | First version | Full | What happens | Big forks | Events |
+|---|---|---|---|---|---|
+| **1. The prototype** | ~20 min, ~6 sessions of 1–4 min | ~30 min | Nothing, then movement, shooting, enemies, a level. The AI is wordless, then learns to talk and the mascot appears. | **the mascot** (when the AI gets a face), the look (end of stage), an enemy type | the AI changes the wrong thing (gravity sideways) |
+| **2. The shooter** | ~45 min, ~6 sessions + boss | ~1 h 30 | The shooter becomes a game: its path, more enemies, level design, the first boss. | **shooter path** (first session), level layout, HUD style, shooter boss | gravity through the screen |
+| **3. The RPG** | ~45 min, ~6 sessions + boss | ~1 h 30 | The AI is bored: "what if we tried turns?" A new prototype from nothing, faster this time, then a real RPG. | **RPG path**, RPG enemies, RPG boss | rule edits inside turns (a turn order that cheats, an enemy that refuses to act) |
+| **4. Overload** | ~15 min, ~2 sessions | ~45 min | The AI tries to have everything: features pile up until the game literally breaks. | after the crash: "what do we keep?" | UI overload, flicker, **the fake crash** |
+| **5. Release** | ~25 min, ~2 sessions + final boss | ~45 min | The AI rebuilds and polishes for 1.0. The final boss, release, credits, the endgame unlocks. | the final boss's form | the AI's last edits in the boss fight |
+
+**Final boss (owner liked it, 2026-11-23):** a two-phase fight in **your** shooter path, then **your** RPG path. **Its parts come from your shelf:** the answers you didn't pick come back as the boss's weapons and attacks ("you didn't want the shotgun? it did."). This gives the shelf a story job and makes each final boss different.
+
+---
+
+## 3. The endgame: your own roguelike
+- **A run:** the shooter stage(s) in your path → the RPG stage(s) in your path → the final boss. Permadeath, seeds, in-run growth from your paths, and the look you picked.
+- **The AI keeps experimenting:** live rule edits from the rule book, chosen by a director this time instead of a script. Difficulty and replayability rise (an ascension-style ladder).
+- **Future features (owner):** revisiting development decisions (Rework comes back here), alternative versions of your game, and combining or switching between gameplay styles.
+
+---
+
+## 4. What happens to the existing work
+
+| Piece (built through M36, `3734a70`) | Becomes |
 |---|---|
-| M15 Arenas as data | **kept**, re-scoped: arena validity is per genre (not "readable top-down and with gravity") |
-| M16 Stage flow | **plumbing kept** (StageDef kind, run-loop sub-states, stage clear, carry table, cross-stage determinism test), built in Phase 5. The stage choice panel and BIG-at-stage-end become the stage-end switch offer. Dropped: the 3-stages-from-run-1 shape, hidden stage defaults and their reveal, earned charges. The vision mediums `close_camera`, `lights_out` and the `darkness` rule are proposed as shooter mediums |
-| M17 Stage mediums | `low_gravity` kept as a **platformer medium**; `ice_floor`'s genre to decide |
-| M18 New smalls | kept as content; each needs takes per genre; parity rule kept |
-| M19 Save | **moved first** (Phase 4); its mechanics kept (inert by default, versioned, atomic, corrupt-file handling), its schema rewritten; taste-led 1+1 shipping replaced by the dev session |
-| M20 Bomber, lancer | kept as shooter content |
-| M21 Playtest build | kept as a discipline |
-| M22 Boss | the "AI patches the arena + rollbacks as weapons" boss is parked with rollbacks and may return with them. **Proposed:** bosses designed per genre until then |
-| M23 Third big | dropped; Stealth or On the beat can pitch for the open slot or become patches |
-| M24 Retune to 20–25 min | dropped; run length now grows with the version |
+| Thin shell, genre interface, save, game version, patch notes | **kept**. The version is the story marker. The RPG is genre 2. |
+| Dev-session screen (report → fork → notes) | **becomes the mascot's debrief.** Forks and the shelf are kept; Rework is parked until the endgame. |
+| In-run patch prompts and the PATCH gauge | **replaced:** in-run growth comes from the shooter path (cards / level-ups / pickups), and the AI's live edits come through the mascot |
+| Patch pool (16 mutations) | **content.** Upgrades (explode, bounce, echo, orbit, split) feed the paths; `auto_attack` is the seed of the Auto path; rules (gravity_on/reversed, motion_time, horde, elite, hunter, well, magnet) feed the rule book and events. `turn_mode` stays parked: the RPG is a new genre, not the shooter on a clock. |
+| `WorldRules` (recomputed from base + patch stack) | the seed of the rule book: AI edits become a layer on top |
+| Broken first runs (M29b) | the opening of Stage 1 |
+| AI director, dialogue, taste | the base for the mascot's lines, reactions and memory |
+| Looks (tier 0/1, punchy), `glitch.gdshader`, `screen_fx` | the base for the 3 art paths and the glitch events |
+| Arenas and stages as data, the Stages step (M34–M35) | level design in Stage 2 |
+| Enemies (chaser, shooter, tank, bomber, lancer), `fork_enemy` | shooter content |
+| Bots, telemetry, `check.ps1`, export | **kept.** Bots play scripted sessions for crash sweeps and pacing (bots read pacing, not fun). |
+| PLAN v7 (tactical deckbuilder, stage-end switch, "every patch has a take in every genre") | **dropped, never built.** Its card ideas go to the Cards RPG path. |
+| G12 playtest build (M36) | optional: still a useful check of the shooter's feel |
 
-`check.ps1`'s rollback gate (`--big=motion_time ... stage_reverts=1`) depends on the scaffold, B1-as-big and rollbacks, so it changes in Phase 4.
+---
+
+## 5. Phases
+
+### Phases 1–5a · **done**
+Core prototype (v2), big patches (v3), the AI layer (v4, M14), foundations: versions, dev session, v0.0 (v5), divergence: forks, shelf, rework, the shooter's stages (v6, M31–M36).
+
+### Phase 5 — The new spine and Stage 1 (PLAN v8) · **next**
+- **The session runner:** sessions as data (intro, build config, goal, scripted events, debrief, fork), a campaign as an ordered list, branching on fork answers.
+- **The mascot:** a corner widget with expressions and speech, a reaction system (triggers, priorities, cooldowns), and hosting the debrief and choices.
+- **The rule book:** live, revertible edits for walls, enemies, player and world, with the telegraph (warning) rule.
+- **The event framework,** with the first event: the AI changes the wrong thing (gravity sideways).
+- **Stage 1 rebuilt as ~8 sessions** (~30 min), from nothing to a small shooter, with the mascot learning to talk.
+- **Must answer:** does a scripted session with a reacting AI beat the old run loop? Is the mascot charming, not annoying? Does "something new every session" hold?
+
+### Phase 6 — Stage 2: the shooter grows
+- The 3 shooter paths on one foundation; the 3 art paths; level design, HUD and enemy forks; the shooter boss; gravity through the screen.
+- **Must answer:** do the three paths feel like three games? Do the three looks feel worth choosing?
+
+### Phase 7 — Stage 3: the RPG
+- The RPG foundation (party, turns, abilities, enemies), then the Classic, Cards and Timing paths; the RPG boss; rule edits inside turns.
+- **Must answer:** is the RPG fun on its own? Does the "new prototype from nothing" land as a story beat?
+
+### Phase 8 — Stages 4–5, the final boss and the endgame
+- Overload, the fake crash, "what do we keep", release and the 1.0 moment, the final boss built from the shelf, credits.
+- The endgame roguelike: run structure, AI director for live edits, the difficulty ladder.
+- **Must answer:** does the arc hold over the first ~2–3 h? Does the crash land without scaring players off? Does the endgame feel like *your* game?
+
+### Phase 9 — Release
+Content and balance pass from telemetry and playtests, a public demo (itch.io / Steam Next Fest), then release.
+
+### After release
+Revisiting decisions (Rework), alternative versions of your game, combining and switching genres.
 
 ---
 
 ## 6. Open decisions
 Each has a proposed default; owner to confirm.
 
-1. **Version bump rule** (1.2): pick = patch step, maturity or look step = minor step.
-2. **The 1.0 rule** (1.2): a total of maturity steps from any genres (proposed), or every genre has a boss (forces every player through every genre).
-3. **The 5th genre:** before or after 1.0. Stealth or On the beat can pitch for it.
-4. **Mockup genres at run start** (1.3): listed as "test build" and chosen freely (proposed), or reachable only some other way.
-5. **The AI shipping its own change** in some dev sessions, on top of the player's pick (1.5).
-6. **Run shape across a switch** (2): the start genre's maturity sets the stages; a switch target needs only Playable.
-7. **Play threshold for a maturity step** (1.3): a number of runs or minutes played in that genre; values from playtests.
-8. **How long is the arc to 1.0:** how many runs from v0.0 to 1.0 (~30 proposed).
-9. ~~**Second genre**~~ **decided (owner, 2026-11-23):** a tactical deckbuilder (grid turns + deckbuilding, evolving and combinable cards), merging turn-based and the card crawler. See PLAN v7.
-10. **Genres of the leftover v4 mediums:** `ice_floor`, `close_camera`, `lights_out` (5).
-11. **Report ratings (keep/cut):** keep as a taste input next to the dev-session pick, or drop.
-12. **What carries between runs inside the build:** nothing (each run starts empty, as today), proposed.
-13. **When the first real playtest happens:** strongly needed before Phase 4 closes, since "is v0.0 fun" can't be answered by bots.
+1. **The mascot:** **decided:** the player picks 1 of 3 (1.3). Proposed trio: Cursor, App window, Blob. Names to choose.
+2. ~~Death in a session~~ **decided:** ends the session early, AI tunes or offers a retry. **Bosses are checkpoints** that must be beaten (1.2).
+3. **Stage count:** 5 (proposed) or 4 (merge Overload into Release).
+4. ~~The final boss~~ **decided:** two phases (your shooter path, then your RPG path), attacks taken from your shelf.
+5. **When the look is chosen:** at the end of Stage 1 (proposed), so Stage 2 is already "yours".
+6. **The three looks:** pixel / dark neon / paper sketch.
+7. ~~Writing~~ **decided:** I draft every line, the owner edits for tone. English first.
+8. **The campaign's fork list:** about 10–12 forks (section 2), each with 3 answers.
+9. **Events once per save:** a new save replays them (proposed), with an option to skip events already seen.
+10. **Session length targets:** 1–4 min in Stage 1, 5–12 min later. **Campaign length decided:** first version ~2–3 h, then grown little by little (section 2).
+11. **Report ratings and taste:** kept as hidden inputs for the mascot's memory and the endgame director.

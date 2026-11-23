@@ -1,5 +1,7 @@
 # Build Plan v7 — The second genre: a tactical deckbuilder, and the stage-end switch
 
+> **DROPPED (2026-11-23), never built.** The owner replaced this plan with the campaign vision in `ROADMAP.md` v3. The tactical deckbuilder, the stage-end switch and the "take in every genre" rule are out. The card ideas move to the RPG's Cards path. PLAN v8 (Phase 5: session runner, mascot, rule book, Stage 1) replaces it.
+
 **For:** the builder agent
 **Goal of this build:** the game gets its **second genre**, the owner's own design: a turn-based **tactical deckbuilder** on a grid (owner, 2026-11-23). It arrives the way the roadmap says a genre arrives: a dev-session question with three mockup flavours, then a rough test build you can start a run in, then a Playable genre. Once it is Playable, a staged shooter run can **switch into it at a stage end, and back**, and your build comes along, **translated**: every shooter patch has a card take.
 **Engine:** Godot **4.7.x stable**, GDScript, 2D, unchanged.
