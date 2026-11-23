@@ -62,12 +62,13 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 6)
+	assert_eq(CampaignDB.size(), 7)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
 	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
 	assert_eq(CampaignDB.session(5).id, &"s1_05_wrong")
-	assert_null(CampaignDB.session(6))
+	assert_eq(CampaignDB.session(6).id, &"s1_06_playground", "S6 ends Stage 1 (M42)")
+	assert_null(CampaignDB.session(7))
 
 
 func test_lines_parse_a_condition_an_expression_and_the_text() -> void:
@@ -109,6 +110,206 @@ func test_cues_parse_and_come_due() -> void:
 	for bad in ["at x: say hi", "soon: say hi", "at 5: dance", "at 5: spawn dragon", "at 5 say hi",
 			"hit 3: say hi", "at 5: spawn chaser 0", "at 5: edit"]:
 		assert_ne(Cue.parse(bad).problem, "", bad)
+
+
+# --- M42: the hp cue time and the `ended` line condition -----------------------------
+
+func test_hp_cue_parses_and_fires_once_at_or_below() -> void:
+	var c := Cue.parse("hp 2: edit edit_slowmo")
+	assert_eq([c.problem, c.when, c.value, c.action, c.target], ["", &"hp", 2.0, &"edit", &"edit_slowmo"])
+	assert_false(c.due({"hp": 3.0}), "above the threshold")
+	assert_true(c.due({"hp": 2.0}), "at it")
+	assert_true(c.due({"hp": 1.0}), "below it")
+	assert_false(c.due({"hp": 0.0}), "a death never fires it")
+	assert_false(c.due({"hp": -1.0}), "-1: no health (or no player)")
+	assert_false(c.due({}), "no hp in the context")
+	assert_ne(Cue.parse("hp: edit edit_slowmo").problem, "", "hp needs a number")
+
+
+func test_hp_cue_needs_health() -> void:
+	var s := _session(&"hp_fixture", SessionDef.KILLS, 10.0)
+	s.basics = [&"movement", &"shooting"]
+	s.cues = PackedStringArray(["hp 2: edit edit_slowmo"])
+	assert_string_contains("
+".join(s.problems()), "hp needs the health basic")
+	s = _session(&"hp_fixture", SessionDef.KILLS, 10.0)
+	s.basics = [&"movement", &"shooting", &"health"]
+	s.cues = PackedStringArray(["hp 2: edit edit_slowmo"])
+	assert_eq(s.problems(), [] as Array[String], "with health: fine")
+	s = _session(&"hp_fixture", SessionDef.KILLS, 10.0)
+	s.basics = [&"movement"]
+	s.cues = PackedStringArray(["at 5: add health", "hp 2: say worried: Careful."])
+	assert_eq(s.problems(), [] as Array[String], "a cue that adds health is enough")
+
+
+func test_the_session_runner_reads_hp_only_with_health() -> void:
+	var game := await _game(&"s1_01_move")
+	assert_false(Unlocks.has_basic(&"health"))
+	assert_eq(game.session_runner._player_hp(), -1.0, "no health yet: hp cues never fire")
+	RunState.add_basic(&"health")
+	var h := Component.find(game.player, Health) as Health
+	assert_eq(game.session_runner._player_hp(), h.hp(), "with health: the player's HP")
+
+
+func test_ended_condition() -> void:
+	var l := Line.parse("ended happy: x")
+	assert_eq([l.problem, l.when, l.expression], ["", &"ended", &"happy"])
+	assert_true(l.passes({"outcome": &"won"}), "won")
+	assert_true(l.passes({"outcome": &"stopped"}), "stopped")
+	assert_false(l.passes({"outcome": &"died"}), "died: a Retry may follow")
+	assert_false(l.passes({"outcome": &"died", "moved_on": false}))
+	assert_true(l.passes({"outcome": &"died", "moved_on": true}), "died, then Move on")
+	assert_false(l.passes({}), "no outcome (intro, cues): never")
+	var s := _session(&"ended_fixture")
+	s.intro = PackedStringArray(["ended happy: too early"])
+	assert_string_contains("
+".join(s.problems()), "intro line cannot depend on the outcome")
+	s = _session(&"ended_fixture")
+	s.cues = PackedStringArray(["at 5: say ended happy: x"])
+	assert_string_contains("
+".join(s.problems()), "cannot depend on the outcome")
+	s = _session(&"ended_fixture")
+	s.debrief = PackedStringArray(["ended happy: x"])
+	assert_eq(s.problems(), [] as Array[String], "a debrief line may wait for the end")
+	var ctx := CampaignDB.line_context(s, &"died", 0, [], true)
+	assert_true(ctx.moved_on)
+	assert_false(CampaignDB.line_context(s, &"died").moved_on)
+	assert_false(CampaignDB.line_context(s).has("moved_on"), "no outcome, no moved_on")
+
+
+## A fixture session with `ended` lines (S6 is content; this pins the code path).
+func _ended_session() -> SessionDef:
+	var s := _session(&"ended_fixture", SessionDef.KILLS, 10.0)
+	s.debrief = PackedStringArray(["died guilty: That one's on me.", "stopped thinking: Time's up.",
+			"ended happy: It's over.", "ended thinking: What next?"])
+	s.notes = PackedStringArray(["A fixture note"])
+	return s
+
+
+func _debrief() -> DebriefScreen:
+	var d := DebriefScreen.new()
+	add_child_autofree(d)
+	d.input_delay = 0.0
+	return d
+
+
+func test_ended_lines_play_on_a_won_or_stopped_debrief() -> void:
+	var d := _debrief()
+	d.open(_ended_session(), &"win", 0)
+	d.finish_lines()
+	assert_eq(d.said, ["It's over.", "What next?"] as Array[String])
+	assert_eq(d.choices(), [DebriefScreen.NEXT])
+	d.close()
+
+
+func test_a_death_then_move_on_plays_the_ended_lines_then_the_notes() -> void:
+	var d := _debrief()
+	d.open(_ended_session(), &"lose", 2)
+	assert_false(d.lines.any(func(l: Line) -> bool: return l.when == &"ended"), "Retry may follow: no ending yet")
+	d.finish_lines()
+	assert_eq(d.said, ["That one's on me."] as Array[String])
+	assert_eq(d.choices(), [DebriefScreen.RETRY, DebriefScreen.MOVE_ON])
+	assert_eq(d._notes.text, "", "no notes before Move on")
+	var moved := []
+	d.move_on_requested.connect(func() -> void: moved.append(true))
+	assert_true(d.choose(DebriefScreen.MOVE_ON))
+	assert_eq(moved.size(), 0, "the ending plays first")
+	assert_eq(d.phase, DebriefScreen.LINES)
+	d.finish_lines()
+	assert_eq(d.said, ["That one's on me.", "It's over.", "What next?"] as Array[String])
+	assert_eq(d.choices(), [DebriefScreen.NEXT])
+	assert_string_contains(d._notes.text, "A fixture note")
+	assert_true(d.choose(DebriefScreen.NEXT))
+	assert_eq(moved.size(), 1, "then the way on moves on")
+	d.close()
+
+
+func test_move_on_without_ended_lines_or_a_fork_moves_on_at_once() -> void:
+	var d := _debrief()
+	var s := _session(&"plain_fixture", SessionDef.KILLS, 10.0)
+	s.debrief = PackedStringArray(["died guilty: Oops."])
+	d.open(s, &"lose", 0)
+	d.finish_lines()
+	var moved := []
+	d.move_on_requested.connect(func() -> void: moved.append(true))
+	assert_true(d.choose(DebriefScreen.MOVE_ON))
+	assert_eq(moved.size(), 1, "S0-S5 as before")
+	d.close()
+
+
+# --- M42: S6, the end of Stage 1 ------------------------------------------------------
+
+func test_s6_is_the_playground() -> void:
+	var s := CampaignDB.get_session(&"s1_06_playground")
+	assert_eq(s.problems(), [] as Array[String])
+	assert_eq([s.goal, s.goal_value, s.time_limit, s.spawn_rate, s.spawn_cap, s.bump, s.fork],
+			[SessionDef.KILLS, 60.0, 240.0, 1.3, 1.3, &"minor", &""])   # M42 E-S6b: 1.2 -> 1.3
+	assert_true(&"version" in s.basics, "the stamp from frame one")
+	var edits: Array = s.cue_list().map(func(c: Cue) -> Array: return [c.when, c.value, c.target])
+	assert_eq(edits, [[&"at", 10.0, &"edit_gift_explode"], [&"kills", 20.0, &"edit_big_enemies"],
+			[&"kills", 40.0, &"edit_inverted"], [&"hp", 2.0, &"edit_slowmo"]])
+
+
+func test_the_last_session_offers_to_be_continued() -> void:
+	var d := _debrief()
+	d.open(CampaignDB.get_session(&"s1_06_playground"), &"win", 0)
+	d.finish_lines()
+	assert_true(d.said.has("Okay. It's a game. A small one."))
+	assert_eq(d.choices(), [DebriefScreen.LAST])
+	assert_string_contains(d._notes.text, "A small game")
+	d.close()
+	d = _debrief()
+	d.open(CampaignDB.get_session(&"s1_05_wrong"), &"win", 0)
+	d.finish_lines()
+	assert_eq(d.choices(), [DebriefScreen.NEXT], "S5 is no longer the last")
+	d.close()
+	assert_string_contains(DebriefScreen.notes_text(CampaignDB.get_session(&"s1_06_playground")), "A small game")
+
+
+func test_s6_died_then_move_on_still_ends_the_stage() -> void:
+	var d := _debrief()
+	d.open(CampaignDB.get_session(&"s1_06_playground"), &"lose", 3)
+	d.finish_lines()
+	assert_true(d.said.has("That one's on me. Want another go, or should I just patch it?"))
+	assert_false(d.said.has("Okay. It's a game. A small one."))
+	assert_eq(d.choices(), [DebriefScreen.RETRY, DebriefScreen.MOVE_ON])
+	var moved := []
+	d.move_on_requested.connect(func() -> void: moved.append(true))
+	assert_true(d.choose(DebriefScreen.MOVE_ON))
+	assert_eq(moved.size(), 0)
+	d.finish_lines()
+	assert_true(d.said.has("Okay. It's a game. A small one."))
+	assert_true(d.said.has("Next: what kind of shooter is it?"))
+	assert_eq(d.choices(), [DebriefScreen.LAST])
+	assert_string_contains(d._notes.text, "A small game")
+	assert_true(d.choose(DebriefScreen.LAST))
+	assert_eq(moved.size(), 1)
+	d.close()
+
+
+func test_s6_retry_does_not_play_the_ending() -> void:
+	var d := _debrief()
+	d.open(CampaignDB.get_session(&"s1_06_playground"), &"lose", 3)
+	assert_false(d.lines.any(func(l: Line) -> bool: return l.when == &"ended"))
+	d.finish_lines()
+	var retried := []
+	d.retry_requested.connect(func() -> void: retried.append(true))
+	assert_true(d.choose(DebriefScreen.RETRY))
+	assert_eq(retried.size(), 1)
+	assert_false(d.said.has("Okay. It's a game. A small one."))
+	d.close()
+
+
+func test_done_campaign_shows_to_be_continued() -> void:
+	SaveGame.go_live(TEST_PATH, true)
+	for i in CampaignDB.size():
+		assert_false(CampaignDB.is_done(), "not done before session %d" % i)
+		CampaignDB.complete(CampaignDB.session(i))
+	assert_true(CampaignDB.is_done())
+	assert_eq(SaveGame.version().label(), "v0.7.0", "seven minor bumps")
+	assert_true(StartScreen.campaign_line().ends_with("· to be continued"), StartScreen.campaign_line())
+	var screen := await _screen()
+	assert_false(screen.continue_button.visible)
 
 
 func test_a_broken_campaign_reports_each_problem() -> void:

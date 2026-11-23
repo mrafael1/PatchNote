@@ -82,15 +82,51 @@ func _physics_process(_delta: float) -> void:
 	if genre == null or genre.is_over():
 		return
 	var ctx := {"clock": genre.session_clock(), "kills": RunState.kills,
-			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched}
+			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched,
+			"hp": _player_hp()}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
-		if _cues[i].due(ctx):
+		if _cues[i].due(ctx) and not _waits(_cues[i]):
 			_fired[i] = true
 			_fire(_cues[i], i)
 		elif _cues[i].expired(ctx):
 			_fired[i] = true   # dropped, not said
+
+
+## An "hp N:" cue holds while the rule book is busy (another edit's warning, a timed
+## edit live) and fires on the first tick after, if the HP is still that low (M42 D23).
+## Any other edit cue holds while another edit's warning is pending: two warnings are
+## both priority 3, so the second would queue on the mascot and its edit land before
+## its line is read.
+func _waits(cue: Cue) -> bool:
+	if rule_book == null:
+		return false
+	if cue.when == &"hp":
+		return rule_book.busy()
+	return cue.action == &"edit" and rule_book.warning_pending()
+
+
+## The player's HP for "hp N:" cues; -1 without the health basic (nothing can hurt yet).
+func _player_hp() -> float:
+	if not Unlocks.has_basic(&"health") or genre == null or not is_instance_valid(genre.player):
+		return -1.0
+	var h := Component.find(genre.player, Health) as Health
+	return h.hp() if h != null and not h.dead else 0.0
+
+
+## A spawn cue's archetype; "fork:<id>" is the enemy that fork's answer unlocks (the
+## same reading as SessionDef.enemy_types), "" while it is unanswered (M42).
+static func _resolve_archetype(archetype: StringName) -> StringName:
+	if not String(archetype).begins_with("fork:"):
+		return archetype
+	var f := ChangeDB.get_fork(StringName(String(archetype).trim_prefix("fork:")))
+	var answer := f.answer() if f else null
+	if answer != null:
+		for u in answer.unlocks:
+			if u in Unlocks.ARCHETYPES:
+				return u
+	return &""
 
 
 func _fire(cue: Cue, index: int) -> void:
@@ -100,8 +136,11 @@ func _fire(cue: Cue, index: int) -> void:
 			if cue.line.passes(CampaignDB.line_context(session)):
 				say(cue.line)
 		&"spawn":
-			if not genre.spawn_archetype(cue.archetype, cue.count):
-				push_warning("Session %s: the genre cannot spawn %s" % [session.id, cue.archetype])
+			var archetype := _resolve_archetype(cue.archetype)
+			if archetype == &"":
+				push_warning("Session %s: %s has no answer yet, nothing spawned" % [session.id, cue.archetype])
+			elif not genre.spawn_archetype(archetype, cue.count):
+				push_warning("Session %s: the genre cannot spawn %s" % [session.id, archetype])
 		&"add":
 			RunState.add_basic(cue.target)
 		&"edit":

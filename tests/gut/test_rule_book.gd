@@ -397,6 +397,49 @@ func test_same_seed_same_edits_same_session() -> void:
 	assert_eq(hash(traces[0]), hash(traces[1]))
 
 
+## M42: S6 the same way, with the gift, a kill-cued edit and the HP cue really landing
+## (600 frames of S6 as shipped would land none of them).
+func test_same_seed_same_s6() -> void:
+	var traces: Array[Array] = []
+	var logs: Array[String] = []
+	for run in 2:
+		await wait_physics_frames(1)
+		Main.next_seed = 4343
+		var game := await _game(&"s1_06_playground")
+		RunState.invincible = true
+		game.player.set_bot(true)
+		game.session_runner.drop_cues(&"edit")
+		game.session_runner.inject("at 2: edit edit_gift_explode")
+		game.session_runner.inject("kills 1: edit edit_big_enemies 3")
+		game.session_runner.inject("hp 4: edit edit_slowmo")
+		var h := Component.find(game.player, Health) as Health
+		var trace: Array[int] = []
+		for f in 700:
+			if f == 300:
+				h.hp_ratio = 4.0 / h.max_hp()   # a scripted hit
+			if f % 10 == 0:
+				trace.append(_world_hash(game))
+			await wait_physics_frames(1)
+		var ids: Array = game.rule_book.landed.map(func(l: Dictionary) -> String: return l.id)
+		ids.sort()
+		assert_eq(ids, ["edit_big_enemies", "edit_gift_explode", "edit_slowmo"], "all three landed")
+		var ai_log := RunState.run_log.filter(func(ev: Dictionary) -> bool:
+				return String(ev.get("event", "")) in ["ai_apply", "ai_remove", "edit_landed", "edit_requested"])
+		logs.append(JSON.stringify(ai_log))
+		traces.append(trace)
+		game.queue_free()
+		await wait_physics_frames(1)
+		RunState.reset(0)
+		RunState.world = null
+		Engine.time_scale = 1.0
+	assert_eq(logs[0], logs[1], "the same edits on the same frames")
+	for i in mini(traces[0].size(), traces[1].size()):
+		if traces[0][i] != traces[1][i]:
+			fail_test("diverges at frame %d" % (i * 10))
+			break
+	assert_eq(hash(traces[0]), hash(traces[1]))
+
+
 func _world_hash(game: Main) -> int:
 	var parts: Array[String] = []
 	var p := game.player.global_position
@@ -457,3 +500,115 @@ func test_a_bounce_keeps_the_speed_along_the_wall() -> void:
 			break
 	assert_gt(player.velocity.x, 0.0, "bounced")
 	assert_gt(player.velocity.y, 100.0, "still moving down along the wall")
+
+
+# --- M42: the hp cue in S6 ---------------------------------------------------------------
+
+## S6 with only the given cues, invincible, no spawner.
+func _s6_game(cues: Array[String]) -> Main:
+	var game := await _game(&"s1_06_playground")
+	game.spawner.enabled = false
+	RunState.invincible = true
+	game.session_runner.drop_cues(&"edit")
+	for c in cues:
+		game.session_runner.inject(c)
+	return game
+
+
+func _requests(id: String) -> int:
+	return RunState.run_log.filter(func(ev: Dictionary) -> bool:
+			return ev.get("event") == &"edit_requested" and ev.get("id") == id).size()
+
+
+func test_s6_slowmo_lands_when_hp_drops() -> void:
+	var game := await _s6_game(["hp 2: edit edit_slowmo"] as Array[String])
+	var book := game.rule_book
+	var h := Component.find(game.player, Health) as Health
+	await wait_physics_frames(5)
+	assert_false(book.is_pending(&"edit_slowmo"), "not at full HP")
+	h.hp_ratio = 3.0 / h.max_hp()
+	await wait_physics_frames(3)
+	assert_false(book.is_pending(&"edit_slowmo"), "not at 3")
+	h.hp_ratio = 2.0 / h.max_hp()
+	await wait_physics_frames(2)
+	assert_true(book.is_pending(&"edit_slowmo"), "at 2 it warns")
+	assert_true(book.said.has(_edit(&"edit_slowmo").warn().text))
+	assert_eq(_edit(&"edit_slowmo").warn().expression, &"happy", "D7: not idle")
+	await wait_physics_frames(roundi(1.5 * TICKS) + 2)
+	assert_true(book.is_live(&"edit_slowmo"))
+	assert_almost_eq(Engine.time_scale, 0.6, 0.001)
+	# Once: it runs out, HP climbs and drops to 2 again, and nothing is asked.
+	await wait_physics_frames(roundi(8.0 * TICKS) + 5)
+	assert_false(book.is_live(&"edit_slowmo"), "8 s on the book's own ticks")
+	h.hp_ratio = 1.0
+	await wait_physics_frames(2)
+	h.hp_ratio = 1.0 / h.max_hp()
+	await wait_physics_frames(5)
+	assert_false(book.is_pending(&"edit_slowmo"))
+	assert_eq(_requests("edit_slowmo"), 1, "a cue fires once")
+	assert_eq(book.landed.filter(func(l: Dictionary) -> bool: return l.id == "edit_slowmo").size(), 1)
+
+
+## A kill-cued edit asked during slow-mo's warning waits until slow-mo has landed, so
+## its own warning is read before it lands (M42 review).
+func test_an_edit_cue_waits_for_a_pending_warning() -> void:
+	var game := await _s6_game(["hp 2: edit edit_slowmo", "kills 1: edit edit_big_enemies 3"] as Array[String])
+	game.session_runner.drop_cues(&"say")
+	var book := game.rule_book
+	var h := Component.find(game.player, Health) as Health
+	h.hp_ratio = 2.0 / h.max_hp()
+	for f in 30:
+		await wait_physics_frames(1)
+		if book.is_pending(&"edit_slowmo"):
+			break
+	assert_true(book.is_pending(&"edit_slowmo"))
+	RunState.kills += 1
+	await wait_physics_frames(3)
+	assert_false(book.is_pending(&"edit_big_enemies"), "held while slow-mo's warning plays")
+	for f in roundi(2.0 * TICKS):
+		await wait_physics_frames(1)
+		if book.is_pending(&"edit_big_enemies"):
+			break
+	assert_true(book.is_live(&"edit_slowmo"), "slow-mo landed first")
+	assert_true(book.is_pending(&"edit_big_enemies"), "then big enemies was asked")
+
+
+## D23: an HP drop during inverted's warning waits until the book is free.
+func test_hp_cue_during_inverted_warning() -> void:
+	# D23 (M42 E-S6c): an "hp N:" cue waits while the rule book is busy (another edit's
+	# warning, a timed edit live), then fires if the HP is still that low.
+	var game := await _s6_game(["at 2: edit edit_inverted", "hp 2: edit edit_slowmo"] as Array[String])
+	game.session_runner.drop_cues(&"say")
+	var book := game.rule_book
+	var h := Component.find(game.player, Health) as Health
+	var inverted_warn := _edit(&"edit_inverted").warn().text
+	var slowmo_warn := _edit(&"edit_slowmo").warn().text
+	for f in 200:
+		await wait_physics_frames(1)
+		if book.is_pending(&"edit_inverted"):
+			break
+	assert_true(book.is_pending(&"edit_inverted"))
+	assert_true(book.busy(), "a warning is pending")
+	await wait_physics_frames(30)   # 0.5 s into inverted's warning
+	assert_eq(game.mascot.current_text(), inverted_warn)
+	h.hp_ratio = 2.0 / h.max_hp()
+	await wait_physics_frames(2)
+	assert_false(book.is_pending(&"edit_slowmo"), "held while inverted's warning plays")
+	assert_false(book.said.has(slowmo_warn))
+	await wait_physics_frames(roundi(1.5 * TICKS) + 2)
+	assert_true(book.is_live(&"edit_inverted"))
+	assert_true(book.busy(), "a timed edit is live")
+	assert_false(book.is_pending(&"edit_slowmo") or book.is_live(&"edit_slowmo"),
+			"held while inverted is live")
+	for f in roundi(11.0 * TICKS):
+		await wait_physics_frames(1)
+		if not book.is_live(&"edit_inverted"):
+			break
+	assert_false(book.is_live(&"edit_inverted"), "inverted ran its 10 s")
+	await wait_physics_frames(2)
+	assert_true(book.is_pending(&"edit_slowmo"), "asked once the book is free, HP still 2")
+	assert_true(book.said.has(slowmo_warn))
+	await wait_physics_frames(roundi(1.5 * TICKS) + 2)
+	assert_true(book.is_live(&"edit_slowmo"))
+	assert_eq(book.landed.map(func(l: Dictionary) -> String: return l.id), ["edit_inverted", "edit_slowmo"])
+

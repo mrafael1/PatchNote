@@ -82,3 +82,14 @@ func glitch(seconds: float, screen := 0.0) -> void:
 ## player takes it back when the session ends.
 func apply_mutation(edit_id: StringName) -> bool:
 	return player.apply(RuleDB.get_edit(edit_id))
+
+
+## Gives the player `amount` HP back, capped at full (an apology, M42 E7). Nothing
+## without a player or health.
+func heal(amount: float) -> void:
+	var game: Node = player.game
+	if game == null or game.genre == null or not is_instance_valid(game.genre.player):
+		return
+	var health := Component.find(game.genre.player, Health) as Health
+	if health != null:
+		health.heal(amount)

@@ -9,7 +9,7 @@ extends CanvasLayer
 ##
 ## Won or stopped: "Next session" (or "To be continued" after the campaign's last
 ## session). Died: "Retry" (same session, a new seed) and "Move on" (the session counts
-## as done, the AI owns it; its fork is asked then), except in an overrun session, where
+## as done, the AI owns it; its `ended` lines play and its fork is asked then), except in an overrun session, where
 ## going down is the end and the way on is Next session. Enter presses the first button;
 ## 1 and 2 pick by order. The game stays paused while it is open.
 
@@ -62,6 +62,7 @@ var _buttons_msec := 0
 
 
 var events: Array = []   ## the events played this attempt (open())
+var hits_seen := 0       ## the hits taken this attempt (open()), for the `ended` lines
 
 func _ready() -> void:
 	layer = 95
@@ -141,6 +142,7 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 	session = p_session
 	outcome = outcome_name(run_outcome)
 	events = p_events
+	hits_seen = hits
 	lines = Line.passing(session.debrief_lines(), CampaignDB.line_context(session, outcome, hits, events))
 	picked = null
 	moved_on = false
@@ -463,13 +465,27 @@ func choose(label: String) -> bool:
 			retry_requested.emit()
 		MOVE_ON:
 			moved_on = true
-			if fork() != null:
+			var late := _ended_lines()   # the lines that wait for "over for good" (M42)
+			if fork() != null or not late.is_empty():
 				_clear(_buttons)
 				phase = LINES
-				_after_lines()
+				_pending = late
+				if _pending.is_empty():
+					_after_lines()
+				else:
+					_next_line()
 			else:
 				move_on_requested.emit()
 	return true
+
+
+## The `ended` debrief lines that pass now that the player moved on after a death: the
+## session is over for good, so its ending plays (then the fork, the notes, the way on).
+func _ended_lines() -> Array[Line]:
+	var ended := session.debrief_lines().filter(func(l: Line) -> bool: return l.when == &"ended")
+	var typed: Array[Line] = []
+	typed.assign(ended)
+	return Line.passing(typed, CampaignDB.line_context(session, outcome, hits_seen, events, true))
 
 
 func close() -> void:

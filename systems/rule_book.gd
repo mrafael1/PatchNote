@@ -92,6 +92,23 @@ func is_live(id: StringName) -> bool:
 	return _live.has(id)
 
 
+## Something is going on: an edit is in its warning, or a timed edit is live (one that
+## stays until the session ends, like S6's gift, does not count). An "hp N:" cue waits
+## for it, so its edit neither queues its warning behind another nor stacks (M42 D23).
+## An edit's warning is playing (asked, not landed yet).
+func warning_pending() -> bool:
+	return not _pending.is_empty()
+
+
+func busy() -> bool:
+	if not _pending.is_empty():
+		return true
+	for id: StringName in _live:
+		if int(_live[id].end_tick) >= 0:
+			return true
+	return false
+
+
 ## Live edits' ids, in the order they landed.
 func live_ids() -> Array[StringName]:
 	var out: Array[StringName] = []

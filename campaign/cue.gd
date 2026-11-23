@@ -3,6 +3,8 @@ extends RefCounted
 ## Something a session does at a moment (PLAN v8 1.5), written as plain text:
 ##
 ##   "at 15: spawn chaser 1"          at 15 s of the session's goal clock, one chaser
+##   "at 6: spawn fork:fork_enemy 1"  one of the enemy that fork's answer unlocks (M42;
+##                                    nothing, with a warning, while it is unanswered)
 ##   "at 20: say happy: Oh. That works."
 ##   "kills 10: say proud: Ten!"      once the session has 10 kills
 ##   "pct 50: say Halfway."           at 50% of a survive goal's time
@@ -15,10 +17,12 @@ extends RefCounted
 ##   "at 12: edit edit_bouncy_walls"  a rule edit (M40), for the edit's own duration
 ##   "at 12: edit edit_bouncy_walls 10"  the same, live for 10 s
 ##   "at 40: event wrong_variable"    a scripted event (M41)
+##   "hp 2: edit edit_slowmo"         the first time the player's HP is 2 or less (needs
+##                                    health; a death never fires it) (M42)
 ##
 ## Every cue fires once. The text after "say" is a Line (Line.parse).
 
-const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch"]
+const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp"]
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event"]
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
@@ -73,7 +77,8 @@ static func parse(p_source: String) -> Cue:
 			c.line = Line.parse(body.substr(3))
 			c.problem = c.line.problem
 		&"spawn":
-			if words.size() < 2 or not StringName(words[1]) in ARCHETYPES:
+			if words.size() < 2 or not (StringName(words[1]) in ARCHETYPES
+					or (words[1].begins_with("fork:") and words[1].length() > 5)):
 				c.problem = "cue '%s': spawn what?" % p_source
 			else:
 				c.archetype = StringName(words[1])
@@ -108,7 +113,8 @@ static func parse_all(sources: PackedStringArray) -> Array[Cue]:
 
 ## Whether this cue is due. ctx: clock (goal seconds), kills, pct (0..100, -1 when the
 ## goal has no length), hit (bool, the player was hit since the session began), touched
-## (bool, something tried to hurt the player while the session had no health).
+## (bool, something tried to hurt the player while the session had no health), hp (the
+## player's HP; -1 without health or player, never due then).
 func due(ctx: Dictionary) -> bool:
 	match when:
 		&"at":
@@ -121,6 +127,9 @@ func due(ctx: Dictionary) -> bool:
 			return bool(ctx.get("hit", false))
 		&"touch":
 			return bool(ctx.get("touched", false)) and not expired(ctx)
+		&"hp":
+			var hp := float(ctx.get("hp", -1.0))
+			return hp > 0.0 and hp <= value
 	return false
 
 

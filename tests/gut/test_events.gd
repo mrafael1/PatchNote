@@ -33,10 +33,13 @@ func _game(id := &"s1_05_wrong") -> Main:
 	return game
 
 
-## S5, invincible, no spawner, the AI's reactions on.
+## S5, invincible, no spawner, the AI's reactions on. S5's "at 15" version cues are
+## dropped: _to_event jumps the clock past them, and their line would queue with the event's.
 func _event_game() -> Main:
 	var game := await _game()
 	game.spawner.enabled = false
+	game.session_runner.drop_cues(&"say")
+	game.session_runner.drop_cues(&"add")
 	RunState.invincible = true
 	return game
 
@@ -101,8 +104,18 @@ func test_s5_is_the_wrong_variable_session() -> void:
 	assert_eq([s.goal, s.goal_value, s.bump, s.fork], [SessionDef.SURVIVE, 90.0, &"minor", &""])
 	assert_true(&"fork:fork_enemy" in s.enemies)
 	var cues := s.cue_list()
-	assert_eq(cues.size(), 1)
-	assert_eq([cues[0].when, cues[0].value, cues[0].action, cues[0].target], [&"at", 40.0, &"event", &"wrong_variable"])
+	var events := cues.filter(func(c: Cue) -> bool: return c.action == &"event")
+	assert_eq(events.size(), 1)
+	assert_eq([events[0].when, events[0].value, events[0].target], [&"at", 40.0, &"wrong_variable"])
+	var adds := cues.filter(func(c: Cue) -> bool: return c.action == &"add")
+	assert_eq(adds.size(), 1, "M42: S5 adds the version stamp live")
+	assert_eq([adds[0].when, adds[0].value, adds[0].target], [&"at", 15.0, &"version"])
+	assert_false(&"version" in s.basics, "added live, not listed")
+	var spawns := cues.filter(func(c: Cue) -> bool: return c.action == &"spawn")
+	assert_eq(spawns.size(), 1, "M42 E6: the picked enemy comes with its announcement")
+	assert_eq([spawns[0].when, spawns[0].value, spawns[0].archetype, spawns[0].count],
+			[&"at", 6.0, &"fork:fork_enemy", 1])
+	assert_eq(s.spawn_rate, 0.8, "M42 E4")
 	var first := s.debrief_lines()[0]
 	assert_eq([first.when, first.expression], [&"event:wrong_variable", &"guilty"])
 	assert_eq(s.notes, PackedStringArray(["Gravity fixed (mostly)"]))
@@ -115,6 +128,74 @@ func test_s5_spawns_the_forked_enemy() -> void:
 	SaveGame.ship(&"enemy_lancer", &"patch")
 	assert_eq(ChangeDB.get_fork(&"fork_enemy").answer().id, &"enemy_lancer")
 	assert_true(&"lancer" in s.enemy_types())
+
+
+## M42 E6: "spawn fork:<id>" spawns the enemy that fork's answer unlocks.
+func test_a_spawn_cue_can_name_the_forked_enemy() -> void:
+	var c := Cue.parse("at 6: spawn fork:fork_enemy 1")
+	assert_eq([c.problem, c.archetype, c.count], ["", &"fork:fork_enemy", 1])
+	assert_ne(Cue.parse("at 6: spawn fork: 1").problem, "", "a fork needs an id")
+	assert_ne(Cue.parse("at 6: spawn dragon 1").problem, "")
+	assert_eq(SessionRunner._resolve_archetype(&"tank"), &"tank")
+	assert_eq(SessionRunner._resolve_archetype(&"fork:fork_enemy"), &"", "unanswered: nothing")
+	SaveGame.ship(&"enemy_lancer", &"patch")
+	assert_eq(SessionRunner._resolve_archetype(&"fork:fork_enemy"), &"lancer")
+	var s := CampaignDB.get_session(&"s1_05_wrong").duplicate() as SessionDef
+	s.cues = PackedStringArray(["at 6: spawn fork:no_such_fork 1"])
+	assert_string_contains("
+".join(s.problems()), "no fork no_such_fork")
+
+
+func test_s5_spawns_the_picked_enemy_at_6_s() -> void:
+	SaveGame.ship(&"enemy_tank", &"patch")
+	var game := await _game()
+	RunState.invincible = true
+	game.spawner.enabled = false
+	game.run_loop.goal_clock = 6.0
+	await wait_physics_frames(3)
+	var tanks := get_tree().get_nodes_in_group(&"enemy").filter(
+			func(n: Node) -> bool: return n.scene_file_path.ends_with("enemy_tank.tscn"))
+	assert_eq(tanks.size(), 1, "one tank, from the cue")
+
+
+## M42 E5: the spawner rests while an event holds the clock, derived, never back on
+## after the run is over.
+func test_spawns_pause_while_the_event_holds_the_clock() -> void:
+	var game := await _game()
+	RunState.invincible = true
+	game.session_runner.drop_cues(&"say")
+	assert_true(game.spawner.enabled)
+	await _to_event(game)
+	for i in 200:
+		if game.run_loop.clock_held():
+			break
+		await wait_physics_frames(1)
+	assert_true(game.run_loop.clock_held())
+	assert_false(game.spawner.enabled, "no spawns while the clock is held")
+	for i in EVENT_FRAMES:
+		if not game.run_loop.clock_held():
+			break
+		await wait_physics_frames(1)
+	assert_true(game.spawner.enabled, "back once the clock runs again")
+	game.genre.hold_session_clock(&"test", true)
+	game.run_loop.end(&"win")
+	game.genre.hold_session_clock(&"test", false)
+	assert_false(game.spawner.enabled, "never back on after the end")
+
+
+## M42 E7 (D15): the AI gives 1 HP back at the clear ("Speed was the other slider.").
+func test_the_clear_gives_one_hp_back() -> void:
+	var game := await _event_game()
+	RunState.invincible = false
+	var h := Component.find(game.player, Health) as Health
+	h.hp_ratio = 2.0 / h.max_hp()
+	await _to_event(game)
+	for i in EVENT_FRAMES:
+		if not game.event_player.is_playing():
+			break
+		await wait_physics_frames(1)
+	assert_true(game.event_player.played[0].completed)
+	assert_almost_eq(h.hp(), 3.0, 0.001)
 
 
 ## --session=s1_05_wrong on a fresh save still plays a forked enemy (option 0).

@@ -49,8 +49,19 @@ func _on_basic_added(id: StringName) -> void:
 	apply_basics()
 	if id == &"health":
 		RunState.start_grace(Tuning.health_added_grace)   # the rims light, "run." is said, then the bites
-	if is_instance_valid(spawner):
-		spawner.enabled = _spawner_wanted()
+	# Only the basics _spawner_wanted() reads touch the spawner: `add version` must not
+	# turn back on a spawner something else turned off (a test, a held clock; M42).
+	if id in [&"enemies", &"hits", &"shooting"]:
+		_sync_spawner()
+
+
+## The spawner's state, derived (not saved and restored): wanted by the basics, and
+## paused while a scripted event holds the session clock, so the event does not end on
+## a crowd that built up while it played (M42 E5). Never back on once the run is over.
+func _sync_spawner() -> void:
+	if not is_instance_valid(spawner):
+		return
+	spawner.enabled = _spawner_wanted() and not (run_loop != null and (run_loop.clock_held() or run_loop.is_over()))
 
 
 func build(p_shell: Node) -> void:
@@ -242,6 +253,7 @@ func session_progress() -> float:
 
 func hold_session_clock(owner_id: StringName, on: bool) -> void:
 	run_loop.hold_clock(owner_id, on)
+	_sync_spawner()
 
 
 ## Places `count` enemies of `archetype` at the spawner's off-screen points (a cue).

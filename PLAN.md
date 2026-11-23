@@ -200,7 +200,7 @@ The builder writes the rest in this voice, about 30 in all, each tagged with `mi
 - **`bot_runs.gd --campaign`** plays the campaign on a scratch save from S1 to the end, picking forks by seed. `--invincible` and mortal modes as before. On death it picks Retry once, then Move on. It prints a line per session: `session=s1_05_wrong outcome=won t=96.2 edits=3 events=wrong_variable reactions=7`.
 - **`--mute-ai`** (game and bot): no mascot lines, no reactions (cues that edit still fire, silently): the fun-before-meta check.
 - **`--session=<id>`** starts a session directly on an in-memory save (inert).
-- `check.ps1 -BotRuns` adds: one full invincible campaign chain on a scratch save (all 6 sessions; ~10 min of game time at 4× speed), and one mortal chain.
+- `check.ps1 -BotRuns` adds: one full invincible campaign chain on a scratch save (all 7 sessions; ~10 min of game time at 4× speed), and one mortal chain.
 
 ---
 
@@ -385,6 +385,76 @@ Owner, 2026-11-23: "game strength is to play with rules so current top right UI 
   - **control, no event (`--events=none`):** 0 deaths in the same 40–52.5 s window.
   - **But the session gets harder:** 6/16 won with the event, against 10/16 without. Deaths come after the event (59–97 s), from the extra 10 s and the ×1.15 enemies, plus the HP lost to contacts in the flips. This is tuning for M42 (table 3.1's targets). The levers, if S5 should be gentler: pause spawns while the clock is held, a longer flip grace, or a shorter left flip.
   - The legacy run hashes match M40's (both stage sets).
+
+### 6.7 As built (M42): Stage 1 complete, the G13 build
+- **S6 (`s1_06_playground`, "Playground"):**
+  - The goal is 60 kills, with a 4 min limit. Spawns are ×1.3.
+  - Explosive shots arrive at 10 s, big enemies at 20 kills and inverted controls at 40 kills. These cues are by kills, not 60/110 s, so they land for any player.
+  - Slow-mo comes once, when HP is ≤ 2. It uses the new `hp N:` cue time, and it waits while the rule book is busy (another warning, or a timed edit live).
+  - The debrief: on a death, 1.2.4's line "That one's on me. Want another go, or should I just patch it?". Once the session is over for good: "Okay. It's a game. A small one." · "Next: what kind of shooter is it?".
+  - Notes "A small game, start to finish", v0.7.0, then "To be continued" and the title.
+  - Builder departures from 3.1/3.2, asked at G13 7j: 60 kills (not 40), and edits by kills.
+- **The `ended` line condition:** won, stopped, or moved on after a death. Move on on a session with `ended` lines plays them first, then the notes and the way on. So a death + Move on on S6 still ends Stage 1.
+- **The `version` basic:**
+  - S5 adds the stamp live at 15 s: "See the number up there? That's my version.";
+  - S6 has it from the start;
+  - the campaign stamp is the version only, with no "build N".
+- **S5 changes:**
+  - the picked enemy spawns at 6 s, by cue (`spawn fork:<id>`);
+  - spawns pause while the event holds the clock;
+  - the flip grace is 1.5 s (was 0.5);
+  - spawn_rate is 0.8;
+  - the clear gives 1 HP back (the "sorry heal").
+- **Reactions:**
+  - New `max_session`: first_dash and shooter_seen stop after S4, and the picked enemy's line after S5.
+  - kills_50 waits for S6.
+  - streak_after_hit is renamed streak_4.
+  - hp_two stays live in S6.
+  - S4's hit_none line no longer repeats S5's.
+- **Bot numbers (mortal bot; bands are 3.1's first-try targets):**
+
+  | Session | Before | Shipped, seeds 1-16 | Pooled, 112 seeds | Band |
+  |---|---|---|---|---|
+  | S4 | – | 0/16 | – | ≤ 3/16 |
+  | S5 | 10/16 | 2/16 | 21.4% | ≤ 4/16 |
+  | S6 | – | 2/16 | 23.2% | ≤ 6/16, above S5 |
+
+  - The order S4 < S5 < S6 holds pooled, thinly. On 16-seed sets S5 and S6 tie (seeds 1-16 and 17-32: 2/16 each).
+  - S5 levers, each added on top of the last (deaths/16): base 10 → spawn pause 8 → 1.5 s grace 7 → spawn 0.8 6 → sorry heal 4 → enemy at 6 s 2. Died during the event: 1/16.
+  - **Note:** S5 is now harder *without* the event (8/16, 47% pooled) than with it, because the pause and the heal make the event a breather.
+  - S6 spawn 1.3 is the only setting in band. At 1.2 S6 was no harder than S5; at 1.35 it reached 40%.
+  - Slow-mo lands in 9/16 mortal runs and costs +3.2 s of real time. Before the busy hold it collided with another edit in 7/16 runs.
+  - After the review, an edit cue also waits while another edit's warning is pending: two priority-3 warnings would queue on the mascot, and the second edit would land before its line was read. An edit can still land while slow-mo is live, after its own warning. S6's numbers above are measured with this hold.
+- **Pacing: the 9-11 min gate is not met.**
+  - The invincible chain S0-S6 plays a median 295.9 s ≈ 4.9 min (range 292.6-297.3; 8 chains). The cause is the owner's cuts (S0/S1 5 s, S2 45 s, S4 30 s).
+  - For context, the bot's reading estimate adds ≈ 150 s. Mortal chains (16): median total with retries ≈ 428 s, so about 7 min for a human.
+  - Mortal first-try deaths per session: S5 1/16, S6 5/16, S2 16/16 by design, the rest 0.
+  - 3.1's "tune toward 20" was not pursued (owner: early steps must be quick).
+  - G13 decides (Q1, 7e) whether S6 should grow.
+- **The bot:**
+  - `--session-set=` for session fields;
+  - a `deaths:` summary per `--only`, with hit kinds;
+  - per-seed `landed=`;
+  - the chain prints `chain:` totals, plus `enemy=` and `landed=`.
+  - The check wants:
+    - S5 to offer Next;
+    - S6 to end Stage 1 at v0.6.0→v0.7.0 with 3 edits;
+    - a `chain:` line;
+    - the HP cue to land slow-mo after a hit (seed 15 at 3 max HP).
+- **Export:**
+  - **Fixed a shipping bug:** Godot's export converted text resources to binary, and that emptied every PackedStringArray. The build would have had no AI lines, cues, intros, debriefs or notes; the M36 build was probably hit too. `project.godot` now sets `editor/export/convert_text_resources_to_binary=false`.
+  - The boot check now reads the session and requires "7 sessions … 30 reactions", plus a second boot into S5.
+  - PatchNotes.exe is 104.7 MB.
+- **PLAYTEST.md is the G13 sheet.** Facts it relies on:
+  - `real_duration` excludes the debrief; the telemetry timestamp is written at the debrief button.
+  - `--session=` jumps write telemetry, so send the files before Part B.
+  - Part B needs `--autostart --session=…`: without `--autostart`, Continue / New game would write the real save.
+  - A jumped session's stamp reads v0.0.1, because `answer_forks` ships the enemy as a patch.
+- **Review (5 reviewers, 3 skeptics per finding; 3 upheld, all fixed):**
+  - an edit cue could land before its warning was read (the hold above);
+  - PLAYTEST's mute-AI replay lacked `--autostart` and would have reset the real save;
+  - the S5 version-line test could not fail. It now checks that the intro and then the version line are queued by 20 s. Whether the mascot shows the line by then cannot be tested headless, because the runner paces lines by wall-clock reading time.
+- **Fixes:** 6.6 said S5 shows v0.5.0; its notes read v0.6.0, the version after the session.
 
 ## 7. What v8 must answer (G13)
 1. Is Stage 1 fun and quick (~20 min), with something new every session?

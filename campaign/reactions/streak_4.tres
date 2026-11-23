@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1")
-id = &"streak_after_hit"
+id = &"streak_4"
 trigger = "kill_streak 4"
 lines = PackedStringArray("happy: Four in a row!", "proud: Okay, now you're showing off.")
 priority = 1

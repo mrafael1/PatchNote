@@ -104,19 +104,25 @@ if ($BotRuns) {
     if ($chain.Text -notmatch '\[botrun\] session=2 after_run=2 kind=basic .*ai_ship=basic_world .*version=v0\.0\.1->v0\.0\.2') { $failures += 'bot_runs_save: session 2 did not ship enemies and the level' }
     if ($chain.Text -notmatch '\[botrun\] session=3 after_run=3 kind=fork fork=look_1 .*shelved=\["look_1_\w+", "look_1_\w+"\] .*version=v0\.0\.2->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
     if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
-    # PLAN v8 4: the campaign so far, invincible on a fresh scratch save, then mortal in memory.
+    # PLAN v8 4: Stage 1 (S0-S6), invincible on a fresh scratch save, then mortal in memory.
     $camp = Invoke-Godot 'bot_campaign' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --save=user://save_check_campaign/save.json --keep-save --fresh 1i'
     Test-Errors 'bot_campaign' $camp
     Select-String -Path $camp.Log -Pattern '^\[botrun\] (session|save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($camp.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign: summary missing or failures' }
     if ($camp.Text -notmatch '\[botrun\] session=s1_00_nothing attempt=1 \(invincible\) outcome=stopped .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_campaign: S0 did not stop and ship v0.1.0' }
-    if ($camp.Text -notmatch '"index":6') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    if ($camp.Text -notmatch '"index":7') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
     # PLAN v8 M39: from S3 on the AI reacts live.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*reactions=[1-9]') { $failures += 'bot_campaign: no live reactions in S4' }
     # PLAN v8 M40: S4 bends its walls at 12 s; the rule book lands it.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*edits=1') { $failures += 'bot_campaign: S4 rule edit did not land' }
     # PLAN v8 M41: S5 plays wrong_variable; three gravity flips land through the rule book (the speed is the event's own).
     if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*edits=3 events=wrong_variable') { $failures += 'bot_campaign: S5 did not play wrong_variable' }
+    # PLAN v8 M42: S5 now offers Next; S6 is the last session and ends Stage 1 at v0.7.0
+    # (invincible: no "hp 2" cue, so the gift, the big enemies and inverted = 3 edits).
+    if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*choice=next_session') { $failures += 'bot_campaign: S5 is no longer the last session' }
+    if ($camp.Text -notmatch '\[botrun\] session=s1_06_playground attempt=1 \(invincible\) outcome=won .*choice=to_be_continued .*edits=3 .*version=v0\.6\.0->v0\.7\.0') { $failures += 'bot_campaign: S6 did not end Stage 1' }
+    if ($camp.Text -notmatch '\[botrun\] chain: sessions=7 ') { $failures += 'bot_campaign: no chain total' }
+    Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
     if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+') { $failures += 'bot_campaign: S3 did not ask fork_mascot' }
     if ($camp.Text -notmatch '"mascot":"(cursor|window|blob)"') { $failures += 'bot_campaign: the save has no mascot' }
@@ -136,6 +142,12 @@ if ($BotRuns) {
     Select-String -Path $ev.Log -Pattern '^\[botrun\] events:' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($ev.Text -notmatch 'outcome=win t=100\.0 enemy=\w+ event=wrong_variable@40\.0-51\.5 steps=6/6') { $failures += 'bot_event: wrong_variable did not play fully' }
     if ($ev.Text -notmatch '\[botrun\] summary: s1_05_wrong x1, .* 0 failures') { $failures += 'bot_event: run failed' }
+    # PLAN v8 M42: S6's "hp 2" cue lands slow-mo after a hit (3 max HP; mortal seed 15
+    # takes hits early: slow-mo at 20.4 s, death at 39.2 s).
+    $hp = Invoke-Godot 'bot_hpcue' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_06_playground --set=player_max_hp=3 15'
+    Test-Errors 'bot_hpcue' $hp
+    Select-String -Path $hp.Log -Pattern '^\[botrun\] session=s1_06_playground' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($hp.Text -notmatch 'landed=[^ ]*edit_slowmo@(\d+\.\d)' -or [double]$Matches[1] -le 1.5) { $failures += 'bot_hpcue: the hp 2 cue did not land slow-mo after a hit' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }

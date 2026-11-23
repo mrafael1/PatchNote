@@ -11,3 +11,4 @@ priority = 2
 cooldown = 30.0
 once_per_session = true
 min_session = 5
+max_session = 5

@@ -23,7 +23,7 @@ const FORK_ENEMY := &"fork:fork_enemy"
 
 @export_group("Build")
 ## The game's basics this build has (Unlocks.CAMPAIGN_BASICS): movement, shooting,
-## dash, enemies, level.
+## dash, enemies, level, health, hits, version.
 @export var basics: Array[StringName] = []
 ## Enemy archetypes that may spawn; "fork:fork_enemy" is the save's answer to that fork.
 @export var enemies: Array[StringName] = []
@@ -151,7 +151,7 @@ func problems() -> Array[String]:
 	for c in cue_list():
 		if c.problem != "":
 			out.append("%s: %s" % [where, c.problem])
-		elif c.action == &"say" and c.line.when in Line.OUTCOMES:
+		elif c.action == &"say" and (c.line.when in Line.OUTCOMES or c.line.when == &"ended"):
 			out.append("%s: cue '%s' cannot depend on the outcome" % [where, c.source])
 		elif c.action == &"add" and not c.target in Unlocks.CAMPAIGN_BASICS:
 			out.append("%s: cue '%s': unknown basic %s" % [where, c.source, c.target])
@@ -159,14 +159,20 @@ func problems() -> Array[String]:
 			out.append("%s: cue '%s': the session already has %s" % [where, c.source, c.target])
 		elif c.action == &"edit" and RuleDB.get_edit(c.target) == null:
 			out.append("%s: cue '%s': unknown edit %s" % [where, c.source, c.target])
+		elif c.action == &"spawn" and String(c.archetype).begins_with("fork:") and ChangeDB.get_fork(
+				StringName(String(c.archetype).trim_prefix("fork:"))) == null:
+			out.append("%s: cue '%s': no fork %s" % [where, c.source, String(c.archetype).trim_prefix("fork:")])
 		elif c.action == &"event" and EventDB.get_event(c.target) == null:
 			out.append("%s: cue '%s': unknown event %s" % [where, c.source, c.target])
 		elif c.action == &"say" and String(c.line.when).begins_with("event:"):
 			out.append("%s: cue '%s': a cue line cannot depend on an event" % [where, c.source])
 		elif c.when == &"pct" and goal != SURVIVE:
 			out.append("%s: cue '%s': pct needs a survive goal" % [where, c.source])
+		elif c.when == &"hp" and not &"health" in basics and not cue_list().any(
+				func(x: Cue) -> bool: return x.action == &"add" and x.target == &"health"):
+			out.append("%s: cue '%s': hp needs the health basic" % [where, c.source])
 	for l in intro_lines():
-		if l.when in Line.OUTCOMES:
+		if l.when in Line.OUTCOMES or l.when == &"ended":
 			out.append("%s: an intro line cannot depend on the outcome" % where)
 		elif String(l.when).begins_with("event:"):
 			out.append("%s: an intro line cannot depend on an event" % where)

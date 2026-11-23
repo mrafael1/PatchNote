@@ -77,6 +77,8 @@ func test_the_reactions_are_about_thirty_and_valid() -> void:
 		assert_false(ids.has(d.id), "unique ids")
 		ids[d.id] = true
 		assert_gte(d.min_session, 3, "%s: nothing before the AI can talk (S3)" % d.id)
+		if d.max_session >= 0:
+			assert_gte(d.max_session, d.min_session, "%s: max_session is not before min_session" % d.id)
 		for l in d.line_list():
 			assert_true(l.text.length() <= 60, "%s: short lines fit the bubble: %s" % [d.id, l.text])
 	assert_eq(CampaignDB.problems(), [] as Array[String])
@@ -96,6 +98,14 @@ func test_a_bad_reaction_says_why() -> void:
 	assert_string_contains(str(_def("first_kill", ["mascot:blob happy: Eep."]).problems()), "the others would say nothing")
 	assert_string_contains(str(_def("first_kill", []).problems()), "no lines")
 	assert_eq(_def("kill_streak 4", ["happy: Combo!"]).problems(), [] as Array[String])
+	var d := _def("first_kill", ["Hi."])
+	d.min_session = 4
+	d.max_session = 3
+	assert_string_contains(str(d.problems()), "max_session < min_session", "M42: it would never fit")
+	d.max_session = 4
+	assert_eq(d.problems(), [] as Array[String], "one session only is fine")
+	d.max_session = -1
+	assert_eq(d.problems(), [] as Array[String], "-1: no end")
 
 
 # --- Which sessions react -----------------------------------------------------------
@@ -107,6 +117,26 @@ func test_reactions_start_with_s3() -> void:
 	assert_gt(s3.reactions.active_ids().size(), 0)
 	for d in CampaignDB.reactions:
 		assert_eq(d.id in s3.reactions.active_ids(), d.min_session <= 3, String(d.id))
+
+
+## M42: max_session retires a discovery line once it is not new; kills_50 waits for S6.
+func test_max_session_retires_stale_lines() -> void:
+	var s6 := await _game(&"s1_06_playground")
+	var ids := s6.reactions.active_ids()
+	for stale: StringName in [&"first_dash", &"shooter_seen", &"tank_seen", &"bomber_seen", &"lancer_seen"]:
+		assert_false(stale in ids, String(stale))
+	assert_true(&"hp_two" in ids, "D22: hp_two warns in S6 too")
+	assert_true(&"kills_50" in ids)
+	assert_true(&"streak_4" in ids, "renamed from streak_after_hit")
+	s6.free()
+	var s4 := await _game(&"s1_04_level")
+	assert_false(&"kills_50" in s4.reactions.active_ids())
+	assert_true(&"first_dash" in s4.reactions.active_ids())
+	assert_false(&"tank_seen" in s4.reactions.active_ids())
+	s4.free()
+	var s5 := await _game(&"s1_05_wrong")
+	assert_true(&"tank_seen" in s5.reactions.active_ids())
+	assert_false(&"first_dash" in s5.reactions.active_ids())
 
 
 func test_mute_ai_says_nothing() -> void:

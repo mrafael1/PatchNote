@@ -177,11 +177,14 @@ func jump_to(id: StringName) -> bool:
 
 ## The context Line conditions read (Line.passes).
 ## events: the scripted events played this attempt (String ids; the debrief's event:<id>).
-func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: Array = []) -> Dictionary:
+## moved_on: the player chose Move on after a death (the `ended` condition, M42).
+func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: Array = [],
+		moved_on := false) -> Dictionary:
 	var ctx := {"attempt": attempt(s.id), "mascot": SaveGame.mascot(), "shipped": SaveGame.shipped(),
 			"events": events}
 	if outcome != &"":
 		ctx.outcome = outcome
+		ctx.moved_on = moved_on
 	if hits >= 0:
 		ctx.hits = hits
 	return ctx

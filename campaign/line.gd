@@ -11,14 +11,15 @@ extends RefCounted
 ## Conditions (`when`): won, died, stopped (the session's outcome), hit_none, hit_lots
 ## (the player's hits taken), first_try, retry (the attempt), mascot:<id> (the save's
 ## mascot), answer:<change id> (a shipped fork answer), event:<id> (that scripted event
-## played in this attempt). Each is checked against a
+## played in this attempt), ended (the session is over for good: won, stopped, or moved on
+## after a death; M42). Each is checked against a
 ## context dictionary (passes()); a key the context lacks fails the line.
 
 const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried", &"surprised",
 		&"guilty", &"thinking", &"panic"]
 const OUTCOMES: Array[StringName] = [&"won", &"died", &"stopped"]
 const PLAIN_CONDITIONS: Array[StringName] = [&"won", &"died", &"stopped", &"hit_none", &"hit_lots",
-		&"first_try", &"retry"]
+		&"first_try", &"retry", &"ended"]
 const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:"]
 ## Hits taken at or above this are "hit_lots".
 const HIT_LOTS := 3
@@ -104,7 +105,7 @@ static func parse_all(sources: PackedStringArray) -> Array[Line]:
 	return out
 
 
-## ctx keys: outcome (StringName), hits (int), attempt (int, 1 = first), mascot
+## ctx keys: outcome (StringName), moved_on (bool), hits (int), attempt (int, 1 = first), mascot
 ## (StringName), shipped (Array of change ids).
 func passes(ctx: Dictionary) -> bool:
 	if when == &"":
@@ -121,6 +122,9 @@ func passes(ctx: Dictionary) -> bool:
 			return ctx.has("attempt") and int(ctx.attempt) <= 1
 		&"retry":
 			return ctx.has("attempt") and int(ctx.attempt) > 1
+		&"ended":
+			return ctx.has("outcome") and (StringName(ctx.outcome) in [&"won", &"stopped"]
+					or bool(ctx.get("moved_on", false)))
 	if w.begins_with("mascot:"):
 		return ctx.has("mascot") and String(ctx.mascot) == w.trim_prefix("mascot:")
 	if w.begins_with("answer:"):

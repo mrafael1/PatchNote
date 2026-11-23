@@ -8,6 +8,7 @@ const BEAT := 0.8        ## the slide is seen before the mascot says what it see
 const LEFT_FOR := 4.0
 const UP_FOR := 3.0
 const DOWN_FOR := 3.0
+const SORRY_HEAL := 1.0  ## HP given back at the clear (M42 E7, D15)
 
 
 func play(ctx: EventContext) -> void:
@@ -44,4 +45,5 @@ func play(ctx: EventContext) -> void:
 		ctx.remove_edit(id)   # nothing for those not live
 	ctx.apply_mutation(&"edit_enemy_speed")
 	ctx.say(&"other_slider")
+	ctx.heal(SORRY_HEAL)   # the AI's apology for the gravity (M42 E7)
 	ctx.hold_clock(false)

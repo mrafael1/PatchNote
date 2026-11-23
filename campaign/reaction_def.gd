@@ -46,6 +46,8 @@ const LAST_SECONDS := 5.0
 @export var once_per_session := false
 ## The first session (its campaign index) where the AI knows enough to say it.
 @export var min_session := 3
+## The last session it fits (-1: no end). A discovery line goes stale once it's not new.
+@export var max_session := -1
 
 
 func trigger_name() -> StringName:
@@ -106,4 +108,6 @@ func problems() -> Array[String]:
 		out.append("%s: cooldown < 0" % where)
 	if min_session < 0:
 		out.append("%s: min_session < 0" % where)
+	if max_session >= 0 and max_session < min_session:
+		out.append("%s: max_session < min_session" % where)
 	return out

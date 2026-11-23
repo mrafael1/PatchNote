@@ -1,9 +1,9 @@
-# Windows export check (M7 gate): export the release build, boot the exported game
-# headless, and require the game banner, the full mutation list (big patches marked)
-# and a clean log.
+# Windows export check (playtest builds; G13): export the release build, boot the
+# exported game headless, and require the game banner, the campaign data, the full
+# mutation list (big patches marked) and a clean log; then boot S5 in the export too.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
-# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G12 sheet)
+# Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G13 sheet)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -34,9 +34,17 @@ if ($failures.Count -eq 0) {
     # The boot lines name the save's version and the run's genre (PLAN v5 M30); the smoke
     # boot never touches the real save.
     if ($text -notmatch '\[boot\] Patch Notes .*start screen, game v\d+\.\d+\.\d+, inert save') { $failures += 'boot: start screen line without version, or the real save' }
-    if ($text -match '\[boot\] Patch Notes .*, game (v\d+\.\d+\.\d+), genre (\w+) \(playable: ([^)]*)\)') {
-        Write-Host "    boot: game $($Matches[1]), genre $($Matches[2]), playable: $($Matches[3])"
+    # In the campaign the game line names the session between the genre and the playable list.
+    if ($text -match '\[boot\] Patch Notes .*, game (v\d+\.\d+\.\d+), genre (\w+)(?:, session (\w+))? \(playable: ([^)]*)\)') {
+        Write-Host "    boot: game $($Matches[1]), genre $($Matches[2]), session $($Matches[3]), playable: $($Matches[4])"
     } else { $failures += 'boot: game line without version and genres' }
+    # PLAN v8 M42: --autostart starts a new campaign at S0, with Stage 1's data loaded.
+    if ($text -notmatch ', session s1_00_nothing \(playable') { $failures += 'boot: the export did not start the campaign at S0' }
+    # M42: Godot 4.7's text-to-binary resource conversion empties every PackedStringArray
+    # (lines, cues, intros) in the export; project.godot keeps text resources as text.
+    # A regression shows here as "reaction <id>: no lines" errors.
+    if ($text -match '\[campaign\] (\d+ sessions: .*)') { Write-Host "    campaign: $($Matches[1].Trim())" }
+    if ($text -notmatch '\[campaign\] 7 sessions: .*s1_06_playground; 30 reactions') { $failures += 'boot: the campaign data did not load' }
     # Both lines end with the save's fork answers (PLAN v6 M36); the inert smoke boot has none.
     if (([regex]::Matches($text, '\[boot\] Patch Notes .*, answers -')).Count -lt 2) { $failures += 'boot: lines without the save''s answers' }
     $expected = (Get-ChildItem (Join-Path $root 'mutations') -Directory).Count
@@ -58,6 +66,15 @@ if ($failures.Count -eq 0) {
             if ($marked -ne $flagged) { $failures += "boot: $marked $($tier[0]) patches marked, $flagged resources with $($tier[1])" }
         }
     } else { $failures += 'boot: mutation list missing' }
+    # A second boot straight into S5 (a load check: the rule book's edits and the event
+    # without source; 300 frames never reach the 40 s event).
+    $bootLog5 = Join-Path $logDir 'export_boot_s5.log'
+    cmd /c "`"$exe`" --headless --quit-after 300 -- --autostart --session=s1_05_wrong > `"$bootLog5`" 2>&1"
+    $text5 = Get-Content $bootLog5 -Raw
+    if ($LASTEXITCODE -ne 0) { $failures += "boot S5: exit code $LASTEXITCODE" }
+    if (Select-String -Path $bootLog5 -Pattern $errorPattern) { $failures += 'boot S5: error lines in log' }
+    if ($text5 -notmatch ', session s1_05_wrong ') { $failures += 'boot S5: the export did not jump to S5' }
+    else { Write-Host '    boot S5: session s1_05_wrong, clean log' }
     Copy-Item (Join-Path $root 'PLAYTEST.md') $outDir -Force
     $size = (Get-Item (Join-Path $outDir 'PatchNotes.exe')).Length / 1MB
     Write-Host ("    PatchNotes.exe {0:N1} MB" -f $size)

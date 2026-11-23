@@ -51,9 +51,18 @@ extends SceneTree
 ##   --lift=<s>                   with --only: the session's goal value becomes <s> (a
 ##                                30 s survive lasts <s>), so deaths can be compared
 ##   --events=none                with --only: drop the session's event cues (M41's control)
+##   --session-set=<key>=<value>[,...]   with --only or the chain (M42): set a session's
+##                                own field (spawn_rate, spawn_cap, goal_value, time_limit)
+##                                on a copy of it, exactly as the .tres would ship it. In
+##                                the chain it applies to every session; <session id>.<key>
+##                                applies to that one only
 ## With --only the session's forks are answered by the seed (enemy=), and a session with
 ## a scripted event prints event=<id>@start-end steps=n/N hits_in_event=n (unblocked,
 ## by kind) per seed and an "events:" summary: played fully, died during it (M41 gate).
+## Without --edits each --only line ends with landed=<edit@t,...> (M42), and the summary
+## is followed by "deaths:" (outcomes, median t, deaths by forked enemy, whole-run hits
+## by kind). The chain line ends with enemy= and landed=, and a "chain:" total follows
+## (play, real, an estimated reading time: lines x (read time + length/45) + 5 s a pick).
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
 ## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
 ## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
@@ -74,6 +83,10 @@ var edit_conditions := PackedStringArray()   ## --edits (PLAN v8 M40)
 var edit_at := 12.0                          ## --edit-at
 var lift := 0.0                              ## --lift
 var events_off := false                      ## --events=none
+var session_set := PackedStringArray()       ## --session-set (M42), "[<session id>.]key=value"
+const SESSION_KEYS := ["spawn_rate", "spawn_cap", "goal_value", "time_limit"]
+const READ_CPS := 45.0                       ## the chain's reading estimate: characters a second
+const FORK_SECONDS := 5.0                    ## ... and seconds a pick
 const EVENT_TAIL := 1.0                      ## a death this soon after an event counts as during it
 
 var LOG := DEFAULT_LOG
@@ -148,6 +161,8 @@ func _run() -> void:
 			lift = float(arg.trim_prefix("--lift="))
 		elif arg == "--events=none":
 			events_off = true
+		elif arg.begins_with("--session-set="):
+			session_set.append_array(arg.trim_prefix("--session-set=").split(",", false))
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -155,6 +170,9 @@ func _run() -> void:
 	var telemetry: GDScript = load("res://systems/telemetry.gd")
 	telemetry.log_path = LOG
 	if not _set_up_save():
+		quit(1)
+		return
+	if not session_set.is_empty() and not _apply_session_set():
 		quit(1)
 		return
 	var lines_before := _line_count()
@@ -294,6 +312,39 @@ static func _median(values: Array) -> float:
 	return float(v[mid]) if v.size() % 2 == 1 else (float(v[mid - 1]) + float(v[mid])) / 2.0
 
 
+static func _join_or_dash(parts: Array) -> String:
+	return ",".join(parts) if not parts.is_empty() else "-"
+
+
+## "contact:n,projectile:n" sorted by kind, or "-".
+static func _kinds_text(kinds: Dictionary) -> String:
+	var ids: Array = kinds.keys()
+	ids.sort()
+	return _join_or_dash(ids.map(func(k: String) -> String: return "%s:%d" % [k, kinds[k]]))
+
+
+## This run's unblocked player hits by kind (the whole run; the events: tally is the
+## event window only).
+func _hit_kinds() -> Dictionary:
+	var kinds := {}
+	for ev: Dictionary in root.get_node("RunState").run_log:
+		if ev.get("event") != &"player_hit" or bool(ev.get("blocked", false)):
+			continue
+		var k := String(ev.get("kind", "?"))
+		kinds[k] = int(kinds.get(k, 0)) + 1
+	return kinds
+
+
+## The archetype a session's "fork:" enemy resolved to from the save ("-": none).
+func _forked_enemy(session: Resource) -> String:
+	if not (session.get(&"enemies") as Array).any(func(e: StringName) -> bool: return String(e).begins_with("fork:")):
+		return "-"
+	for t: StringName in session.call(&"enemy_types"):
+		if not t in [&"chaser", &"shooter"]:
+			return String(t)
+	return "-"
+
+
 func _edit_cue(cond: String) -> String:
 	return "at %s: edit %s" % [edit_at, cond.replace(":", " ")]
 
@@ -316,6 +367,10 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	var p3_heard := 0
 	var ev_stats := {"reached": 0, "fully": 0, "completed": 0, "died_during": 0, "died_before": 0,
 			"hits": 0, "kinds": {}, "id": ""}
+	var outcomes := {}       ## outcome -> runs (M42 "deaths:")
+	var durations: Array = []
+	var by_enemy := {}       ## forked enemy -> [deaths, runs]
+	var all_kinds := {}      ## whole-run unblocked hits by kind
 	for spec in specs:
 		var run_seed := int(_seed_of(spec))
 		var invincible := spec.ends_with("i")
@@ -387,12 +442,26 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			if ev.failed:
 				print("[botrun] session=%s seed=%d FAILED: %s" % [only, run_seed, ev.why])
 				failures += 1
-		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s" % [
-			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), rec.get("outcome", "?"),
+		var outcome := String(rec.get("outcome", "?"))
+		var died := outcome in ["lose", "died"]
+		outcomes[outcome] = int(outcomes.get(outcome, 0)) + 1
+		durations.append(duration)
+		if forked != "" and forked != "-":
+			var e: Array = by_enemy.get(forked, [0, 0])
+			by_enemy[forked] = [int(e[0]) + (1 if died else 0), int(e[1]) + 1]
+		var kinds := _hit_kinds()
+		for k: String in kinds:
+			all_kinds[k] = int(all_kinds.get(k, 0)) + int(kinds[k])
+		var landed_text := ""   # M42: at the line's end, so check.ps1's --edits regexes keep matching
+		if cond == "":
+			landed_text = " landed=%s" % _join_or_dash(landed.map(
+					func(l: Dictionary) -> String: return "%s@%.1f" % [l.id, l.at]))
+		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
+			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
 			fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 2).size(),
 			heard.size(), p3.size(), "-" if gap == INF else "%.1f" % gap,
-			",".join(fired.map(func(f: Dictionary) -> String: return String(f.id)))])
+			",".join(fired.map(func(f: Dictionary) -> String: return String(f.id))), landed_text])
 		game.debrief.close()
 		root.remove_child(game)
 		game.free()
@@ -406,6 +475,15 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		only, specs.size(), median, per_90.front() if not per_90.is_empty() else 0.0,
 		per_90.back() if not per_90.is_empty() else 0.0, "-" if min_gap == INF else "%.1f s" % min_gap,
 		p3_heard, p3_said, failures])
+	var enemy_parts: Array = []
+	var enemy_ids: Array = by_enemy.keys()
+	enemy_ids.sort()
+	for e: String in enemy_ids:
+		enemy_parts.append("%s:%d/%d" % [e, by_enemy[e][0], by_enemy[e][1]])
+	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s hits=%s%s" % [
+		only, int(outcomes.get("lose", 0)) + int(outcomes.get("died", 0)), specs.size(),
+		int(outcomes.get("win", 0)), int(outcomes.get("stopped", 0)), _median(durations),
+		_join_or_dash(enemy_parts), _kinds_text(all_kinds), " edit=%s" % cond if cond != "" else ""])
 	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
 		var reached := int(ev_stats.reached)
 		var rate := float(ev_stats.died_during) / maxf(1.0, reached)
@@ -540,6 +618,10 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 	var played := 0
 	var previous: Node = null
 	var step := 0
+	var seen := {}           ## session ids played (M42 "chain:")
+	var play_sum := 0.0
+	var real_sum := 0.0
+	var read_sum := 0.0
 	while true:
 		var game := await _wait_for_game(previous)
 		if game == null:
@@ -581,6 +663,12 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		line += " edits=%d" % game.rule_book.landed.size()
 		var played_events: Array = game.event_player.played_ids()
 		line += " events=%s" % (",".join(played_events) if not played_events.is_empty() else "-")
+		# M42: after events= (check.ps1 reads "edits=N events=" side by side).
+		line += " enemy=%s" % _forked_enemy(session)
+		line += " landed=%s" % _join_or_dash(game.rule_book.landed.map(func(l: Dictionary) -> String: return String(l.id)))
+		seen[session.id] = true
+		play_sum += float(rec.duration)
+		real_sum += float(rec.real_duration)
 		game.debrief.next_seed = base * 100 + step
 		if not game.debrief.choose(choice):
 			print(line + " FAILED: could not choose")
@@ -593,6 +681,8 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 				return failures + 1
 		if pick != "":
 			line += " pick=" + pick
+			read_sum += FORK_SECONDS
+		read_sum += _read_estimate(game)
 		var last: bool = db.is_done()   # the title screen comes next
 		print(line + " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()])
 		if last:
@@ -600,6 +690,8 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		if step > 50:
 			print("[botrun] campaign FAILED: more than 50 sessions played")
 			return failures + 1
+	print("[botrun] chain: sessions=%d attempts=%d play=%.1f real=%.1f read≈%.1f total≈%.1f" % [
+		seen.size(), played, play_sum, real_sum, read_sum, play_sum + read_sum])
 	# The title screen comes back after the last session.
 	for f in 300:
 		await process_frame
@@ -622,6 +714,59 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 	print("[botrun] save: %s version=%s campaign=%s" % [save_arg if save_arg != "" else "in memory",
 			save.call(&"version").label(), JSON.stringify(state.campaign)])
 	return failures
+
+
+## --session-set (M42): each session it names becomes a copy with the field set, in
+## CampaignDB's list for this process (the game scene reads its session from there), so
+## the knob is exactly the field the .tres ships. Without a <session id>. prefix it
+## applies to the --only session, or to every session in the chain. Returns false (and
+## says why) on a bad entry.
+func _apply_session_set() -> bool:
+	if not campaign:
+		print("[botrun] FAILED: --session-set needs --campaign")
+		return false
+	var sessions: Array = root.get_node("CampaignDB").get(&"campaign").get(&"sessions")
+	var copies := {}   ## index -> the session's copy
+	for entry in session_set:
+		var at := entry.find("=")
+		var key := entry.left(at) if at > 0 else ""
+		var target := String(only)
+		if key.contains("."):
+			target = key.get_slice(".", 0)
+			key = key.get_slice(".", 1)
+		var text := entry.substr(at + 1) if at > 0 else ""
+		if not key in SESSION_KEYS or not text.is_valid_float():
+			print("[botrun] FAILED: bad --session-set %s (keys: %s)" % [entry, ", ".join(SESSION_KEYS)])
+			return false
+		var found := false
+		for i in sessions.size():
+			if target != "" and String(sessions[i].get(&"id")) != target:
+				continue
+			if not copies.has(i):
+				copies[i] = sessions[i].duplicate()
+				sessions[i] = copies[i]
+			copies[i].set(key, float(text))
+			found = true
+		if not found:
+			print("[botrun] FAILED: --session-set %s: no session %s" % [entry, target])
+			return false
+		print("[botrun] session-set %s: %s = %s" % [target if target != "" else "every session", key, float(text)])
+	return true
+
+
+## Estimated seconds a player spends reading this attempt's lines (M42 "chain:"): the
+## intro and cue lines said or still queued, and the debrief's lines shown, each its
+## bubble time plus its length at READ_CPS characters a second.
+func _read_estimate(game: Node) -> float:
+	var texts: Array = (game.session_runner.said as Array).duplicate()
+	for l: RefCounted in game.session_runner.queued_lines():
+		texts.append(String(l.get(&"text")))
+	texts.append_array(game.debrief.said)
+	var runner_script: GDScript = load("res://campaign/session_runner.gd")
+	var out := 0.0
+	for t: String in texts:
+		out += float(runner_script.call(&"read_seconds", t)) + t.length() / READ_CPS
+	return out
 
 
 ## "name=value" onto the Tuning autoload; value is parsed as a Godot literal.

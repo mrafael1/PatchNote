@@ -242,6 +242,71 @@ func test_the_corner_shows_only_what_the_ai_added() -> void:
 	assert_false("v0." in Hud.session_text(5, "dash ready"))
 
 
+## M42: the `version` basic, added live, shows the version only (no "build N"), and
+## adding it leaves a spawner something else turned off alone (only the basics
+## _spawner_wanted() reads touch it).
+func test_adding_version_shows_the_stamp_and_leaves_the_spawner_alone() -> void:
+	var game := await _game(&"s1_04_level")
+	game.spawner.enabled = false
+	assert_false("v0." in Hud.session_text(5, ""))
+	RunState.add_basic(&"version")
+	await wait_physics_frames(1)
+	assert_false(game.spawner.enabled, "add version does not re-enable the spawner")
+	var text := Hud.session_text(5, "")
+	assert_string_contains(text, SaveGame.version().label())
+	assert_false("build" in text, "no build N in the campaign stamp")
+	assert_eq(text, "HP 5   %s" % SaveGame.version().label())
+	assert_string_contains(game.hud._label.text, SaveGame.version().label())
+
+
+## M42: S5 adds the stamp at 15 s (owner: announce in-session); a Retry starts without it.
+func test_s5_adds_the_version_stamp_live() -> void:
+	var game := await _game(&"s1_05_wrong")
+	game.spawner.enabled = false
+	RunState.invincible = true
+	await wait_physics_frames(1)
+	assert_false("v0." in game.hud._label.text, "no stamp at the start")
+	assert_false(Unlocks.has_basic(&"version"))
+	game.run_loop.goal_clock = 15.0
+	await wait_physics_frames(3)
+	assert_true(Unlocks.has_basic(&"version"), "added at 15 s")
+	assert_string_contains(game.hud._label.text, SaveGame.version().label())
+	assert_false("build" in game.hud._label.text)
+	var texts: Array = game.session_runner.said + game.session_runner.queued_lines().map(func(l: Line) -> String: return l.text)
+	assert_true(texts.has("See the number up there? That's my version."), "and says so")
+	RunState.reset(7)
+	RunState.session = CampaignDB.get_session(&"s1_05_wrong")
+	assert_true(RunState.session_added.is_empty())
+	assert_false(Unlocks.has_basic(&"version"), "a Retry starts without the stamp")
+	assert_false("v0." in Hud.session_text(5, ""))
+
+
+func test_s6_corner_has_the_version_from_frame_one() -> void:
+	var game := await _game(&"s1_06_playground")
+	await wait_physics_frames(1)
+	assert_true(Unlocks.has_basic(&"version"))
+	assert_string_contains(game.hud._label.text, SaveGame.version().label())
+	assert_string_contains(game.hud._label.text, "HP %d" % int(Tuning.player_max_hp))
+
+
+## The version cue fires by 20 s of game time and its line waits only behind the intro.
+## (Whether the mascot shows it by then cannot be tested headless: the runner paces lines
+## by wall-clock reading time, and tests run many times faster than real time.)
+func test_s5_version_line_is_queued_by_20_s_behind_the_intro_only() -> void:
+	var game := await _game(&"s1_05_wrong")
+	RunState.invincible = true
+	var line := "See the number up there? That's my version."
+	while game.run_loop.goal_clock < 20.0 and not game.run_loop.is_over():
+		await wait_physics_frames(1)
+	var runner := game.session_runner
+	var queued: Array = runner.queued_lines().map(func(l: Line) -> String: return l.text)
+	assert_true(runner.said.has(line) or queued.has(line), "the cue fired by 20 s")
+	var intro: Array = CampaignDB.get_session(&"s1_05_wrong").intro_lines().map(func(l: Line) -> String: return l.text)
+	var ahead: Array = runner.said.duplicate() + queued
+	ahead = ahead.slice(0, ahead.find(line))
+	assert_eq(ahead, intro, "the intro, then the version line: nothing of the runner's in between")
+
+
 func test_s4_corner_has_hp_and_the_dash() -> void:
 	var game := await _game(&"s1_04_level")
 	await wait_physics_frames(1)

@@ -130,13 +130,14 @@ func _update_gauge(delta := 0.0) -> void:
 
 ## The corner in a campaign session (owner, M39.2): only what the AI has added. HP comes
 ## with `health`; no kill count (the goal text counts); the version stamp waits for a
-## `version` basic (S5). Empty in the first sessions.
+## `version` basic (S5): the version only, no "build N" (dev jargon, and it would tick
+## through the rule edits; M42). Empty in the first sessions.
 static func session_text(hp: int, dash: String) -> String:
 	var top: Array[String] = []
 	if Unlocks.has_basic(&"health"):
 		top.append("HP %d" % hp)
 	if Unlocks.has_basic(&"version"):
-		top.append(version_text())
+		top.append(SaveGame.version().label())
 	var lines: Array[String] = []
 	if not top.is_empty():
 		lines.append("   ".join(top))
