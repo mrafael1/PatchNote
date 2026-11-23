@@ -46,7 +46,14 @@ func _ready() -> void:
 	EventBus.explosion.connect(func(_p: Vector2, _r: float) -> void: play(&"explosion"))
 	EventBus.patch_applied.connect(func(_m: Resource) -> void: play(&"patch_apply"))
 	EventBus.patch_reverted.connect(func(_m: Resource) -> void: play(&"patch_revert"))
-	EventBus.run_ended.connect(func(o: StringName) -> void: play(&"win" if o == &"win" else &"lose"))
+	EventBus.run_ended.connect(_on_run_ended)
+
+
+## A campaign session that simply stops (S0, S1) is no loss: no jingle (M39.2).
+func _on_run_ended(outcome: StringName) -> void:
+	if outcome == &"stopped":
+		return
+	play(&"win" if outcome == &"win" else &"lose")
 
 
 ## Plays a sound by name. Unknown names are ignored.

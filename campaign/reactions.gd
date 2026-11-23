@@ -155,7 +155,10 @@ func _physics_process(_delta: float) -> void:
 	if slot == _last_slot:
 		return
 	_last_slot = slot
-	tick()
+	# Before its body (S3) the AI's first full sentence is the script's "Oh. That works."
+	# on the first kill: until then reactions follow what happens but say nothing, so no
+	# stale one (low HP) is left to go off at the kill (M39.2 review).
+	tick(session != null and not session.face and RunState.kills == 0)
 
 
 ## Enemy shots that pass close: marked every frame (a shot crosses 12 px in a frame or
@@ -184,7 +187,8 @@ static func near_miss_reach() -> float:
 # --- Checking the triggers ----------------------------------------------------------
 
 ## One check of every trigger (TICK_HZ; tests call it directly). Says at most one line.
-func tick() -> void:
+## quiet: follow what happens (edges, consumed events) but say nothing.
+func tick(quiet := false) -> void:
 	var t := now()
 	# The free part of the time since the last tick: after whatever was being spoken.
 	if _last_tick_at >= 0.0:
@@ -213,7 +217,7 @@ func tick() -> void:
 		_kill_times.pop_front()
 	if enemies == 0:
 		_enemy_peak = 0
-	if best != null:
+	if best != null and not quiet:
 		_say(best, t)
 
 

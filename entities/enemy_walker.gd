@@ -97,7 +97,8 @@ func _physics_process(delta: float) -> void:
 	if is_lancer() and _lancer_step(delta, to_player, distance):
 		return
 	var reach := contact_reach()
-	visual.rim = 0.0 if is_bomber() else EnemyCommon.contact_warning(distance - reach)
+	var harmless: bool = player.get(&"damage_locked") == true   # no `health` yet (M39.2)
+	visual.rim = 0.0 if is_bomber() or harmless else EnemyCommon.contact_warning(distance - reach)
 	_track_progress(distance, delta)
 
 	var rules := RunState.rules
@@ -108,6 +109,8 @@ func _physics_process(delta: float) -> void:
 		steer = _wander_dir
 	else:
 		steer = _steer_around_walls(to_player.normalized(), distance)
+	if harmless and distance <= reach:
+		steer = Vector2.ZERO   # arrived, and nothing happens: they ring the player, not bury it
 	mover.wish = (steer + EnemyCommon.separation(self)).limit_length(1.0)
 
 	var player_mover := Component.find(player, Mover) as Mover

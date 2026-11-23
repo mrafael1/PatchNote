@@ -92,6 +92,14 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 			if forks.has(s.fork):
 				out.append("campaign: fork %s is asked twice (%s, %s)" % [s.fork, forks[s.fork], s.id])
 			forks[s.fork] = s.id
+	for i in c.sessions.size() - 1:
+		var s := c.sessions[i]
+		var next := c.sessions[i + 1]
+		if s == null or next == null:
+			continue
+		for cue in s.cue_list():
+			if cue.action == &"add" and cue.problem == "" and not cue.target in next.basics:
+				out.append("campaign: %s adds %s but %s does not have it" % [s.id, cue.target, next.id])
 	if c == campaign:
 		for r in reactions:
 			out.append_array(r.problems())

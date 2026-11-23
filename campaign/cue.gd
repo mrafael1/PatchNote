@@ -7,13 +7,20 @@ extends RefCounted
 ##   "kills 10: say proud: Ten!"      once the session has 10 kills
 ##   "pct 50: say Halfway."           at 50% of a survive goal's time
 ##   "hit: say worried: Ouch."        on the player's first hit (on_signal player_hit)
+##   "touch: say surprised: ...?"     the first time something tries to hurt the player
+##                                    while the session has no `health` yet (nothing happens)
+##   "touch 5: say surprised: ...?"   the same, only before 5 s; dropped after (the AI has
+##                                    moved on by then)
+##   "at 11: add health"              the AI adds a basic, live (M39.2)
 ##   "at 50: edit edit_bouncy_walls"  a rule edit (M40)
 ##   "at 40: event wrong_variable"    a scripted event (M41)
 ##
 ## Every cue fires once. The text after "say" is a Line (Line.parse).
 
-const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit"]
-const ACTIONS: Array[StringName] = [&"say", &"spawn", &"edit", &"event"]
+const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch"]
+const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event"]
+## The cue times that take no number (touch takes one or none: a deadline).
+const BARE_WHENS: Array[StringName] = [&"hit"]
 const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber", &"lancer"]
 
 var when: StringName = &""
@@ -22,7 +29,7 @@ var action: StringName = &""
 var line: Line                 ## say
 var archetype: StringName      ## spawn
 var count := 1                 ## spawn
-var target: StringName         ## edit / event id
+var target: StringName         ## add: the basic; edit / event: the id
 var problem := ""
 var source := ""
 
@@ -41,13 +48,18 @@ static func parse(p_source: String) -> Cue:
 		c.problem = "unknown cue time in '%s'" % p_source
 		return c
 	c.when = StringName(head[0])
-	if c.when != &"hit":
+	if c.when == &"touch":
+		if head.size() > 2 or (head.size() == 2 and not head[1].is_valid_float()):
+			c.problem = "cue '%s': 'touch' takes a deadline in seconds or nothing" % p_source
+			return c
+		c.value = head[1].to_float() if head.size() == 2 else 0.0
+	elif not c.when in BARE_WHENS:
 		if head.size() != 2 or not head[1].is_valid_float():
 			c.problem = "cue '%s' needs a number" % p_source
 			return c
 		c.value = head[1].to_float()
 	elif head.size() != 1:
-		c.problem = "cue '%s': 'hit' takes no number" % p_source
+		c.problem = "cue '%s': '%s' takes no number" % [p_source, c.when]
 		return c
 	var words := body.split(" ", false)
 	if words.is_empty() or not StringName(words[0]) in ACTIONS:
@@ -68,7 +80,7 @@ static func parse(p_source: String) -> Cue:
 						c.problem = "cue '%s': bad count" % p_source
 					else:
 						c.count = words[2].to_int()
-		&"edit", &"event":
+		&"add", &"edit", &"event":
 			if words.size() != 2:
 				c.problem = "cue '%s': %s needs one id" % [p_source, c.action]
 			else:
@@ -85,7 +97,8 @@ static func parse_all(sources: PackedStringArray) -> Array[Cue]:
 
 
 ## Whether this cue is due. ctx: clock (goal seconds), kills, pct (0..100, -1 when the
-## goal has no length), hit (bool, the player was hit since the session began).
+## goal has no length), hit (bool, the player was hit since the session began), touched
+## (bool, something tried to hurt the player while the session had no health).
 func due(ctx: Dictionary) -> bool:
 	match when:
 		&"at":
@@ -96,4 +109,11 @@ func due(ctx: Dictionary) -> bool:
 			return float(ctx.get("pct", -1.0)) >= value
 		&"hit":
 			return bool(ctx.get("hit", false))
+		&"touch":
+			return bool(ctx.get("touched", false)) and not expired(ctx)
 	return false
+
+
+## A touch cue past its deadline never fires (the moment has passed).
+func expired(ctx: Dictionary) -> bool:
+	return when == &"touch" and value > 0.0 and float(ctx.get("clock", 0.0)) >= value

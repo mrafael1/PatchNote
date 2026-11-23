@@ -97,7 +97,7 @@ func is_open() -> bool:
 
 ## Not available during a prompt, a transition or the report.
 func can_open() -> bool:
-	if locked:
+	if locked or RunState.session != null:   # the v6 build log; a session's Tab holds the AI's line
 		return false
 	if prompt_panel and prompt_panel.is_open():
 		return false

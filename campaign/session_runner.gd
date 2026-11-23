@@ -23,6 +23,7 @@ const READ_PER_CHAR := 0.05
 var session: SessionDef
 var genre: Genre
 var hits := 0
+var touched := false   ## something tried to hurt the player before `health` (cue "touch")
 ## --mute-ai (PLAN v8 4): nothing is said; cues that act still fire. The fun-before-
 ## meta check.
 var muted := false
@@ -40,6 +41,7 @@ func _ready() -> void:
 	_fired.resize(_cues.size())
 	_fired.fill(false)
 	EventBus.player_hit.connect(_on_player_hit)
+	EventBus.player_touched.connect(func() -> void: touched = true)
 	var ctx := CampaignDB.line_context(session)
 	for line in Line.passing(session.intro_lines(), ctx):
 		say(line)
@@ -78,11 +80,15 @@ func _physics_process(_delta: float) -> void:
 	if genre == null or genre.is_over():
 		return
 	var ctx := {"clock": genre.session_clock(), "kills": RunState.kills,
-			"pct": genre.session_progress(), "hit": hits > 0}
+			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched}
 	for i in _cues.size():
-		if not _fired[i] and _cues[i].due(ctx):
+		if _fired[i]:
+			continue
+		if _cues[i].due(ctx):
 			_fired[i] = true
 			_fire(_cues[i], i)
+		elif _cues[i].expired(ctx):
+			_fired[i] = true   # dropped, not said
 
 
 func _fire(cue: Cue, index: int) -> void:
@@ -94,6 +100,8 @@ func _fire(cue: Cue, index: int) -> void:
 		&"spawn":
 			if not genre.spawn_archetype(cue.archetype, cue.count):
 				push_warning("Session %s: the genre cannot spawn %s" % [session.id, cue.archetype])
+		&"add":
+			RunState.add_basic(cue.target)
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
 

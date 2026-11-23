@@ -128,6 +128,23 @@ func _update_gauge(delta := 0.0) -> void:
 	_gauge_fill.size = Vector2(GAUGE_SIZE.x * progress, GAUGE_SIZE.y)
 
 
+## The corner in a campaign session (owner, M39.2): only what the AI has added. HP comes
+## with `health`; no kill count (the goal text counts); the version stamp waits for a
+## `version` basic (S5). Empty in the first sessions.
+static func session_text(hp: int, dash: String) -> String:
+	var top: Array[String] = []
+	if Unlocks.has_basic(&"health"):
+		top.append("HP %d" % hp)
+	if Unlocks.has_basic(&"version"):
+		top.append(version_text())
+	var lines: Array[String] = []
+	if not top.is_empty():
+		lines.append("   ".join(top))
+	if dash != "":
+		lines.append(dash)
+	return "\n".join(lines)
+
+
 func goal_shown() -> String:
 	return _goal.text
 
@@ -156,6 +173,9 @@ func _process(delta: float) -> void:
 		var dasher := Component.find(player, Dasher) as Dasher
 		if dasher and not player.get(&"dash_locked"):
 			dash = "dash ready" if dasher.is_ready() else "dash ..."
+	if RunState.session != null:
+		_label.text = session_text(hp, dash)
+		return
 	_label.text = "HP %d   Kills %d   %s\n%s" % [hp, RunState.kills, version_text(), dash]
 	# Rollbacks are parked (PLAN v5 1.3): the line shows only while a test grants charges.
 	if director and director.charges > 0:

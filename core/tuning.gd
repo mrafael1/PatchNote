@@ -129,6 +129,7 @@ var hard_max_projectiles := 200
 var max_split_generation := 1   # enemies at this generation never split again
 
 # --- Transition ---
+var health_added_grace := 2.5    # campaign: no bite this long after the AI adds `health` (M39.2)
 var grace_time := 1.5             # enemies deal no damage for this long after a gravity change
 var transition_long := 0.8        # mode switch; 0 applies instantly (tests)
 var transition_short := 0.3

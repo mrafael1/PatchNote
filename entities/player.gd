@@ -12,6 +12,9 @@ var movement_locked := false
 ## the genre sets these from the session's basics (Unlocks.has_basic).
 var shooting_locked := false
 var dash_locked := false
+## Before the session has `health` (owner, M39.2) nothing hurts the player: enemies
+## reach it and nothing happens.
+var damage_locked := false
 
 @onready var mover: Mover = $Mover
 @onready var health: Health = $Health

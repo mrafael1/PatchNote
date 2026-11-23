@@ -15,9 +15,11 @@ const FULL_LOOK := {"tier": 1, "take": "punchy"}
 ## enemies nothing spawns; without the level the arena is an empty box.
 const BASICS: Array[StringName] = [&"movement", &"enemies", &"level"]
 ## The campaign's basics (PLAN v8, owner 2026-11-23): its first sessions also miss the
-## gun and the dash. Outside a session these two are always on (the v6 loop never ships
-## them).
-const CAMPAIGN_BASICS: Array[StringName] = [&"movement", &"shooting", &"dash", &"enemies", &"level"]
+## gun and the dash, getting hurt (`health`: damage, death, the HP readout) and shots
+## that hit (`hits`) (owner, M39.2: "nothing by default", the AI adds each piece). Outside
+## a session these are always on (the v6 loop never ships them).
+const CAMPAIGN_BASICS: Array[StringName] = [&"movement", &"shooting", &"dash", &"enemies", &"level",
+		&"health", &"hits"]
 
 
 ## Patches that may be offered: the starters plus what shipped changes unlock, never
@@ -53,7 +55,7 @@ static func enemies() -> Array[StringName]:
 ## Whether a basic has shipped (always, while inert).
 static func has_basic(id: StringName) -> bool:
 	if RunState.session != null:
-		return id in RunState.session.basics
+		return id in RunState.session.basics or id in RunState.session_added
 	if not id in BASICS:
 		return true
 	return SaveGame.unlock_all or shipped_unlocks().has(id)

@@ -325,7 +325,7 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_eq(game.debrief.said[-1], "Better. Right? I feel... squishy.")
 	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
 	assert_eq(DebriefScreen.notes_text(RunState.session, game.debrief.picked),
-			"v0.1.0 · what changed\n  • A level\n  • A dash (Shift or right click)\n  • Enemies that shoot back\n  • A face: Blob")
+			"v0.1.0 · what changed\n  • Bullets that hit things now\n  • A level\n  • A dash (Shift or right click)\n  • Enemies that shoot back\n  • A face: Blob")
 	var ended := []
 	game.debrief.next_requested.connect(func() -> void: ended.append(true))
 	assert_true(game.debrief.choose(DebriefScreen.NEXT))

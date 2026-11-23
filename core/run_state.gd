@@ -443,6 +443,20 @@ func _update_time_scale() -> void:
 
 
 ## Enemies deal no damage to the player for `seconds` of game time.
+## Basics a cue added during this campaign session ("at 11: add health", PLAN v8 M39.2).
+## Cleared by reset(), so Retry plays the session without them again; the session's
+## SessionDef is never changed.
+var session_added: Array[StringName] = []
+
+
+func add_basic(id: StringName) -> void:
+	if id in session_added:
+		return
+	session_added.append(id)
+	log_event(&"basic_added", {"id": String(id)})
+	EventBus.basic_added.emit(id)
+
+
 func start_grace(seconds: float) -> void:
 	_grace_until = maxf(_grace_until, game_time + seconds)
 
@@ -473,6 +487,7 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	invincible = false
 	run_seed = new_seed
 	session = null
+	session_added.clear()
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])

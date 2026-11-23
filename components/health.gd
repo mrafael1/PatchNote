@@ -47,6 +47,11 @@ func heal(amount: float) -> void:
 func take(info: DamageInfo) -> bool:
 	if dead or is_invulnerable():
 		return false
+	# Before the session has `health` nothing hurts the player, and nothing shows it:
+	# no i-frames, no telemetry, no player_hit (owner, M39.2).
+	if get_parent().get(&"damage_locked") == true:
+		EventBus.player_touched.emit()
+		return false
 	if shield_hits > 0:
 		shield_hits -= 1
 		shield_hit.emit(info)

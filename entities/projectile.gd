@@ -57,7 +57,12 @@ func _physics_process(delta: float) -> void:
 		velocity += rules.gravity_dir.normalized() * rules.gravity_strength \
 				* rules.projectile_gravity_scale * delta
 
-	var mask := Tuning.LAYER_WORLD | (Tuning.LAYER_ENEMY_BODY if is_player else Tuning.LAYER_PLAYER_BODY)
+	# Before the session has `hits` (M39.2) the player's shots pass through enemies.
+	var mask := Tuning.LAYER_WORLD
+	if not is_player:
+		mask |= Tuning.LAYER_PLAYER_BODY
+	elif Unlocks.has_basic(&"hits"):
+		mask |= Tuning.LAYER_ENEMY_BODY
 	var space := get_world_2d().direct_space_state
 	var remaining := velocity.length() * delta
 	var contacts := 0

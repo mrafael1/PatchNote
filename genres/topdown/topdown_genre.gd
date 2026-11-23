@@ -26,6 +26,33 @@ const KEEP_GROUP := &"keeps_across_stages"
 const FOLLOW_GROUP := &"follows_across_stages"
 
 
+## The player's locks from the basics (Unlocks.has_basic): at build, and again when a
+## session's cue adds one (PLAN v8 M39.2).
+func apply_basics() -> void:
+	player.set(&"movement_locked", not Unlocks.has_basic(&"movement"))
+	player.set(&"shooting_locked", not Unlocks.has_basic(&"shooting"))
+	player.set(&"dash_locked", not Unlocks.has_basic(&"dash"))
+	player.set(&"damage_locked", not Unlocks.has_basic(&"health"))
+
+
+## The spawner runs with enemies, but not while the gun cannot hit them yet (S3 before
+## `hits`): the gag is the AI's two chasers, not a crowd nobody can kill (M39.2 review).
+func _spawner_wanted() -> bool:
+	if not Unlocks.has_basic(&"enemies"):
+		return false
+	return Unlocks.has_basic(&"hits") or not Unlocks.has_basic(&"shooting")
+
+
+func _on_basic_added(id: StringName) -> void:
+	if not is_instance_valid(player):
+		return
+	apply_basics()
+	if id == &"health":
+		RunState.start_grace(Tuning.health_added_grace)   # the rims light, "run." is said, then the bites
+	if is_instance_valid(spawner):
+		spawner.enabled = _spawner_wanted()
+
+
 func build(p_shell: Node) -> void:
 	super(p_shell)
 	# A smoke-test build (PLAN v5 4.8) is one short stage, whatever the set. A campaign
@@ -47,9 +74,8 @@ func build(p_shell: Node) -> void:
 
 	player = PLAYER_SCENE.instantiate()
 	player.position = arena.player_start
-	player.set(&"movement_locked", not Unlocks.has_basic(&"movement"))
-	player.set(&"shooting_locked", not Unlocks.has_basic(&"shooting"))
-	player.set(&"dash_locked", not Unlocks.has_basic(&"dash"))
+	apply_basics()
+	EventBus.basic_added.connect(_on_basic_added)
 	world.add_child(player)
 
 	turn_clock = TurnClock.new()
@@ -79,7 +105,7 @@ func build(p_shell: Node) -> void:
 	spawner.name = "Spawner"
 	spawner.arena = arena
 	spawner.player = player
-	spawner.enabled = Unlocks.has_basic(&"enemies")
+	spawner.enabled = _spawner_wanted()
 	add_child(spawner)
 
 	run_loop = RunLoop.new()

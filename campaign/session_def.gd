@@ -153,6 +153,10 @@ func problems() -> Array[String]:
 			out.append("%s: %s" % [where, c.problem])
 		elif c.action == &"say" and c.line.when in Line.OUTCOMES:
 			out.append("%s: cue '%s' cannot depend on the outcome" % [where, c.source])
+		elif c.action == &"add" and not c.target in Unlocks.CAMPAIGN_BASICS:
+			out.append("%s: cue '%s': unknown basic %s" % [where, c.source, c.target])
+		elif c.action == &"add" and c.target in basics:
+			out.append("%s: cue '%s': the session already has %s" % [where, c.source, c.target])
 		elif c.action in [&"edit", &"event"]:
 			out.append("%s: cue '%s': %ss come with M40/M41" % [where, c.source, c.action])
 		elif c.when == &"pct" and goal != SURVIVE:
