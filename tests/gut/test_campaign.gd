@@ -240,7 +240,7 @@ func test_enemies_overrun_you_and_dying_is_the_way_on() -> void:
 	game.run_loop.goal_clock = 1.0
 	await wait_physics_frames(3)
 	assert_gte(RunState.count(&"enemy"), 1, "the AI drops the first chaser by hand")
-	game.run_loop.goal_clock = 50.0
+	game.run_loop.goal_clock = 22.0
 	await wait_physics_frames(3)
 	assert_gt(RunState.count(&"enemy"), game.spawner.current_cap(),
 			"the cues pile on past the spawner's cap")
@@ -258,8 +258,8 @@ func test_enemies_overrun_you_and_dying_is_the_way_on() -> void:
 
 
 func test_an_overrun_survived_to_the_end_is_stopped() -> void:
-	var loop := _loop(SessionDef.OVERRUN, 90.0, 0.0)
-	loop.goal_clock = 90.0
+	var loop := _loop(SessionDef.OVERRUN, 45.0, 0.0)
+	loop.goal_clock = 45.0
 	loop._update_goal()
 	assert_eq(loop.outcome, RunLoop.STOPPED)
 
