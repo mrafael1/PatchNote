@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s1_03_shooting"
+stage = 1
+title = "Shooting"
+basics = Array[StringName]([&"movement", &"shooting", &"enemies"])
+enemies = Array[StringName]([&"chaser"])
+goal = &"kills"
+goal_value = 15.0
+time_limit = 120.0
+face = false
+intro = PackedStringArray("happy: ok. shoot.")
+cues = PackedStringArray("kills 1: say happy: Oh. That works.", "kills 10: say proud: You're good at this.")
+debrief = PackedStringArray("died guilty: Too many at once. My fault.", "stopped thinking: Time's up. Close enough.", "happy: I can talk now. Weird.", "thinking: I think I need a face.")
+bump = &"minor"
+notes = PackedStringArray("A level", "A dash (Shift or right click)")

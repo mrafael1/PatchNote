@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1")
-id = &"s1_01_nothing"
+id = &"s1_00_nothing"
 stage = 1
 title = "Nothing"
 basics = Array[StringName]([])

@@ -8,6 +8,10 @@ var _facing := Vector2.RIGHT
 ## The first build has no movement yet (PLAN v5 4.8): it can aim and shoot, nothing
 ## else. The genre sets this from Unlocks when it builds the run.
 var movement_locked := false
+## The campaign's first sessions have no gun and no dash yet either (owner, 2026-11-23):
+## the genre sets these from the session's basics (Unlocks.has_basic).
+var shooting_locked := false
+var dash_locked := false
 
 @onready var mover: Mover = $Mover
 @onready var health: Health = $Health
@@ -82,8 +86,10 @@ func _physics_process(_delta: float) -> void:
 		mover.jump_held = input.jump_held
 		if input.jump_pressed:
 			mover.request_jump()
-		if input.dash_pressed:
+		if input.dash_pressed and not dash_locked:
 			dasher.try_dash(_facing)
+	if shooting_locked:
+		return
 	if input.fire:
 		shooter.try_fire(input.aim_dir)
 	elif RunState.rules.auto_attack and shooter.can_fire():
@@ -113,6 +119,7 @@ func _auto_target() -> Node2D:
 
 func _process(_delta: float) -> void:
 	_aim.rotation = input.aim_dir.angle()
+	_aim.visible = not shooting_locked   # no gun yet: no barrel
 	# Height axis: the body lifts and grows, the shadow stays on the ground.
 	var lift := mover.height
 	_visual.position = Vector2(0, -lift)

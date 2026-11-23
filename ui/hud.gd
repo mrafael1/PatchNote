@@ -154,7 +154,8 @@ func _process(delta: float) -> void:
 	var dash := ""
 	if is_instance_valid(player):
 		var dasher := Component.find(player, Dasher) as Dasher
-		dash = "dash ready" if dasher and dasher.is_ready() else "dash ..."
+		if dasher and not player.get(&"dash_locked"):
+			dash = "dash ready" if dasher.is_ready() else "dash ..."
 	_label.text = "HP %d   Kills %d   %s\n%s" % [hp, RunState.kills, version_text(), dash]
 	# Rollbacks are parked (PLAN v5 1.3): the line shows only while a test grants charges.
 	if director and director.charges > 0:

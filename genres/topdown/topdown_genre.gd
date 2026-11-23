@@ -32,6 +32,8 @@ func build(p_shell: Node) -> void:
 	# session (PLAN v8) plays one stage on its own arena.
 	if RunState.session != null:
 		stages = StageSet.single(RunState.session.arena_def())
+		stages.stage(0).spawn_rate = RunState.session.spawn_rate
+		stages.stage(0).spawn_cap = RunState.session.spawn_cap
 	elif Unlocks.missing_basics().is_empty():
 		stages = StageSet.for_run()
 	else:
@@ -46,6 +48,8 @@ func build(p_shell: Node) -> void:
 	player = PLAYER_SCENE.instantiate()
 	player.position = arena.player_start
 	player.set(&"movement_locked", not Unlocks.has_basic(&"movement"))
+	player.set(&"shooting_locked", not Unlocks.has_basic(&"shooting"))
+	player.set(&"dash_locked", not Unlocks.has_basic(&"dash"))
 	world.add_child(player)
 
 	turn_clock = TurnClock.new()

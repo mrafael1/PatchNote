@@ -203,7 +203,7 @@ func _big_button(text: String, action: Callable) -> Button:
 	return b
 
 
-## "Stage 1 · Session 2 of 3 · v0.1.0", "New campaign", or the end so far. A newer
+## "Stage 1 · Session 2 · v0.2.0" (S0 is the first), "New campaign", or the end so far. A newer
 ## build's file and an old prototype save say so.
 static func campaign_line() -> String:
 	if SaveGame.read_only:
@@ -213,8 +213,8 @@ static func campaign_line() -> String:
 		line = "%s · to be continued" % SaveGame.version().label()
 	elif CampaignDB.started():
 		var s := CampaignDB.current()
-		line = "Stage %d · Session %d of %d · %s" % [s.stage, CampaignDB.current_index() + 1,
-				CampaignDB.size(), SaveGame.version().label()]
+		line = "Stage %d · Session %d · %s" % [s.stage, CampaignDB.current_index(),
+				SaveGame.version().label()]
 	else:
 		line = "New campaign"
 	if SaveGame.last_load == SaveGame.OLD:

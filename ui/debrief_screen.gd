@@ -82,7 +82,7 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int) -> void:
 	outcome = outcome_name(run_outcome)
 	lines = Line.passing(session.debrief_lines(), CampaignDB.line_context(session, outcome, hits))
 	var index := CampaignDB.index_of(session.id)
-	_title.text = "SESSION %d · %s" % [index + 1, session.title.to_upper()]
+	_title.text = "SESSION %d · %s" % [index, session.title.to_upper()]   # S0 is the first
 	for child in _body.get_children():
 		child.queue_free()
 	for line in lines:

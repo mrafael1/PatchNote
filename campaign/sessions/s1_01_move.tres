@@ -4,16 +4,16 @@
 
 [resource]
 script = ExtResource("1")
-id = &"s1_02_move"
+id = &"s1_01_move"
 stage = 1
 title = "Movement"
 basics = Array[StringName]([&"movement"])
 enemies = Array[StringName]([])
 goal = &"survive"
-goal_value = 30.0
+goal_value = 20.0
 face = false
 intro = PackedStringArray("happy: m0ve", "ok")
-cues = PackedStringArray("at 15: spawn chaser 1", "at 15: say surprised: ?")
-debrief = PackedStringArray("thinking: thing.", "happy: shoot thing?", "died guilty: thing hurt. sorry.")
+cues = PackedStringArray("at 12: say thinking: ...")
+debrief = PackedStringArray("happy: move. ok.", "thinking: alone. boring?", "happy: things!")
 bump = &"minor"
 notes = PackedStringArray("Enemies")

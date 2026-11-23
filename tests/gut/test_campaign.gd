@@ -5,6 +5,7 @@ extends GutTest
 ## TEST_PATH; after_each puts everything back to the v6 defaults.
 
 const TEST_PATH := "user://save_campaign_test/save.json"
+const Fx := preload("res://tests/gut/fixtures.gd")
 
 
 func before_each() -> void:
@@ -61,10 +62,10 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 3)
-	assert_eq(CampaignDB.session(0).id, &"s1_01_nothing")
-	assert_eq(CampaignDB.index_of(&"s1_03_enemies"), 2)
-	assert_null(CampaignDB.session(3))
+	assert_eq(CampaignDB.size(), 4)
+	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
+	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
+	assert_null(CampaignDB.session(4))
 
 
 func test_lines_parse_a_condition_an_expression_and_the_text() -> void:
@@ -198,9 +199,11 @@ func test_a_stop_goal_ends_stopped_after_the_read_beat() -> void:
 # --- A session in the game scene ----------------------------------------------------
 
 func test_the_first_session_cannot_move_and_has_nothing() -> void:
-	var game := await _game(&"s1_01_nothing")
-	assert_eq(RunState.session.id, &"s1_01_nothing")
+	var game := await _game(&"s1_00_nothing")
+	assert_eq(RunState.session.id, &"s1_00_nothing")
 	assert_true(game.player.movement_locked)
+	assert_true(game.player.shooting_locked, "no gun at first (owner, 2026-11-23)")
+	assert_true(game.player.dash_locked, "no dash at first")
 	assert_false(game.spawner.enabled)
 	assert_eq(game.arena.blocks.size(), 4, "no level: an empty box")
 	assert_false(game.director.enabled, "no prompts in the campaign")
@@ -208,24 +211,48 @@ func test_the_first_session_cannot_move_and_has_nothing() -> void:
 	assert_eq(Unlocks.look(), {"tier": 0, "take": ""})
 	assert_eq(game.run_loop.goal, SessionDef.STOP)
 	assert_eq(game.session_runner.said, ["_"], "the first intro line is said at once")
-	assert_string_contains(Main.boot_line(), "session s1_01_nothing")
+	assert_string_contains(Main.boot_line(), "session s1_00_nothing")
 
 
-func test_a_cue_spawns_and_speaks_on_the_goal_clock() -> void:
-	var game := await _game(&"s1_02_move")
+func test_movement_comes_alone() -> void:
+	var game := await _game(&"s1_01_move")
 	assert_false(game.player.movement_locked)
-	assert_false(game.spawner.enabled, "no enemies basic: nothing spawns by itself")
-	assert_eq(RunState.count(&"enemy"), 0)
-	game.run_loop.goal_clock = 15.0
+	assert_true(game.player.shooting_locked)
+	assert_false(game.spawner.enabled, "no enemies basic: nothing spawns")
+	game.run_loop.goal_clock = 12.0
 	await wait_physics_frames(3)
-	assert_eq(RunState.count(&"enemy"), 1, "the AI drops one chaser by hand")
-	assert_eq(game.session_runner.fired_count(), 2)
-	assert_eq(game.hud.goal_shown(), "Survive 0:15")
+	assert_eq(RunState.count(&"enemy"), 0)
+	assert_eq(game.session_runner.fired_count(), 1, "the AI's '...' at 12 s")
+	assert_eq(game.hud.goal_shown(), "Survive 0:08")
+
+
+func test_enemies_come_with_no_gun_and_a_low_cap() -> void:
+	var game := await _game(&"s1_02_enemies")
+	assert_true(game.spawner.enabled)
+	assert_true(game.player.shooting_locked, "dodge only: the gun ships after this session")
+	assert_eq(game.spawner.current_cap(), int(RunState.rules.max_enemies * 0.12))
+	game.run_loop.goal_clock = 1.0
+	await wait_physics_frames(3)
+	assert_gte(RunState.count(&"enemy"), 1, "the AI drops the first chaser by hand")
+	assert_eq(game.session_runner.fired_count(), 1)
+
+
+func test_shooting_comes_with_a_kill_count() -> void:
+	var game := await _game(&"s1_03_shooting")
+	assert_false(game.player.shooting_locked)
+	assert_true(game.player.dash_locked, "the dash ships after this session")
+	assert_eq(game.run_loop.goal, SessionDef.KILLS)
+	assert_eq(game.hud.goal_shown(), "Kills 0/15")
+	RunState.kills = 1
+	await wait_physics_frames(3)
+	assert_eq(game.session_runner.fired_count(), 1, "the first kill: 'Oh. That works.'")
+	RunState.kills = 15
+	await wait_physics_frames(3)
+	assert_eq(game.run_loop.outcome, &"win")
 
 
 func test_a_death_offers_retry_and_move_on() -> void:
-	var game := await _game(&"s1_03_enemies")
-	assert_true(game.spawner.enabled)
+	var game := await _game(&"s1_03_shooting")
 	assert_eq(game.arena.blocks.size(), 4, "the level ships with this session")
 	game.run_loop.end(&"lose")
 	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
@@ -235,36 +262,59 @@ func test_a_death_offers_retry_and_move_on() -> void:
 	assert_eq(game.debrief.lines.map(func(l: Line) -> String: return l.text)[0],
 			"Too many at once. My fault.", "the died line comes first")
 	game._end_session(&"retry")
-	assert_eq(SaveGame.attempts(&"s1_03_enemies"), 1)
-	assert_eq(CampaignDB.current().id, &"s1_03_enemies", "Retry plays the same session")
-	assert_eq(CampaignDB.attempt(&"s1_03_enemies"), 2)
+	assert_eq(SaveGame.attempts(&"s1_03_shooting"), 1)
+	assert_eq(CampaignDB.current().id, &"s1_03_shooting", "Retry plays the same session")
+	assert_eq(CampaignDB.attempt(&"s1_03_shooting"), 2)
 	game._end_session(&"move_on")
 	assert_true(CampaignDB.is_done(), "Move on counts the session as done")
 	assert_eq(SaveGame.version().label(), "v0.1.0")
 
 
 func test_a_won_session_shows_its_notes_and_moves_on() -> void:
-	var game := await _game(&"s1_03_enemies")
-	game.run_loop.goal_clock = 60.0
+	var game := await _game(&"s1_03_shooting")
+	game.run_loop.goal_clock = 120.0
 	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
 	assert_true(game.debrief.is_open())
-	assert_eq(game.debrief.outcome, &"won")
+	assert_eq(game.debrief.outcome, &"stopped", "the time limit ran out before 15 kills")
 	assert_eq(game.debrief.choices(), [DebriefScreen.LAST], "the last session so far")
 	var texts := game.debrief.lines.map(func(l: Line) -> String: return l.text)
 	assert_false("Too many at once. My fault." in texts)
-	assert_eq(DebriefScreen.notes_text(RunState.session), "v0.1.0 · what changed\n  • A level")
+	assert_true("Time's up. Close enough." in texts)
+	assert_eq(DebriefScreen.notes_text(RunState.session), "v0.1.0 · what changed\n  • A level\n  • A dash (Shift or right click)")
 	game._end_session(&"next")
 	assert_true(CampaignDB.is_done())
-	assert_eq(SaveGame.campaign().done, ["s1_03_enemies"])
+	assert_eq(SaveGame.campaign().done, ["s1_03_shooting"])
+
+
+func test_a_locked_gun_and_dash_do_nothing() -> void:
+	var game := await _game(&"s1_01_move")
+	var input := Fx.ScriptedInput.new()
+	game.player.set_input(input)
+	input.fire = true
+	input.aim_dir = Vector2.RIGHT
+	input.tap_dash()
+	await wait_physics_frames(10)
+	assert_eq(RunState.count(&"player_projectile"), 0, "no shot")
+	assert_true(game.player.dasher.is_ready(), "no dash: the cooldown never started")
+	assert_false(game.player.get_node("Aim").visible, "no barrel drawn")
+	assert_eq(game.hud._label.text.contains("dash"), false, "the HUD does not offer a dash")
+
+
+func test_outside_a_session_the_gun_and_dash_are_always_on() -> void:
+	assert_true(Unlocks.has_basic(&"shooting"))
+	assert_true(Unlocks.has_basic(&"dash"))
+	SaveGame.go_live(TEST_PATH, true)
+	assert_true(Unlocks.has_basic(&"shooting"), "the v6 loop never ships them")
+	assert_false(Unlocks.has_basic(&"movement"))
 
 
 func test_a_session_record_is_schema_4() -> void:
-	var s := CampaignDB.get_session(&"s1_02_move")
+	var s := CampaignDB.get_session(&"s1_01_move")
 	var rec := CampaignDB.telemetry_record(s, {"duration": 30.0, "goal": {"kind": "survive"}},
 			&"won", 2, &"next", "M37")
 	assert_eq(rec.schema, 4)
 	assert_eq([rec.type, rec.session, rec.stage, rec.attempt, rec.outcome, rec.choice, rec.moved_on],
-			["campaign", "s1_02_move", 1, 1, "won", "next", false])
+			["campaign", "s1_01_move", 1, 1, "won", "next", false])
 	assert_eq([rec.hits_taken, rec.deaths, rec.duration], [2, 0, 30.0])
 	for key in ["reactions", "edits", "events", "fork", "mascot", "reduce_flashing", "game_version"]:
 		assert_true(rec.has(key), key)
@@ -293,9 +343,9 @@ func test_a_schema_1_save_is_kept_aside_and_a_campaign_starts() -> void:
 
 func test_the_campaign_round_trips_and_bad_types_are_corrupt() -> void:
 	SaveGame.go_live(TEST_PATH, true)
-	SaveGame.count_attempt(&"s1_02_move")
-	SaveGame.campaign_done(&"s1_01_nothing", GameVersion.MINOR, [&"enemy_tank"] as Array[StringName], 1)
-	SaveGame.campaign_done(&"s1_01_nothing", GameVersion.MINOR, [] as Array[StringName], 1)
+	SaveGame.count_attempt(&"s1_01_move")
+	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [&"enemy_tank"] as Array[StringName], 1)
+	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [] as Array[StringName], 1)
 	SaveGame.set_mascot(&"blob")
 	SaveGame.mark_event_seen(&"wrong_variable")
 	SaveGame.set_setting("reduce_flashing", true)
@@ -351,10 +401,10 @@ func test_the_start_screen_offers_continue_once_a_campaign_exists() -> void:
 	assert_eq(screen.save_label.text, "New campaign")
 	assert_false(screen.continue_button.visible)
 	assert_null(screen.start_button, "no v6 Start button")
-	SaveGame.campaign_done(&"s1_01_nothing", GameVersion.MINOR, [] as Array[StringName], 1)
+	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [] as Array[StringName], 1)
 	screen.refresh_campaign()
 	assert_true(screen.continue_button.visible)
-	assert_eq(screen.save_label.text, "Stage 1 · Session 2 of 3 · v0.1.0")
+	assert_eq(screen.save_label.text, "Stage 1 · Session 1 · v0.1.0", "S0 was the first")
 	screen.press_new_game()
 	assert_eq(screen.new_button.text, StartScreen.NEW_ARMED, "the first click arms")
 

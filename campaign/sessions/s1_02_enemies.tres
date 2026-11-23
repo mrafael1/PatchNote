@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s1_02_enemies"
+stage = 1
+title = "Enemies"
+basics = Array[StringName]([&"movement", &"enemies"])
+enemies = Array[StringName]([&"chaser"])
+spawn_cap = 0.12
+goal = &"survive"
+goal_value = 30.0
+face = false
+intro = PackedStringArray("happy: things!")
+cues = PackedStringArray("at 1: spawn chaser 1", "at 15: say worried: run.")
+debrief = PackedStringArray("died guilty: things hurt. sorry.", "thinking: you. things. no gun.", "happy: shoot things?")
+bump = &"minor"
+notes = PackedStringArray("Shooting")

@@ -19,11 +19,16 @@ const FORK_ENEMY := &"fork:fork_enemy"
 @export var title := ""
 
 @export_group("Build")
-## The game's basics this build has (Unlocks.BASICS): movement, enemies, level.
+## The game's basics this build has (Unlocks.CAMPAIGN_BASICS): movement, shooting,
+## dash, enemies, level.
 @export var basics: Array[StringName] = []
 ## Enemy archetypes that may spawn; "fork:fork_enemy" is the save's answer to that fork.
 @export var enemies: Array[StringName] = []
 @export var arena: ArenaDef   ## null: arena_0
+## The spawn preset (as a StageDef's): multipliers on the spawner's rate and its cap
+## (Tuning.max_enemies). S2 dodges a few chasers with no gun: a low cap.
+@export var spawn_rate := 1.0
+@export var spawn_cap := 1.0
 ## The look take ("punchy", "clean", "arcade") at tier 1; "" is tier 0 (squares).
 @export var look := ""
 
@@ -115,7 +120,7 @@ func problems() -> Array[String]:
 	if time_limit < 0.0 or (time_limit > 0.0 and goal != KILLS):
 		out.append("%s: time_limit is for kills goals only" % where)
 	for b in basics:
-		if not b in Unlocks.BASICS:
+		if not b in Unlocks.CAMPAIGN_BASICS:
 			out.append("%s: unknown basic %s" % [where, b])
 	for e in enemies:
 		if String(e).begins_with("fork:"):
@@ -128,6 +133,8 @@ func problems() -> Array[String]:
 	# The preset file, by path: only presentation may read the Look class (M28 lint).
 	if look != "" and not ResourceLoader.exists("res://systems/looks/look_1_%s.tres" % look):
 		out.append("%s: no look %s" % [where, look])
+	if spawn_rate <= 0.0 or spawn_cap <= 0.0:
+		out.append("%s: spawn_rate and spawn_cap must be > 0" % where)
 	if not bump in [GameVersion.PATCH, GameVersion.MINOR]:
 		out.append("%s: bump must be patch or minor" % where)
 	if fork != &"" and ChangeDB.get_fork(fork) == null:

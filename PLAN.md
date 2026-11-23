@@ -50,7 +50,7 @@ A story-driven game where the player helps an AI developer gradually create a vi
 ### 1.1 The campaign as data
 - **`SessionDef`** (`campaign/sessions/<id>.tres`, script `campaign/session_def.gd`):
   - `id`, `stage` (1–5), `title` (debug and notes)
-  - **The build:** `basics: Array[StringName]` (movement / enemies / level, as v5 4.8), `enemies: Array[StringName]` (archetypes allowed; `&"fork:fork_enemy"` means the save's answer), `arena: ArenaDef`, `rules: WorldRules` overrides (null = base), `patches: Array[StringName]` (applied at the start, by the AI, as a rule edit with no warning)
+  - **The build:** `basics: Array[StringName]` (movement / shooting / dash / enemies / level; v5 4.8's three plus the gun and the dash, owner 2026-11-23), `enemies: Array[StringName]` (archetypes allowed; `&"fork:fork_enemy"` means the save's answer), `arena: ArenaDef`, `rules: WorldRules` overrides (null = base), `patches: Array[StringName]` (applied at the start, by the AI, as a rule edit with no warning)
   - **The goal:** `goal: GoalDef` (`kind`: `survive` seconds / `kills` count / `stop` (the AI ends it, as the S1 smoke test) / `boss` (Phase 6); `value`; `time_limit`)
   - **The AI's script:** `intro: Array[Line]`, `cues: Array[Cue]` (1.5), `debrief: Array[Line]` (lines with conditions, 1.3)
   - `fork: StringName` (asked in the debrief; `&""` = none), `ships: Array[StringName]` (changes shipped when the session is done; the version bumps)
@@ -157,12 +157,13 @@ Target times are for a human. Each is a `SessionDef` in `campaign/sessions/`.
 
 | # | id | Version | Build | Goal | What happens | Debrief → ships |
 |---|---|---|---|---|---|---|
-| S1 | `s1_01_nothing` | v0.0 | no movement, no enemies, no level; you can aim and shoot | `stop` at 20 s (the M30.1 smoke test) | Black, one square. The caret blinks. Wordless glyph lines. At 5 s the AI gives up. | Glyphs; ships **movement** |
-| S2 | `s1_02_move` | v0.1 | movement; empty box | `survive` 30 s | You can move. Nothing to shoot. The AI's first fragments ("m0ve … ok"). At 15 s it spawns one chaser by hand (cue `spawn`): "?". | Fragments; ships **enemies** |
-| S3 | `s1_03_enemies` | v0.2 | + chasers | `survive` 60 s | First real fight. First full sentence at 20 s ("Oh. That works."). Reactions on (min_session 3), caret only. | **`fork_mascot`**: the AI gets a face; ships **level** |
-| S4 | `s1_04_level` | v0.3 | + the level (arena_0's walls) + shooter enemies | `survive` 90 s | The mascot in its body for the first time ("Better. Right?"). Live reactions. One rule edit at 50 s: `edit_bouncy_walls` ("Walls are boring. Let me try something."). | **`fork_enemy`** (Tank · Bomber · Lancer) |
-| S5 | `s1_05_wrong` | v0.4 | + the forked enemy | `survive` 90 s (the timer pauses during the event) | The **`wrong_variable`** event at 40 s (1.5). | Apology; no ship (the version still bumps: "v0.5 — gravity fixed (mostly)") |
-| S6 | `s1_06_playground` | v0.5 | everything so far | `kills` 40 (time limit 4 min) | The AI is confident now: `edit_gift_explode` at 10 s ("Try this."), then `edit_big_enemies` at 60 s, `edit_inverted` at 110 s ("Quick test, don't panic."), `edit_slowmo` when HP ≤ 2 (once). | Stage 1 ends: "Okay. It's a game. A small one. Next: what *kind* of shooter is it?" (Stage 2 is not in v8; the screen says "To be continued" and returns to the start screen) |
+| S0 | `s1_00_nothing` | v0.0 | nothing: no movement, no gun, no dash, no enemies, no level | `stop` at 5 s | Black, one square that can do nothing. The caret blinks. Wordless glyph lines. At 5 s the AI gives up. | Glyphs; ships **movement** |
+| S1 | `s1_01_move` | v0.1 | movement; an empty box | `survive` 20 s | You can move, and nothing else happens. The AI's first fragments ("m0ve … ok", "..."). | "alone. boring?"; ships **enemies** |
+| S2 | `s1_02_enemies` | v0.2 | + chasers (cap ×0.12: about 3); no gun | `survive` 30 s | The AI drops the first chaser at 1 s ("things!"). You can only dodge. "run." at 15 s. | "you. things. no gun."; ships **shooting** |
+| S3 | `s1_03_shooting` | v0.3 | + the gun | `kills` 15 (time limit 2 min) | First real fight. The first kill brings the first full sentence ("Oh. That works."). Reactions on (min_session 3), caret only. | **`fork_mascot`**: the AI gets a face; ships **level** and **dash** |
+| S4 | `s1_04_level` | v0.4 | + the level (arena_0's walls), the dash, shooter enemies | `survive` 90 s | The mascot in its body for the first time ("Better. Right?"). Live reactions. One rule edit at 50 s: `edit_bouncy_walls` ("Walls are boring. Let me try something."). | **`fork_enemy`** (Tank · Bomber · Lancer) |
+| S5 | `s1_05_wrong` | v0.5 | + the forked enemy | `survive` 90 s (the timer pauses during the event) | The **`wrong_variable`** event at 40 s (1.5). | Apology; no ship (the version still bumps: "v0.5 — gravity fixed (mostly)") |
+| S6 | `s1_06_playground` | v0.6 | everything so far | `kills` 40 (time limit 4 min) | The AI is confident now: `edit_gift_explode` at 10 s ("Try this."), then `edit_big_enemies` at 60 s, `edit_inverted` at 110 s ("Quick test, don't panic."), `edit_slowmo` when HP ≤ 2 (once). | Stage 1 ends: "Okay. It's a game. A small one. Next: what *kind* of shooter is it?" (Stage 2 is not in v8; the screen says "To be continued" and returns to the start screen) |
 
 - **Total:** ≈ 0:20 + 0:30 + 1:00 + 1:30 + ~2:00 + ~3:00 of play, plus debriefs (~40 s each), about 12–15 min at first play, ~20 with deaths and reading. Tune toward 20.
 - **Difficulty:** S1–S3 can't really be lost. S4–S6 use today's v0.0 tuning, with S6 a step up. Target human death rate (G13): S4 < 20%, S5 < 30%, S6 < 40% on the first try.
@@ -245,6 +246,7 @@ The builder writes the rest in this voice, about 30 in all, each tagged with `mi
 - **Speech is paced in real time** (1.2 s + 0.05 s a character), and cues run on physics frames. Telemetry and the bot count lines said *or queued*, because a bot plays faster than speech.
 - **Move on is offered after every death** (Stage 1's rule). The debrief is plain text until M38: the lines, `"v0.2.0 · what changed"` with the notes, and the buttons (Enter or 1/2).
 - **Reduce flashing** halves camera shake and drops the white screen flash. An enemy's own hit flash stays: it's readability, not a flash.
+- **No gun and no dash at first (owner, 2026-11-23, after M37):** `Unlocks.CAMPAIGN_BASICS` adds `shooting` and `dash` to v5's three. The player gets `shooting_locked` and `dash_locked` (no shot, no auto-attack, no barrel drawn, no dash line on the HUD). Outside a session both are always on, because the v6 loop never ships them. The owner then set the order (M37.1): **S0 nothing, S1 movement, S2 enemies (dodge only), S3 shooting with a kill count instead of a timer**, then the plan as written (the level and the dash ship after S3). Sessions are numbered from S0 on screen. `SessionDef` gained `spawn_rate` and `spawn_cap` (a StageDef's preset) for S2's few chasers.
 - **Not built:** the start screen's debug session list (use `--session=<id>`) and `intro_pause` (no Stage 1 session needs it yet).
 - **Numbers:**
   - Invincible bot chain S1–S3 on a fresh save: S1 stopped at 7.0 s, S2 won at 30.0 s, S3 won at 60.0 s, v0.0.0 → v0.3.0, 3 campaign telemetry lines.
