@@ -159,11 +159,19 @@ func problems() -> Array[String]:
 			out.append("%s: cue '%s': the session already has %s" % [where, c.source, c.target])
 		elif c.action == &"edit" and RuleDB.get_edit(c.target) == null:
 			out.append("%s: cue '%s': unknown edit %s" % [where, c.source, c.target])
-		elif c.action == &"event":
-			out.append("%s: cue '%s': events come with M41" % [where, c.source])
+		elif c.action == &"event" and EventDB.get_event(c.target) == null:
+			out.append("%s: cue '%s': unknown event %s" % [where, c.source, c.target])
+		elif c.action == &"say" and String(c.line.when).begins_with("event:"):
+			out.append("%s: cue '%s': a cue line cannot depend on an event" % [where, c.source])
 		elif c.when == &"pct" and goal != SURVIVE:
 			out.append("%s: cue '%s': pct needs a survive goal" % [where, c.source])
 	for l in intro_lines():
 		if l.when in Line.OUTCOMES:
 			out.append("%s: an intro line cannot depend on the outcome" % where)
+		elif String(l.when).begins_with("event:"):
+			out.append("%s: an intro line cannot depend on an event" % where)
+	for l in intro_lines() + debrief_lines():
+		var w := String(l.when)
+		if w.begins_with("event:") and EventDB.get_event(StringName(w.trim_prefix("event:"))) == null:
+			out.append("%s: unknown event %s" % [where, w.trim_prefix("event:")])
 	return out

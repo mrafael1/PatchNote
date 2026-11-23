@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ScriptedEvent" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://events/wrong_variable/wrong_variable.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"wrong_variable"
+title = "Wrong variable"
+once_per_save = true
+photosensitive = true
+steps = 6
+lines = Dictionary[StringName, String]({
+&"not_speed": "surprised: That's… not speed.",
+&"wrong_one": "panic: Wrong one! Hold on—",
+&"nope": "panic: Nope. Nope.",
+&"other_slider": "proud: There. Speed was the other slider."
+})

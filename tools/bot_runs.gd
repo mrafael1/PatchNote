@@ -50,6 +50,10 @@ extends SceneTree
 ##                                none's (inside 0.8..1.2: PASS; edit_inverted reported)
 ##   --lift=<s>                   with --only: the session's goal value becomes <s> (a
 ##                                30 s survive lasts <s>), so deaths can be compared
+##   --events=none                with --only: drop the session's event cues (M41's control)
+## With --only the session's forks are answered by the seed (enemy=), and a session with
+## a scripted event prints event=<id>@start-end steps=n/N hits_in_event=n (unblocked,
+## by kind) per seed and an "events:" summary: played fully, died during it (M41 gate).
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
 ## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
 ## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
@@ -69,6 +73,8 @@ const DEFAULT_LOG := "user://playtest/bot_runs.jsonl"
 var edit_conditions := PackedStringArray()   ## --edits (PLAN v8 M40)
 var edit_at := 12.0                          ## --edit-at
 var lift := 0.0                              ## --lift
+var events_off := false                      ## --events=none
+const EVENT_TAIL := 1.0                      ## a death this soon after an event counts as during it
 
 var LOG := DEFAULT_LOG
 ## core/save_game.gd, loaded in _run: naming SaveGame (or loading it this early) would
@@ -140,6 +146,8 @@ func _run() -> void:
 			edit_at = float(arg.trim_prefix("--edit-at="))
 		elif arg.begins_with("--lift="):
 			lift = float(arg.trim_prefix("--lift="))
+		elif arg == "--events=none":
+			events_off = true
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -306,6 +314,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	var min_gap := INF
 	var p3_said := 0
 	var p3_heard := 0
+	var ev_stats := {"reached": 0, "fully": 0, "completed": 0, "died_during": 0, "died_before": 0,
+			"hits": 0, "kinds": {}, "id": ""}
 	for spec in specs:
 		var run_seed := int(_seed_of(spec))
 		var invincible := spec.ends_with("i")
@@ -315,6 +325,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		if not db.jump_to(only):
 			print("[botrun] FAILED: no session %s" % only)
 			return failures + 1
+		var forked := _answer_forks(db.get_session(only), run_seed)
 		main_script.set(&"next_seed", run_seed)
 		var game: Node = load("res://main.tscn").instantiate()
 		root.add_child(game)
@@ -328,6 +339,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			game.session_runner.drop_cues(&"edit")
 			if cond != "none":
 				game.session_runner.inject(_edit_cue(cond))
+		if events_off:
+			game.session_runner.drop_cues(&"event")
+		var event_cue_at := _event_cue_at(game.session_runner)
 		var opened := false
 		for frame in MAX_FRAMES:
 			if game.debrief.is_open():
@@ -361,9 +375,21 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			if cond != "none" and landed.is_empty() and duration > edit_at + 2.0:
 				print("[botrun] session=%s seed=%d FAILED: %s never landed" % [only, run_seed, cond])
 				failures += 1
-		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s" % [
+		var event_text := ""
+		if forked != "":
+			event_text += " enemy=%s" % forked
+			if forked == "-":
+				print("[botrun] session=%s seed=%d FAILED: the fork did not resolve" % [only, run_seed])
+				failures += 1
+		if event_cue_at >= 0.0:
+			var ev := _event_report(game, rec, event_cue_at, ev_stats)
+			event_text += String(ev.text)
+			if ev.failed:
+				print("[botrun] session=%s seed=%d FAILED: %s" % [only, run_seed, ev.why])
+				failures += 1
+		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), rec.get("outcome", "?"),
-			duration, edit_text, fired.size(), chatter.size(),
+			duration, edit_text, event_text, fired.size(), chatter.size(),
 			fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 2).size(),
 			heard.size(), p3.size(), "-" if gap == INF else "%.1f" % gap,
 			",".join(fired.map(func(f: Dictionary) -> String: return String(f.id)))])
@@ -380,7 +406,103 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		only, specs.size(), median, per_90.front() if not per_90.is_empty() else 0.0,
 		per_90.back() if not per_90.is_empty() else 0.0, "-" if min_gap == INF else "%.1f s" % min_gap,
 		p3_heard, p3_said, failures])
+	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
+		var reached := int(ev_stats.reached)
+		var rate := float(ev_stats.died_during) / maxf(1.0, reached)
+		var kinds: Array[String] = []
+		for k: String in ev_stats.kinds:
+			kinds.append("%s:%d" % [k, ev_stats.kinds[k]])
+		print("[botrun] events: %s %s reached=%d/%d played_fully=%d/%d completed=%d died_during=%d/%d (%d%%, <=25%%: %s) died_before=%d hits_in_event=%d (%s)" % [
+			only, ev_stats.id, reached, specs.size(), ev_stats.fully, reached, ev_stats.completed,
+			ev_stats.died_during, reached, roundi(rate * 100.0), "PASS" if rate <= 0.25 else "FAIL",
+			ev_stats.died_before, ev_stats.hits, ",".join(kinds) if not kinds.is_empty() else "-"])
 	return failures
+
+
+## With --only: answers each fork the session's enemies name, picked by the seed (an
+## inert save answers none). Returns the forked archetype, "-" if it did not resolve, or
+## "" when the session has no fork.
+func _answer_forks(session: Resource, run_seed: int) -> String:
+	var out := ""
+	for e: StringName in session.get(&"enemies"):
+		if not String(e).begins_with("fork:"):
+			continue
+		var f: Resource = root.get_node("ChangeDB").get_fork(StringName(String(e).trim_prefix("fork:")))
+		var opts: Array = f.call(&"changes")
+		var pick: Resource = opts[posmod(run_seed, opts.size())]
+		save.call(&"ship", pick.get(&"id"), &"patch")
+		out = "-"
+		var types: Array = session.call(&"enemy_types")
+		for t: StringName in types:
+			if not t in [&"chaser", &"shooter"] and String(pick.get(&"id")).ends_with(String(t)):
+				out = String(t)
+	return out
+
+
+## The goal-clock time of the session's event cue (-1: none).
+func _event_cue_at(runner: Node) -> float:
+	if not runner.call(&"has_cue", &"event"):
+		return -1.0
+	for c: RefCounted in runner.get(&"_cues"):
+		if c.get(&"action") == &"event":
+			return float(c.get(&"value"))
+	return -1.0
+
+
+## One seed's event: {text, failed, why}; adds to stats.
+func _event_report(game: Node, rec: Dictionary, cue_at: float, stats: Dictionary) -> Dictionary:
+	var out := {"text": "", "failed": false, "why": ""}
+	var played: Array = game.event_player.played
+	var died: bool = String(rec.get("outcome", "")) in ["lose", "died"]
+	if played.is_empty():
+		if died:
+			stats.died_before = int(stats.died_before) + 1
+			out.text = " event=- (died before)"
+		else:
+			out.failed = true
+			out.why = "the clock passed %.0f s with no event" % cue_at
+			out.text = " event=-"
+		return out
+	var r: Dictionary = played[0]
+	stats.id = r.id
+	stats.reached = int(stats.reached) + 1
+	if r.skipped:
+		out.text = " event=%s skipped" % r.id
+		stats.fully = int(stats.fully) + 1
+		return out
+	var duration := float(rec.get("duration", 0.0))
+	var died_during: bool = died and (bool(r.aborted) or duration <= float(r.end) + EVENT_TAIL)
+	var hits := 0
+	var kinds := {}
+	for ev: Dictionary in root.get_node("RunState").run_log:
+		if ev.get("event") != &"player_hit" or bool(ev.get("blocked", false)):
+			continue
+		var t := float(ev.get("time", -1.0))
+		if t >= float(r.start) and t <= float(r.end) + EVENT_TAIL:
+			hits += 1
+			var k := String(ev.get("kind", "?"))
+			kinds[k] = int(kinds.get(k, 0)) + 1
+			stats.kinds[k] = int(stats.kinds.get(k, 0)) + 1
+	stats.hits = int(stats.hits) + hits
+	if r.completed:
+		stats.completed = int(stats.completed) + 1
+	if died_during:
+		stats.died_during = int(stats.died_during) + 1
+	if r.completed or died_during:
+		stats.fully = int(stats.fully) + 1
+	elif not r.aborted:
+		out.failed = true
+		out.why = "the event hung at step %d" % int(r.steps_done)
+	else:
+		out.failed = true
+		out.why = "the event was aborted with the player alive"
+	var kind_text: Array[String] = []
+	for k: String in kinds:
+		kind_text.append("%s:%d" % [k, kinds[k]])
+	out.text = " event=%s@%.1f-%.1f steps=%d/%d%s%s hits_in_event=%d (%s)" % [r.id, r.start, r.end,
+			r.steps_done, r.steps, " aborted" if r.aborted else "", " DIED_IN_EVENT" if died_during else "",
+			hits, ",".join(kind_text) if not kind_text.is_empty() else "-"]
+	return out
 
 
 ## Plays the debrief to its buttons the way a player would, faster: every line at once,
@@ -457,6 +579,8 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			game.session_runner.fired_count(), choice.to_snake_case()]
 		line += " reactions=%d" % game.reactions.fired.size()
 		line += " edits=%d" % game.rule_book.landed.size()
+		var played_events: Array = game.event_player.played_ids()
+		line += " events=%s" % (",".join(played_events) if not played_events.is_empty() else "-")
 		game.debrief.next_seed = base * 100 + step
 		if not game.debrief.choose(choice):
 			print(line + " FAILED: could not choose")

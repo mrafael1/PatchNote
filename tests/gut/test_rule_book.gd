@@ -7,7 +7,7 @@ const Fx := preload("res://tests/gut/fixtures.gd")
 const CHASER := preload("res://entities/enemy_chaser.tscn")
 const SHOOTER := preload("res://entities/enemy_shooter.tscn")
 const PROJECTILE := preload("res://entities/projectile.tscn")
-const ALL := [&"edit_big_enemies", &"edit_bouncy_walls", &"edit_gift_explode", &"edit_gravity_down",
+const ALL := [&"edit_big_enemies", &"edit_bouncy_walls", &"edit_enemy_speed", &"edit_gift_explode", &"edit_gravity_down",
 		&"edit_gravity_left", &"edit_gravity_up", &"edit_inverted", &"edit_slowmo", &"edit_tiny_enemies"]
 const TICKS := 60
 
@@ -49,7 +49,7 @@ func _edit(id: StringName) -> RuleEdit:
 
 # --- RuleEdit and RuleDB --------------------------------------------------------------
 
-func test_the_nine_edits_load_and_are_fine() -> void:
+func test_the_ten_edits_load_and_are_fine() -> void:
 	var ids: Array = RuleDB.all().map(func(e: RuleEdit) -> StringName: return e.id)
 	assert_eq(ids, ALL)
 	for e in RuleDB.all():

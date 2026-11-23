@@ -62,11 +62,12 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 5)
+	assert_eq(CampaignDB.size(), 6)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
 	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
-	assert_null(CampaignDB.session(5))
+	assert_eq(CampaignDB.session(5).id, &"s1_05_wrong")
+	assert_null(CampaignDB.session(6))
 
 
 func test_lines_parse_a_condition_an_expression_and_the_text() -> void:
@@ -117,7 +118,8 @@ func test_a_broken_campaign_reports_each_problem() -> void:
 	a.basics = [&"teleport"]
 	a.enemies = [&"chaser"]
 	a.intro = PackedStringArray(["won happy: too early"])
-	a.cues = PackedStringArray(["at 5: event wrong_variable", "at 6: edit edit_nope", "soon: say hi", "at 3: say died: no"])
+	a.cues = PackedStringArray(["at 5: event no_such_event", "at 6: edit edit_nope", "soon: say hi", "at 3: say died: no",
+			"at 7: say event:wrong_variable happy: x"])
 	a.ships = [&"no_such_change"]
 	a.fork = &"fork_enemy"
 	var b := _session(&"a", &"dance")
@@ -129,7 +131,7 @@ func test_a_broken_campaign_reports_each_problem() -> void:
 	c.sessions = [a, b]
 	var text := "\n".join(CampaignDB.problems(c))
 	for expected in ["unknown basic teleport", "enemies listed without the enemies basic",
-			"intro line cannot depend on the outcome", "events come with M41", "unknown edit edit_nope", "unknown cue time",
+			"intro line cannot depend on the outcome", "unknown event no_such_event", "a cue line cannot depend on an event", "unknown edit edit_nope", "unknown cue time",
 			"cannot depend on the outcome", "ships unknown change no_such_change", "unknown goal dance",
 			"time_limit is for kills goals only", "no look neon", "bump must be patch or minor",
 			"listed twice", "goes back to stage 1", "fork fork_enemy is asked twice"]:

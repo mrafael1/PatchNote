@@ -3,7 +3,7 @@ extends GutTest
 
 const Fx := preload("res://tests/gut/fixtures.gd")
 const SHELL_PATHS: Array[String] = ["res://main.gd", "res://ui/", "res://director/",
-		"res://devsession/", "res://core/"]
+		"res://devsession/", "res://core/", "res://events/"]
 
 var _fx_genre: GenreDef
 

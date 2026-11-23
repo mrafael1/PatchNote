@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_enemy_speed/edit_enemy_speed.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_enemy_speed"
+title = "Faster enemies"
+description = "Enemies move 15% faster."
+conflicts = Array[StringName]([])
+target = &"enemies"
+warn_line = "thinking: Enemies feel slow. One sec, I'll bump their speed."
+done_line = ""
+warn_seconds = 1.5
+duration = 0.0
+point_at = &"nearest_enemy"
+photosensitive = false

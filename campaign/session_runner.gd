@@ -24,6 +24,7 @@ var session: SessionDef
 var genre: Genre
 var hits := 0
 var rule_book: RuleBook   ## set by main.gd: where "edit" cues go
+var event_player: EventPlayer   ## set by main.gd: where "event" cues go
 var touched := false   ## something tried to hurt the player before `health` (cue "touch")
 ## --mute-ai (PLAN v8 4): nothing is said; cues that act still fire. The fun-before-
 ## meta check.
@@ -106,6 +107,11 @@ func _fire(cue: Cue, index: int) -> void:
 		&"edit":
 			if rule_book == null or not rule_book.request(cue.target, &"cue", cue.seconds):
 				push_warning("Session %s: edit %s refused" % [session.id, cue.target])
+		&"event":
+			if event_player == null:
+				push_warning("Session %s: no event player for %s" % [session.id, cue.target])
+			else:
+				event_player.play(cue.target, &"cue")   # false: seen (skipped) or busy
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
 
@@ -117,6 +123,10 @@ func drop_cues(action: StringName) -> void:
 		if _cues[i].action == action:
 			_cues.remove_at(i)
 			_fired.remove_at(i)
+
+
+func has_cue(action: StringName) -> bool:
+	return _cues.any(func(c: Cue) -> bool: return c.action == action)
 
 
 func inject(text: String) -> Cue:

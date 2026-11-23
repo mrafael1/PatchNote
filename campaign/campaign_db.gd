@@ -103,6 +103,8 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 	if c == campaign:
 		for e in RuleDB.all():
 			out.append_array(RuleDB.problems(e))
+		for ev in EventDB.all():
+			out.append_array(EventDB.problems(ev))
 		for r in reactions:
 			out.append_array(r.problems())
 	return out
@@ -144,9 +146,24 @@ func session_for_game() -> SessionDef:
 				var id := StringName(arg.trim_prefix("--session="))
 				if jump_to(id):
 					active = true
+					answer_forks(get_session(id))
 				else:
 					push_warning("No session %s" % id)
 	return current() if active else null
+
+
+## Answers, with their first option, the forks a session's enemies name ("fork:<id>")
+## that the save has not answered: a session jumped to (--session=) still gets its
+## forked enemy. Ships the change like a debrief pick would (in memory until a write).
+func answer_forks(s: SessionDef) -> void:
+	if s == null:
+		return
+	for e in s.enemies:
+		if not String(e).begins_with("fork:"):
+			continue
+		var f := ChangeDB.get_fork(StringName(String(e).trim_prefix("fork:")))
+		if f != null and not f.is_answered() and not f.changes().is_empty():
+			SaveGame.ship(f.changes()[0].id, GameVersion.PATCH)
 
 
 ## The next session becomes `id` (in memory; written with the next session done).
@@ -159,8 +176,10 @@ func jump_to(id: StringName) -> bool:
 
 
 ## The context Line conditions read (Line.passes).
-func line_context(s: SessionDef, outcome: StringName = &"", hits := -1) -> Dictionary:
-	var ctx := {"attempt": attempt(s.id), "mascot": SaveGame.mascot(), "shipped": SaveGame.shipped()}
+## events: the scripted events played this attempt (String ids; the debrief's event:<id>).
+func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: Array = []) -> Dictionary:
+	var ctx := {"attempt": attempt(s.id), "mascot": SaveGame.mascot(), "shipped": SaveGame.shipped(),
+			"events": events}
 	if outcome != &"":
 		ctx.outcome = outcome
 	if hits >= 0:
@@ -198,7 +217,7 @@ func retry(s: SessionDef) -> void:
 ## attempt's. reactions, edits, events and fork fill in from M38-M41.
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
 		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = [],
-		edits: Array = []) -> Dictionary:
+		edits: Array = [], events: Array = []) -> Dictionary:
 	var fork_record: Variant = null
 	var mascot := SaveGame.mascot()
 	if pick != null:
@@ -233,7 +252,7 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"hits_taken": hits,
 		"reactions": reactions,
 		"edits": edits,
-		"events": [],
+		"events": events,
 		"fork": fork_record,
 		"mascot": String(mascot),
 		"reduce_flashing": bool(SaveGame.setting("reduce_flashing")),

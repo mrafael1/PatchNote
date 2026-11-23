@@ -34,8 +34,8 @@ var _marker: EditMarker
 
 
 func _ready() -> void:
-	# Ticks before the session runner and the event player, so an edit asked for in a
-	# frame counts its warning from the next tick: never landing a frame early.
+	# Ticks before the event player (-7) and the session runner (0), so an edit asked for
+	# in a frame counts its warning from the next tick: never landing a frame early.
 	process_physics_priority = -10
 	_marker = EditMarker.new()
 	_marker.name = "EditMarker"
@@ -46,27 +46,36 @@ func _ready() -> void:
 
 ## Asks for edit `id`. by: &"cue", &"console", &"event". seconds: how long it stays
 ## (-1: the edit's own duration; 0: until the session ends). warn: false lands it at the
-## next tick with no line, no marker (M41's event). Refused: the game is over, an
-## unknown id, the edit pending or live, or it conflicts with one pending or live.
-func request(id: StringName, by := &"cue", seconds := -1.0, warn := true) -> bool:
+## next tick with no line, no marker (M41's event). posing_as: the warning (line, point,
+## marker, length) is another edit's, and `id` lands (M41's wrong_variable: a speed
+## warning, then gravity). Refused: the game is over, an unknown id, the edit pending or
+## live, or it conflicts with one pending or live.
+func request(id: StringName, by := &"cue", seconds := -1.0, warn := true, posing_as: StringName = &"") -> bool:
 	if _over():
 		return false
 	var e := RuleDB.get_edit(id)
 	if e == null or _live.has(id) or is_pending(id):
+		return false
+	var shown := e if posing_as == &"" else RuleDB.get_edit(posing_as)
+	if shown == null:
 		return false
 	for p: Dictionary in _pending:
 		if RunState.conflicting(e, p.edit):
 			return false
 	if not RunState.can_add_ai(e):
 		return false
-	var ticks := roundi((e.warn_seconds if warn else 0.0) * Engine.physics_ticks_per_second)
+	var ticks := roundi((shown.warn_seconds if warn else 0.0) * Engine.physics_ticks_per_second)
+	var gentle := e.gentle() or shown.gentle()
 	_pending.append({"edit": e, "by": by, "seconds": seconds, "land_tick": _tick + maxi(ticks, 1), "warned": warn,
-			"asked_frame": Engine.get_physics_frames()})
-	RunState.log_event(&"edit_requested", {"id": String(id), "by": String(by)})
+			"asked_frame": Engine.get_physics_frames(), "shown": shown, "gentle": gentle})
+	var entry := {"id": String(id), "by": String(by)}
+	if posing_as != &"":
+		entry["as"] = String(posing_as)
+	RunState.log_event(&"edit_requested", entry)
 	if warn:
-		_speak(e.warn(), 3)
-		_point(e)
-		_marker.show_for(e.target, _point_screen(e), e.gentle())
+		_speak(shown.warn(), 3)
+		_point(shown)
+		_marker.show_for(shown.target, _point_screen(shown), gentle)
 		if sound != null:
 			sound.play(&"edit_warn", 0.0)
 	return true
@@ -116,6 +125,28 @@ func remove(id: StringName, reason := &"console") -> bool:
 	return true
 
 
+## Takes live edit old_id back and lands new_id in the same frame: no frame between
+## them without the rule (a gravity flip never passes through no gravity), one grace.
+## No lines, no marker (M41's event). old_id not live (F2 took it back): new_id simply
+## lands at the next tick. Returns whether new_id is live or pending.
+func swap(old_id: StringName, new_id: StringName, by := &"event") -> bool:
+	if _over():
+		return false
+	var n := RuleDB.get_edit(new_id)
+	if n == null or _live.has(new_id) or is_pending(new_id):
+		return false
+	if not _live.has(old_id):
+		return request(new_id, by, 0.0, false)
+	var key := _gravity_key()
+	var o: RuleEdit = _live[old_id].edit
+	_live.erase(old_id)
+	RunState.remove_ai(o, &"replaced")
+	_land({"edit": n, "by": by, "seconds": 0.0, "asked_frame": Engine.get_physics_frames()})
+	_after_gravity_change(key)
+	edit_ended.emit(o, &"replaced")
+	return _live.has(new_id)
+
+
 ## Everything back, no lines: the session ended (any outcome), the player died. Pending
 ## edits never land.
 func clear() -> void:
@@ -161,7 +192,7 @@ func _show_marker() -> void:
 	for k in range(_pending.size() - 1, -1, -1):
 		var p: Dictionary = _pending[k]
 		if p.warned:
-			_marker.show_for(p.edit.target, _point_screen(p.edit), p.edit.gentle())
+			_marker.show_for(p.shown.target, _point_screen(p.shown), bool(p.gentle))
 			return
 	_marker.hide_marker()
 

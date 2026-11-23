@@ -10,7 +10,8 @@ extends RefCounted
 ##
 ## Conditions (`when`): won, died, stopped (the session's outcome), hit_none, hit_lots
 ## (the player's hits taken), first_try, retry (the attempt), mascot:<id> (the save's
-## mascot), answer:<change id> (a shipped fork answer). Each is checked against a
+## mascot), answer:<change id> (a shipped fork answer), event:<id> (that scripted event
+## played in this attempt). Each is checked against a
 ## context dictionary (passes()); a key the context lacks fails the line.
 
 const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried", &"surprised",
@@ -18,7 +19,7 @@ const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried",
 const OUTCOMES: Array[StringName] = [&"won", &"died", &"stopped"]
 const PLAIN_CONDITIONS: Array[StringName] = [&"won", &"died", &"stopped", &"hit_none", &"hit_lots",
 		&"first_try", &"retry"]
-const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:"]
+const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:"]
 ## Hits taken at or above this are "hit_lots".
 const HIT_LOTS := 3
 
@@ -124,6 +125,8 @@ func passes(ctx: Dictionary) -> bool:
 		return ctx.has("mascot") and String(ctx.mascot) == w.trim_prefix("mascot:")
 	if w.begins_with("answer:"):
 		return ctx.has("shipped") and StringName(w.trim_prefix("answer:")) in (ctx.shipped as Array)
+	if w.begins_with("event:"):
+		return ctx.has("events") and w.trim_prefix("event:") in (ctx.events as Array)
 	return false
 
 

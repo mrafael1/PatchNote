@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s1_05_wrong"
+stage = 1
+title = "The wrong slider"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
+goal = &"survive"
+goal_value = 90.0
+face = true
+intro = PackedStringArray("proud: New enemy's in. The one you picked.", "happy: Ninety seconds this time. I'll keep tuning things as we go.")
+cues = PackedStringArray("at 40: event wrong_variable")
+debrief = PackedStringArray("event:wrong_variable guilty: So. About the gravity thing.", "event:wrong_variable guilty: Let's never speak of it.", "died guilty: Ouch. That one's on me.", "won happy: Ninety seconds. Made it.", "hit_none proud: You didn't even get hit. Show-off.")
+bump = &"minor"
+notes = PackedStringArray("Gravity fixed (mostly)")

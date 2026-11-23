@@ -163,6 +163,7 @@ func _process(delta: float) -> void:
 		_pulse = 0.0
 	_update_gauge(delta)
 	_goal.text = run_loop.goal_text() if run_loop else ""
+	_goal.modulate.a = 0.5 if run_loop and run_loop.clock_held() else 1.0   # held by an event: paused
 	var hp := 0
 	if is_instance_valid(player):
 		var health := Component.find(player, Health) as Health

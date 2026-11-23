@@ -110,11 +110,13 @@ if ($BotRuns) {
     Select-String -Path $camp.Log -Pattern '^\[botrun\] (session|save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($camp.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign: summary missing or failures' }
     if ($camp.Text -notmatch '\[botrun\] session=s1_00_nothing attempt=1 \(invincible\) outcome=stopped .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_campaign: S0 did not stop and ship v0.1.0' }
-    if ($camp.Text -notmatch '"index":5') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    if ($camp.Text -notmatch '"index":6') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
     # PLAN v8 M39: from S3 on the AI reacts live.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*reactions=[1-9]') { $failures += 'bot_campaign: no live reactions in S4' }
     # PLAN v8 M40: S4 bends its walls at 12 s; the rule book lands it.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*edits=1') { $failures += 'bot_campaign: S4 rule edit did not land' }
+    # PLAN v8 M41: S5 plays wrong_variable; three gravity flips land through the rule book (the speed is the event's own).
+    if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*edits=3 events=wrong_variable') { $failures += 'bot_campaign: S5 did not play wrong_variable' }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
     if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+') { $failures += 'bot_campaign: S3 did not ask fork_mascot' }
     if ($camp.Text -notmatch '"mascot":"(cursor|window|blob)"') { $failures += 'bot_campaign: the save has no mascot' }
@@ -128,6 +130,12 @@ if ($BotRuns) {
     Select-String -Path $edits.Log -Pattern '^\[botrun\] edits:' | ForEach-Object { Write-Host "    $($_.Line)" }
     if (([regex]::Matches($edits.Text, '\[botrun\] summary: s1_04_level x1, .* 0 failures')).Count -ne 6) { $failures += 'bot_edits: a forced edit run failed' }
     if (([regex]::Matches($edits.Text, 'edit=edit_\w+ landed=edit_\w+@13\.5')).Count -ne 6) { $failures += 'bot_edits: a forced edit did not land at 13.5 s' }
+    # PLAN v8 M41: wrong_variable plays every step in S5 (invincible seed) and the session is still won.
+    $ev = Invoke-Godot 'bot_event' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_05_wrong 3i'
+    Test-Errors 'bot_event' $ev
+    Select-String -Path $ev.Log -Pattern '^\[botrun\] events:' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($ev.Text -notmatch 'outcome=win t=100\.0 enemy=\w+ event=wrong_variable@40\.0-51\.5 steps=6/6') { $failures += 'bot_event: wrong_variable did not play fully' }
+    if ($ev.Text -notmatch '\[botrun\] summary: s1_05_wrong x1, .* 0 failures') { $failures += 'bot_event: run failed' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }

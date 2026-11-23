@@ -101,11 +101,13 @@ func _rebuild_body() -> void:
 
 
 ## Queues `line`. priority: 1 chatter, 2 notable, 3 important (PLAN v8 1.7); the session's
-## script speaks at 2.
-func say(line: Line, priority := 2) -> void:
+## script speaks at 2. cut: replace the line on screen now if it is not of a higher
+## priority (a scripted event's beat, PLAN v8 1.5).
+func say(line: Line, priority := 2, cut := false) -> void:
 	if line == null:
 		return
-	if _current != null and priority > _current_priority and _shown_for >= MIN_SHOWN:
+	if _current != null and ((cut and priority >= _current_priority)
+			or (priority > _current_priority and _shown_for >= MIN_SHOWN)):
 		_end_line()
 		_start(line, priority)
 		return
@@ -117,6 +119,19 @@ func say(line: Line, priority := 2) -> void:
 	_queue.insert(at, {"line": line, "priority": priority})
 	if _current == null:
 		_next()
+
+
+## Glitches the body (an event's "shake or glitch the mascot", PLAN v8 1.5). Gentle with
+## reduce_flashing: the body only wobbles.
+func glitch(seconds: float) -> void:
+	if body != null:
+		body.glitch(seconds)
+
+
+## Sets the face with no line; the next line (or its end) sets it again.
+func show_expression(e: StringName) -> void:
+	if body != null:
+		body.set_expression(e)
 
 
 ## Points the body at a spot on the screen for `seconds` (a rule edit's warning).

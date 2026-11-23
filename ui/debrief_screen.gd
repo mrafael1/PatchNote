@@ -61,6 +61,8 @@ var _asked := false
 var _buttons_msec := 0
 
 
+var events: Array = []   ## the events played this attempt (open())
+
 func _ready() -> void:
 	layer = 95
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -134,10 +136,12 @@ static func body_for(s: SessionDef) -> StringName:
 	return m if MascotBody.is_body(m) else MascotBody.DEFAULT
 
 
-func open(p_session: SessionDef, run_outcome: StringName, hits: int) -> void:
+## events: the scripted events played this attempt (their event:<id> lines pass).
+func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: Array = []) -> void:
 	session = p_session
 	outcome = outcome_name(run_outcome)
-	lines = Line.passing(session.debrief_lines(), CampaignDB.line_context(session, outcome, hits))
+	events = p_events
+	lines = Line.passing(session.debrief_lines(), CampaignDB.line_context(session, outcome, hits, events))
 	picked = null
 	moved_on = false
 	_asked = false

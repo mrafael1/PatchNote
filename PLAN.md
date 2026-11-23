@@ -338,6 +338,54 @@ Owner, 2026-11-23: "game strength is to play with rules so current top right UI 
   - The whole-session gift is the one edit that changes the odds a lot. It is meant to: "Try this.". On the real 30 s S4 it would last 18 s at most.
   - Reversibility: each of the 9 edits added and removed leaves the rules, every enemy's scale, half, speed and HP, the time scale and the player's speed exactly as before, including an enemy born under the edit (tested).
 
+### 6.6 As built (M41): events
+- **`ScriptedEvent`** (`core/scripted_event.gd`; `events/<id>/<id>.tres` + `.gd`):
+  - fields: `once_per_save`, `photosensitive`, `steps`, and **its lines as data** (by key, in Line syntax), so the owner edits tone in the `.tres`;
+  - its script is a coroutine `play(ctx)` over an **`EventContext`** (`systems/event_context.gd`), which can say a line, set a face, pose a warning, request / swap / remove edits, apply an event-owned mutation, hold the session clock, glitch the mascot, mark a step, and wait;
+  - **`EventDB`** (`core/event_db.gd`) loads and checks them, `CampaignDB.problems()` includes them, and an `event` cue must name a known event.
+- **`EventPlayer`** (`systems/event_player.gd`) is a campaign shell node at physics priority -7: after the rule book, before the session runner.
+  - It runs one event at a time, on **its own physics ticks**, so the same seed plays the same event on the same frames (tested).
+  - It speaks at priority 3 straight to the mascot, and can cut its own line.
+  - It holds Reactions below priority 3 for the whole event. Priority 3 still speaks, and an enemy first seen during the event is never announced.
+  - It marks a once_per_save event **seen when it starts**: on disk with the debrief's Retry / Move on, so quitting mid-S5 replays it. After that it skips the event: the cue does nothing and the session plays on (tested).
+  - A death or the session's end aborts the event: the clock and the reactions are released, the rule book's `clear()` takes the edits back, the player takes back its own mutation, and the script returns at its next wait. Freeing the scene mid-event is safe (tested).
+- **The rule book** gained two moves:
+  - it can **pose** a warning (`request(…, posing_as)`): the speed warning shows, then gravity lands;
+  - it can **swap** an edit in one frame (`swap()`), so no frame passes without gravity between left and up, and each swap starts one grace.
+- **New edit `edit_enemy_speed`** (×1.15; it stacks with big/tiny enemies) serves twice: as the warning the event poses, and as the speed the event finally gives. The event applies that speed **itself** (owner `event`, not through the rule book). So S5 shows `edits=3`, and no rule-book edit is live after the event.
+- **`wrong_variable`** plays as 1.5 describes, at warning +1.5 s, left +4 s, up +3 s, down +3 s, then the clear. Differences from 1.5:
+  - the face turns `surprised` the frame left lands, but "That's… not speed." comes 0.8 s later, cutting line 1 (so line 1 is read first);
+  - step 6's `proud` is new;
+  - the event shakes no camera; it glitches the mascot (and the screen, once, at the first flip);
+  - **known deviation:** shooters float, so they don't fall under gravity (1.5 says enemies fall too). Walkers fall, including the forked enemies.
+  - The clock is held 10.0 s, from the first flip to the clear. A won S5 lasts 100 s. The goal label dims while the clock is held.
+- **Reduce flashing:** no screen glitch and no glitch sound, the mascot only wobbles, and the marker pulses slowly. Camera shake is halved as before.
+- **S5 (`s1_05_wrong`)** is built now (M42 was to add it):
+  - the forked enemy, survive 90 s, the event at 40 s;
+  - its debrief opens on `guilty` ("So. About the gravity thing." · "Let's never speak of it.") **only when the event played this attempt**, through the new Line condition `event:<id>`. A Retry skips the event, so its debrief never mentions gravity;
+  - "Gravity fixed (mostly)", v0.5.0, then "To be continued" until S6;
+  - its title and intro are mine: "The wrong slider"; "New enemy's in. The one you picked." · "Ninety seconds this time. I'll keep tuning things as we go.".
+- **The arena** lights the face you stand on under sideways gravity. Before, it drew left gravity as down.
+- **F1** shows PLAN 2's `session= attempt= edits= events=` line and the event's step. **F2** has an EVENTS section, which plays an event now, ignoring once per save, without marking it seen.
+- **Telemetry:** the campaign line's `events` lists the events played.
+- **The bot:**
+  - `--only` answers the session's forks by seed (`enemy=`);
+  - each seed prints `event=<id>@start-end steps=n/6 hits_in_event=n (unblocked, by kind)`, followed by an `events:` summary;
+  - `--events=none` is the control;
+  - the campaign line adds `events=`;
+  - the check wants S5's event in the invincible chain (`edits=3 events=wrong_variable`) and a forced `--only=s1_05_wrong 3i` playing 40.0–51.5 s with all 6 steps.
+- **`--session=<id>`** answers that session's unanswered forks with option 0 (in memory), so `--session=s1_05_wrong` on a fresh save still has its forked enemy.
+- **Review (5 reviewers, 3 skeptics per finding; 14 findings, 9 upheld = 6 distinct, all fixed):**
+  - `EventDB` checked `play()` in the script's source, which an exported build does not ship, so the export would have logged a false error at every boot. It now checks the method list.
+  - `--session=` did not answer S5's fork.
+  - Four tests could not fail: F2 marking nothing, freeing mid-event, S5's own problems, and the `surprised` face. Each one now fails without the code it covers (checked for the free).
+- **Numbers (16 bot sessions per condition, seeds 1-16, S5 as shipped):**
+  - **mortal (the gate):** all 16 reached the event and all 16 **played it fully**, read as "completed it, or died during it, with no hang or skip". 15 completed it. **1 of 16 died during it (6%; gate ≤ 25%)**: seed 9, at step 4, under up gravity, 4 contact hits. Hits taken during the event, over all seeds: 22, of which 18 contact and 4 projectile.
+  - **invincible:** 16/16 completed, all won at 100.0 s.
+  - **control, no event (`--events=none`):** 0 deaths in the same 40–52.5 s window.
+  - **But the session gets harder:** 6/16 won with the event, against 10/16 without. Deaths come after the event (59–97 s), from the extra 10 s and the ×1.15 enemies, plus the HP lost to contacts in the flips. This is tuning for M42 (table 3.1's targets). The levers, if S5 should be gentler: pause spawns while the clock is held, a longer flip grace, or a shorter left flip.
+  - The legacy run hashes match M40's (both stage sets).
+
 ## 7. What v8 must answer (G13)
 1. Is Stage 1 fun and quick (~20 min), with something new every session?
 2. Is the mascot charming, not annoying? Too chatty, too quiet? Which body did you pick, and why?

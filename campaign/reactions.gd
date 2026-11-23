@@ -38,6 +38,7 @@ var _last_at := {}               ## reaction id -> game time it last fired
 var _count := {}                 ## reaction id -> times fired (picks the line)
 var _armed := {}                 ## reaction id -> false while its edge condition holds
 var _last_slot := -1             ## the game-time slot (1 / TICK_HZ) last checked
+var _holds := {}   ## owner -> true: reactions below priority 3 are held (hold())
 var _busy_until := -1.0          ## game time the line being spoken ends
 var _busy_priority := 0
 var _last_reaction_at := -1000.0
@@ -91,10 +92,25 @@ static func now() -> float:
 	return RunState.game_time
 
 
+## Holds every reaction below priority 3 while any owner holds (M41: a scripted event
+## runs). Priority 3 still speaks. Edges that happen meanwhile are consumed as usual.
+func hold(owner_id: StringName, on: bool) -> void:
+	if on:
+		_holds[owner_id] = true
+	else:
+		_holds.erase(owner_id)
+
+
+func held() -> bool:
+	return not _holds.is_empty()
+
+
 ## A line someone else will say (the session's script), noted when it is queued: it is
 ## spoken after whatever is being spoken now, and nothing below priority 3 talks over it.
-func note_spoken(line: Line, priority: int) -> void:
+func note_spoken(line: Line, priority: int, cut := false) -> void:
 	var t := now()
+	if cut:
+		_busy_until = t   # the line on screen was cut: it is not spoken any more
 	var ends := maxf(t, _busy_until) + speak_seconds(line.text)
 	if ends > _busy_until:
 		_busy_until = ends
@@ -135,7 +151,8 @@ func _on_entity_spawned(entity: Node) -> void:
 		return
 	var arch := entity.scene_file_path.get_file().get_basename().trim_prefix("enemy_")
 	if arch != "" and not _seen.has(arch):
-		_seen[arch] = _free_time
+		# Seen during a hold (an event): never announced, so no stale "X seen" after it.
+		_seen[arch] = -INF if held() else _free_time
 
 
 ## A shot that reached the player was not a miss, even when the hit did no damage
@@ -286,6 +303,8 @@ func _allowed(d: ReactionDef, t: float) -> bool:
 		return false
 	if d.priority >= 3:
 		return true
+	if held():
+		return false
 	if speaking():
 		return false
 	if d.priority <= 1 and t - _last_reaction_at < GAP:

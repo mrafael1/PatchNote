@@ -12,6 +12,7 @@ var _console: PanelContainer
 var _rework_box: VBoxContainer
 var _buttons := {}
 var _edit_buttons := {}   ## rule edit id -> Button (PLAN v8 1.4; a campaign session only)
+var _event_buttons := {}  ## scripted event id -> Button (PLAN v8 1.5)
 var _frame := 0
 
 
@@ -49,6 +50,17 @@ func _ready() -> void:
 		eb.pressed.connect(toggle_edit.bind(e.id))
 		box.add_child(eb)
 		_edit_buttons[e.id] = eb
+	# Scripted events (PLAN v8 1.5): play one now, ignoring once per save.
+	var events_heading := Label.new()
+	events_heading.text = "EVENTS (campaign session: click to play now, even if seen; marks nothing)"
+	box.add_child(events_heading)
+	for ev in EventDB.all():
+		var vb := Button.new()
+		vb.focus_mode = Control.FOCUS_NONE
+		vb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		vb.pressed.connect(play_event.bind(ev.id))
+		box.add_child(vb)
+		_event_buttons[ev.id] = vb
 	var title := Label.new()
 	title.text = "Mutation console (click to apply / revert; BIG: swap in; MED, BOSS: add / remove AI)"
 	box.add_child(title)
@@ -95,7 +107,25 @@ func toggle_edit(id: StringName) -> void:
 	_refresh_edits()
 
 
+## F2's event row: plays it now through the event player (forced: once per save does
+## not apply, and the event is not marked seen).
+func play_event(id: StringName) -> bool:
+	var player: EventPlayer = game.get(&"event_player") if game else null
+	if player == null:
+		return false
+	var ok := player.play(id, &"console", true)
+	_refresh_edits()
+	return ok
+
+
 func _refresh_edits() -> void:
+	var player: EventPlayer = game.get(&"event_player") if game else null
+	for id: StringName in _event_buttons:
+		var mark := "[-]"
+		if player != null:
+			mark = "[>]" if player.is_playing() and player.state_text().begins_with(String(id)) \
+					else "[seen]" if SaveGame.event_seen(id) else "[ ]"
+		(_event_buttons[id] as Button).text = "%s %s — %s" % [mark, id, EventDB.get_event(id).title]
 	var book: RuleBook = game.get(&"rule_book") if game else null
 	for id: StringName in _edit_buttons:
 		var e := RuleDB.get_edit(id)
@@ -234,6 +264,17 @@ func _build_text() -> String:
 			var left := book.seconds_left(id)
 			live.append("%s (%s)" % [id, "%.1f s left" % left if left >= 0.0 else "session"])
 		lines.append("rule book: " + (", ".join(live) if not live.is_empty() else "(nothing live)"))
+	var events: EventPlayer = game.get(&"event_player") if game else null
+	if events != null and RunState.session != null:
+		var edits: Array[String] = []
+		for id in book.live_ids():
+			var left := book.seconds_left(id)
+			edits.append("%s(%s)" % [id, "%.1fs" % left if left >= 0.0 else "session"])
+		var played := events.played_ids()
+		lines.append("session=%s attempt=%d edits=%s events=%s" % [RunState.session.id,
+				CampaignDB.attempt(RunState.session.id), ",".join(edits) if not edits.is_empty() else "-",
+				",".join(played) if not played.is_empty() else "-"])
+		lines.append("event: " + events.state_text())
 	var rules := RunState.rules.to_dict()
 	var base := RunState.base_rules.to_dict()
 	for key: String in rules:

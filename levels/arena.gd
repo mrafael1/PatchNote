@@ -80,8 +80,8 @@ func distance_to_blocks(p: Vector2) -> float:
 
 
 ## Readability cues, driven by the rules: without gravity the floor is a flat grid
-## seen from above; with gravity the background darkens toward "down" and every
-## block shows a bright strip on the face you can stand on.
+## seen from above; with gravity the background darkens toward "down" (or the side
+## gravity pulls to) and every block shows a bright strip on the face you can stand on.
 func _draw() -> void:
 	draw_rect(bounds, COLOR_BACKGROUND)
 	var t := Tuning.TILE
@@ -94,6 +94,17 @@ func _draw() -> void:
 		for rect in blocks:
 			draw_rect(rect, COLOR_BLOCK)
 		return
+	var g := rules.gravity_dir
+	if absf(g.x) > absf(g.y):   # sideways (M41's wrong_variable): darkens toward the side gravity pulls to
+		for c in COLS:
+			var depth := float(c) / (COLS - 1)
+			if g.x < 0.0:
+				depth = 1.0 - depth
+			draw_rect(Rect2(c * t, 0, t, bounds.size.y), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
+		for rect in blocks:
+			draw_rect(rect, COLOR_BLOCK)
+			draw_rect(standable_strip(rect, g), COLOR_STANDABLE)
+		return
 	var down := rules.gravity_dir.y >= 0.0
 	for r in ROWS:
 		var depth := float(r) / (ROWS - 1)
@@ -104,3 +115,13 @@ func _draw() -> void:
 		draw_rect(rect, COLOR_BLOCK)
 		var y := rect.position.y if down else rect.end.y - STRIP
 		draw_rect(Rect2(rect.position.x, y, rect.size.x, STRIP), COLOR_STANDABLE)
+
+
+## The bright strip on the face a body rests on under gravity g (the face whose normal
+## is -g): the top under DOWN, the right face under LEFT.
+static func standable_strip(rect: Rect2, g: Vector2) -> Rect2:
+	if absf(g.x) > absf(g.y):
+		var x := rect.end.x - STRIP if g.x < 0.0 else rect.position.x
+		return Rect2(x, rect.position.y, STRIP, rect.size.y)
+	var y := rect.position.y if g.y >= 0.0 else rect.end.y - STRIP
+	return Rect2(rect.position.x, y, rect.size.x, STRIP)
