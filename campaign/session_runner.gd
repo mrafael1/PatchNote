@@ -9,8 +9,15 @@ extends Node
 ## the same session (spawns use RunState.gameplay_rng).
 
 signal line_said(line: Line)
+## A line joins the queue (intro, or a cue firing on the goal clock). It comes on game
+## time, so Reactions estimates "being spoken" from here, not from line_said, which
+## waits on the wall clock (PLAN v8 M39 review).
+signal line_queued(line: Line)
 
 const READ_BASE := 1.2
+## The script's lines (intro and cues) speak at this priority: reactions below 3 never
+## talk over them (Reactions, Mascot).
+const PRIORITY := 2
 const READ_PER_CHAR := 0.05
 
 var session: SessionDef
@@ -43,6 +50,12 @@ func say(line: Line) -> void:
 	if muted or line == null:
 		return
 	_queue.append(line)
+	line_queued.emit(line)
+
+
+## The lines waiting their turn, oldest first (the intro, queued before anyone listens).
+func queued_lines() -> Array[Line]:
+	return _queue.duplicate()
 
 
 static func read_seconds(text: String) -> float:

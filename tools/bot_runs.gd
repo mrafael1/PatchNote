@@ -37,6 +37,11 @@ extends SceneTree
 ##                                the chain (each session's seed derives from it); a
 ##                                trailing "i" makes every session invincible. On a death
 ##                                the bot retries once, then moves on.
+##   --only=<session id>          with --campaign: play only that session, once per seed
+##                                (each on its own in-memory save, the mascot picked by
+##                                the seed), and sum up the AI's reactions (PLAN v8 M39):
+##                                chatter per 90 s, the shortest chatter gap, priority 3
+##                                lines heard
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
 ## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
 ## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
@@ -65,6 +70,7 @@ var fresh := false
 var ship_ids := PackedStringArray()
 var rework_chance := 0.2
 var campaign := false
+var only := &""
 
 
 func _initialize() -> void:
@@ -114,6 +120,8 @@ func _run() -> void:
 			ship_ids = arg.trim_prefix("--ship=").split(",", false)
 		elif arg == "--campaign":
 			campaign = true
+		elif arg.begins_with("--only="):
+			only = StringName(arg.trim_prefix("--only="))
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -126,6 +134,10 @@ func _run() -> void:
 	var lines_before := _line_count()
 	var failures := 0
 	var started := Time.get_ticks_msec()
+	if campaign and only != &"":
+		failures = await _run_only(specs)
+		quit(1 if failures > 0 else 0)
+		return
 	if campaign:
 		failures = await _run_campaign(specs[0], lines_before)
 		print("[botrun] summary: campaign, %d failures, %d telemetry lines, %.1f s wall" % [
@@ -204,6 +216,77 @@ func _run() -> void:
 	quit(1 if failures > 0 else 0)
 
 
+## One session once per spec (PLAN v8 M39): the AI's reactions, summed up. Returns the
+## number of failures.
+func _run_only(specs: PackedStringArray) -> int:
+	var db: Node = root.get_node("CampaignDB")
+	var run_state: Node = root.get_node("RunState")
+	var main_script: GDScript = load("res://main.gd")
+	var failures := 0
+	var per_90: Array[float] = []
+	var min_gap := INF
+	var p3_said := 0
+	var p3_heard := 0
+	for spec in specs:
+		var run_seed := int(_seed_of(spec))
+		var invincible := spec.ends_with("i")
+		save.call(&"go_inert")
+		save.call(&"set_mascot", Change.MASCOTS[posmod(run_seed, Change.MASCOTS.size())])
+		db.active = true
+		if not db.jump_to(only):
+			print("[botrun] FAILED: no session %s" % only)
+			return failures + 1
+		main_script.set(&"next_seed", run_seed)
+		var game: Node = load("res://main.tscn").instantiate()
+		root.add_child(game)
+		current_scene = game
+		await physics_frame
+		run_state.invincible = invincible
+		game.player.set_bot(true)
+		var opened := false
+		for frame in MAX_FRAMES:
+			if game.debrief.is_open():
+				opened = true
+				break
+			await physics_frame
+		if not opened:
+			print("[botrun] session=%s seed=%d FAILED: no debrief" % [only, run_seed])
+			failures += 1
+		var rec: Dictionary = game.run_loop.record
+		var fired: Array = game.reactions.fired
+		var chatter := fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 1)
+		var gap := INF
+		for i in range(1, chatter.size()):
+			gap = minf(gap, float(chatter[i].at) - float(chatter[i - 1].at))
+		min_gap = minf(min_gap, gap)
+		var duration := maxf(1.0, float(rec.get("duration", 1.0)))
+		per_90.append(chatter.size() * 90.0 / duration)
+		var p3 := fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 3)
+		var heard := p3.filter(func(f: Dictionary) -> bool: return String(f.text) in game.mascot.shown)
+		p3_said += p3.size()
+		p3_heard += heard.size()
+		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s" % [
+			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), rec.get("outcome", "?"),
+			duration, fired.size(), chatter.size(),
+			fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 2).size(),
+			heard.size(), p3.size(), "-" if gap == INF else "%.1f" % gap,
+			",".join(fired.map(func(f: Dictionary) -> String: return String(f.id)))])
+		game.debrief.close()
+		root.remove_child(game)
+		game.free()
+		await process_frame
+	per_90.sort()
+	var median := 0.0
+	if not per_90.is_empty():
+		var mid := per_90.size() / 2
+		median = per_90[mid] if per_90.size() % 2 == 1 else (per_90[mid - 1] + per_90[mid]) / 2.0
+	print("[botrun] summary: %s x%d, chatter per 90 s median %.1f (min %.1f, max %.1f), shortest chatter gap %s, priority 3 heard %d/%d, %d failures" % [
+		only, specs.size(), median, per_90.front() if not per_90.is_empty() else 0.0,
+		per_90.back() if not per_90.is_empty() else 0.0, "-" if min_gap == INF else "%.1f s" % min_gap,
+		p3_heard, p3_said, failures])
+	return failures
+
+
 ## Plays the debrief to its buttons the way a player would, faster: every line at once,
 ## a card picked by the seed when the session asks a fork. Returns the pick's id or "".
 func _through_debrief(debrief: Node, pick_seed: int) -> String:
@@ -276,6 +359,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			session.id, attempt, " (invincible)" if invincible else "", outcome, rec.duration,
 			rec.real_duration, rec.kills, game.session_runner.hits, game.session_runner.line_count(),
 			game.session_runner.fired_count(), choice.to_snake_case()]
+		line += " reactions=%d" % game.reactions.fired.size()
 		game.debrief.next_seed = base * 100 + step
 		if not game.debrief.choose(choice):
 			print(line + " FAILED: could not choose")

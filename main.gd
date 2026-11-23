@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M38"
+const BUILD := "M39"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -22,6 +22,7 @@ var report: ReportScreen
 var dev_flow: DevSessionFlow   ## report -> dev session -> patch notes (PLAN v5 4)
 var session_runner: SessionRunner   ## a campaign session's script (PLAN v8); null in the run loop
 var mascot: Mascot                  ## the AI in the corner (PLAN v8 1.3); null in the run loop
+var reactions: Reactions            ## the AI's live reactions (PLAN v8 1.7); null in the run loop
 var debrief: DebriefScreen          ## after a campaign session (PLAN v8 1.2)
 var sound: Sound
 
@@ -108,7 +109,22 @@ func _ready() -> void:
 		mascot.name = "Mascot"
 		mascot.setup(RunState.session.face, SaveGame.mascot())
 		add_child(mascot)
-		session_runner.line_said.connect(func(line: Line) -> void: mascot.say(line))
+		reactions = Reactions.new()
+		reactions.name = "Reactions"
+		reactions.session = RunState.session
+		reactions.genre = genre
+		reactions.player = player
+		reactions.index = CampaignDB.index_of(RunState.session.id)
+		reactions.muted = session_runner.muted
+		add_child(reactions)
+		# Reactions hear a script line when it is queued (game time), the mascot when the
+		# runner lets it out (read pacing).
+		for line in session_runner.queued_lines():
+			reactions.note_spoken(line, SessionRunner.PRIORITY)
+		session_runner.line_queued.connect(func(line: Line) -> void:
+			reactions.note_spoken(line, SessionRunner.PRIORITY))
+		session_runner.line_said.connect(func(line: Line) -> void: mascot.say(line, SessionRunner.PRIORITY))
+		reactions.line_said.connect(func(line: Line, priority: int) -> void: mascot.say(line, priority))
 		debrief = DebriefScreen.new()
 		debrief.name = "Debrief"
 		add_child(debrief)
@@ -296,7 +312,7 @@ func _end_session(choice: StringName) -> void:
 		return
 	if is_live_game():
 		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
-				session_runner.hits, choice, BUILD, debrief.picked))
+				session_runner.hits, choice, BUILD, debrief.picked, reactions.fired_ids()))
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:

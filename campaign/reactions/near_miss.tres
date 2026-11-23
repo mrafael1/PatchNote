@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"near_miss"
+trigger = "near_miss"
+lines = PackedStringArray("surprised: Close!", "surprised: Whoa. That was close.", "mascot:cursor surprised: Missed you by a pixel.")
+priority = 1
+cooldown = 20.0
+once_per_session = false
+min_session = 4

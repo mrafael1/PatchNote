@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"not_shooting"
+trigger = "not_shooting"
+lines = PackedStringArray("thinking: You can shoot, you know.", "thinking: The gun works. I checked.")
+priority = 1
+cooldown = 40.0
+once_per_session = false
+min_session = 3

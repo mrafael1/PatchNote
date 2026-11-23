@@ -9,8 +9,11 @@ extends Node
 ## the v6 run loop, untouched.
 
 const PATH := "res://campaign/campaign.tres"
+const REACTIONS_DIR := "res://campaign/reactions/"
 
 var campaign: CampaignDef
+## The AI's live reactions (PLAN v8 1.7), every file in REACTIONS_DIR, sorted by id.
+var reactions: Array[ReactionDef] = []
 var active := false
 ## --session=<id> was read from the command line (once per process).
 var _arg_read := false
@@ -26,6 +29,17 @@ func reload() -> void:
 	if campaign == null:
 		push_error("No campaign at %s" % PATH)
 		campaign = CampaignDef.new()
+	reactions.clear()
+	if DirAccess.dir_exists_absolute(REACTIONS_DIR):
+		for entry in ResourceLoader.list_directory(REACTIONS_DIR):
+			if not entry.ends_with(".tres"):
+				continue
+			var r := load(REACTIONS_DIR + entry) as ReactionDef
+			if r == null or String(r.id) != entry.get_basename():
+				push_error("Reaction at %s is not a ReactionDef named after its file" % (REACTIONS_DIR + entry))
+				continue
+			reactions.append(r)
+	reactions.sort_custom(func(a: ReactionDef, b: ReactionDef) -> bool: return String(a.id) < String(b.id))
 	for p in problems():
 		push_error(p)
 
@@ -34,7 +48,7 @@ func summary_line() -> String:
 	var ids: Array[String] = []
 	for s in campaign.sessions:
 		ids.append(String(s.id))
-	return "[campaign] %d sessions: %s" % [ids.size(), ", ".join(ids)]
+	return "[campaign] %d sessions: %s; %d reactions" % [ids.size(), ", ".join(ids), reactions.size()]
 
 
 func size() -> int:
@@ -78,6 +92,9 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 			if forks.has(s.fork):
 				out.append("campaign: fork %s is asked twice (%s, %s)" % [s.fork, forks[s.fork], s.id])
 			forks[s.fork] = s.id
+	if c == campaign:
+		for r in reactions:
+			out.append_array(r.problems())
 	return out
 
 
@@ -170,7 +187,7 @@ func retry(s: SessionDef) -> void:
 ## retry or move_on. Call before complete()/retry(), so attempt and version are this
 ## attempt's. reactions, edits, events and fork fill in from M38-M41.
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
-		choice: StringName, build := "", pick: Change = null) -> Dictionary:
+		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = []) -> Dictionary:
 	var fork_record: Variant = null
 	var mascot := SaveGame.mascot()
 	if pick != null:
@@ -203,7 +220,7 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"deaths": 1 if outcome == &"died" else 0,
 		"kills": RunState.kills,
 		"hits_taken": hits,
-		"reactions": [],
+		"reactions": reactions,
 		"edits": [],
 		"events": [],
 		"fork": fork_record,

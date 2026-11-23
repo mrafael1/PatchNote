@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"no_hit_30"
+trigger = "no_hit_for 30"
+lines = PackedStringArray("proud: Thirty seconds clean.", "proud: Clean for a while now. Show-off.")
+priority = 1
+cooldown = 60.0
+once_per_session = false
+min_session = 3

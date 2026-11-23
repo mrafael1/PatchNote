@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="CampaignDef" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="CampaignDef" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://campaign/campaign_def.gd" id="1"]
 [ext_resource type="Script" path="res://campaign/session_def.gd" id="2"]
@@ -6,7 +6,8 @@
 [ext_resource type="Resource" path="res://campaign/sessions/s1_01_move.tres" id="s1"]
 [ext_resource type="Resource" path="res://campaign/sessions/s1_02_enemies.tres" id="s2"]
 [ext_resource type="Resource" path="res://campaign/sessions/s1_03_shooting.tres" id="s3"]
+[ext_resource type="Resource" path="res://campaign/sessions/s1_04_level.tres" id="s4"]
 
 [resource]
 script = ExtResource("1")
-sessions = Array[ExtResource("2")]([ExtResource("s0"), ExtResource("s1"), ExtResource("s2"), ExtResource("s3")])
+sessions = Array[ExtResource("2")]([ExtResource("s0"), ExtResource("s1"), ExtResource("s2"), ExtResource("s3"), ExtResource("s4")])

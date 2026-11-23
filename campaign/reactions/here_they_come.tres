@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"here_they_come"
+trigger = "enemy_count_at_least 3"
+lines = PackedStringArray("worried: Here they come.", "thinking: More coming.")
+priority = 1
+cooldown = 30.0
+once_per_session = true
+min_session = 3

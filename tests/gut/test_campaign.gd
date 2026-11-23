@@ -62,10 +62,11 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 4)
+	assert_eq(CampaignDB.size(), 5)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
-	assert_null(CampaignDB.session(4))
+	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
+	assert_null(CampaignDB.session(5))
 
 
 func test_lines_parse_a_condition_an_expression_and_the_text() -> void:
@@ -297,7 +298,7 @@ func test_a_death_offers_retry_and_move_on() -> void:
 	assert_eq(CampaignDB.current().id, &"s1_03_shooting", "Retry plays the same session")
 	assert_eq(CampaignDB.attempt(&"s1_03_shooting"), 2)
 	game._end_session(&"move_on")
-	assert_true(CampaignDB.is_done(), "Move on counts the session as done")
+	assert_eq(CampaignDB.current().id, &"s1_04_level", "Move on counts the session as done")
 	assert_eq(SaveGame.version().label(), "v0.1.0")
 
 
@@ -322,14 +323,14 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_eq(game.debrief.big_body.id, &"blob", "the picked body pops in at once")
 	game.debrief.finish_lines()
 	assert_eq(game.debrief.said[-1], "Better. Right? I feel... squishy.")
-	assert_eq(game.debrief.choices(), [DebriefScreen.LAST], "the last session so far")
+	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
 	assert_eq(DebriefScreen.notes_text(RunState.session, game.debrief.picked),
-			"v0.1.0 · what changed\n  • A level\n  • A dash (Shift or right click)\n  • A face: Blob")
+			"v0.1.0 · what changed\n  • A level\n  • A dash (Shift or right click)\n  • Enemies that shoot back\n  • A face: Blob")
 	var ended := []
 	game.debrief.next_requested.connect(func() -> void: ended.append(true))
-	assert_true(game.debrief.choose(DebriefScreen.LAST))
+	assert_true(game.debrief.choose(DebriefScreen.NEXT))
 	assert_eq(ended.size(), 1)
-	assert_true(CampaignDB.is_done())
+	assert_eq(CampaignDB.current().id, &"s1_04_level")
 	assert_eq(SaveGame.campaign().done, ["s1_03_shooting"])
 	assert_eq(SaveGame.mascot(), &"blob", "the pick gives the AI its body")
 	assert_true(SaveGame.has_shipped(&"mascot_blob"))
@@ -349,9 +350,9 @@ func test_move_on_asks_the_fork_then_moves_on() -> void:
 	assert_eq(game.debrief.phase, DebriefScreen.FORK)
 	assert_true(game.debrief.pick(1))
 	game.debrief.finish_lines()
-	assert_eq(game.debrief.choices(), [DebriefScreen.LAST])
+	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
 	assert_string_contains(game.debrief._notes.text, "A face: Window")
-	assert_true(game.debrief.choose(DebriefScreen.LAST))
+	assert_true(game.debrief.choose(DebriefScreen.NEXT))
 	assert_eq(moved.size(), 1, "its Next moves on")
 	assert_eq(SaveGame.mascot(), &"window")
 

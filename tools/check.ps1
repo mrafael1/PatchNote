@@ -110,7 +110,9 @@ if ($BotRuns) {
     Select-String -Path $camp.Log -Pattern '^\[botrun\] (session|save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($camp.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign: summary missing or failures' }
     if ($camp.Text -notmatch '\[botrun\] session=s1_00_nothing attempt=1 \(invincible\) outcome=stopped .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_campaign: S0 did not stop and ship v0.1.0' }
-    if ($camp.Text -notmatch '"index":4') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    if ($camp.Text -notmatch '"index":5') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    # PLAN v8 M39: from S3 on the AI reacts live.
+    if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*reactions=[1-9]') { $failures += 'bot_campaign: no live reactions in S4' }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
     if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+') { $failures += 'bot_campaign: S3 did not ask fork_mascot' }
     if ($camp.Text -notmatch '"mascot":"(cursor|window|blob)"') { $failures += 'bot_campaign: the save has no mascot' }

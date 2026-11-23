@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"no_hit_60"
+trigger = "no_hit_for 60"
+lines = PackedStringArray("surprised: A whole minute without a hit. How?", "surprised: Sixty seconds clean. Teach me.")
+priority = 2
+cooldown = 60.0
+once_per_session = true
+min_session = 4

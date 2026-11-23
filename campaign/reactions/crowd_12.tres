@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"crowd_12"
+trigger = "enemy_count_at_least 12"
+lines = PackedStringArray("panic: That's... a lot. Is that a lot?", "panic: Okay, that's too many. My bad.")
+priority = 2
+cooldown = 60.0
+once_per_session = false
+min_session = 3

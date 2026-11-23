@@ -18,4 +18,4 @@ cues = PackedStringArray("kills 1: say happy: Oh. That works.", "kills 10: say p
 debrief = PackedStringArray("died guilty: Too many at once. My fault.", "stopped thinking: Time's up. Close enough.", "happy: I can talk now. Weird.")
 fork = &"fork_mascot"
 bump = &"minor"
-notes = PackedStringArray("A level", "A dash (Shift or right click)")
+notes = PackedStringArray("A level", "A dash (Shift or right click)", "Enemies that shoot back")

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"streak_6"
+trigger = "kill_streak 6"
+lines = PackedStringArray("surprised: Six! SIX.", "surprised: I didn't know you could do that.")
+priority = 2
+cooldown = 45.0
+once_per_session = false
+min_session = 3
