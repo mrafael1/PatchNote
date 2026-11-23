@@ -7,11 +7,14 @@ extends GutTest
 
 const TEST_PATH := "user://save_session_test/save.json"
 const ALL: Array[String] = ["basic_movement", "basic_world", "enemy_bomber", "enemy_lancer",
-		"enemy_tank", "look_1_arcade", "look_1_clean", "look_1_punchy", "patch_auto_attack",
+		"enemy_tank", "look_1_arcade", "look_1_clean", "look_1_punchy", "mascot_blob",
+		"mascot_cursor", "mascot_window", "patch_auto_attack",
 		"patch_echo", "patch_elite", "patch_horde_mode", "patch_hunter", "patch_magnet",
 		"patch_motion_time", "patch_orbit", "patch_well", "stages_breakout", "stages_gauntlet",
 		"stages_shifting"]
-const FORKS: Array[String] = ["fork_enemy", "look_1", "stages"]
+const FORKS: Array[String] = ["fork_enemy", "fork_mascot", "look_1", "stages"]
+## The questions the v6 loop asks (fork_mascot is the campaign's only).
+const LOOP_FORKS: Array[String] = ["fork_enemy", "look_1", "stages"]
 ## The in-run patches the AI builds itself, one per IMPLEMENT session.
 const NEW_PATCHES: Array[String] = ["patch_auto_attack", "patch_echo", "patch_elite", "patch_horde_mode",
 		"patch_hunter", "patch_magnet", "patch_motion_time", "patch_orbit", "patch_well"]
@@ -129,11 +132,11 @@ func test_the_changes_and_forks_are_valid() -> void:
 		assert_eq(ChangeDB.fork_problems(f), [] as Array[String], String(f.id))
 		assert_ne(f.question, "", String(f.id))
 	assert_eq(fork_ids, FORKS)
-	# Looks, enemies and the Stages step answer a question; basics and in-run patches
-	# answer none (the AI builds those itself, owner feedback after M34).
+	# Looks, enemies, the Stages step and the campaign's mascot answer a question; basics
+	# and in-run patches answer none (the AI builds those itself, owner feedback after M34).
 	for c in ChangeDB.all:
-		var asked := c.kind == &"look" or c.kind == &"enemy" or c.kind == &"stages"
-		assert_eq(c.fork != &"", asked, "%s: in a fork only if a look, an enemy or stages" % c.id)
+		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot"]
+		assert_eq(c.fork != &"", asked, "%s: in a fork only if a look, an enemy, stages or a mascot" % c.id)
 	assert_eq(DevSession.new_patches_left().map(func(c: Change) -> String: return String(c.id)), NEW_PATCHES,
 			"a fresh save: every in-run patch is still to build")
 	var look := _fork(&"look_1")
@@ -784,10 +787,10 @@ func test_a_chain_of_sessions_answers_every_fork() -> void:
 	assert_eq(first.ai_forks, 0, "the AI answers no question")
 	assert_true(SaveGame.state().sessions[-1].kept, "the chain keeps it as it is")
 	assert_eq(first.versions.slice(0, 5), ["v0.0.1", "v0.0.2", "v0.1.0", "v0.1.1", "v0.1.2"])
-	assert_eq(DevSession.answers().size(), FORKS.size())
+	assert_eq(DevSession.answers().size(), LOOP_FORKS.size())
 	assert_true(DevSession.ready_forks().is_empty())
 	assert_true(DevSession.new_patches_left().is_empty())
-	assert_eq(SaveGame.shipped().size(), 2 + FORKS.size() + NEW_PATCHES.size(),
+	assert_eq(SaveGame.shipped().size(), 2 + LOOP_FORKS.size() + NEW_PATCHES.size(),
 			"one answer per question, every patch built")
 	assert_eq(_chain().file, first.file, "the same chain writes the same save")
 
@@ -983,7 +986,7 @@ func test_a_pending_session_opens_first_from_the_start_screen() -> void:
 	assert_true(screen.dev_flow.notes.is_open())
 	screen.refresh_save()
 	assert_eq(screen.start_button.text, StartScreen.START)
-	assert_string_contains(screen.save_label.text, "1/%d forks" % FORKS.size())
+	assert_string_contains(screen.save_label.text, "1/%d forks" % LOOP_FORKS.size())
 
 
 ## M36: the boot lines end with the save's answers, so a bug report or a playtest log

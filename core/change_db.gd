@@ -210,6 +210,8 @@ func problems(c: Change) -> Array[String]:
 			out.append("Change '%s' unlocks '%s', which is neither a patch nor an enemy" % [c.id, u])
 	if c.kind == &"look" and (c.take == null or c.take.preset == null):
 		out.append("Look change '%s' has no take with a preset" % c.id)
+	if c.kind == &"mascot" and (c.take == null or not c.take.id in Change.MASCOTS):
+		out.append("Mascot change '%s' has no take naming a body (%s)" % [c.id, Change.MASCOTS])
 	if c.kind == &"stages":
 		if c.take == null or not c.take.preset is StageSet:
 			out.append("Stages change '%s' has no take with a stage set" % c.id)

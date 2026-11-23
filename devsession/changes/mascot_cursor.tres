@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Change" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"cursor"
+title = "Cursor"
+line = "Better. Right? I can point at stuff now."
+
+[resource]
+script = ExtResource("1")
+id = &"mascot_cursor"
+title = "A face: Cursor"
+pitch = "Just a pointer. I point at things. That's my whole job."
+kind = &"mascot"
+tags = Array[StringName]([&"mascot"])
+take = SubResource("take")

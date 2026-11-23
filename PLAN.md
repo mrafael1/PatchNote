@@ -260,6 +260,15 @@ The builder writes the rest in this voice, about 30 in all, each tagged with `mi
 
 ---
 
+### 6.2 As built (M38)
+- **The mascot** (`ui/mascot/mascot.gd`): top-right, **below the HUD's two lines** (y 64, so it never covers HP and the version), 112 px, a bubble growing left. Typewriter 45 chars/s, then held `SessionRunner.read_seconds()`; Tab holds it. Priority queue: a higher priority cuts in once the line on screen has been up 0.4 s (typed or not); equal and lower wait. The session's script speaks at priority 2. `silence()` hides it when the debrief opens.
+- **Bodies** (`ui/mascot/mascot_body.gd` + `bodies/`): cursor, window, blob, and the **caret** as a fourth body for "before the face". Shared eyes, mouths and poses for the 8 expressions; each body draws its shape around them. `point_at` and `glitch` are in (M40 and M41 use them). A body takes `gentle` (reduce_flashing) from whoever holds it: it never reads the save, so the capture tools run without autoloads.
+- **The debrief** is staged: the mascot at 3x in the left third (the caret before the face), lines typed one by one as bubbles (Space, Enter or a click; not in a line's first 0.3 s; a read line moves on by itself), then the fork's question as one more line and its cards (keys 1-3), then the notes (with the pick as a bullet) and the buttons. **Move on with a fork still to ask asks it first**; its Next then moves on. `finish_lines()` and `pick(i)` drive it for the bot and tests.
+- **`fork_mascot`** (`devsession/forks/`, `campaign = true`: the v6 dev session never offers it) with `mascot_cursor`, `mascot_window` and `mascot_blob` (new change kind `mascot`; `Change.MASCOTS`). Cards show the **live bodies**, not captured stills (they animate and react to hover/focus); `mockup` stays false. Picking swaps the big body in at once (a short glitch) and it says the take's line ("Better. Right? …"). `CampaignDB.complete(s, pick)` ships the pick and sets `campaign.mascot`; the campaign telemetry line logs `fork: {id, pick, shelved}` and the mascot.
+- **S3 asks it.** Its old last line "I think I need a face." is now the fork's question.
+- **Captures:** `tools/mascot_capture.gd` (a sheet per body: 8 expressions, talking, point, glitch → `.check/mascot_<body>.png`) and `tools/campaign_shots.gd` (S3 with a body in the corner, then the debrief at the cards, after a pick, and the notes → `.check/shot_*.png`). Both need a window.
+- **The bot** plays the debrief through (`--campaign` picks a card by seed and prints `pick=`); the check wants S3's pick and a mascot in the save.
+
 ## 7. What v8 must answer (G13)
 1. Is Stage 1 fun and quick (~20 min), with something new every session?
 2. Is the mascot charming, not annoying? Too chatty, too quiet? Which body did you pick, and why?

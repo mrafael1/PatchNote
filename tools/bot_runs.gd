@@ -204,6 +204,25 @@ func _run() -> void:
 	quit(1 if failures > 0 else 0)
 
 
+## Plays the debrief to its buttons the way a player would, faster: every line at once,
+## a card picked by the seed when the session asks a fork. Returns the pick's id or "".
+func _through_debrief(debrief: Node, pick_seed: int) -> String:
+	var pick := ""
+	for i in 4:
+		debrief.finish_lines()
+		if debrief.phase == &"fork":
+			var options: Array = debrief.fork_options()
+			var index := posmod(pick_seed, options.size())
+			pick = String(options[index].id)
+			debrief.pick(index)
+			continue
+		break
+	var until := Time.get_ticks_msec() + 3000   # the buttons' input delay is real time
+	while not debrief.can_choose() and Time.get_ticks_msec() < until:
+		await process_frame
+	return pick
+
+
 ## The campaign (PLAN v8 4): the start screen's Continue/New game, then every session to
 ## the end so far. Returns the number of failures.
 func _run_campaign(spec: String, lines_before: int) -> int:
@@ -236,7 +255,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		var attempt: int = db.attempt(session.id)
 		var opened := false
 		for frame in MAX_FRAMES:
-			if game.debrief.is_open() and game.debrief.can_choose():
+			if game.debrief.is_open():
 				opened = true
 				break
 			await physics_frame
@@ -245,6 +264,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		if not opened:
 			print("[botrun] session=%s FAILED: no debrief after %d frames" % [session.id, MAX_FRAMES])
 			return failures + 1
+		var pick := await _through_debrief(game.debrief, base + step)
 		var outcome: StringName = game.debrief.outcome
 		var choices: Array = game.debrief.choices()
 		var choice: String = choices[0]
@@ -260,6 +280,14 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		if not game.debrief.choose(choice):
 			print(line + " FAILED: could not choose")
 			return failures + 1
+		if game.debrief.is_open() and game.debrief.phase != &"done":
+			# Move on with a fork to ask: it comes now, then Next moves on.
+			pick = await _through_debrief(game.debrief, base + step)
+			if not game.debrief.choose(game.debrief.choices()[0]):
+				print(line + " FAILED: could not move on after the fork")
+				return failures + 1
+		if pick != "":
+			line += " pick=" + pick
 		var last: bool = db.is_done()   # the title screen comes next
 		print(line + " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()])
 		if last:

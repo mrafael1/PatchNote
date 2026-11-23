@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M37.3"
+const BUILD := "M38"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -21,6 +21,7 @@ var patch_history: PatchHistory
 var report: ReportScreen
 var dev_flow: DevSessionFlow   ## report -> dev session -> patch notes (PLAN v5 4)
 var session_runner: SessionRunner   ## a campaign session's script (PLAN v8); null in the run loop
+var mascot: Mascot                  ## the AI in the corner (PLAN v8 1.3); null in the run loop
 var debrief: DebriefScreen          ## after a campaign session (PLAN v8 1.2)
 var sound: Sound
 
@@ -103,8 +104,11 @@ func _ready() -> void:
 		session_runner.session = RunState.session
 		session_runner.genre = genre
 		add_child(session_runner)
-		# M37: the AI speaks in toasts; the mascot takes over in M38.
-		session_runner.line_said.connect(func(line: Line) -> void: transition.say(line.text))
+		mascot = Mascot.new()
+		mascot.name = "Mascot"
+		mascot.setup(RunState.session.face, SaveGame.mascot())
+		add_child(mascot)
+		session_runner.line_said.connect(func(line: Line) -> void: mascot.say(line))
 		debrief = DebriefScreen.new()
 		debrief.name = "Debrief"
 		add_child(debrief)
@@ -277,6 +281,7 @@ func _on_run_ended(outcome: StringName) -> void:
 func _on_report_ready(outcome: StringName) -> void:
 	transition.clear_toast()
 	if RunState.session != null:
+		mascot.silence()
 		debrief.open(RunState.session, outcome, session_runner.hits)
 		return
 	report.open(outcome, genre.run_record())
@@ -291,11 +296,11 @@ func _end_session(choice: StringName) -> void:
 		return
 	if is_live_game():
 		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
-				session_runner.hits, choice, BUILD))
+				session_runner.hits, choice, BUILD, debrief.picked))
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:
-		CampaignDB.complete(s)
+		CampaignDB.complete(s, debrief.picked)
 	if get_tree().current_scene != self:
 		return   # a test's copy: the save moved on, nothing reloads
 	debrief.close()

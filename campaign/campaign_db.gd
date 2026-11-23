@@ -150,8 +150,15 @@ func version_after(s: SessionDef) -> GameVersion:
 
 
 ## Session s is done (won, stopped, or moved on after a death): ship and move on.
-func complete(s: SessionDef) -> void:
-	SaveGame.campaign_done(s.id, s.bump, s.ships, index_of(s.id) + 1)
+## pick: the option chosen in the debrief's fork (shipped with the session; a mascot
+## option also gives the AI its body), or null.
+func complete(s: SessionDef, pick: Change = null) -> void:
+	var ships: Array[StringName] = s.ships.duplicate()
+	if pick != null:
+		ships.append(pick.id)
+		if pick.kind == &"mascot":
+			SaveGame.set_mascot(pick.take.id)
+	SaveGame.campaign_done(s.id, s.bump, ships, index_of(s.id) + 1)
 
 
 ## A death, then Retry: one more attempt, same session.
@@ -163,7 +170,19 @@ func retry(s: SessionDef) -> void:
 ## retry or move_on. Call before complete()/retry(), so attempt and version are this
 ## attempt's. reactions, edits, events and fork fill in from M38-M41.
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
-		choice: StringName, build := "") -> Dictionary:
+		choice: StringName, build := "", pick: Change = null) -> Dictionary:
+	var fork_record: Variant = null
+	var mascot := SaveGame.mascot()
+	if pick != null:
+		var shelved: Array[String] = []
+		var f := ChangeDB.fork_of(pick)
+		if f != null:
+			for c in f.changes():
+				if c != pick:
+					shelved.append(String(c.id))
+		fork_record = {"id": String(pick.fork), "pick": String(pick.id), "shelved": shelved}
+		if pick.kind == &"mascot":
+			mascot = pick.take.id
 	return {
 		"schema": Telemetry.CAMPAIGN_SCHEMA,
 		"type": "campaign",
@@ -187,8 +206,8 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"reactions": [],
 		"edits": [],
 		"events": [],
-		"fork": null,
-		"mascot": String(SaveGame.mascot()),
+		"fork": fork_record,
+		"mascot": String(mascot),
 		"reduce_flashing": bool(SaveGame.setting("reduce_flashing")),
 		"game_version": SaveGame.version().label(),
 		"bot": bool(run_record.get("bot", false)),

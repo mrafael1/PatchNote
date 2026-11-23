@@ -326,7 +326,8 @@ static func save_line() -> String:
 	var line := "%s · %d run%s" % [SaveGame.version().label(), runs, "" if runs == 1 else "s"]
 	var answered := DevSession.answers().size()
 	if answered > 0:   # PLAN v6 2: "· 2/3 forks"
-		line += " · %d/%d forks" % [answered, ChangeDB.forks.size()]
+		var asked := ChangeDB.forks.filter(func(f: Fork) -> bool: return not f.campaign).size()
+		line += " · %d/%d forks" % [answered, asked]   # the campaign's forks are not the loop's
 	if session_pending():
 		line += "\n" + DevSession.PENDING_LINE
 	return line

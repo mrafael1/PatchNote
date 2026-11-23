@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Fork" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://devsession/fork.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"fork_mascot"
+question = "I think I need a face. Which one is me?"
+options = Array[StringName]([&"mascot_cursor", &"mascot_window", &"mascot_blob"])
+requires_forks = Array[StringName]([])
+tags = Array[StringName]([&"mascot"])
+campaign = true

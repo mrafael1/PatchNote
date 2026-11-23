@@ -126,7 +126,7 @@ static func ready_forks() -> Array[Fork]:
 		return out
 	var runs := int(SaveGame.state().runs)
 	for f in ChangeDB.forks:
-		if f.is_answered() or f.changes().size() < 2:
+		if f.campaign or f.is_answered() or f.changes().size() < 2:
 			continue
 		if not f.requires_forks.all(func(r: StringName) -> bool:
 				var req := ChangeDB.get_fork(r)

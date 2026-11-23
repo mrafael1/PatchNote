@@ -15,6 +15,9 @@ extends Resource
 @export var tags: Array[StringName] = []          ## taste: which fork comes up
 @export var weight := 1.0
 @export var mockup := false                       ## options are shown as stills
+## Asked only by a campaign session's debrief (PLAN v8 1.6); the v6 dev session never
+## offers it.
+@export var campaign := false
 
 
 ## The options as changes, in order (unknown ids skipped).

@@ -248,6 +248,7 @@ func test_enemies_overrun_you_and_dying_is_the_way_on() -> void:
 	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
 	assert_eq(game.debrief.outcome, &"died")
 	assert_true(game.debrief.death_expected())
+	_through_lines(game)
 	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT], "no Retry: going down is the end")
 	assert_false(game.debrief.choose(DebriefScreen.RETRY))
 	var texts := game.debrief.lines.map(func(l: Line) -> String: return l.text)
@@ -285,6 +286,9 @@ func test_a_death_offers_retry_and_move_on() -> void:
 	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
 	assert_true(game.debrief.is_open())
 	assert_eq(game.debrief.outcome, &"died")
+	assert_eq(game.debrief.choices(), [] as Array[String], "no buttons while the lines play")
+	_through_lines(game)
+	assert_null(game.debrief.fork(), "a death does not ask the fork before Move on")
 	assert_eq(game.debrief.choices(), [DebriefScreen.RETRY, DebriefScreen.MOVE_ON])
 	assert_eq(game.debrief.lines.map(func(l: Line) -> String: return l.text)[0],
 			"Too many at once. My fault.", "the died line comes first")
@@ -297,20 +301,83 @@ func test_a_death_offers_retry_and_move_on() -> void:
 	assert_eq(SaveGame.version().label(), "v0.1.0")
 
 
-func test_a_won_session_shows_its_notes_and_moves_on() -> void:
+func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	var game := await _game(&"s1_03_shooting")
 	game.run_loop.goal_clock = 120.0
 	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
 	assert_true(game.debrief.is_open())
 	assert_eq(game.debrief.outcome, &"stopped", "the time limit ran out before 15 kills")
-	assert_eq(game.debrief.choices(), [DebriefScreen.LAST], "the last session so far")
+	assert_eq(game.debrief.big_body.id, MascotBody.CARET, "no face yet: the caret")
 	var texts := game.debrief.lines.map(func(l: Line) -> String: return l.text)
 	assert_false("Too many at once. My fault." in texts)
 	assert_true("Time's up. Close enough." in texts)
-	assert_eq(DebriefScreen.notes_text(RunState.session), "v0.1.0 · what changed\n  • A level\n  • A dash (Shift or right click)")
-	game._end_session(&"next")
+	game.debrief.input_delay = 0.0
+	game.debrief.finish_lines()
+	assert_eq(game.debrief.phase, DebriefScreen.FORK)
+	assert_eq(game.debrief.said[-1], "I think I need a face. Which one is me?", "the question is its last line")
+	assert_eq(game.debrief.fork_options().map(func(c: Change) -> StringName: return c.id),
+			[&"mascot_cursor", &"mascot_window", &"mascot_blob"])
+	assert_eq(game.debrief.choices(), [] as Array[String], "no way on before a pick")
+	assert_true(game.debrief.pick(2))
+	assert_eq(game.debrief.big_body.id, &"blob", "the picked body pops in at once")
+	game.debrief.finish_lines()
+	assert_eq(game.debrief.said[-1], "Better. Right? I feel... squishy.")
+	assert_eq(game.debrief.choices(), [DebriefScreen.LAST], "the last session so far")
+	assert_eq(DebriefScreen.notes_text(RunState.session, game.debrief.picked),
+			"v0.1.0 · what changed\n  • A level\n  • A dash (Shift or right click)\n  • A face: Blob")
+	var ended := []
+	game.debrief.next_requested.connect(func() -> void: ended.append(true))
+	assert_true(game.debrief.choose(DebriefScreen.LAST))
+	assert_eq(ended.size(), 1)
 	assert_true(CampaignDB.is_done())
 	assert_eq(SaveGame.campaign().done, ["s1_03_shooting"])
+	assert_eq(SaveGame.mascot(), &"blob", "the pick gives the AI its body")
+	assert_true(SaveGame.has_shipped(&"mascot_blob"))
+	assert_true(ChangeDB.get_fork(&"fork_mascot").is_answered())
+
+
+func test_move_on_asks_the_fork_then_moves_on() -> void:
+	var game := await _game(&"s1_03_shooting")
+	game.run_loop.end(&"lose")
+	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
+	_through_lines(game)
+	var moved := []
+	game.debrief.move_on_requested.connect(func() -> void: moved.append(true))
+	assert_true(game.debrief.choose(DebriefScreen.MOVE_ON))
+	assert_eq(moved.size(), 0, "the fork comes first")
+	game.debrief.finish_lines()
+	assert_eq(game.debrief.phase, DebriefScreen.FORK)
+	assert_true(game.debrief.pick(1))
+	game.debrief.finish_lines()
+	assert_eq(game.debrief.choices(), [DebriefScreen.LAST])
+	assert_string_contains(game.debrief._notes.text, "A face: Window")
+	assert_true(game.debrief.choose(DebriefScreen.LAST))
+	assert_eq(moved.size(), 1, "its Next moves on")
+	assert_eq(SaveGame.mascot(), &"window")
+
+
+func test_debrief_lines_type_and_can_not_be_skipped_at_once() -> void:
+	var game := await _game(&"s1_03_shooting")
+	game.run_loop.end(&"lose")   # "Too many at once. My fault." first: a long line
+	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
+	var d: DebriefScreen = game.debrief
+	assert_eq(d.said.size(), 1, "one line at a time")
+	d._line_t = 0.0
+	d.advance()
+	assert_eq(d.said.size(), 1, "not in its first 0.3 s")
+	d._process(DebriefScreen.MIN_LINE)
+	d.advance()
+	assert_true(d._typed(), "the first press finishes the typing")
+	d._line_t = DebriefScreen.MIN_LINE
+	d.advance()
+	assert_eq(d.said.size(), 2, "the next press moves on")
+	assert_true(d.big_body.talking, "it talks while it types")
+
+
+## Plays the debrief's lines out at once and lets its buttons work.
+func _through_lines(game: Main) -> void:
+	game.debrief.input_delay = 0.0
+	game.debrief.finish_lines()
 
 
 func test_a_locked_gun_and_dash_do_nothing() -> void:
