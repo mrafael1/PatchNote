@@ -506,6 +506,48 @@ The owner played Stage 1 to v0.7.0: "interactions were fun, gravity changes were
   - a Space tap meant for the dash question could press the focused Classic card. Cards now take player input only after the buttons' 0.4 s delay.
 - PatchNotes.exe is 104.8 MB. PLAYTEST.md is the G13.1 sheet. It re-asks where the dash is asked, the bomber's blink, and the open G13 items.
 
+### 6.9 As built (M42.2): dash aim
+The owner, after M42.1: "dash option after first prompt: mouse or keyboard directions".
+- **The question (`fork_dash_aim`):**
+  - Asked in S3's debrief right after the dash pick (`more_forks = [fork_dash, fork_dash_aim]`, `requires_forks = [fork_dash]`): "And should it go where you aim, or where you're moving?".
+  - Two cards, Where I aim / Where I move (`dashdir_aim` / `dashdir_move`, new kind `dash_aim`, takes `aim` / `move` in `Change.DASH_AIMS`). The pick ships with S3's own bump, and it is exclusive and permanent. It is the only fork with two options (the owner's own either-or).
+  - Take lines: "Point and go. I like that." / "Where your feet go. Simple.". The notes add "The dash goes where you aim / move".
+- **How it plays (`Dasher.aims`, set from `Unlocks.dash_aims()`):**
+  - **Aim:** every style goes along `PlayerInput.aim_dir`: the right stick if it moved last, else the mouse. The classic dash, the hook's cone (0 / ±12 / ±24° centred on the aim) and the teleport's 4 tiles all follow it. A zero aim falls back to the move direction.
+  - **Move:** exactly M42.1.
+  - **Inverted controls:** the aim is not turned, like the gun; a move dash still follows the turned keys. **Gravity:** unchanged.
+  - Outside a session `aims` is false (v6 loop, B2, run_hash: both compares 0 failures). `Tuning.grapple_aims` stays as a dev override for the hook.
+- **The lines:**
+  - The three dash pitches no longer say where it goes.
+  - S4's dash line now also says where it goes, one line per style and direction ("And a dash. / A wall hook. / A teleport. Shift or right click, where you aim / move."), through a new `dash_aim:<aim|move>` condition joined to `dash:<style>` with `&` (see Review), validated in `Line.parse`. It reads the save and defaults to move, so unanswered saves hear the move line. first_dash is unchanged.
+- **Old saves** past S3 are never asked and stay on move.
+- **Telemetry** adds `dash_aim` (schema 4, additive); `forks` has 3 picks at S3.
+- **Jumps:** `--dash-aim=<aim|move>` next to `--dash=` (with `--session=`); the export boots S4 with `--dash=teleport --dash-aim=aim`.
+- **Bot:**
+  - `--dash-aim=<aim|move>`. The third pick is decorrelated (floor(seed/9) mod 2), so both check chains play aim: the invincible chain plays grapple+aim, the mortal chain teleport+aim. `pick=mascot_x,dash_y,dashdir_z`.
+  - The per-seed line ends with `aim=`, after `air=`; `deaths:` adds `by_aim=`.
+  - The check forces S4 with grapple and teleport (move, unanswered) and with classic+aim.
+  - The bot aims at the nearest enemy, so its aim dash goes at it: a sanity check, not balance.
+- **Numbers (mortal bot, deaths; the move column equals M42.1's table exactly):**
+
+  | | classic aim | classic move | grapple aim | grapple move | teleport aim | teleport move | band |
+  |---|---|---|---|---|---|---|---|
+  | S4 (16) | 0 | 0 | 0 | 0 | 0 | 0 | ≤ 3 |
+  | S5 (32) | **18** | 6 | **11** | 6 | 2 | 4 | ≤ 8 |
+  | S6 (32) | **18** | 5 | **13** | 13 | 5 | 12 | ≤ 12 |
+
+  - Invincible S4 (8 seeds): all win for each style x aim.
+  - Classic+aim dashes straight into the nearest enemy (0.15 s of i-frames): S5 contact hits go from 29 to 105. Grapple+aim: 56 against 19. This is the bot (D15 of the map), not the feel; not tuned. The owner judges the feel.
+  - Aim cuts the bot's wasted presses: hook misses 539 -> 200 (S5), teleport fizzles 367 -> 47 (S5), since it no longer backs into the border.
+  - The mortal check chain (teleport+aim) is inside M42.1's bands: S5 2/32, S6 5/32.
+  - Chains: invincible (grapple+aim) `play=290.0 read≈181.7 total≈471.7` (M42.1: 298.5 / 165.6 / 464.1; reading grows about 16 s with the third question and S4's line); mortal (teleport+aim) all 7 sessions won first try, `total≈454.8`.
+- **Not changed (flag for later):** `DevSession.rework_rows` lists every answered fork, campaign ones included, so the v6 Rework on a save that played the campaign could offer Aim -> Move (as for fork_mascot and fork_dash already). The v6 loop never answers campaign forks on its own save.
+- GUT 596/596 (new test_dash_aim.gd, 14 tests). PLAYTEST.md is the G13.2 sheet: it asks which direction they took, and whether the aimed teleport should blink to the cursor.
+- **Review (M42.2):**
+  - S4's separate direction line ran past the 12 s bouncy-walls cue. The mascot holds a line for its typing (45 cps) plus its read time, so the four lines took 13.4-16.2 s; the edit's warning (priority 3) cut the line about 0.3-0.75 s after it was typed and dropped it (classic), or pushed it to ~14-15 s, mid-edit (hook, teleport, whose dash line was already cut at 12 s in M42.1). Fixed in the text, not the timing (the edit cue and every bot number stay as they were): S4 says the style and the direction in one line of 48-50 characters, so the intro is 3 lines and ends by 11.54 s in the worst case (window, hook, move). `Line` conditions can now join with `&` (only `dash:` and `dash_aim:`; both must hold; each half is validated). The 6 lines drop M42.1's "it pulls you to a wall" and "Through walls, too." (the hook is "a wall hook"; the teleport pitch still says it goes through walls).
+  - New test `test_every_intro_ends_before_its_first_edit_or_event`: for every session with an `at` edit or event cue, every face x style x direction intro, timed as the mascot holds it (`Reactions.speak_seconds`), ends 0.25 s before that cue. It fails on the M42.2 lines (16.21 s against 12 s) and passes now. Also `test_dash_conditions_join_with_and`.
+  - After the fix: GUT 598/598; both v6 hash compares 0 failures; `check.ps1 -BotRuns` passed (invincible chain grapple+aim `play=290.0 read≈177.4 total≈467.4`, 4.3 s less reading than the 4-line intro; the mortal chain won all 7 sessions first try; bouncy walls still land at 13.5 s); `export.ps1` passed (S4 boot teleport + aim, clean log). Play is unchanged: only S4's text moved.
+
 ## 7. What v8 must answer (G13)
 1. Is Stage 1 fun and quick (~20 min), with something new every session?
 2. Is the mascot charming, not annoying? Too chatty, too quiet? Which body did you pick, and why?

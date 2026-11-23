@@ -214,6 +214,8 @@ func problems(c: Change) -> Array[String]:
 		out.append("Mascot change '%s' has no take naming a body (%s)" % [c.id, Change.MASCOTS])
 	if c.kind == &"dash" and (c.take == null or not c.take.id in Change.DASHES):
 		out.append("Dash change '%s' has no take naming a style (%s)" % [c.id, Change.DASHES])
+	if c.kind == &"dash_aim" and (c.take == null or not c.take.id in Change.DASH_AIMS):
+		out.append("Dash-aim change '%s' has no take naming a direction (%s)" % [c.id, Change.DASH_AIMS])
 	if c.kind == &"stages":
 		if c.take == null or not c.take.preset is StageSet:
 			out.append("Stages change '%s' has no take with a stage set" % c.id)

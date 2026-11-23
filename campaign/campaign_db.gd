@@ -144,6 +144,7 @@ func attempt(id: StringName) -> int:
 ## there, once per process. --dash=<style> (M42.1, with --session=) answers fork_dash with
 ## that style first, so a jump plays S4-S6 with any dash (keep --autostart with it: the
 ## pick is shipped like a debrief's, and only --autostart keeps it off the real save).
+## --dash-aim=<aim|move> (M42.2) answers fork_dash_aim the same way.
 func session_for_game() -> SessionDef:
 	if not _arg_read:
 		_arg_read = true
@@ -156,6 +157,8 @@ func session_for_game() -> SessionDef:
 					for a in args:
 						if a.begins_with("--dash="):
 							answer_dash(StringName(a.trim_prefix("--dash=")))
+						elif a.begins_with("--dash-aim="):
+							answer_dash_aim(StringName(a.trim_prefix("--dash-aim=")))
 					answer_forks(get_session(id))
 				else:
 					push_warning("No session %s" % id)
@@ -171,6 +174,18 @@ func answer_dash(style: StringName) -> bool:
 	var f := ChangeDB.get_fork(&"fork_dash")
 	if f != null and not f.is_answered():
 		SaveGame.ship(StringName("dash_%s" % style), GameVersion.PATCH)
+	return true
+
+
+## Ships dashdir_<aim> unless fork_dash_aim is answered (--dash-aim=; the bot's too).
+## False for a direction that is not in Change.DASH_AIMS.
+func answer_dash_aim(aim: StringName) -> bool:
+	if not aim in Change.DASH_AIMS:
+		push_warning("No dash direction %s (%s)" % [aim, Change.DASH_AIMS])
+		return false
+	var f := ChangeDB.get_fork(&"fork_dash_aim")
+	if f != null and not f.is_answered():
+		SaveGame.ship(StringName("dashdir_%s" % aim), GameVersion.PATCH)
 	return true
 
 
@@ -203,7 +218,7 @@ func jump_to(id: StringName) -> bool:
 func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: Array = [],
 		moved_on := false) -> Dictionary:
 	var ctx := {"attempt": attempt(s.id), "mascot": SaveGame.mascot(), "shipped": SaveGame.shipped(),
-			"events": events, "dash": Unlocks.dash_answer()}
+			"events": events, "dash": Unlocks.dash_answer(), "dash_aim": Unlocks.dash_aim_answer()}
 	if outcome != &"":
 		ctx.outcome = outcome
 		ctx.moved_on = moved_on
@@ -248,13 +263,15 @@ func retry(s: SessionDef) -> void:
 ## retry or move_on. Call before complete()/retry(), so attempt and version are this
 ## attempt's. reactions, edits, events and fork fill in from M38-M41. M42.1 (additive,
 ## schema still 4): `fork` stays the first pick's record; `forks` lists every pick of the
-## attempt (pick, then more_picks), `dash` is the dash style after them.
+## attempt (pick, then more_picks), `dash` is the dash style after them. M42.2 (additive):
+## `dash_aim` is where the dash goes after them (aim or move).
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
 		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = [],
 		edits: Array = [], events: Array = [], more_picks: Array[Change] = []) -> Dictionary:
 	var fork_record: Variant = null
 	var mascot := SaveGame.mascot()
 	var dash := Unlocks.dash_answer()
+	var dash_aim := Unlocks.dash_aim_answer()
 	var all: Array[Change] = []
 	if pick != null:
 		all.append(pick)
@@ -271,6 +288,8 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 			mascot = c.take.id
 		elif c.kind == &"dash":
 			dash = c.take.id
+		elif c.kind == &"dash_aim":
+			dash_aim = c.take.id
 	return {
 		"schema": Telemetry.CAMPAIGN_SCHEMA,
 		"type": "campaign",
@@ -297,6 +316,7 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"fork": fork_record,
 		"forks": fork_records,
 		"dash": String(dash),
+		"dash_aim": String(dash_aim),
 		"mascot": String(mascot),
 		"reduce_flashing": bool(SaveGame.setting("reduce_flashing")),
 		"game_version": SaveGame.version().label(),

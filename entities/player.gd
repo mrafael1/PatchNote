@@ -98,6 +98,7 @@ func _physics_process(_delta: float) -> void:
 		if input.jump_pressed:
 			mover.request_jump()
 		if input.dash_pressed and not dash_locked:
+			# Both directions: the dasher picks (M42.2). The aim is not turned, like the gun.
 			dasher.use(_facing, input.aim_dir)
 	if shooting_locked:
 		return

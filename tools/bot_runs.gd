@@ -64,6 +64,12 @@ extends SceneTree
 ##                                picks by the seed. Each --only line ends with
 ##                                dash=<style> uses=n misses=n fizzles=n air=<s> (air: seconds
 ##                                off the floor under gravity), and "deaths:" adds by_dash=
+##   --dash-aim=<aim|move>         with --campaign (M42.2): where the dash goes. With --only,
+##                                ships dashdir_<x> before the session; in the chain, S3's
+##                                debrief picks that option of fork_dash_aim. Without it
+##                                --only plays move (unanswered) and the chain picks by the
+##                                seed. Each --only line ends with aim=<aim|move> (after
+##                                air=), and "deaths:" adds by_aim=
 ## With --only the session's forks are answered by the seed (enemy=), and a session with
 ## a scripted event prints event=<id>@start-end steps=n/N hits_in_event=n (unblocked,
 ## by kind) per seed and an "events:" summary: played fully, died during it (M41 gate).
@@ -111,6 +117,7 @@ var rework_chance := 0.2
 var campaign := false
 var only := &""
 var dash_arg := ""                           ## --dash (M42.1): "" = by the seed / classic
+var dash_aim_arg := ""                       ## --dash-aim (M42.2): "" = by the seed / move
 
 
 func _initialize() -> void:
@@ -176,6 +183,12 @@ func _run() -> void:
 			dash_arg = arg.trim_prefix("--dash=")
 			if not StringName(dash_arg) in Change.DASHES and dash_arg != "none":
 				print("[botrun] FAILED: bad --dash=%s (%s or none)" % [dash_arg, Change.DASHES])
+				quit(1)
+				return
+		elif arg.begins_with("--dash-aim="):
+			dash_aim_arg = arg.trim_prefix("--dash-aim=")
+			if not StringName(dash_aim_arg) in Change.DASH_AIMS:
+				print("[botrun] FAILED: bad --dash-aim=%s (%s)" % [dash_aim_arg, Change.DASH_AIMS])
 				quit(1)
 				return
 		else:
@@ -386,6 +399,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	var durations: Array = []
 	var by_enemy := {}       ## forked enemy -> [deaths, runs]
 	var by_dash := {}        ## dash style -> [deaths, runs] (M42.1)
+	var by_aim := {}         ## aim or move -> [deaths, runs] (M42.2)
 	var all_kinds := {}      ## whole-run unblocked hits by kind
 	var bus: Node = root.get_node("EventBus")
 	var dash_count := {"uses": 0, "misses": 0, "fizzles": 0}
@@ -404,6 +418,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		var forked := _answer_forks(db.get_session(only), run_seed)
 		if dash_arg != "" and dash_arg != "none":
 			db.answer_dash(StringName(dash_arg))
+		if dash_aim_arg != "":
+			db.answer_dash_aim(StringName(dash_aim_arg))
 		main_script.set(&"next_seed", run_seed)
 		var game: Node = load("res://main.tscn").instantiate()
 		root.add_child(game)
@@ -416,6 +432,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		dash_count.fizzles = 0
 		var air := 0.0
 		var dash_name: String = "none" if dash_arg == "none" else String(game.player.dasher.style)
+		var aim_name := "aim" if game.player.dasher.aims else "move"
 		if lift > 0.0:
 			game.run_loop.goal_value = lift
 		if cond != "":
@@ -485,6 +502,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			by_enemy[forked] = [int(e[0]) + (1 if died else 0), int(e[1]) + 1]
 		var dd: Array = by_dash.get(dash_name, [0, 0])
 		by_dash[dash_name] = [int(dd[0]) + (1 if died else 0), int(dd[1]) + 1]
+		var da: Array = by_aim.get(aim_name, [0, 0])
+		by_aim[aim_name] = [int(da[0]) + (1 if died else 0), int(da[1]) + 1]
 		var kinds := _hit_kinds()
 		for k: String in kinds:
 			all_kinds[k] = int(all_kinds.get(k, 0)) + int(kinds[k])
@@ -495,6 +514,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		# M42.1: at the very end, after landed= (check.ps1 reads landed= as before).
 		landed_text += " dash=%s uses=%d misses=%d fizzles=%d air=%.1f" % [dash_name, dash_count.uses,
 				dash_count.misses, dash_count.fizzles, air]
+		landed_text += " aim=%s" % aim_name   # M42.2: after air=, so dash=<s> uses= regexes hold
 		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
@@ -524,10 +544,15 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	dash_ids.sort()
 	for d: String in dash_ids:
 		dash_parts.append("%s:%d/%d" % [d, by_dash[d][0], by_dash[d][1]])
-	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s hits=%s%s" % [
+	var aim_parts: Array = []
+	var aim_ids: Array = by_aim.keys()
+	aim_ids.sort()
+	for d: String in aim_ids:
+		aim_parts.append("%s:%d/%d" % [d, by_aim[d][0], by_aim[d][1]])
+	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s by_aim=%s hits=%s%s" % [
 		only, int(outcomes.get("lose", 0)) + int(outcomes.get("died", 0)), specs.size(),
 		int(outcomes.get("win", 0)), int(outcomes.get("stopped", 0)), _median(durations),
-		_join_or_dash(enemy_parts), _join_or_dash(dash_parts), _kinds_text(all_kinds),
+		_join_or_dash(enemy_parts), _join_or_dash(dash_parts), _join_or_dash(aim_parts), _kinds_text(all_kinds),
 		" edit=%s" % cond if cond != "" else ""])
 	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
 		var reached := int(ev_stats.reached)
@@ -632,8 +657,9 @@ func _event_report(game: Node, rec: Dictionary, cue_at: float, stats: Dictionary
 ## a card picked by the seed when the session asks a fork. Several forks (M42.1, S3: the
 ## face then the dash): the k-th fork's index is posmod(int(pick_seed / the product of
 ## the earlier forks' option counts), n), so the first pick is as before and the second is
-## not tied to it; --dash= picks its option in fork_dash. Returns the picks' ids joined by
-## "," or "".
+## not tied to it; --dash= picks its option in fork_dash. M42.2: the third (fork_dash_aim)
+## is posmod(floor(pick_seed / 9), 2), so chains 1i (seed 5) and 2 (seed 6) both play aim;
+## --dash-aim= picks its option. Returns the picks' ids joined by "," or "".
 func _through_debrief(debrief: Node, pick_seed: int) -> String:
 	var picks: Array[String] = []
 	var div := 1
@@ -645,6 +671,10 @@ func _through_debrief(debrief: Node, pick_seed: int) -> String:
 			if dash_arg != "" and dash_arg != "none":
 				for k in options.size():
 					if String(options[k].id) == "dash_" + dash_arg:
+						index = k
+			if dash_aim_arg != "":
+				for k in options.size():
+					if String(options[k].id) == "dashdir_" + dash_aim_arg:
 						index = k
 			div *= options.size()
 			picks.append(String(options[index].id))

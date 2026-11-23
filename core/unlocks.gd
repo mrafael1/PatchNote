@@ -85,6 +85,20 @@ static func dash_style() -> StringName:
 	return dash_answer() if RunState.session != null else &"classic"
 
 
+## fork_dash_aim's answer in the save (aim or move, Change.DASH_AIMS), move while
+## unanswered (an old save past S3 is never asked, so it stays on move). Save only.
+static func dash_aim_answer() -> StringName:
+	var f: Fork = ChangeDB.get_fork(&"fork_dash_aim")
+	var a: Change = f.answer() if f != null else null
+	return a.take.id if a != null and a.take != null else &"move"
+
+
+## The dash goes along the player's aim (M42.2): the aim answer, in a campaign session
+## only (outside one it always goes where you move: the v6 loop, run_hash, B2).
+static func dash_aims() -> bool:
+	return RunState.session != null and dash_aim_answer() == &"aim"
+
+
 ## The stage set the save's shipped Stages take plays (PLAN v6 4, M35); null when the
 ## Stages step has not shipped, and while inert (the v0.0 run is the inert run).
 static func stage_set() -> StageSet:

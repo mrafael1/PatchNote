@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="Change" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"aim"
+title = "Where I aim"
+line = "Point and go. I like that."
+
+[resource]
+script = ExtResource("1")
+id = &"dashdir_aim"
+title = "The dash goes where you aim"
+pitch = "Mouse or right stick. It goes where your gun points."
+kind = &"dash_aim"
+bump = &"patch"
+tags = Array[StringName]([&"move"])
+take = SubResource("take")

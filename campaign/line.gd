@@ -13,15 +13,20 @@ extends RefCounted
 ## mascot), answer:<change id> (a shipped fork answer), event:<id> (that scripted event
 ## played in this attempt), ended (the session is over for good: won, stopped, or moved on
 ## after a death; M42), dash:<style> (the save's fork_dash answer, a style in
-## Change.DASHES; classic while unanswered, M42.1). Each is checked against a
-## context dictionary (passes()); a key the context lacks fails the line.
+## Change.DASHES; classic while unanswered, M42.1), dash_aim:<aim|move> (the save's
+## fork_dash_aim answer, in Change.DASH_AIMS; move while unanswered, M42.2). Each is
+## checked against a context dictionary (passes()); a key the context lacks fails the line.
+## The dash conditions join with "&" (both must hold): "dash:grapple&dash_aim:aim" (M42.2
+## review: S4 says the style and the direction in one line, so its intro ends before the
+## 12 s edit). Only JOINABLE prefixes join.
 
 const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried", &"surprised",
 		&"guilty", &"thinking", &"panic"]
 const OUTCOMES: Array[StringName] = [&"won", &"died", &"stopped"]
 const PLAIN_CONDITIONS: Array[StringName] = [&"won", &"died", &"stopped", &"hit_none", &"hit_lots",
 		&"first_try", &"retry", &"ended"]
-const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:", "dash:"]
+const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:", "dash:", "dash_aim:"]
+const JOINABLE: Array[String] = ["dash:", "dash_aim:"]
 ## Hits taken at or above this are "hit_lots".
 const HIT_LOTS := 3
 
@@ -63,9 +68,26 @@ static func parse(source: String) -> Line:
 		l.problem = "empty line '%s'" % source
 	elif l.when != &"" and not condition_known(l.when):
 		l.problem = "unknown condition '%s' in '%s'" % [l.when, source]
-	elif String(l.when).begins_with("dash:") and not StringName(String(l.when).trim_prefix("dash:")) in Change.DASHES:
-		l.problem = "unknown dash '%s' in '%s' (%s)" % [String(l.when).trim_prefix("dash:"), source, Change.DASHES]
+	else:
+		var parts := String(l.when).split("&", false) if l.when != &"" else PackedStringArray()
+		if parts.size() > 1 and not Array(parts).all(func(c: String) -> bool: return _joinable(c)):
+			l.problem = "only %s conditions join with & in '%s'" % [JOINABLE, source]
+		for c in parts:
+			if l.problem != "":
+				break
+			if c.begins_with("dash:") and not StringName(c.trim_prefix("dash:")) in Change.DASHES:
+				l.problem = "unknown dash '%s' in '%s' (%s)" % [c.trim_prefix("dash:"), source, Change.DASHES]
+			elif c.begins_with("dash_aim:") and not StringName(c.trim_prefix("dash_aim:")) in Change.DASH_AIMS:
+				l.problem = "unknown dash direction '%s' in '%s' (%s)" % [c.trim_prefix("dash_aim:"),
+						source, Change.DASH_AIMS]
 	return l
+
+
+static func _joinable(c: String) -> bool:
+	for p in JOINABLE:
+		if c.begins_with(p):
+			return true
+	return false
 
 
 ## Every word is an expression or a condition, with at most one of each.
@@ -83,6 +105,9 @@ static func _is_head(words: PackedStringArray) -> bool:
 
 
 static func _looks_like_condition(w: String) -> bool:
+	if "&" in w:
+		var parts := w.split("&")
+		return Array(parts).all(func(c: String) -> bool: return c != "" and _looks_like_condition(c))
 	if StringName(w) in PLAIN_CONDITIONS:
 		return true
 	for p in PREFIX_CONDITIONS:
@@ -92,6 +117,8 @@ static func _looks_like_condition(w: String) -> bool:
 
 
 static func condition_known(c: StringName) -> bool:
+	if "&" in String(c):
+		return Array(String(c).split("&")).all(func(p: String) -> bool: return p != "" and condition_known(p))
 	if c in PLAIN_CONDITIONS:
 		return true
 	for p in PREFIX_CONDITIONS:
@@ -109,14 +136,22 @@ static func parse_all(sources: PackedStringArray) -> Array[Line]:
 
 
 ## ctx keys: outcome (StringName), moved_on (bool), hits (int), attempt (int, 1 = first), mascot
-## (StringName), shipped (Array of change ids), dash (StringName, the dash style).
+## (StringName), shipped (Array of change ids), dash (StringName, the dash style), dash_aim
+## (StringName, aim or move).
 func passes(ctx: Dictionary) -> bool:
 	if when == &"":
 		return true
-	var w := String(when)
-	if when in OUTCOMES:
-		return ctx.has("outcome") and StringName(ctx.outcome) == when
-	match when:
+	for c in String(when).split("&"):
+		if not _holds(StringName(c), ctx):
+			return false
+	return true
+
+
+func _holds(cond: StringName, ctx: Dictionary) -> bool:
+	var w := String(cond)
+	if cond in OUTCOMES:
+		return ctx.has("outcome") and StringName(ctx.outcome) == cond
+	match cond:
 		&"hit_none":
 			return ctx.has("hits") and int(ctx.hits) == 0
 		&"hit_lots":
@@ -136,6 +171,8 @@ func passes(ctx: Dictionary) -> bool:
 		return ctx.has("events") and w.trim_prefix("event:") in (ctx.events as Array)
 	if w.begins_with("dash:"):
 		return ctx.has("dash") and String(ctx.dash) == w.trim_prefix("dash:")
+	if w.begins_with("dash_aim:"):
+		return ctx.has("dash_aim") and String(ctx.dash_aim) == w.trim_prefix("dash_aim:")
 	return false
 
 

@@ -1,10 +1,12 @@
 class_name Dasher
 extends Component
 ## Short burst of movement with invulnerability (none under turn-based, where a dash
-## is movement, not protection). Direction comes from the caller, never from the mouse.
+## is movement, not protection). The caller passes both directions (move and aim);
+## `aims` picks which one every style goes along (M42.2, fork_dash_aim;
+## Unlocks.dash_aims() sets it, false outside a session).
 ##
 ## The campaign asks which dash (M42.1, fork_dash; Unlocks.dash_style() sets `style`):
-## classic is try_dash(), as built; grapple throws a hook along the move direction and
+## classic is try_dash(), as built; grapple throws a hook along the dash direction and
 ## pulls the player to the wall it catches (Mover.pull_to); teleport blinks ahead,
 ## through walls, to the nearest free spot in the arena. Outside a session the style is
 ## always classic (the v6 loop, B2, run_hash).
@@ -24,6 +26,8 @@ const HOOK_GAP := 2.0          ## the pull stops this far short of the wall
 const TELEPORT_STEP := 8.0     ## the teleport steps back by this much to find a free spot
 
 var style: StringName = &"classic"
+## Go along aim_dir instead of move_dir (the aim answer); a zero aim falls back to move.
+var aims := false
 
 var _cooldown_left := 0.0
 
@@ -41,16 +45,25 @@ func label() -> String:
 	return LABELS.get(style, "dash")
 
 
-## The dash button: the style's own move along move_dir (aim_dir is only read by the
-## grapple when Tuning.grapple_aims). Classic is exactly try_dash(move_dir).
+## The dash button: the style's own move along _dir() (move_dir, or aim_dir when `aims`).
+## Classic is exactly try_dash(dir).
 func use(move_dir: Vector2, aim_dir := Vector2.ZERO) -> bool:
+	var dir := _dir(move_dir, aim_dir)
 	match style:
 		&"grapple":
-			return _grapple(move_dir, aim_dir)
+			return _grapple(dir)
 		&"teleport":
-			return _teleport(move_dir)
+			return _teleport(dir)
 		_:
-			return try_dash(move_dir)
+			return try_dash(dir)
+
+
+## aim_dir when the dash aims (or, as a dev override, a grapple with Tuning.grapple_aims)
+## and there is an aim; move_dir otherwise.
+func _dir(move_dir: Vector2, aim_dir: Vector2) -> Vector2:
+	if (aims or (style == &"grapple" and Tuning.grapple_aims)) and aim_dir != Vector2.ZERO:
+		return aim_dir
+	return move_dir
 
 
 ## distance and duration default to Tuning's dash; B2 dashes 2 tiles over one turn.
@@ -80,8 +93,7 @@ func try_dash(dir: Vector2, distance := -1.0, duration := -1.0) -> bool:
 ## either side; the first wall hit at least a tile away wins. A hit pulls the player 2 px
 ## short of it (at rest), with i-frames for the pull. Under gravity, a side wall (not a
 ## floor or a ceiling) holds the player Tuning.grapple_latch; air jumps are not given back.
-func _grapple(move_dir: Vector2, aim_dir: Vector2) -> bool:
-	var dir := aim_dir if Tuning.grapple_aims and aim_dir != Vector2.ZERO else move_dir
+func _grapple(dir: Vector2) -> bool:
 	if _cooldown_left > 0.0 or dir == Vector2.ZERO:
 		return false
 	var body := get_parent() as CharacterBody2D

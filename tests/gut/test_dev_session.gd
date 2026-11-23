@@ -7,14 +7,14 @@ extends GutTest
 
 const TEST_PATH := "user://save_session_test/save.json"
 const ALL: Array[String] = ["basic_movement", "basic_world", "dash_classic", "dash_grapple",
-		"dash_teleport", "enemy_bomber", "enemy_lancer",
+		"dash_teleport", "dashdir_aim", "dashdir_move", "enemy_bomber", "enemy_lancer",
 		"enemy_tank", "look_1_arcade", "look_1_clean", "look_1_punchy", "mascot_blob",
 		"mascot_cursor", "mascot_window", "patch_auto_attack",
 		"patch_echo", "patch_elite", "patch_horde_mode", "patch_hunter", "patch_magnet",
 		"patch_motion_time", "patch_orbit", "patch_well", "stages_breakout", "stages_gauntlet",
 		"stages_shifting"]
-const FORKS: Array[String] = ["fork_dash", "fork_enemy", "fork_mascot", "look_1", "stages"]
-## The questions the v6 loop asks (fork_mascot and fork_dash are campaign-only).
+const FORKS: Array[String] = ["fork_dash", "fork_dash_aim", "fork_enemy", "fork_mascot", "look_1", "stages"]
+## The questions the v6 loop asks (fork_mascot, fork_dash and fork_dash_aim are campaign-only).
 const LOOP_FORKS: Array[String] = ["fork_enemy", "look_1", "stages"]
 ## The in-run patches the AI builds itself, one per IMPLEMENT session.
 const NEW_PATCHES: Array[String] = ["patch_auto_attack", "patch_echo", "patch_elite", "patch_horde_mode",
@@ -136,8 +136,9 @@ func test_the_changes_and_forks_are_valid() -> void:
 	# Looks, enemies, the Stages step and the campaign's mascot and dash answer a question; basics
 	# and in-run patches answer none (the AI builds those itself, owner feedback after M34).
 	for c in ChangeDB.all:
-		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash"]
-		assert_eq(c.fork != &"", asked, "%s: in a fork only if a look, an enemy, stages, a mascot or a dash" % c.id)
+		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash", &"dash_aim"]
+		assert_eq(c.fork != &"", asked,
+				"%s: in a fork only if a look, an enemy, stages, a mascot, a dash or a dash direction" % c.id)
 	assert_eq(DevSession.new_patches_left().map(func(c: Change) -> String: return String(c.id)), NEW_PATCHES,
 			"a fresh save: every in-run patch is still to build")
 	var look := _fork(&"look_1")
@@ -154,7 +155,9 @@ func test_the_changes_and_forks_are_valid() -> void:
 	assert_eq(_fork(&"fork_enemy").options, [&"enemy_tank", &"enemy_bomber", &"enemy_lancer"] as Array[StringName])
 	assert_eq(Tuning.ai_own_ship_every, 0, "the questions are the player's: the AI answers none")
 	for f in ChangeDB.forks:
-		assert_eq(f.options.size(), 3, "%s: three answers (PLAN v6 3)" % f.id)
+		# M42.2: fork_dash_aim is the owner's own two-way question (aim or move).
+		var answers := 2 if f.id == &"fork_dash_aim" else 3
+		assert_eq(f.options.size(), answers, "%s: %d answers (PLAN v6 3)" % [f.id, answers])
 	# Dependencies sit on forks now (PLAN v6 1.1): no change requires another.
 	for c in ChangeDB.all:
 		if not c.is_basic():

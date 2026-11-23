@@ -204,7 +204,7 @@ func fork() -> Fork:
 	return null
 
 
-## The picks after the first (M42.1: S3's dash).
+## The picks after the first (S3's dash and its direction, M42.1/M42.2).
 func more_picks() -> Array[Change]:
 	return picks.slice(1)
 
@@ -405,7 +405,7 @@ func pick(index: int) -> bool:
 		_set_body(c.take.id)
 		big_body.set_expression(&"surprised")
 		big_body.glitch(0.35)
-	elif c.kind == &"dash":
+	elif c.kind in [&"dash", &"dash_aim"]:
 		big_body.set_expression(&"happy")
 	if c.take != null and c.take.line != "":
 		_pending.append(Line.make(c.take.line, &"happy"))

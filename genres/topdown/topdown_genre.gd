@@ -35,6 +35,7 @@ func apply_basics() -> void:
 	var dasher := Component.find(player, Dasher) as Dasher
 	if dasher != null:
 		dasher.style = Unlocks.dash_style()
+		dasher.aims = Unlocks.dash_aims()
 	player.set(&"damage_locked", not Unlocks.has_basic(&"health"))
 
 

@@ -8,11 +8,15 @@ extends Resource
 ## stages: a genre's Stages step (M35); its take's preset is a StageSet.
 ## mascot: the AI's body (PLAN v8 1.6, fork_mascot); its take's id is a body (MASCOTS).
 ## dash: the player's dash (PLAN v8 6.8, fork_dash); its take's id is a style (DASHES).
-const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic", &"stages", &"mascot", &"dash"]
+## dash_aim: where the dash goes (PLAN v8 6.9, fork_dash_aim); its take's id is in DASH_AIMS.
+const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic", &"stages", &"mascot", &"dash",
+		&"dash_aim"]
 ## The mascot bodies a mascot change can pick (MascotBody.IDS draws them).
 const MASCOTS: Array[StringName] = [&"cursor", &"window", &"blob"]
 ## The dash styles a dash change can pick (Dasher.style plays them).
 const DASHES: Array[StringName] = [&"classic", &"grapple", &"teleport"]
+## Where the dash goes (M42.2): along the player's aim, or along the move direction.
+const DASH_AIMS: Array[StringName] = [&"aim", &"move"]
 
 @export var id: StringName
 @export var title := ""

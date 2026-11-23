@@ -552,7 +552,7 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_true(game.debrief.pick(2))
 	assert_eq(game.debrief.big_body.id, &"blob", "the picked body pops in at once")
 	# M42.1: then the dash, in the owner's words, three cards.
-	assert_eq(RunState.session.asked_forks(), [&"fork_mascot", &"fork_dash"] as Array[StringName])
+	assert_eq(RunState.session.asked_forks(), [&"fork_mascot", &"fork_dash", &"fork_dash_aim"] as Array[StringName])
 	game.debrief.finish_lines()
 	assert_eq(game.debrief.phase, DebriefScreen.FORK)
 	assert_true(game.debrief.said.has("Better. Right? I feel... squishy."))
@@ -563,20 +563,32 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_true(game.debrief.pick(1))
 	assert_eq(game.debrief.big_body.id, &"blob", "the body stays")
 	game.debrief.finish_lines()
-	assert_eq(game.debrief.said[-1], "A hook! I've always wanted to throw something.")
+	assert_true(game.debrief.said.has("A hook! I've always wanted to throw something."))
+	# M42.2: then where it goes, two cards, aim first.
+	assert_eq(game.debrief.phase, DebriefScreen.FORK)
+	assert_eq(game.debrief.choices(), [] as Array[String], "no way on before the third pick")
+	assert_eq(game.debrief.said[-1], "And should it go where you aim, or where you're moving?")
+	assert_eq(game.debrief.fork_options().map(func(c: Change) -> StringName: return c.id),
+			[&"dashdir_aim", &"dashdir_move"])
+	assert_true(game.debrief.pick(0))
+	game.debrief.finish_lines()
+	assert_eq(game.debrief.said[-1], "Point and go. I like that.")
 	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
 	assert_eq(game.debrief.picked.id, &"mascot_blob", "picked: the first pick")
-	assert_eq(game.debrief.more_picks().map(func(c: Change) -> StringName: return c.id), [&"dash_grapple"])
+	assert_eq(game.debrief.more_picks().map(func(c: Change) -> StringName: return c.id),
+			[&"dash_grapple", &"dashdir_aim"])
 	assert_eq(DebriefScreen.notes_text(RunState.session, game.debrief.picked, game.debrief.more_picks()),
-			"v0.1.0 · what changed\n  • Bullets that hit things now\n  • A level\n  • Enemies that shoot back\n  • A face: Blob\n  • A grappling hook (Shift or right click)")
+			"v0.1.0 · what changed\n  • Bullets that hit things now\n  • A level\n  • Enemies that shoot back\n  • A face: Blob\n  • A grappling hook (Shift or right click)\n  • The dash goes where you aim")
 	assert_eq(game.debrief._notes.text, DebriefScreen.notes_text(RunState.session, game.debrief.picked,
 			game.debrief.more_picks()))
 	var rec := CampaignDB.telemetry_record(RunState.session, {}, &"stopped", 0, &"next", "", game.debrief.picked,
 			[] as Array[String], [], [], game.debrief.more_picks())
 	assert_eq(rec.fork.id, "fork_mascot", "fork: the first pick, as before")
-	assert_eq((rec.forks as Array).size(), 2)
+	assert_eq((rec.forks as Array).size(), 3)
 	assert_eq(rec.forks[1], {"id": "fork_dash", "pick": "dash_grapple", "shelved": ["dash_classic", "dash_teleport"]})
+	assert_eq(rec.forks[2], {"id": "fork_dash_aim", "pick": "dashdir_aim", "shelved": ["dashdir_move"]})
 	assert_eq(rec.dash, "grapple")
+	assert_eq(rec.dash_aim, "aim")
 	assert_eq(rec.mascot, "blob")
 	var ended := []
 	game.debrief.next_requested.connect(func() -> void: ended.append(true))
@@ -589,6 +601,8 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_true(ChangeDB.get_fork(&"fork_mascot").is_answered())
 	assert_true(SaveGame.has_shipped(&"dash_grapple"))
 	assert_eq(Unlocks.dash_answer(), &"grapple")
+	assert_true(SaveGame.has_shipped(&"dashdir_aim"))
+	assert_eq(Unlocks.dash_aim_answer(), &"aim")
 	assert_eq(SaveGame.version().label(), "v0.1.0", "one bump for the session, none per pick")
 
 
@@ -609,6 +623,10 @@ func test_move_on_asks_the_fork_then_moves_on() -> void:
 	assert_eq(moved.size(), 0)
 	assert_true(game.debrief.pick(2))
 	game.debrief.finish_lines()
+	assert_eq(game.debrief.phase, DebriefScreen.FORK, "M42.2: then where it goes")
+	assert_eq(moved.size(), 0)
+	assert_true(game.debrief.pick(1))
+	game.debrief.finish_lines()
 	assert_eq(game.debrief.choices(), [DebriefScreen.NEXT])
 	assert_string_contains(game.debrief._notes.text, "A face: Window")
 	assert_string_contains(game.debrief._notes.text, "A teleport (Shift or right click)")
@@ -617,6 +635,7 @@ func test_move_on_asks_the_fork_then_moves_on() -> void:
 	assert_eq(SaveGame.mascot(), &"window")
 	assert_true(SaveGame.has_shipped(&"dash_teleport"))
 	assert_false(SaveGame.has_shipped(&"dash_classic"))
+	assert_true(SaveGame.has_shipped(&"dashdir_move"))
 
 
 ## M42.1: Retry asks no fork; a save already past S3 (an old save) is never asked the
@@ -843,7 +862,8 @@ func test_reduce_flashing_halves_shake_and_drops_the_white_flash() -> void:
 
 
 ## Owner feedback (M39.1): S4 is 30 s, and the AI says what is new in it (the walls
-## and the dash) before the player meets them, whatever its body.
+## and the dash) before the player meets them, whatever its body. M42.2: and where the
+## dash goes (in the dash's line; move while unanswered).
 func test_s4_is_short_and_its_intro_names_the_walls_and_the_dash() -> void:
 	var s := CampaignDB.get_session(&"s1_04_level")
 	assert_eq(s.goal, &"survive")
@@ -856,8 +876,9 @@ func test_s4_is_short_and_its_intro_names_the_walls_and_the_dash() -> void:
 		for mascot: StringName in Change.MASCOTS:
 			SaveGame.set_mascot(mascot)
 			var lines := Line.passing(s.intro_lines(), CampaignDB.line_context(s))
-			assert_eq(lines.size(), 3, "3 spoken lines (PENDING timing): %s %s" % [mascot, style])
+			assert_eq(lines.size(), 3, "3 spoken lines: %s %s" % [mascot, style])
 			var said := " ".join(lines.map(func(l: Line) -> String: return l.text)).to_lower()
 			assert_string_contains(said, "walls", "%s talks about the walls" % mascot)
 			assert_string_contains(said, String(words[style]), "%s talks about the %s" % [mascot, style])
 			assert_string_contains(said, "shift", "%s says how to use the %s" % [mascot, style])
+			assert_string_contains(said, "where you move", "unanswered direction: move")

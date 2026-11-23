@@ -1,10 +1,10 @@
-# Patch Notes: playtest sheet (G13.1, Stage 1 with your G13 feedback)
+# Patch Notes: playtest sheet (G13.2, Stage 1 with your G13 feedback)
 
 One page. The player reads **Before** and **Controls** only. The observer keeps the rest until the end.
 
 ## Before
 - In `%APPDATA%\Godot\app_userdata\Patch Notes\`, back up, then move aside `save\save.json` (e.g. rename it to `save.before-g13.json`) and `playtest\runs.jsonl`. Without this the first-launch question is skipped and the logs mix.
-- A New game is needed: the dash pick is asked at S3's end. An old save stays on the classic dash for good.
+- A New game is needed: the dash pick and where it goes are asked at S3's end. An old save stays on the classic dash, going where you move, for good.
 - Run `PatchNotes.exe`. The screen reads "New campaign". Answer the flashing question the way you like.
 - Play Stage 1 **in one sitting** until "To be continued" (about 7 min). After a death, Retry or Move on as you like.
 - No F-keys (F1–F9 work in this build). The observer is silent: no help, no explaining, no reacting.
@@ -28,8 +28,8 @@ One page. The player reads **Before** and **Controls** only. The observer keeps 
 - **S0:** nothing works, 5 s.
 - **S1:** movement, 5 s.
 - **S2:** things appear, no damage until ~11 s, then the overrun. A death is expected (Next, not Retry).
-- **S3:** shots pass through until ~9.5 s, 15 kills, then the mascot pick, then the dash pick (classic / grappling hook / teleport).
-- **S4:** the AI's body, walls and the dash you picked (its line says how), 30 s; bouncy walls ~13.5–23.5 s; then the enemy pick.
+- **S3:** shots pass through until ~9.5 s, 15 kills, then the mascot pick, then the dash pick (classic / grappling hook / teleport), then where it goes (where you aim / where you move).
+- **S4:** the AI's body, walls and the dash you picked (its line says how and where it goes), 30 s; bouncy walls ~13.5–23.5 s; then the enemy pick.
 - **S5:** the picked enemy arrives at ~6 s; the version stamp appears at ~15 s (the AI says so); 90 s. At 40 s the "speed" warning becomes gravity left / up / down (~10 s, clock and spawns paused), then +1 HP as an apology. A bomber you shoot blinks and explodes too (bigger blast); the AI says so the first time.
 - **S6:** explosive shots at ~11 s, big enemies at 20 kills, inverted controls at 40 kills, slow-mo once when HP drops to 2 (it waits while another change is being announced or running); a bomber you shoot blinks and explodes too (bigger blast); 60 kills (or 4 min), then "To be continued" and the title screen.
 
@@ -54,8 +54,9 @@ One page. The player reads **Before** and **Controls** only. The observer keeps 
 6. Do you want to know what Stage 2 brings? (Q6)
 7. **Owner only: new since G13.**
    - **a.** The dash pick comes at the end of S3, after the face, and the AI then says how to use it at S4's start. Right moment, or should it be asked live in S4, when the AI adds it?
-   - **b.** Which dash did you take, and does it feel good? (Grapple and teleport go where you move, not where you aim. Keep?)
+   - **b.** Which dash did you take, and does it feel good? (You now choose: where you aim or where you move. Which did you take? Would you switch?)
    - **b2.** (Hook only) Did the hook miss too often?
+   - **b3.** (Teleport with "where you aim") It goes a fixed 4 tiles along your aim, not to the cursor. Did you expect a blink to the cursor?
    - **c.** A shot bomber blinks for a moment, then blows up. It hurts you if you're within about 2 tiles, and its victims count as your kills. Too strong, too weak? Is the blink long enough to get away?
    - **d.** Your G13 questions are still open: answer any you care about.
      - Explosive shots for all of S6, or ~20 s?
@@ -76,11 +77,12 @@ From `%APPDATA%\Godot\app_userdata\Patch Notes\`:
 
 They contain no personal data. **Send them before Part B**: a replayed session writes to `runs.jsonl` too.
 
-For the analyst: keep `"build":"M42.1"`, `"type":"campaign"` and the first process's `session_id`. First-try deaths = `attempt==1 && outcome=="died"` per session. `real_duration` is the attempt's wall time from the session's start to the end of play (pauses and the intro included, **the debrief not included**: the record is taken when play ends). Each line's `timestamp` is written when the debrief's button is pressed, so the total time with debriefs = last `timestamp` − first `timestamp` + the first line's `real_duration`. `forks` lists every pick of an attempt; `dash` is the style.
+For the analyst: keep `"build":"M42.2"`, `"type":"campaign"` and the first process's `session_id`. First-try deaths = `attempt==1 && outcome=="died"` per session. `real_duration` is the attempt's wall time from the session's start to the end of play (pauses and the intro included, **the debrief not included**: the record is taken when play ends). Each line's `timestamp` is written when the debrief's button is pressed, so the total time with debriefs = last `timestamp` − first `timestamp` + the first line's `real_duration`. `forks` lists every pick of an attempt (3 at S3: face, dash, direction); `dash` is the style and `dash_aim` is `aim` or `move`.
 
 ## Part B (optional, owner)
 A second New game with a different mascot and enemy (back up the first `save.json` first), or replay one session in memory:
 `PatchNotes.exe -- --autostart --session=s1_05_wrong` (or `--session=s1_06_playground`).
-To try another dash: `PatchNotes.exe -- --autostart --session=s1_04_level --dash=grapple` (or `teleport`, `classic`; also works with S5 and S6).
+To try another dash: `PatchNotes.exe -- --autostart --session=s1_04_level --dash=grapple --dash-aim=aim` (or `teleport`, `classic`; `--dash-aim=move`; also works with S5 and S6). Without `--dash-aim=` the dash goes where you move.
+- On a pad with "where you aim", move the right stick once before dashing: until then the dash (like the gun) aims at the mouse cursor's spot.
 - Use `--autostart` in every Part B command: it starts the session at once and never touches the save. Without it, pressing Continue or New game makes the real save live and the replay moves it.
-- The jumped session answers the enemy pick with its first option, and the version stamp reads "v0.0.1" ("v0.0.2" in S5/S6 jumps with `--dash=`). That is expected. Without `--autostart`, `--dash=` would ship into the real save.
+- The jumped session answers the enemy pick with its first option, and the version stamp reads "v0.0.1" ("v0.0.2" in S5/S6 jumps with `--dash=`; `--dash-aim=` adds one more patch). That is expected. Without `--autostart`, `--dash=` and `--dash-aim=` would ship into the real save.
