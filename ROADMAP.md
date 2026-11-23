@@ -156,7 +156,7 @@ M14 built the AI layer, the medium tier and option D. The rest is replaced by th
 
 ### Phase 5 — Stages, the second genre and the build crossing over · **next**
 - **5a (PLAN v6): divergence first** (owner, after G11): each dev session is one question (a *fork*) with 2–3 answers; the answers not picked go to a shelf; a **Rework** card swaps a past answer for a shelved one. More creative shooter content. Then stage plumbing and the shooter's **Stages** step as a fork.
-- **5b (PLAN v7):** the second genre and the stage-end switch, below.
+- **5b (PLAN v7):** the second genre and the stage-end switch, below. **The second genre is the owner's tactical deckbuilder** (2026-11-23): turn-based grid fights (action and movement points) with a deck of evolving, combinable cards. It merges the turn-based genre and Phase 7's card crawler (PLAN v7 section 0).
 - Stage plumbing (M16's kept parts, section 5) and the shooter's Stages step. This comes first: the switch needs stage ends.
 - Turn-based (proposed, since it is closest) as a genre: its own map, its own run, pacing in turns, a controller that no longer hijacks the shooter player. It starts as a Mockup picked from 3 flavours, then grows to Playable.
 - Takes for every pool patch in turn-based; the stage-end switch with the build translated.
@@ -210,7 +210,7 @@ Each has a proposed default; owner to confirm.
 6. **Run shape across a switch** (2): the start genre's maturity sets the stages; a switch target needs only Playable.
 7. **Play threshold for a maturity step** (1.3): a number of runs or minutes played in that genre; values from playtests.
 8. **How long is the arc to 1.0:** how many runs from v0.0 to 1.0 (~30 proposed).
-9. **Second genre:** turn-based (closest in code) or platformer (closest to the concept doc).
+9. ~~**Second genre**~~ **decided (owner, 2026-11-23):** a tactical deckbuilder (grid turns + deckbuilding, evolving and combinable cards), merging turn-based and the card crawler. See PLAN v7.
 10. **Genres of the leftover v4 mediums:** `ice_floor`, `close_camera`, `lights_out` (5).
 11. **Report ratings (keep/cut):** keep as a taste input next to the dev-session pick, or drop.
 12. **What carries between runs inside the build:** nothing (each run starts empty, as today), proposed.
