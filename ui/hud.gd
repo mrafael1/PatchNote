@@ -24,6 +24,7 @@ var _gauge_fill: ColorRect
 var _kill_pulse := 0.0
 const KILL_PULSE_TIME := 0.15
 var _pulse := 0.0
+var _goal: Label   ## a campaign session's goal at the top centre (PLAN v8 2)
 
 
 func _ready() -> void:
@@ -51,6 +52,16 @@ func _ready() -> void:
 	_banner.visible = false
 	add_child(_banner)
 	_build_gauge()
+	_goal = Label.new()
+	_goal.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_goal.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_goal.position.y += 10
+	_goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_goal.add_theme_font_size_override(&"font_size", 24)
+	_goal.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_goal.add_theme_constant_override(&"outline_size", 5)
+	_goal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_goal)
 	if director:
 		director.kill_counted.connect(_on_kill_counted)
 
@@ -117,6 +128,10 @@ func _update_gauge(delta := 0.0) -> void:
 	_gauge_fill.size = Vector2(GAUGE_SIZE.x * progress, GAUGE_SIZE.y)
 
 
+func goal_shown() -> String:
+	return _goal.text
+
+
 func banner_shown() -> bool:
 	return _banner.visible
 
@@ -130,6 +145,7 @@ func _process(delta: float) -> void:
 	else:
 		_pulse = 0.0
 	_update_gauge(delta)
+	_goal.text = run_loop.goal_text() if run_loop else ""
 	var hp := 0
 	if is_instance_valid(player):
 		var health := Component.find(player, Health) as Health

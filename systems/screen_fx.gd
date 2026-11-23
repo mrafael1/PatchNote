@@ -32,7 +32,7 @@ func vignette() -> void:
 
 ## Returns false when a flash went off too recently (it is skipped).
 func flash(alpha := 0.35) -> bool:
-	if _flash_ready_in > 0.0:
+	if _flash_ready_in > 0.0 or SaveGame.reduce_flashing():   # PLAN v8 1.9: no white flash
 		return false
 	_flash_ready_in = FLASH_COOLDOWN
 	_flash_left = FLASH_TIME

@@ -83,9 +83,9 @@ func problems() -> Array[String]:
 
 
 ## The one-stage run: arena_0, ends when the run's prompts are done.
-static func single() -> StageSet:
+static func single(arena: ArenaDef = null) -> StageSet:
 	var s := StageDef.new()
-	s.arena = load(ARENA_0) as ArenaDef
+	s.arena = arena if arena != null else load(ARENA_0) as ArenaDef
 	s.duration = 0.0
 	s.prompts = -1
 	var set := StageSet.new()

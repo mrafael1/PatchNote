@@ -31,6 +31,12 @@ extends SceneTree
 ##   --ship=<id>,<id>             ship these changes into the save before the first run,
 ##                                e.g. --fresh --ship=basic_movement,basic_world plays the
 ##                                v0.0.2 run instead of the smoke tests (PLAN v5 4.8)
+##   --campaign                   play the campaign (PLAN v8 4) instead of the run loop:
+##                                from the save's next session to the end so far, one
+##                                "[botrun] session=<id>" line each. The first seed seeds
+##                                the chain (each session's seed derives from it); a
+##                                trailing "i" makes every session invincible. On a death
+##                                the bot retries once, then moves on.
 ## Without --save or --fresh the save is inert (everything unlocked, no file), as in tests.
 ## With a live chain (--keep-save) the report's button opens the dev session (PLAN v5
 ## 4.6): the bot picks a card at random from the run's seed and presses "Play"; one
@@ -58,6 +64,7 @@ var keep_save := false
 var fresh := false
 var ship_ids := PackedStringArray()
 var rework_chance := 0.2
+var campaign := false
 
 
 func _initialize() -> void:
@@ -105,6 +112,8 @@ func _run() -> void:
 			rework_chance = float(arg.trim_prefix("--rework-chance="))
 		elif arg.begins_with("--ship="):
 			ship_ids = arg.trim_prefix("--ship=").split(",", false)
+		elif arg == "--campaign":
+			campaign = true
 		else:
 			specs.append(arg)
 	if specs.is_empty():
@@ -117,6 +126,12 @@ func _run() -> void:
 	var lines_before := _line_count()
 	var failures := 0
 	var started := Time.get_ticks_msec()
+	if campaign:
+		failures = await _run_campaign(specs[0], lines_before)
+		print("[botrun] summary: campaign, %d failures, %d telemetry lines, %.1f s wall" % [
+			failures, _line_count() - lines_before, (Time.get_ticks_msec() - started) / 1000.0])
+		quit(1 if failures > 0 else 0)
+		return
 
 	var start: Node = load("res://ui/start_screen.tscn").instantiate()
 	root.add_child(start)
@@ -187,6 +202,93 @@ func _run() -> void:
 	print("[botrun] summary: %d runs, %d failures, %d telemetry lines, %.1f s wall" % [
 		specs.size(), failures, added, (Time.get_ticks_msec() - started) / 1000.0])
 	quit(1 if failures > 0 else 0)
+
+
+## The campaign (PLAN v8 4): the start screen's Continue/New game, then every session to
+## the end so far. Returns the number of failures.
+func _run_campaign(spec: String, lines_before: int) -> int:
+	var base := int(_seed_of(spec))
+	var invincible := spec.ends_with("i")
+	var db: Node = root.get_node("CampaignDB")
+	var start: Node = load("res://ui/start_screen.tscn").instantiate()
+	root.add_child(start)
+	current_scene = start
+	await process_frame
+	start.seed_field.text = str(base)
+	start.start()
+	var failures := 0
+	var played := 0
+	var previous: Node = null
+	var step := 0
+	while true:
+		var game := await _wait_for_game(previous)
+		if game == null:
+			print("[botrun] campaign FAILED: the game scene never loaded (step %d)" % step)
+			return failures + 1
+		previous = game
+		var run_state := root.get_node("RunState")
+		var session: Resource = run_state.session
+		if session == null:
+			print("[botrun] campaign FAILED: the game runs no session")
+			return failures + 1
+		run_state.invincible = invincible
+		game.player.set_bot(true)
+		var attempt: int = db.attempt(session.id)
+		var opened := false
+		for frame in MAX_FRAMES:
+			if game.debrief.is_open() and game.debrief.can_choose():
+				opened = true
+				break
+			await physics_frame
+		played += 1
+		step += 1
+		if not opened:
+			print("[botrun] session=%s FAILED: no debrief after %d frames" % [session.id, MAX_FRAMES])
+			return failures + 1
+		var outcome: StringName = game.debrief.outcome
+		var choices: Array = game.debrief.choices()
+		var choice: String = choices[0]
+		if outcome == &"died" and attempt > 1:
+			choice = "Move on"
+		var rec: Dictionary = game.run_loop.record
+		var version_before: String = load("res://core/save_game.gd").call(&"version").label()
+		var line := "[botrun] session=%s attempt=%d%s outcome=%s t=%.1f real=%.1f kills=%d hits=%d said=%d cues=%d choice=%s" % [
+			session.id, attempt, " (invincible)" if invincible else "", outcome, rec.duration,
+			rec.real_duration, rec.kills, game.session_runner.hits, game.session_runner.line_count(),
+			game.session_runner.fired_count(), choice.to_snake_case()]
+		game.debrief.next_seed = base * 100 + step
+		if not game.debrief.choose(choice):
+			print(line + " FAILED: could not choose")
+			return failures + 1
+		var last: bool = db.is_done()   # the title screen comes next
+		print(line + " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()])
+		if last:
+			break
+		if step > 50:
+			print("[botrun] campaign FAILED: more than 50 sessions played")
+			return failures + 1
+	# The title screen comes back after the last session.
+	for f in 300:
+		await process_frame
+		if current_scene != null and current_scene.get(&"run_loop") == null and current_scene.has_method(&"refresh_campaign"):
+			break
+	if not current_scene or not current_scene.has_method(&"refresh_campaign"):
+		print("[botrun] campaign FAILED: no title screen after the last session")
+		failures += 1
+	var added := _line_count() - lines_before
+	var lines := 0
+	var text := FileAccess.get_file_as_string(LOG).strip_edges().split("\n")
+	for l in text.slice(maxi(0, text.size() - added)):
+		var d: Variant = JSON.parse_string(l)
+		if d is Dictionary and d.get("type") == "campaign":
+			lines += 1
+	if lines != played:
+		print("[botrun] telemetry: expected %d campaign lines, found %d" % [played, lines])
+		failures += 1
+	var state: Dictionary = save.call(&"state")
+	print("[botrun] save: %s version=%s campaign=%s" % [save_arg if save_arg != "" else "in memory",
+			save.call(&"version").label(), JSON.stringify(state.campaign)])
+	return failures
 
 
 ## "name=value" onto the Tuning autoload; value is parsed as a Godot literal.
@@ -326,6 +428,7 @@ func _set_up_save() -> bool:
 	save = load("res://core/save_game.gd")
 	var start_script: GDScript = load("res://ui/start_screen.gd")
 	start_script.save_live = false
+	start_script.legacy_loop = not campaign   # the v6 run loop unless --campaign (PLAN v8)
 	if save_arg != "" and save_arg == save.DEFAULT_PATH:
 		print("[botrun] FAILED: --save must not be the real save (%s)" % save_arg)
 		return false

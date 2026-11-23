@@ -44,3 +44,27 @@ func run_record() -> Dictionary:
 ## True once the run is over (the shell saves notes and allows "New build" then).
 func is_over() -> bool:
 	return false
+
+
+# --- Campaign sessions (PLAN v8 1.2) -----------------------------------------------
+# A genre that plays RunState.session reads its build and goal from it in build() and
+# begin_run(). The shell's session runner asks these for its cues.
+
+## Seconds counted toward the session's goal (held during scripted events).
+func session_clock() -> float:
+	return 0.0
+
+
+## 0..100 of a timed goal; -1 when the goal has no length.
+func session_progress() -> float:
+	return -1.0
+
+
+## Holds or releases the session's goal clock (scripted events, M41).
+func hold_session_clock(_owner_id: StringName, _on: bool) -> void:
+	pass
+
+
+## A cue's "spawn <archetype> <count>": the genre places them. False if it can't.
+func spawn_archetype(_archetype: StringName, _count: int) -> bool:
+	return false

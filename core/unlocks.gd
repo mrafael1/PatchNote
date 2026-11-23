@@ -1,6 +1,8 @@
 class_name Unlocks
 extends RefCounted
-## What the save has unlocked (PLAN v5 1.6), read from SaveGame. With
+## What the save has unlocked (PLAN v5 1.6), read from SaveGame. In a campaign session
+## (RunState.session, PLAN v8) the session's data says it instead: its basics, its
+## enemies, its look, and no offer pool. With
 ## SaveGame.unlock_all (inert, the default) everything is: every unparked patch, every
 ## enemy and the tier 1 `punchy` look, today's feel. The Director and the spawner read
 ## this from M28 on (start content gating).
@@ -15,8 +17,11 @@ const BASICS: Array[StringName] = [&"movement", &"enemies", &"level"]
 
 
 ## Patches that may be offered: the starters plus what shipped changes unlock, never
-## a parked one. Sorted by id, like MutationDB.
+## a parked one. Sorted by id, like MutationDB. A campaign session offers none: the AI
+## hands things over itself (PLAN v8 0.2).
 static func pool() -> Array[Mutation]:
+	if RunState.session != null:
+		return [] as Array[Mutation]
 	if SaveGame.unlock_all:
 		return MutationDB.offerable()
 	var unlocked := shipped_unlocks()
@@ -29,6 +34,8 @@ static func pool() -> Array[Mutation]:
 
 ## Enemy archetypes that may spawn: Tuning.starter_enemies plus shipped ones.
 static func enemies() -> Array[StringName]:
+	if RunState.session != null:
+		return RunState.session.enemy_types()
 	if SaveGame.unlock_all:
 		return ARCHETYPES.duplicate()
 	var unlocked := shipped_unlocks()
@@ -41,6 +48,8 @@ static func enemies() -> Array[StringName]:
 
 ## Whether a basic has shipped (always, while inert).
 static func has_basic(id: StringName) -> bool:
+	if RunState.session != null:
+		return id in RunState.session.basics
 	return SaveGame.unlock_all or shipped_unlocks().has(id)
 
 
@@ -56,7 +65,7 @@ static func missing_basics() -> Array[StringName]:
 ## The stage set the save's shipped Stages take plays (PLAN v6 4, M35); null when the
 ## Stages step has not shipped, and while inert (the v0.0 run is the inert run).
 static func stage_set() -> StageSet:
-	if SaveGame.unlock_all:
+	if SaveGame.unlock_all or RunState.session != null:
 		return null
 	var out: StageSet = null
 	for id in SaveGame.shipped():
@@ -68,6 +77,9 @@ static func stage_set() -> StageSet:
 
 ## {tier, take}: the save's look (tier 0 when nothing shipped).
 static func look() -> Dictionary:
+	if RunState.session != null:
+		var take := RunState.session.look
+		return {"tier": 1 if take != "" else 0, "take": take}
 	if SaveGame.unlock_all:
 		return FULL_LOOK.duplicate()
 	var l: Dictionary = SaveGame.state().look

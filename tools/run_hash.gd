@@ -47,6 +47,7 @@ func _run() -> void:
 	telemetry.log_path = "user://playtest/run_hash.jsonl"
 	var start_script: GDScript = load("res://ui/start_screen.gd")
 	start_script.save_live = false
+	start_script.legacy_loop = true   # the v6 run loop (PLAN v8 1.2.7)
 	load("res://core/save_game.gd").call(&"go_inert")
 	var start: Node = load("res://ui/start_screen.tscn").instantiate()
 	root.add_child(start)

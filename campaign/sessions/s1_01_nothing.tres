@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s1_01_nothing"
+stage = 1
+title = "Nothing"
+basics = Array[StringName]([])
+enemies = Array[StringName]([])
+goal = &"stop"
+goal_value = 5.0
+face = false
+intro = PackedStringArray("_", "thinking: _ ?", "...")
+cues = PackedStringArray("at 5: say worried: _ x")
+debrief = PackedStringArray("thinking: ...", "thinking: <-  ->  ?", "happy: <-  ->  !")
+bump = &"minor"
+notes = PackedStringArray("Movement")

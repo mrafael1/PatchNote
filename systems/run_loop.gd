@@ -13,6 +13,12 @@ extends Node
 ## and the Director stop, the telemetry record is built, run_ended fires once, and
 ## after a short beat report_ready asks for the report. Writing the record to disk is
 ## the game scene's job, so tests that instance the scene never touch the real file.
+##
+## A campaign session (PLAN v8 1.2) sets a goal instead (set_goal): survive (won once
+## the goal clock reaches the value), kills (won at that many kills; a time limit ends
+## it "stopped") or stop (the AI ends it at that time, "stopped", after a read beat).
+## The goal clock is game time that can be held (hold_clock), so a scripted event can
+## pause the countdown without pausing play. No prompts and no release candidate.
 
 signal phase_changed(phase: StringName)
 signal report_ready(outcome: StringName)
@@ -24,6 +30,8 @@ const PLAY := &"play"
 const RELEASE_CANDIDATE := &"release_candidate"
 const STAGE_CLEAR := &"stage_clear"
 const OVER := &"over"
+## A campaign session's ending that is neither a win nor a death (PLAN v8 1.2).
+const STOPPED := &"stopped"
 
 var director: AiDirector
 var spawner: Spawner
@@ -49,6 +57,15 @@ var stage_starts: Array[float] = []   ## game time each stage began (telemetry, 
 var exit_open := false                ## an EXIT stage's gate is open (reach_exit() ends it)
 var exit_reached := false
 
+## The campaign session's goal (PLAN v8 1.2); &"" = the run loop's own pacing.
+var goal: StringName = &""
+var goal_value := 0.0
+var time_limit := 0.0
+var goal_clock := 0.0        ## game seconds counted toward the goal (held while clock_holds)
+var stop_said := false       ## a stop goal reached its time (the AI's line is a cue)
+var _clock_holds := {}
+var _clock_last := 0.0
+
 var _report_at := -1.0
 var _clear_until := -1.0
 var _spawner_on := true
@@ -61,7 +78,9 @@ func _ready() -> void:
 func _physics_process(_delta: float) -> void:
 	match phase:
 		PLAY:
-			if smoke_duration > 0.0:
+			if goal != &"":
+				_update_goal()
+			elif smoke_duration > 0.0:
 				if smoke_stop_at >= 0.0 and not smoke_stopped and RunState.game_time >= smoke_stop_at:
 					smoke_stopped = true
 					RunState.log_event(&"smoke_stopped")
@@ -85,6 +104,69 @@ func _physics_process(_delta: float) -> void:
 			if _report_at >= 0.0 and RunState.game_time >= _report_at:
 				_report_at = -1.0
 				report_ready.emit(outcome)
+
+
+## A campaign session's goal for this run (PLAN v8 1.2). Call before begin().
+func set_goal(kind: StringName, value: float, limit := 0.0) -> void:
+	goal = kind
+	goal_value = value
+	time_limit = limit
+	goal_clock = 0.0
+	_clock_last = RunState.game_time
+
+
+## Holds (true) or releases the goal clock for `owner_id`; it counts while no one holds it.
+func hold_clock(owner_id: StringName, on: bool) -> void:
+	if on:
+		_clock_holds[owner_id] = true
+	else:
+		_clock_holds.erase(owner_id)
+
+
+func clock_held() -> bool:
+	return not _clock_holds.is_empty()
+
+
+func _update_goal() -> void:
+	var now := RunState.game_time
+	if _clock_holds.is_empty():
+		goal_clock += now - _clock_last
+	_clock_last = now
+	match goal:
+		SessionDef.SURVIVE:
+			if goal_clock >= goal_value:
+				end(&"win")
+		SessionDef.KILLS:
+			if RunState.kills >= int(goal_value):
+				end(&"win")
+			elif time_limit > 0.0 and goal_clock >= time_limit:
+				end(STOPPED)
+		SessionDef.STOP:
+			if not stop_said and goal_clock >= goal_value:
+				stop_said = true
+				RunState.log_event(&"session_stopped")
+			if goal_clock >= goal_value + Tuning.smoke_stop_read:
+				end(STOPPED)
+
+
+## 0..100 of a survive goal's time; -1 for other goals.
+func goal_pct() -> float:
+	if goal != SessionDef.SURVIVE or goal_value <= 0.0:
+		return -1.0
+	return clampf(100.0 * goal_clock / goal_value, 0.0, 100.0)
+
+
+## "Survive 0:45" (time left), "Kills 12/40", or "" (no goal, a stop goal, or over).
+func goal_text() -> String:
+	if phase != PLAY:
+		return ""
+	match goal:
+		SessionDef.SURVIVE:
+			var left := ceili(maxf(0.0, goal_value - goal_clock))
+			return "Survive %d:%02d" % [left / 60, left % 60]
+		SessionDef.KILLS:
+			return "Kills %d/%d" % [mini(RunState.kills, int(goal_value)), int(goal_value)]
+	return ""
 
 
 ## Every small and BIG prompt of the run has been opened and answered (or skipped),
@@ -241,6 +323,8 @@ func end(result: StringName) -> void:
 		"reached_release_candidate": rc_started_at >= 0.0,
 		"smoke_test": smoke_duration > 0.0,
 		"smoke_stopped": smoke_stopped,
+		"session": String(RunState.session.id) if RunState.session else "",
+		"goal": {"kind": String(goal), "value": goal_value, "clock": snappedf(goal_clock, 0.01)} if goal != &"" else {},
 		"missing_basics": Unlocks.missing_basics().map(func(b: StringName) -> String: return String(b)),
 		"bot": player != null and player.has_method(&"is_bot") and player.is_bot(),
 		"invincible": RunState.invincible,

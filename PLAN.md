@@ -231,6 +231,27 @@ The builder writes the rest in this voice, about 30 in all, each tagged with `mi
 
 `tools/check.ps1` is green before every commit; each milestone gets a tag and a report, as before.
 
+### 6.1 As built (M37)
+- **Lines and cues are plain text in the session's `.tres`**, not sub-resources, so the owner can edit tone in one place:
+  - a line is `"[condition] [expression]: text"` (`Line.parse`); an unknown word before the colon stays part of the text;
+  - a cue is `"<at N | kills N | pct N | hit>: <say … | spawn <archetype> [n] | edit <id> | event <id>>"` (`Cue.parse`);
+  - the condition field is `when` (`if` is a keyword); `per_mascot` became the condition `mascot:<id>`, so a signature line is three conditioned lines;
+  - `CampaignDB.problems()` rejects `edit` and `event` cues until M40/M41.
+- **`GoalDef` is inlined** in `SessionDef` (`goal`, `goal_value`, `time_limit`). `RunLoop.set_goal()` runs it on a **goal clock** (game time that events can hold with `hold_clock`, for M41).
+- **The version comes from the session:** each session has `bump` (minor in Stage 1) and `notes` (the patch notes). The basics are session data, so no `basic_*` change ships in the campaign. `ships` is there for real changes (fork answers from M38).
+- **Campaign mode is `RunState.session != null`.** The shell sets it from `CampaignDB.session_for_game()` only while `CampaignDB.active` (start screen, `--session=<id>`, bot `--campaign`). GUT, `main.tscn` booted directly and every v6 tool still run the v6 loop without any flag. The start screen's v6 form is behind `StartScreen.legacy_loop` (`--legacy-loop`). The bot and `run_hash.gd` set it unless `--campaign`.
+- **Outcomes:** the run loop ends `win`, `lose` or the new `stopped` (a stop goal, or a kills goal's time limit). The debrief names them `won`, `died`, `stopped`.
+- **S1 stops at 5 s and ends at 7 s** (the stop line is a cue, plus the 2 s read beat). Table 3.1's "stop at 20 s" was the v5 smoke test's length.
+- **Speech is paced in real time** (1.2 s + 0.05 s a character), and cues run on physics frames. Telemetry and the bot count lines said *or queued*, because a bot plays faster than speech.
+- **Move on is offered after every death** (Stage 1's rule). The debrief is plain text until M38: the lines, `"v0.2.0 · what changed"` with the notes, and the buttons (Enter or 1/2).
+- **Reduce flashing** halves camera shake and drops the white screen flash. An enemy's own hit flash stays: it's readability, not a flash.
+- **Not built:** the start screen's debug session list (use `--session=<id>`) and `intro_pause` (no Stage 1 session needs it yet).
+- **Numbers:**
+  - Invincible bot chain S1–S3 on a fresh save: S1 stopped at 7.0 s, S2 won at 30.0 s, S3 won at 60.0 s, v0.0.0 → v0.3.0, 3 campaign telemetry lines.
+  - Two mortal chains with the same seed (5) on fresh saves wrote byte-identical save files.
+  - A forced-death chain (`--set=player_max_hp=1 --set=chaser_hp=40.0`) played S3 twice: died → Retry, died → Move on → v0.3.0 → the title screen.
+  - Suite: 21 new tests in `test_campaign.gd`. The v6 tests were updated only for schema 2 and the start screen flag.
+
 **Why this order:** the spine first, because everything plugs into sessions. Then the mascot, because it's the main character and the owner should see it early (G13a). Reactions and edits come next: they're the AI being "the main force". The event is last, because it uses all three.
 
 **Cut order if needed (first to last):** `edit_tiny_enemies` → `edit_slowmo`'s HP cue → per-mascot signature lines → the Settings panel (keep the first-launch question) → reactions down to 15. **Never cut:** the three mascots, the warning-before-edit rule, `wrong_variable`, the death flow, save schema 2, G13.

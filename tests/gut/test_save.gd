@@ -26,6 +26,7 @@ func after_each() -> void:
 		m.starter = _starters[m]
 	_starters.clear()
 	StartScreen.save_live = true
+	StartScreen.legacy_loop = "--legacy-loop" in OS.get_cmdline_user_args()
 	Taste.clear_session()
 	RunState.reset(0)
 	RunState.world = null
@@ -121,7 +122,7 @@ func test_the_same_steps_write_the_same_file() -> void:
 		texts.append(_read())
 		SaveGame.go_inert()
 	assert_eq(texts[0], texts[1])
-	assert_string_contains(texts[0], "\"schema\": 1")
+	assert_string_contains(texts[0], "\"schema\": 2")
 
 
 func test_a_missing_file_is_a_new_save_and_writes_nothing() -> void:
@@ -132,7 +133,7 @@ func test_a_missing_file_is_a_new_save_and_writes_nothing() -> void:
 
 
 func test_a_missing_key_takes_its_default() -> void:
-	_write("{\"schema\": 1, \"runs\": 3, \"version\": [0, 1, 2]}")
+	_write("{\"schema\": 2, \"runs\": 3, \"version\": [0, 1, 2]}")
 	SaveGame.go_live(TEST_PATH)
 	assert_eq(SaveGame.last_load, SaveGame.LOADED)
 	assert_eq(SaveGame.state().runs, 3)
@@ -194,7 +195,7 @@ func test_a_read_only_save_keeps_the_session_carry() -> void:
 
 func test_unknown_ids_are_dropped_on_load() -> void:
 	_change(&"fx_ch_a")
-	_write(JSON.stringify({"schema": 1,
+	_write(JSON.stringify({"schema": 2,
 		"genres": {"topdown": {"step": "playable", "runs": 2, "play_time": 9.5}, "gone_genre": {"runs": 1}},
 		"shipped": ["fx_ch_a", "gone_change", "fx_ch_a"],
 		"taste": {"by_id": {"auto_attack": 1.0, "gone_patch": 2.0, "look:clean": 0.5}, "by_tag": {"weapon": 1.0}}}))
@@ -382,6 +383,7 @@ func test_the_start_screen_shows_the_save_and_resets_it_in_two_clicks() -> void:
 	var pending := "v0.0.0 · 1 run" + char(10) + DevSession.PENDING_LINE
 	assert_eq(StartScreen.save_line(), pending)
 	StartScreen.save_live = false   # the real save must not go live in a test
+	StartScreen.legacy_loop = true   # the v6 run loop's screen
 	var screen: StartScreen = load("res://ui/start_screen.tscn").instantiate()
 	add_child_autofree(screen)   # save_live stays false: after_each puts it back
 	assert_true(SaveGame.persist, "the screen kept the test's save")
@@ -402,12 +404,14 @@ func test_tools_and_smoke_boots_leave_the_real_save_alone() -> void:
 	StartScreen.save_live = false
 	assert_false(StartScreen.uses_real_save())
 	StartScreen.save_live = true
+	StartScreen.legacy_loop = "--legacy-loop" in OS.get_cmdline_user_args()
 	assert_eq(StartScreen.uses_real_save(), not ("--autostart" in OS.get_cmdline_user_args()
 			or "--inert-save" in OS.get_cmdline_user_args()))
 
 
 func test_an_inert_start_screen_cannot_reset() -> void:
 	StartScreen.save_live = false
+	StartScreen.legacy_loop = true
 	var screen: StartScreen = load("res://ui/start_screen.tscn").instantiate()
 	add_child_autofree(screen)   # save_live stays false: after_each puts it back
 	assert_false(SaveGame.persist)

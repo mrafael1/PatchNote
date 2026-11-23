@@ -15,9 +15,13 @@ extends RefCounted
 ## goes on from a new save; a file from a newer build (higher schema) is used read-only
 ## as a new save and never overwritten; unknown genres, changes and taste ids are
 ## dropped. Writing is atomic: a .tmp file, then a rename.
+##
+## Schema 2 (PLAN v8 1.2): the campaign (which session is next, the attempts, the
+## events seen, the mascot) and the settings. A schema-1 file (v5/v6, the run loop) is
+## moved aside as save.v1.json and a new campaign starts (last_load OLD).
 
 const DEFAULT_PATH := "user://save/save.json"
-const SCHEMA := 1
+const SCHEMA := 2
 ## Old change ids and what they became (PLAN v6 1.1); %s is the save's look take.
 const RENAMED := {"look_1": "look_1_%s"}
 const LOOK_PREFIX := "look:"   ## taste ids that name a look take, not a patch
@@ -30,6 +34,7 @@ const NEW := &"new"
 const CORRUPT := &"corrupt"
 const NEWER := &"newer"
 const INERT := &"inert"
+const OLD := &"old"   ## a schema-1 file was moved aside (save.v1.json)
 
 static var save_path := DEFAULT_PATH
 static var persist := false       ## writes go to save_path
@@ -104,7 +109,16 @@ static func new_state() -> Dictionary:
 		"taste": {"by_id": {}, "by_tag": {}},
 		"sessions": [],
 		"pending_session": false,
+		"campaign": new_campaign(),
+		"settings": {"reduce_flashing": false, "asked": false},
 	}
+
+
+## The campaign's part of a new save (PLAN v8 1.2): the next session's index, the
+## sessions done, attempts per session id, scripted events seen, the mascot (a body id,
+## "" until fork_mascot is answered).
+static func new_campaign() -> Dictionary:
+	return {"index": 0, "done": [], "attempts": {}, "events_seen": [], "mascot": ""}
 
 
 static func _new_genre(g: GenreDef) -> Dictionary:
@@ -197,6 +211,79 @@ static func unship(id: StringName) -> bool:
 	return true
 
 
+# --- The campaign (PLAN v8) -----------------------------------------------------
+
+static func campaign() -> Dictionary:
+	return state().campaign
+
+
+## One more attempt at session `id` (a death, then Retry). Writes.
+static func count_attempt(id: StringName) -> void:
+	var a: Dictionary = campaign().attempts
+	a[String(id)] = int(a.get(String(id), 0)) + 1
+	write()
+
+
+## Attempts at session `id` that ended (deaths retried); the current one is this + 1.
+static func attempts(id: StringName) -> int:
+	return int((campaign().attempts as Dictionary).get(String(id), 0))
+
+
+## Session `id` is done: the version bumps once by `bump`, `ships` go into `shipped`
+## (no bump of their own), the index moves on, and the save is written. A session
+## already done never bumps twice (a replayed index from a debug jump).
+static func campaign_done(id: StringName, bump: StringName, ships: Array[StringName], index_after: int) -> void:
+	var c := campaign()
+	if not String(id) in (c.done as Array):
+		(c.done as Array).append(String(id))
+		var v := version()
+		if v.bump(bump):
+			state().version = v.to_array()
+	for s in ships:
+		if not has_shipped(s):
+			(state().shipped as Array).append(String(s))
+	c.index = index_after
+	write()
+
+
+## The next session index without finishing anything (debug jumps, --session).
+static func set_campaign_index(index: int) -> void:
+	campaign().index = maxi(0, index)
+
+
+static func set_mascot(id: StringName) -> void:
+	campaign().mascot = String(id)
+
+
+static func mascot() -> StringName:
+	return StringName(campaign().mascot)
+
+
+static func event_seen(id: StringName) -> bool:
+	return String(id) in (campaign().events_seen as Array)
+
+
+static func mark_event_seen(id: StringName) -> void:
+	if not event_seen(id):
+		(campaign().events_seen as Array).append(String(id))
+
+
+## The "reduce flashing" setting (PLAN v8 1.9): half shake, no white screen flash, the
+## gentle variants of photosensitive edits and events.
+static func reduce_flashing() -> bool:
+	return bool((state().settings as Dictionary).get("reduce_flashing", false))
+
+
+static func setting(key: String) -> Variant:
+	return (state().settings as Dictionary).get(key)
+
+
+## A setting (reduce_flashing; asked once it was answered at first launch). Writes.
+static func set_setting(key: String, value: Variant) -> void:
+	(state().settings as Dictionary)[key] = value
+	write()
+
+
 ## A genre's maturity step (STEPS), e.g. "stages" once the Stages take ships (M35).
 static func set_genre_step(genre: StringName, step: String) -> void:
 	if not step in STEPS:
@@ -254,6 +341,10 @@ static func load_file() -> void:
 	if parsed is Dictionary and _schema_of(parsed) > SCHEMA:
 		push_warning("Save %s is from a newer build (schema %d): read-only" % [save_path, _schema_of(parsed)])
 		_use(new_state(), NEWER)
+		return
+	if parsed is Dictionary and (parsed as Dictionary).has("schema") and _schema_of(parsed) < SCHEMA:
+		_move_aside_old()
+		_use(new_state(), OLD)
 		return
 	var state: Variant = parse(parsed)
 	if state == null:
@@ -342,6 +433,47 @@ static func parse(parsed: Variant) -> Variant:
 	for s: Variant in out.sessions:
 		if not s is Dictionary:
 			return null
+	var camp: Variant = _parse_campaign(out.campaign)
+	if camp == null:
+		return null
+	out.campaign = camp
+	var settings: Dictionary = {"reduce_flashing": false, "asked": false}
+	for k: String in settings:
+		if (out.settings as Dictionary).has(k):
+			if not out.settings[k] is bool:
+				return null
+			settings[k] = out.settings[k]
+	out.settings = settings
+	return out
+
+
+## The campaign block, clean, or null on a wrong type. Missing keys take defaults.
+static func _parse_campaign(src: Dictionary) -> Variant:
+	var out := new_campaign()
+	if src.has("index"):
+		if not _is_number(src.index) or int(src.index) < 0:
+			return null
+		out.index = int(src.index)
+	for key: String in ["done", "events_seen"]:
+		if src.has(key):
+			if not src[key] is Array:
+				return null
+			for x: Variant in src[key]:
+				if not x is String:
+					return null
+				if not x in out[key]:
+					(out[key] as Array).append(x)
+	if src.has("attempts"):
+		if not src.attempts is Dictionary:
+			return null
+		for k: Variant in src.attempts:
+			if not _is_number(src.attempts[k]) or int(src.attempts[k]) < 0:
+				return null
+			out.attempts[String(k)] = int(src.attempts[k])
+	if src.has("mascot"):
+		if not src.mascot is String:
+			return null
+		out.mascot = src.mascot
 	return out
 
 
@@ -411,6 +543,22 @@ static func _quarantine() -> void:
 	if FileAccess.file_exists(bad):
 		DirAccess.remove_absolute(bad)
 	DirAccess.rename_absolute(save_path, bad)
+
+
+## A schema-1 save (the v5/v6 run loop) -> save.v1.json, replacing an older one. Only
+## when persist: a snapshot read never moves a file.
+static func _move_aside_old() -> void:
+	push_warning("Save %s is from the prototype run loop (schema 1): kept aside, starting a new campaign" % save_path)
+	if not persist:
+		return
+	var old := old_path()
+	if FileAccess.file_exists(old):
+		DirAccess.remove_absolute(old)
+	DirAccess.rename_absolute(save_path, old)
+
+
+static func old_path() -> String:
+	return save_path.get_basename() + ".v1." + save_path.get_extension()
 
 
 static func bad_path() -> String:

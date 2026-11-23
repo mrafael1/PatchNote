@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M36"
+const BUILD := "M37"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -20,6 +20,8 @@ var prompt_panel: PromptPanel
 var patch_history: PatchHistory
 var report: ReportScreen
 var dev_flow: DevSessionFlow   ## report -> dev session -> patch notes (PLAN v5 4)
+var session_runner: SessionRunner   ## a campaign session's script (PLAN v8); null in the run loop
+var debrief: DebriefScreen          ## after a campaign session (PLAN v8 1.2)
 var sound: Sound
 
 ## Read-only forwarders to the genre's nodes, so tests and tools keep working. They
@@ -48,6 +50,8 @@ func _ready() -> void:
 	next_seed = -1
 	RunState.reset(run_seed, next_genre)
 	next_genre = &""
+	# PLAN v8 1.2: the campaign's session, when the campaign is active (else the v6 loop).
+	RunState.session = CampaignDB.session_for_game()
 	print(boot_line())
 	Look.use(Unlocks.look())   # the save's look (PLAN v5 1.7); punchy while inert
 
@@ -93,6 +97,21 @@ func _ready() -> void:
 	genre.stage_ended.connect(func(index: int) -> void: EventBus.stage_ended.emit(index))
 	genre.begin_run()
 
+	if RunState.session != null:
+		session_runner = SessionRunner.new()
+		session_runner.name = "SessionRunner"
+		session_runner.session = RunState.session
+		session_runner.genre = genre
+		add_child(session_runner)
+		# M37: the AI speaks in toasts; the mascot takes over in M38.
+		session_runner.line_said.connect(func(line: Line) -> void: transition.say(line.text))
+		debrief = DebriefScreen.new()
+		debrief.name = "Debrief"
+		add_child(debrief)
+		debrief.next_requested.connect(func() -> void: _end_session(&"next"))
+		debrief.move_on_requested.connect(func() -> void: _end_session(&"move_on"))
+		debrief.retry_requested.connect(func() -> void: _end_session(&"retry"))
+
 	report = ReportScreen.new()
 	add_child(report)
 	report.new_build_requested.connect(_on_report_continue)
@@ -125,8 +144,9 @@ func _ready() -> void:
 ## reports (PLAN v5 M30), then the save's answers (PLAN v6 M36).
 static func boot_line() -> String:
 	var v: Dictionary = Engine.get_version_info()
-	return "[boot] Patch Notes %s, game %s, genre %s (playable: %s), Godot %s.%s.%s, %s" % [BUILD,
+	return "[boot] Patch Notes %s, game %s, genre %s%s (playable: %s), Godot %s.%s.%s, %s" % [BUILD,
 			SaveGame.version().label(), RunState.genre,
+			", session %s" % RunState.session.id if RunState.session else "",
 			", ".join(GenreDB.playable_ids().map(func(g: StringName) -> String: return String(g))),
 			v.major, v.minor, v.patch, answers_text()]
 
@@ -176,7 +196,7 @@ func _on_report_continue(run_seed := -1) -> void:
 ## opening line reads the run; F9 opens one at any time (an inert game plays it on the
 ## in-memory save, which is never written). "Play" starts the next run with run_seed.
 func open_dev_session(run_seed := -1) -> void:
-	if dev_flow.is_open():
+	if dev_flow.is_open() or RunState.session != null:   # the campaign has its debrief
 		return
 	save_notes()   # the report's ratings feed the taste the session reads
 	_next_run_seed = run_seed
@@ -190,7 +210,7 @@ func open_dev_session(run_seed := -1) -> void:
 ## Shift+F9: ships what the next session would (its first card, or the AI's last
 ## change) without the screens.
 func ship_next_change() -> DevSession:
-	if dev_flow.is_open():
+	if dev_flow.is_open() or RunState.session != null:
 		return null   # the open session ships; a second one would log twice
 	var session := DevSession.plan(RunState.run_seed)
 	var ok := session.pick(0) if session.can_pick() else session.finish()
@@ -238,6 +258,12 @@ func _on_player_died() -> void:
 
 
 func _on_run_ended(outcome: StringName) -> void:
+	if RunState.session != null:
+		# A campaign session logs one line when the player picks the way on (_end_session).
+		prompt_panel.dismiss()
+		patch_history.close()
+		patch_history.locked = true
+		return
 	if is_live_game():
 		Telemetry.append(genre.run_record())
 		# The save (inert unless the start screen or a bot chain made it live) counts the
@@ -250,7 +276,35 @@ func _on_run_ended(outcome: StringName) -> void:
 
 func _on_report_ready(outcome: StringName) -> void:
 	transition.clear_toast()
+	if RunState.session != null:
+		debrief.open(RunState.session, outcome, session_runner.hits)
+		return
 	report.open(outcome, genre.run_record())
+
+
+## The debrief's way on (PLAN v8 1.2): one telemetry line, then the save moves on (next,
+## move_on) or counts the attempt (retry), and the next scene plays it. After the last
+## session the title screen comes back.
+func _end_session(choice: StringName) -> void:
+	var s := RunState.session
+	if s == null or not debrief.is_open():
+		return
+	if is_live_game():
+		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
+				session_runner.hits, choice, BUILD))
+	if choice == &"retry":
+		CampaignDB.retry(s)
+	else:
+		CampaignDB.complete(s)
+	if get_tree().current_scene != self:
+		return   # a test's copy: the save moved on, nothing reloads
+	debrief.close()
+	if CampaignDB.is_done():
+		get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)
+	else:
+		next_seed = debrief.next_seed
+		next_genre = RunState.genre
+		get_tree().reload_current_scene()
 
 
 ## True when this scene is the game being played, not a copy instanced by a test.
@@ -262,7 +316,7 @@ func is_live_game() -> bool:
 ## The report's notes become what the AI knows at the start of the next run of this
 ## session, and one "notes" telemetry line. Skipping them is a signal too.
 func save_notes() -> void:
-	if _notes_saved or not genre.is_over() or not is_live_game():
+	if _notes_saved or not genre.is_over() or not is_live_game() or RunState.session != null:
 		return
 	_notes_saved = true
 	if SaveGame.is_live():

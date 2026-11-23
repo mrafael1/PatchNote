@@ -43,6 +43,7 @@ func after_each() -> void:
 		ChangeDB.unregister(c)
 	_changes.clear()
 	StartScreen.save_live = true
+	StartScreen.legacy_loop = "--legacy-loop" in OS.get_cmdline_user_args()
 	Main.next_seed = -1
 	Taste.clear_session()
 	Look.use(Unlocks.FULL_LOOK)
@@ -957,6 +958,7 @@ func test_short_names() -> void:
 func test_a_pending_session_opens_first_from_the_start_screen() -> void:
 	_live(1)
 	StartScreen.save_live = false   # the real save must not go live in a test
+	StartScreen.legacy_loop = true   # the v6 run loop's screen
 	var screen: StartScreen = load("res://ui/start_screen.tscn").instantiate()
 	add_child_autofree(screen)
 	assert_eq(screen.start_button.text, StartScreen.START_PENDING)

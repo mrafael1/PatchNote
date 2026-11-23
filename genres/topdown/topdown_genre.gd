@@ -28,8 +28,14 @@ const FOLLOW_GROUP := &"follows_across_stages"
 
 func build(p_shell: Node) -> void:
 	super(p_shell)
-	# A smoke-test build (PLAN v5 4.8) is one short stage, whatever the set.
-	stages = StageSet.for_run() if Unlocks.missing_basics().is_empty() else StageSet.single()
+	# A smoke-test build (PLAN v5 4.8) is one short stage, whatever the set. A campaign
+	# session (PLAN v8) plays one stage on its own arena.
+	if RunState.session != null:
+		stages = StageSet.single(RunState.session.arena_def())
+	elif Unlocks.missing_basics().is_empty():
+		stages = StageSet.for_run()
+	else:
+		stages = StageSet.single()
 	_build_arena(stages.stage(0).arena)
 
 	world = Node2D.new()
@@ -90,9 +96,14 @@ func begin_run() -> void:
 	run_loop.stage_cleared.connect(_on_stage_cleared)
 	run_loop.stage_starting.connect(_on_stage_starting)
 	run_loop.exit_opened.connect(_on_exit_opened)
+	var session := RunState.session
+	if session != null:
+		# PLAN v8 1.2: the session's goal; the AI hands things over itself, no prompts.
+		run_loop.set_goal(session.goal, session.goal_value, session.time_limit)
+		shell.director.enabled = false
 	run_loop.begin()
 	var missing := Unlocks.missing_basics()
-	if not missing.is_empty():
+	if session == null and not missing.is_empty():
 		# A build that misses a basic (PLAN v5 4.8) plays a short smoke test: no prompts.
 		run_loop.smoke_duration = Tuning.smoke_test_duration
 		if missing[0] == &"movement":
@@ -189,6 +200,29 @@ func _sweep() -> void:
 
 func run_record() -> Dictionary:
 	return run_loop.record
+
+
+func session_clock() -> float:
+	return run_loop.goal_clock
+
+
+func session_progress() -> float:
+	return run_loop.goal_pct()
+
+
+func hold_session_clock(owner_id: StringName, on: bool) -> void:
+	run_loop.hold_clock(owner_id, on)
+
+
+## Places `count` enemies of `archetype` at the spawner's off-screen points (a cue).
+func spawn_archetype(archetype: StringName, count: int) -> bool:
+	if not Spawner.SCENES.has(archetype):
+		return false
+	for i in count:
+		var rng := RunState.gameplay_rng
+		var jitter := Vector2(rng.randf_range(-16, 16), rng.randf_range(-16, 16))
+		RunState.spawn(Spawner.SCENES[archetype], spawner.pick_point() + jitter, {&"from_spawner": true})
+	return true
 
 
 func is_over() -> bool:

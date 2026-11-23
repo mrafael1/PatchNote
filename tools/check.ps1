@@ -63,6 +63,11 @@ Write-Host '[3/4] boot (game scene)'
 $game = Invoke-Godot 'boot_game' 'res://main.tscn --quit-after 120'
 Test-Errors 'boot_game' $game
 if ($game.Text -notmatch '\[boot\] Patch Notes .*Godot') { $failures += 'boot_game: game banner missing' }
+# PLAN v8: the game scene straight into a campaign session (inert save, nothing written).
+$session = Invoke-Godot 'boot_session' 'res://main.tscn --quit-after 120 -- --session=s1_03_enemies'
+Test-Errors 'boot_session' $session
+if ($session.Text -notmatch '\[boot\] Patch Notes .*session s1_03_enemies') { $failures += 'boot_session: no campaign session banner' }
+if ($session.Text -notmatch '\[campaign\] \d+ sessions') { $failures += 'boot_session: the campaign did not load' }
 
 Write-Host '[4/4] tests'
 $testWatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -99,6 +104,17 @@ if ($BotRuns) {
     if ($chain.Text -notmatch '\[botrun\] session=2 after_run=2 kind=basic .*ai_ship=basic_world .*version=v0\.0\.1->v0\.0\.2') { $failures += 'bot_runs_save: session 2 did not ship enemies and the level' }
     if ($chain.Text -notmatch '\[botrun\] session=3 after_run=3 kind=fork fork=look_1 .*shelved=\["look_1_\w+", "look_1_\w+"\] .*version=v0\.0\.2->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
     if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
+    # PLAN v8 4: the campaign so far, invincible on a fresh scratch save, then mortal in memory.
+    $camp = Invoke-Godot 'bot_campaign' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --save=user://save_check_campaign/save.json --keep-save --fresh 1i'
+    Test-Errors 'bot_campaign' $camp
+    Select-String -Path $camp.Log -Pattern '^\[botrun\] (session|save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($camp.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign: summary missing or failures' }
+    if ($camp.Text -notmatch '\[botrun\] session=s1_01_nothing attempt=1 \(invincible\) outcome=stopped .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_campaign: S1 did not stop and ship v0.1.0' }
+    if ($camp.Text -notmatch '"index":3') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    $campMortal = Invoke-Godot 'bot_campaign_mortal' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign 2'
+    Test-Errors 'bot_campaign_mortal' $campMortal
+    Select-String -Path $campMortal.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($campMortal.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign_mortal: summary missing or failures' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }

@@ -8,6 +8,8 @@ const DEFAULT_PATH := "user://playtest/runs.jsonl"
 ## PLAN v5 4.5: schema 2 adds look, pool_size and enemies to schema 1's keys (genre and
 ## game_version came with M27); dev sessions add "session" lines (DevSession).
 const SCHEMA := 3   # PLAN v6 1.4: session forks and shelves, run "forks"
+## PLAN v8 1.8: one "campaign" line per played session attempt (CampaignDB).
+const CAMPAIGN_SCHEMA := 4
 
 ## Where lines go. Tools and tests point it elsewhere so they never mix with real playtests.
 static var log_path := DEFAULT_PATH

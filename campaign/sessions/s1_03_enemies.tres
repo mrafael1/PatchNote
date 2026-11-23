@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s1_03_enemies"
+stage = 1
+title = "Enemies"
+basics = Array[StringName]([&"movement", &"enemies"])
+enemies = Array[StringName]([&"chaser"])
+goal = &"survive"
+goal_value = 60.0
+face = false
+intro = PackedStringArray("happy: ok. go.")
+cues = PackedStringArray("at 20: say happy: Oh. That works.", "at 45: say proud: You're good at this.")
+debrief = PackedStringArray("died guilty: Too many at once. My fault.", "happy: I can talk now. Weird.", "thinking: I think I need a face.")
+bump = &"minor"
+notes = PackedStringArray("A level")

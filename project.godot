@@ -18,6 +18,7 @@ GenreDB="*res://core/genre_db.gd"
 RunState="*res://core/run_state.gd"
 MutationDB="*res://core/mutation_db.gd"
 ChangeDB="*res://core/change_db.gd"
+CampaignDB="*res://campaign/campaign_db.gd"
 
 [display]
 

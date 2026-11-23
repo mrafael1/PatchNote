@@ -24,6 +24,9 @@ var ai_owner := {}            ## AI patch id -> &"stage" or &"boss"
 var patch_state := {}
 
 var genre: StringName         ## the run's genre (PLAN v5 1.1); set by reset(), never during a run
+## The campaign session this run plays (PLAN v8 1.2); null = the v6 run loop. The
+## shell sets it after reset(), before the genre builds.
+var session: SessionDef
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
@@ -469,6 +472,7 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	real_frames = 0
 	invincible = false
 	run_seed = new_seed
+	session = null
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
