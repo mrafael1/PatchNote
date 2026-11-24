@@ -39,12 +39,17 @@ var _free_at_msec := 0
 
 func _ready() -> void:
 	muted = muted or "--mute-ai" in OS.get_cmdline_user_args()
-	_cues = session.cue_list().duplicate()   # the parse is cached and shared: never change it
+	var ctx := CampaignDB.line_context(session)
+	# The parse is cached and shared: never change it. PLAN v9 1.3: a cue whose condition
+	# fails is dropped here, before anything fires, so it is never half-fired.
+	_cues.clear()
+	for c in session.cue_list():
+		if Line.condition_holds(c.cond, ctx):
+			_cues.append(c)
 	_fired.resize(_cues.size())
 	_fired.fill(false)
 	EventBus.player_hit.connect(_on_player_hit)
 	EventBus.player_touched.connect(func() -> void: touched = true)
-	var ctx := CampaignDB.line_context(session)
 	for line in Line.passing(session.intro_lines(), ctx):
 		say(line)
 
@@ -118,10 +123,10 @@ func _player_hp() -> float:
 ## A spawn cue's archetype; "fork:<id>" is the enemy that fork's answer unlocks (the
 ## same reading as SessionDef.enemy_types), "" while it is unanswered (M42).
 static func _resolve_archetype(archetype: StringName) -> StringName:
-	if not String(archetype).begins_with("fork:"):
+	var fork_id := SessionDef.fork_of(archetype)
+	if fork_id == &"":
 		return archetype
-	var f := ChangeDB.get_fork(StringName(String(archetype).trim_prefix("fork:")))
-	var answer := f.answer() if f else null
+	var answer := Unlocks.answer(fork_id)
 	if answer != null:
 		for u in answer.unlocks:
 			if u in Unlocks.ARCHETYPES:

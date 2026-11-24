@@ -62,13 +62,14 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 7)
+	assert_eq(CampaignDB.size(), 8)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
 	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
 	assert_eq(CampaignDB.session(5).id, &"s1_05_wrong")
 	assert_eq(CampaignDB.session(6).id, &"s1_06_playground", "S6 ends Stage 1 (M42)")
-	assert_null(CampaignDB.session(7))
+	assert_eq(CampaignDB.session(7).id, &"s2_01_tryout", "S7 opens Stage 2 (M43)")
+	assert_null(CampaignDB.session(8))
 
 
 func test_lines_parse_a_condition_an_expression_and_the_text() -> void:
@@ -250,12 +251,19 @@ func test_s6_is_the_playground() -> void:
 			[&"kills", 40.0, &"edit_inverted"], [&"hp", 2.0, &"edit_slowmo"]])
 
 
+## M43: the last session is the data's (S7 today); S6 offers Next.
 func test_the_last_session_offers_to_be_continued() -> void:
+	var last := CampaignDB.session(CampaignDB.size() - 1)
 	var d := _debrief()
+	d.open(last, &"win", 0)
+	d.finish_lines()
+	assert_eq(d.choices(), [DebriefScreen.LAST])
+	d.close()
+	d = _debrief()
 	d.open(CampaignDB.get_session(&"s1_06_playground"), &"win", 0)
 	d.finish_lines()
 	assert_true(d.said.has("Okay. It's a game. A small one."))
-	assert_eq(d.choices(), [DebriefScreen.LAST])
+	assert_eq(d.choices(), [DebriefScreen.NEXT], "S6 is no longer the last (M43)")
 	assert_string_contains(d._notes.text, "A small game")
 	d.close()
 	d = _debrief()
@@ -280,9 +288,9 @@ func test_s6_died_then_move_on_still_ends_the_stage() -> void:
 	d.finish_lines()
 	assert_true(d.said.has("Okay. It's a game. A small one."))
 	assert_true(d.said.has("Next: what kind of shooter is it?"))
-	assert_eq(d.choices(), [DebriefScreen.LAST])
+	assert_eq(d.choices(), [DebriefScreen.NEXT], "M43: Stage 2 comes next")
 	assert_string_contains(d._notes.text, "A small game")
-	assert_true(d.choose(DebriefScreen.LAST))
+	assert_true(d.choose(DebriefScreen.NEXT))
 	assert_eq(moved.size(), 1)
 	d.close()
 
@@ -306,7 +314,7 @@ func test_done_campaign_shows_to_be_continued() -> void:
 		assert_false(CampaignDB.is_done(), "not done before session %d" % i)
 		CampaignDB.complete(CampaignDB.session(i))
 	assert_true(CampaignDB.is_done())
-	assert_eq(SaveGame.version().label(), "v0.7.0", "seven minor bumps")
+	assert_eq(SaveGame.version().label(), "v0.8.0", "eight minor bumps (M43: S7)")
 	assert_true(StartScreen.campaign_line().ends_with("· to be continued"), StartScreen.campaign_line())
 	var screen := await _screen()
 	assert_false(screen.continue_button.visible)
@@ -743,7 +751,7 @@ func test_a_session_record_is_schema_4() -> void:
 func test_a_new_save_is_schema_2_with_a_campaign_and_settings() -> void:
 	var s := SaveGame.new_state()
 	assert_eq(s.schema, 2)
-	assert_eq(s.campaign, {"index": 0, "done": [], "attempts": {}, "events_seen": [], "mascot": ""})
+	assert_eq(s.campaign, {"index": 0, "done": [], "attempts": {}, "events_seen": [], "mascot": "", "next": ""})
 	assert_eq(s.settings, {"reduce_flashing": false, "asked": false})
 
 
@@ -762,8 +770,8 @@ func test_a_schema_1_save_is_kept_aside_and_a_campaign_starts() -> void:
 func test_the_campaign_round_trips_and_bad_types_are_corrupt() -> void:
 	SaveGame.go_live(TEST_PATH, true)
 	SaveGame.count_attempt(&"s1_01_move")
-	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [&"enemy_tank"] as Array[StringName], 1)
-	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [] as Array[StringName], 1)
+	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [&"enemy_tank"] as Array[StringName], 1, &"s1_01_move")
+	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [] as Array[StringName], 1, &"s1_01_move")
 	SaveGame.set_mascot(&"blob")
 	SaveGame.mark_event_seen(&"wrong_variable")
 	SaveGame.set_setting("reduce_flashing", true)
@@ -819,7 +827,7 @@ func test_the_start_screen_offers_continue_once_a_campaign_exists() -> void:
 	assert_eq(screen.save_label.text, "New campaign")
 	assert_false(screen.continue_button.visible)
 	assert_null(screen.start_button, "no v6 Start button")
-	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [] as Array[StringName], 1)
+	SaveGame.campaign_done(&"s1_00_nothing", GameVersion.MINOR, [] as Array[StringName], 1, &"s1_01_move")
 	screen.refresh_campaign()
 	assert_true(screen.continue_button.visible)
 	assert_eq(screen.save_label.text, "Stage 1 · Session 1 · v0.1.0", "S0 was the first")

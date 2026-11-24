@@ -5,3 +5,6 @@ extends Resource
 ## values), never with separate session lists, so content stays a sum.
 
 @export var sessions: Array[SessionDef] = []
+## Each stage's title, for its stage card (PLAN v9 1.2, 2): stage -> "The shooter".
+## CampaignDB.problems() wants one for every stage a session names.
+@export var stage_titles: Dictionary[int, String] = {}

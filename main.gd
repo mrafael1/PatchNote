@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M42.2"
+const BUILD := "M43"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -27,6 +27,7 @@ var rule_book: RuleBook   ## the AI's rule edits (PLAN v8 1.4); null in the run 
 var event_player: EventPlayer   ## scripted events (PLAN v8 1.5); null in the run loop
 var debug: DebugOverlay        ## F1-F9 tools (tests reach F2 through it)
 var debrief: DebriefScreen          ## after a campaign session (PLAN v8 1.2)
+var stage_card: StageCard   ## before a new stage's first session (PLAN v9 2); null otherwise
 var sound: Sound
 
 ## Read-only forwarders to the genre's nodes, so tests and tools keep working. They
@@ -57,6 +58,10 @@ func _ready() -> void:
 	next_genre = &""
 	# PLAN v8 1.2: the campaign's session, when the campaign is active (else the v6 loop).
 	RunState.session = CampaignDB.session_for_game()
+	# PLAN v9 1.2: reset() recomputed with no session; a session's HP floor is base rules.
+	# Only then, so Stage 1 (no floor) sees no extra rules_changed.
+	if RunState.session != null and RunState.session.hp_floor > 0:
+		RunState.recompute()
 	print(boot_line())
 	Look.use(Unlocks.look())   # the save's look (PLAN v5 1.7); punchy while inert
 
@@ -117,7 +122,7 @@ func _ready() -> void:
 		reactions.session = RunState.session
 		reactions.genre = genre
 		reactions.player = player
-		reactions.index = CampaignDB.index_of(RunState.session.id)
+		reactions.session_id = RunState.session.id
 		reactions.muted = session_runner.muted
 		add_child(reactions)
 		# Reactions hear a script line when it is queued (game time), the mascot when the
@@ -155,6 +160,12 @@ func _ready() -> void:
 		debrief.next_requested.connect(func() -> void: _end_session(&"next"))
 		debrief.move_on_requested.connect(func() -> void: _end_session(&"move_on"))
 		debrief.retry_requested.connect(func() -> void: _end_session(&"retry"))
+		# PLAN v9 2: a new stage opens with its card; the intro and cues wait on the paused tree.
+		if CampaignDB.stage_card_due(RunState.session):
+			stage_card = StageCard.new()
+			stage_card.name = "StageCard"
+			stage_card.setup(RunState.session.stage, CampaignDB.campaign.stage_titles[RunState.session.stage])
+			add_child(stage_card)
 
 	report = ReportScreen.new()
 	add_child(report)

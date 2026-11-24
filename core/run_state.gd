@@ -246,6 +246,7 @@ func recompute() -> void:
 func preview_rules(patches: Array[Mutation], with_big: Mutation = big,
 		with_ai: Array[Mutation] = ai) -> WorldRules:
 	var r := base_rules.duplicate() as WorldRules
+	r.hp_floor = session.hp_floor if session != null else 0   # PLAN v9 1.2: base, not composition
 	if with_big != null:
 		with_big.apply_rules(r)
 	for m in with_ai:
@@ -608,7 +609,8 @@ func _under_cap(kind: StringName) -> bool:
 
 # --- Pause -----------------------------------------------------------------
 
-## Reasons: &"prompt", &"history", &"transition", &"report", and &"turn" (B2: the
+## Reasons: &"prompt", &"history", &"transition", &"report", &"stage_card" (PLAN v9 2),
+## and &"turn" (B2: the
 ## world waits for the player's next action). The tree is paused
 ## while any reason is active.
 func set_pause(reason: StringName, on: bool) -> void:

@@ -30,6 +30,22 @@ function Get-SaveSnapshot {
 }
 $saveBefore = Get-SaveSnapshot
 
+# PLAN v9 4 (M43): the campaign's end is read from data, by id: the session order from
+# campaign.tres (the ExtResource ids after the `](` of its sessions line, kept only when
+# they name a campaign/sessions/<id>.tres), and the reaction count from its folder.
+$campaignText = Get-Content (Join-Path $root 'campaign\campaign.tres') -Raw
+$sessionRids = @{}
+foreach ($m in [regex]::Matches($campaignText, '\[ext_resource type="Resource" path="res://campaign/sessions/(\w+)\.tres" id="([^"]+)"\]')) {
+    $sessionRids[$m.Groups[2].Value] = $m.Groups[1].Value
+}
+$sessionsList = [regex]::Match($campaignText, '(?m)^sessions = Array\[ExtResource\("[^"]+"\)\]\(\[(.*)\]\)').Groups[1].Value
+$sessionIds = @([regex]::Matches($sessionsList, 'ExtResource\("([^"]+)"\)') | ForEach-Object { $sessionRids[$_.Groups[1].Value] } | Where-Object { $_ })
+$sessionCount = $sessionIds.Count
+$lastSession = if ($sessionCount -gt 0) { $sessionIds[-1] } else { '' }
+$reactionCount = @(Get-ChildItem (Join-Path $root 'campaign\reactions') -Filter '*.tres').Count
+Write-Host "campaign: $sessionCount sessions, last $lastSession; $reactionCount reactions"
+if ($sessionCount -eq 0) { $failures += 'campaign.tres: no sessions read' }
+
 function Invoke-Godot([string]$name, [string]$godotArgs) {
     $log = Join-Path $logDir "$name.log"
     # cmd handles the redirection so stderr is captured as plain text.
@@ -104,24 +120,32 @@ if ($BotRuns) {
     if ($chain.Text -notmatch '\[botrun\] session=2 after_run=2 kind=basic .*ai_ship=basic_world .*version=v0\.0\.1->v0\.0\.2') { $failures += 'bot_runs_save: session 2 did not ship enemies and the level' }
     if ($chain.Text -notmatch '\[botrun\] session=3 after_run=3 kind=fork fork=look_1 .*shelved=\["look_1_\w+", "look_1_\w+"\] .*version=v0\.0\.2->v0\.1\.0') { $failures += 'bot_runs_save: no look mockup session shipping v0.1.0' }
     if ($chain.Text -notmatch '\[botrun\] save: user://save_check/save.json runs=4 wins=\d+ version=v0\.1\.0 ') { $failures += 'bot_runs_save: the save is not at v0.1.0' }
-    # PLAN v8 4: Stage 1 (S0-S6), invincible on a fresh scratch save, then mortal in memory.
+    # PLAN v8 4: the campaign (S0 to the last session), invincible on a fresh scratch save,
+    # then mortal in memory.
     $camp = Invoke-Godot 'bot_campaign' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --save=user://save_check_campaign/save.json --keep-save --fresh 1i'
     Test-Errors 'bot_campaign' $camp
     Select-String -Path $camp.Log -Pattern '^\[botrun\] (session|save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($camp.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign: summary missing or failures' }
     if ($camp.Text -notmatch '\[botrun\] session=s1_00_nothing attempt=1 \(invincible\) outcome=stopped .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_campaign: S0 did not stop and ship v0.1.0' }
-    if ($camp.Text -notmatch '"index":7') { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    # PLAN v9 1.14 (M43): the save points at the next session by id; at the end it is ""
+    # with the last session done (D2: "next":"s2_01_tryout" cannot hold once S7 is last;
+    # the campaign_door step below checks that an M42.2 save continues at S7).
+    if ($camp.Text -notmatch '"next":""' -or $camp.Text -notmatch ('"done":\[[^\]]*"' + $lastSession + '"\]')) { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
     # PLAN v8 M39: from S3 on the AI reacts live.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*reactions=[1-9]') { $failures += 'bot_campaign: no live reactions in S4' }
     # PLAN v8 M40: S4 bends its walls at 12 s; the rule book lands it.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*edits=1') { $failures += 'bot_campaign: S4 rule edit did not land' }
     # PLAN v8 M41: S5 plays wrong_variable; three gravity flips land through the rule book (the speed is the event's own).
     if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*edits=3 events=wrong_variable') { $failures += 'bot_campaign: S5 did not play wrong_variable' }
-    # PLAN v8 M42: S5 now offers Next; S6 is the last session and ends Stage 1 at v0.7.0
-    # (invincible: no "hp 2" cue, so the gift, the big enemies and inverted = 3 edits).
+    # PLAN v8 M42: S5 now offers Next; S6 ends Stage 1 at v0.7.0 (invincible: no "hp 2"
+    # cue, so the gift, the big enemies and inverted = 3 edits). M43: S6 offers Next too,
+    # and the last session from data offers "To be continued".
     if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*choice=next_session') { $failures += 'bot_campaign: S5 is no longer the last session' }
-    if ($camp.Text -notmatch '\[botrun\] session=s1_06_playground attempt=1 \(invincible\) outcome=won .*choice=to_be_continued .*edits=3 .*version=v0\.6\.0->v0\.7\.0') { $failures += 'bot_campaign: S6 did not end Stage 1' }
-    if ($camp.Text -notmatch '\[botrun\] chain: sessions=7 ') { $failures += 'bot_campaign: no chain total' }
+    if ($camp.Text -notmatch '\[botrun\] session=s1_06_playground attempt=1 \(invincible\) outcome=won .*choice=next_session .*edits=3 .*version=v0\.6\.0->v0\.7\.0') { $failures += 'bot_campaign: S6 did not end Stage 1' }
+    if ($camp.Text -notmatch ('\[botrun\] session=' + $lastSession + ' attempt=1 \(invincible\) outcome=(won|stopped) .*choice=to_be_continued')) { $failures += "bot_campaign: the last session ($lastSession) did not offer To be continued" }
+    # PLAN v9 2: Stage 2 opens with its stage card (the bot skips it; card= ends the line).
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_01_tryout .* card=2\r?$') { $failures += 'bot_campaign: no stage card before S7' }
+    if ($camp.Text -notmatch "\[botrun\] chain: sessions=$sessionCount ") { $failures += 'bot_campaign: no chain total' }
     Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
     # M42.1: then fork_dash. The chains pick by seed: this invincible chain (1i) has
@@ -138,6 +162,14 @@ if ($BotRuns) {
     Test-Errors 'bot_campaign_mortal' $campMortal
     Select-String -Path $campMortal.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($campMortal.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign_mortal: summary missing or failures' }
+    # PLAN v9 1.14 (M43): an M42.2 save at the end of Stage 1 (a fixture, read-only: the
+    # snapshot never writes or moves it) continues at S7, with the stage card first.
+    $door = Invoke-Godot 'campaign_door' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --save=res://tests/gut/save_m42_2_stage1_end.json 1i'
+    Test-Errors 'campaign_door' $door
+    Select-String -Path $door.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+    $doorFirst = Select-String -Path $door.Log -Pattern '^\[botrun\] session=' | Select-Object -First 1
+    if (-not $doorFirst -or $doorFirst.Line -notmatch '^\[botrun\] session=s2_01_tryout attempt=1 ' -or $doorFirst.Line -notmatch ' card=2$') { $failures += 'campaign_door: an M42.2 end-of-Stage-1 save did not continue at S7 with the stage card' }
+    if ($door.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'campaign_door: summary missing or failures' }
     # M42.1: S4 with each new dash forced: it wins (invincible) and the dash is used.
     foreach ($style in @('grapple', 'teleport')) {
         $dashRun = Invoke-Godot "bot_dash_$style" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_04_level --dash=$style 3i"

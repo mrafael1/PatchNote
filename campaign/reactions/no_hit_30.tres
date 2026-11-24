@@ -10,4 +10,4 @@ lines = PackedStringArray("proud: Thirty seconds clean.", "proud: Clean for a wh
 priority = 1
 cooldown = 60.0
 once_per_session = false
-min_session = 3
+after = &"s1_03_shooting"

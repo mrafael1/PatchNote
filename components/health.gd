@@ -72,7 +72,13 @@ func take(info: DamageInfo) -> bool:
 			grant_invulnerability(invuln_time)
 		RunState.log_event(&"player_hit", {"amount": info.amount, "kind": info.kind, "blocked": true})
 		return false
-	hp_ratio = maxf(0.0, (hp() - info.amount) / max_hp())
+	var hp_floor := float(RunState.rules.hp_floor) if is_player else 0.0
+	if hp_floor > 0.0:
+		# PLAN v9 1.2: the hit still counts, signals and grants i-frames; HP never goes
+		# below the floor (or below the current HP, if it is already lower).
+		hp_ratio = maxf(hp() - info.amount, minf(hp(), hp_floor)) / max_hp()
+	else:
+		hp_ratio = maxf(0.0, (hp() - info.amount) / max_hp())
 	if invuln_time > 0.0:
 		grant_invulnerability(invuln_time)
 	EventBus.entity_damaged.emit(entity, info)

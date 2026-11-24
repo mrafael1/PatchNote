@@ -76,9 +76,9 @@ func test_the_reactions_are_about_thirty_and_valid() -> void:
 		assert_eq(d.problems(), [] as Array[String], String(d.id))
 		assert_false(ids.has(d.id), "unique ids")
 		ids[d.id] = true
-		assert_gte(d.min_session, 3, "%s: nothing before the AI can talk (S3)" % d.id)
-		if d.max_session >= 0:
-			assert_gte(d.max_session, d.min_session, "%s: max_session is not before min_session" % d.id)
+		assert_false(d.fits(&"s1_02_enemies"), "%s: nothing before the AI can talk (S3)" % d.id)
+		assert_ne(d.after, &"", "%s: every Stage 1 reaction starts at a session" % d.id)
+		assert_eq(CampaignDB.reaction_problems(d), [] as Array[String], String(d.id))
 		for l in d.line_list():
 			assert_true(l.text.length() <= 60, "%s: short lines fit the bubble: %s" % [d.id, l.text])
 	assert_eq(CampaignDB.problems(), [] as Array[String])
@@ -99,13 +99,22 @@ func test_a_bad_reaction_says_why() -> void:
 	assert_string_contains(str(_def("first_kill", []).problems()), "no lines")
 	assert_eq(_def("kill_streak 4", ["happy: Combo!"]).problems(), [] as Array[String])
 	var d := _def("first_kill", ["Hi."])
-	d.min_session = 4
-	d.max_session = 3
-	assert_string_contains(str(d.problems()), "max_session < min_session", "M42: it would never fit")
-	d.max_session = 4
-	assert_eq(d.problems(), [] as Array[String], "one session only is fine")
-	d.max_session = -1
-	assert_eq(d.problems(), [] as Array[String], "-1: no end")
+	d.after = &"s1_04_level"
+	d.until = &"s1_03_shooting"
+	assert_string_contains(str(CampaignDB.reaction_problems(d)), "is before after", "M42: it would never fit")
+	d.until = &"s1_04_level"
+	assert_eq(CampaignDB.reaction_problems(d), [] as Array[String], "one session only is fine")
+	d.until = &""
+	assert_eq(CampaignDB.reaction_problems(d), [] as Array[String], "\"\": no end")
+	d.after = &"s9_nope"
+	assert_string_contains(str(CampaignDB.reaction_problems(d)), "names no session s9_nope")
+	d.after = &"s1_03_shooting"
+	d.when = "!answer:"
+	assert_string_contains(str(d.problems()), "unknown condition", "M43: a bad when says why")
+	d.when = "!answer:dash_grapple&died_in:s1_03_shooting"
+	assert_eq(d.problems() + CampaignDB.reaction_problems(d), [] as Array[String])
+	d.when = "died_in:s9_nope"
+	assert_string_contains(str(CampaignDB.reaction_problems(d)), "died_in names no session s9_nope")
 
 
 # --- Which sessions react -----------------------------------------------------------
@@ -116,10 +125,10 @@ func test_reactions_start_with_s3() -> void:
 	var s3 := await _game(&"s1_03_shooting")
 	assert_gt(s3.reactions.active_ids().size(), 0)
 	for d in CampaignDB.reactions:
-		assert_eq(d.id in s3.reactions.active_ids(), d.min_session <= 3, String(d.id))
+		assert_eq(d.id in s3.reactions.active_ids(), d.after == &"s1_03_shooting", String(d.id))
 
 
-## M42: max_session retires a discovery line once it is not new; kills_50 waits for S6.
+## M42: max_session (M43: `until`) retires a discovery line once it is not new; kills_50 waits for S6.
 func test_max_session_retires_stale_lines() -> void:
 	var s6 := await _game(&"s1_06_playground")
 	var ids := s6.reactions.active_ids()

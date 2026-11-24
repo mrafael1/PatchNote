@@ -10,5 +10,5 @@ lines = PackedStringArray("worried: Lancer! It charges in a line.", "proud: Your
 priority = 2
 cooldown = 30.0
 once_per_session = true
-min_session = 5
-max_session = 5
+after = &"s1_05_wrong"
+until = &"s1_05_wrong"

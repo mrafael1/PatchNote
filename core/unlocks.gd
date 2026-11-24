@@ -71,12 +71,25 @@ static func missing_basics() -> Array[StringName]:
 	return out
 
 
+## The save's answer to a fork (PLAN v9 1.1): the shipped option, or null when the fork
+## is missing or unanswered. Every per-fork reader stands on this and take().
+static func answer(fork_id: StringName) -> Change:
+	var f: Fork = ChangeDB.get_fork(fork_id)
+	return f.answer() if f != null else null
+
+
+## The answer's take id (e.g. &"grapple"), or &"" with no answer or no take (the enemy
+## changes have none). Save only, so Line conditions work with no session running.
+static func take(fork_id: StringName) -> StringName:
+	var a := answer(fork_id)
+	return a.take.id if a != null and a.take != null else &""
+
+
 ## fork_dash's answer in the save (a style in Change.DASHES), classic while unanswered.
 ## Reads the save only, so Line conditions work with no session running.
 static func dash_answer() -> StringName:
-	var f: Fork = ChangeDB.get_fork(&"fork_dash")
-	var a: Change = f.answer() if f != null else null
-	return a.take.id if a != null and a.take != null else &"classic"
+	var t := take(&"fork_dash")
+	return t if t != &"" else &"classic"
 
 
 ## The player's dash: the answer in a campaign session, always classic outside one
@@ -88,9 +101,8 @@ static func dash_style() -> StringName:
 ## fork_dash_aim's answer in the save (aim or move, Change.DASH_AIMS), move while
 ## unanswered (an old save past S3 is never asked, so it stays on move). Save only.
 static func dash_aim_answer() -> StringName:
-	var f: Fork = ChangeDB.get_fork(&"fork_dash_aim")
-	var a: Change = f.answer() if f != null else null
-	return a.take.id if a != null and a.take != null else &"move"
+	var t := take(&"fork_dash_aim")
+	return t if t != &"" else &"move"
 
 
 ## The dash goes along the player's aim (M42.2): the aim answer, in a campaign session
@@ -115,8 +127,7 @@ static func stage_set() -> StageSet:
 ## {tier, take}: the save's look (tier 0 when nothing shipped).
 static func look() -> Dictionary:
 	if RunState.session != null:
-		var take := RunState.session.look
-		return {"tier": 1 if take != "" else 0, "take": take}
+		return RunState.session.look_spec()   # PLAN v9 1.2: "fork:" and "@tier" (M43)
 	if SaveGame.unlock_all:
 		return FULL_LOOK.duplicate()
 	var l: Dictionary = SaveGame.state().look

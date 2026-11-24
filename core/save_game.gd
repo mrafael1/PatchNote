@@ -116,9 +116,11 @@ static func new_state() -> Dictionary:
 
 ## The campaign's part of a new save (PLAN v8 1.2): the next session's index, the
 ## sessions done, attempts per session id, scripted events seen, the mascot (a body id,
-## "" until fork_mascot is answered).
+## "" until fork_mascot is answered). PLAN v9 1.14 (M43, schema still 2): `next`, the
+## next session's id ("" = after the furthest done; CampaignDB.current_index()); `index`
+## stays as its derived mirror. An M42.2 file has no `next` key (parse keeps it absent).
 static func new_campaign() -> Dictionary:
-	return {"index": 0, "done": [], "attempts": {}, "events_seen": [], "mascot": ""}
+	return {"index": 0, "done": [], "attempts": {}, "events_seen": [], "mascot": "", "next": ""}
 
 
 static func _new_genre(g: GenreDef) -> Dictionary:
@@ -230,9 +232,11 @@ static func attempts(id: StringName) -> int:
 
 
 ## Session `id` is done: the version bumps once by `bump`, `ships` go into `shipped`
-## (no bump of their own), the index moves on, and the save is written. A session
-## already done never bumps twice (a replayed index from a debug jump).
-static func campaign_done(id: StringName, bump: StringName, ships: Array[StringName], index_after: int) -> void:
+## (no bump of their own), the save points at the next session (next_after, "" after the
+## last; index_after is its index mirror, from CampaignDB, which knows the order), and the
+## save is written. A session already done never bumps twice (a replayed debug jump).
+static func campaign_done(id: StringName, bump: StringName, ships: Array[StringName], index_after: int,
+		next_after: StringName) -> void:
 	var c := campaign()
 	if not String(id) in (c.done as Array):
 		(c.done as Array).append(String(id))
@@ -243,12 +247,15 @@ static func campaign_done(id: StringName, bump: StringName, ships: Array[StringN
 		if not has_shipped(s):
 			(state().shipped as Array).append(String(s))
 	c.index = index_after
+	c["next"] = String(next_after)
 	write()
 
 
-## The next session index without finishing anything (debug jumps, --session).
-static func set_campaign_index(index: int) -> void:
+## The next session (its index mirror and id) without finishing anything (debug jumps,
+## --session).
+static func set_campaign_position(index: int, next: StringName) -> void:
 	campaign().index = maxi(0, index)
+	campaign()["next"] = String(next)
 
 
 static func set_mascot(id: StringName) -> void:
@@ -450,6 +457,12 @@ static func parse(parsed: Variant) -> Variant:
 ## The campaign block, clean, or null on a wrong type. Missing keys take defaults.
 static func _parse_campaign(src: Dictionary) -> Variant:
 	var out := new_campaign()
+	# `next` only when the file has it: an M42.2 file without it maps its index (CampaignDB).
+	out.erase("next")
+	if src.has("next"):
+		if not src.next is String:
+			return null
+		out["next"] = src.next
 	if src.has("index"):
 		if not _is_number(src.index) or int(src.index) < 0:
 			return null

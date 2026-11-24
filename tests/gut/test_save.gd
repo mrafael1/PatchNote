@@ -419,3 +419,16 @@ func test_an_inert_start_screen_cannot_reset() -> void:
 	screen.press_reset()
 	screen.press_reset()
 	assert_eq(screen.reset_button.text, StartScreen.RESET_LABEL)
+
+
+## M43 (PLAN v9 1.14): campaign.next parses only when the file has it; an M42.2 file has
+## none (CampaignDB maps its index), and a wrong type is a corrupt save.
+func test_the_campaign_next_parses_only_when_present() -> void:
+	var with_next: Dictionary = SaveGame.parse({"campaign": {"index": 2, "next": "s1_02_enemies"}})
+	assert_eq(with_next.campaign.next, "s1_02_enemies")
+	var without: Dictionary = SaveGame.parse({"campaign": {"index": 7}})
+	assert_false((without.campaign as Dictionary).has("next"))
+	assert_eq(without.campaign.index, 7)
+	assert_null(SaveGame.parse({"campaign": {"next": 1}}))
+	assert_eq(SaveGame.parse({}).campaign.next, "", "no campaign at all: a new one")
+	assert_eq(SaveGame.SCHEMA, 2, "additive: schema stays 2")

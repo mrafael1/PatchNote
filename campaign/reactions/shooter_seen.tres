@@ -10,5 +10,5 @@ lines = PackedStringArray("worried: That one shoots back. Sorry.", "guilty: I ga
 priority = 2
 cooldown = 30.0
 once_per_session = true
-min_session = 4
-max_session = 4
+after = &"s1_04_level"
+until = &"s1_04_level"

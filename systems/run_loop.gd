@@ -150,6 +150,8 @@ func _update_goal() -> void:
 				RunState.log_event(&"session_stopped")
 			if goal_clock >= goal_value + Tuning.smoke_stop_read:
 				end(STOPPED)
+		SessionDef.STAGES, SessionDef.BOSS:
+			pass   # PLAN v9 1.2 stubs: never on the clock; won by later systems (M49, M50)
 
 
 ## 0..100 of a survive goal's time; -1 for other goals.

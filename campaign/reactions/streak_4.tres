@@ -10,4 +10,5 @@ lines = PackedStringArray("happy: Four in a row!", "proud: Okay, now you're show
 priority = 1
 cooldown = 30.0
 once_per_session = false
-min_session = 4
+after = &"s1_04_level"
+when = "!answer:path_auto"

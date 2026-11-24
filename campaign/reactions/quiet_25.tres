@@ -10,4 +10,4 @@ lines = PackedStringArray("happy: This is nice.", "thinking: I like watching you
 priority = 1
 cooldown = 45.0
 once_per_session = false
-min_session = 4
+after = &"s1_04_level"

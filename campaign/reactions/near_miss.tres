@@ -10,4 +10,4 @@ lines = PackedStringArray("surprised: Close!", "surprised: Whoa. That was close.
 priority = 1
 cooldown = 20.0
 once_per_session = false
-min_session = 4
+after = &"s1_04_level"

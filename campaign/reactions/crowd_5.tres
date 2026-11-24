@@ -10,4 +10,4 @@ lines = PackedStringArray("thinking: Five. Should I send more?", "worried: Five 
 priority = 1
 cooldown = 40.0
 once_per_session = false
-min_session = 4
+after = &"s1_04_level"

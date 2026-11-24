@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="CampaignDef" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="CampaignDef" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://campaign/campaign_def.gd" id="1"]
 [ext_resource type="Script" path="res://campaign/session_def.gd" id="2"]
@@ -9,7 +9,12 @@
 [ext_resource type="Resource" path="res://campaign/sessions/s1_04_level.tres" id="s4"]
 [ext_resource type="Resource" path="res://campaign/sessions/s1_05_wrong.tres" id="s5"]
 [ext_resource type="Resource" path="res://campaign/sessions/s1_06_playground.tres" id="s6"]
+[ext_resource type="Resource" path="res://campaign/sessions/s2_01_tryout.tres" id="s7"]
 
 [resource]
 script = ExtResource("1")
-sessions = Array[ExtResource("2")]([ExtResource("s0"), ExtResource("s1"), ExtResource("s2"), ExtResource("s3"), ExtResource("s4"), ExtResource("s5"), ExtResource("s6")])
+sessions = Array[ExtResource("2")]([ExtResource("s0"), ExtResource("s1"), ExtResource("s2"), ExtResource("s3"), ExtResource("s4"), ExtResource("s5"), ExtResource("s6"), ExtResource("s7")])
+stage_titles = Dictionary[int, String]({
+1: "The prototype",
+2: "The shooter"
+})

@@ -8,8 +8,10 @@ extends Node
 ## - Below that, nothing while a line is still being spoken (a cue, an intro line or
 ##   another reaction): the moment has passed, the reaction is dropped, not queued.
 ## - Priority 1 (chatter) also waits GAP seconds after the last reaction.
-## - Each reaction has its own cooldown, maybe once per session, and a min_session
-##   (and maybe a max_session: a discovery line retires once it is not new, M42).
+## - Each reaction has its own cooldown, maybe once per session, and the sessions it fits
+##   (after / until by session id, PLAN v9 1.13; a discovery line retires once it is not
+##   new, M42), and maybe a `when` (a Line condition on the save, checked at start: a
+##   gated reaction never takes a cooldown slot).
 ##
 ## Everything runs on game time and the run's seed, and "still being spoken" is
 ## estimated from the line's length (typing + reading), so the same seed says the same
@@ -29,7 +31,7 @@ const PENDING := 6.0
 var session: SessionDef
 var genre: Genre
 var player: Node2D
-var index := 0                   ## the session's campaign index (min_session)
+var session_id: StringName = &""  ## the session's id (ReactionDef.fits)
 var muted := false               ## --mute-ai: nothing is checked, nothing is said
 ## Every reaction said, in order: {id, at, priority, text}.
 var fired: Array[Dictionary] = []
@@ -64,8 +66,11 @@ var _near_misses := 0
 
 func _ready() -> void:
 	muted = muted or "--mute-ai" in OS.get_cmdline_user_args()
+	if session_id == &"" and session != null:
+		session_id = session.id
+	var ctx := CampaignDB.line_context(session) if session != null else {}
 	for d in CampaignDB.reactions:
-		if d.min_session <= index and (d.max_session < 0 or index <= d.max_session):
+		if d.fits(session_id) and Line.condition_holds(d.when, ctx):
 			_defs.append(d)
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.player_hit.connect(_on_player_hit)

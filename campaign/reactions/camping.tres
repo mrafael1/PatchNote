@@ -10,4 +10,4 @@ lines = PackedStringArray("thinking: That corner again?", "thinking: I see you h
 priority = 1
 cooldown = 40.0
 once_per_session = false
-min_session = 3
+after = &"s1_03_shooting"

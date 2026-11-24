@@ -10,4 +10,5 @@ lines = PackedStringArray("surprised: Six! SIX.", "surprised: I didn't know you 
 priority = 2
 cooldown = 45.0
 once_per_session = false
-min_session = 3
+after = &"s1_03_shooting"
+when = "!answer:path_auto"

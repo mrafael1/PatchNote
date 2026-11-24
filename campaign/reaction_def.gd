@@ -44,10 +44,15 @@ const LAST_SECONDS := 5.0
 @export_range(1, 3) var priority := 1
 @export var cooldown := 30.0           ## seconds before this reaction can fire again
 @export var once_per_session := false
-## The first session (its campaign index) where the AI knows enough to say it.
-@export var min_session := 3
-## The last session it fits (-1: no end). A discovery line goes stale once it's not new.
-@export var max_session := -1
+## The first session (an id, inclusive) where the AI knows enough to say it; &"" = from
+## the start (PLAN v9 1.13: ids survive sessions added in a stage's middle).
+@export var after: StringName = &""
+## The last session it fits (an id, inclusive; &"" = no end). A discovery line goes stale
+## once it's not new.
+@export var until: StringName = &""
+## A Line condition on the save ("!answer:path_auto"; "" = always), checked when the
+## session starts: a reaction it gates is not loaded, so it never takes a cooldown slot.
+@export var when := ""
 
 
 func trigger_name() -> StringName:
@@ -65,6 +70,18 @@ func trigger_value() -> float:
 func trigger_word() -> String:
 	var words := trigger.strip_edges().split(" ", false)
 	return words[1] if words.size() > 1 else ""
+
+
+## Whether this reaction fits session `session_id`, by the campaign's order.
+func fits(session_id: StringName) -> bool:
+	var i := CampaignDB.index_of(session_id)
+	if i < 0:
+		return false
+	if after != &"" and i < CampaignDB.index_of(after):
+		return false
+	if until != &"" and i > CampaignDB.index_of(until):
+		return false
+	return true
 
 
 func line_list() -> Array[Line]:
@@ -106,8 +123,8 @@ func problems() -> Array[String]:
 		out.append("%s: priority %d is not 1-3" % [where, priority])
 	if cooldown < 0.0:
 		out.append("%s: cooldown < 0" % where)
-	if min_session < 0:
-		out.append("%s: min_session < 0" % where)
-	if max_session >= 0 and max_session < min_session:
-		out.append("%s: max_session < min_session" % where)
+	# after / until against the order: CampaignDB.reaction_problems().
+	var cond_problem := Line.condition_problem(when, "%s when" % where)
+	if cond_problem != "":
+		out.append("%s: %s" % [where, cond_problem])
 	return out

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s2_01_tryout"
+stage = 2
+title = "Three games"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits", &"version"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
+spawn_rate = 1.3
+spawn_cap = 1.3
+tryout = true
+hp_floor = 1
+goal = &"survive"
+goal_value = 60.0
+face = true
+intro = PackedStringArray("happy: Stage two. I want to make a real shooter.", "thinking: But which kind? I'm still building them.", "worried: Can't lose today. It's a tryout.")
+cues = PackedStringArray("at 30: say thinking: Halfway. The real versions come soon.")
+debrief = PackedStringArray("ended thinking: Okay. Three games next time. Promise.")
+bump = &"minor"
+notes = PackedStringArray("The shooter, three ways (work in progress)")

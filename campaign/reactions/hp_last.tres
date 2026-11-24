@@ -10,4 +10,4 @@ lines = PackedStringArray("worried: Careful!", "panic: That's your last one.", "
 priority = 3
 cooldown = 60.0
 once_per_session = false
-min_session = 3
+after = &"s1_03_shooting"

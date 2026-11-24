@@ -11,6 +11,9 @@ const BLOCK_LEFT := 20.0 * T
 const BEFORE_BLOCK := Vector2(15, 20)
 ## Open space on the bottom lane (as in test_dash_styles).
 const OPEN := Vector2(34, 20)
+## M43: answer: conditions may name these before their changes exist (the path changes
+## land with fork_path in M47, which empties this list); a typo still fails.
+const PLANNED_CHANGES: Array[StringName] = [&"path_arsenal", &"path_auto", &"path_survival"]
 
 var game: Main
 var player: CharacterBody2D
@@ -316,11 +319,25 @@ func test_every_line_parses_and_every_answer_condition_names_a_change() -> void:
 	for r in CampaignDB.reactions:
 		lines.append_array(r.line_list())
 	assert_gt(lines.size(), 20)
+	# M43: lines, reaction whens and cue conditions, each "&" part with "!" stripped.
+	var conds: Array[String] = []
 	for l in lines:
 		assert_eq(l.problem, "", l.text)
-		var w := String(l.when)
-		if w.begins_with("answer:"):
-			assert_not_null(ChangeDB.get_change(StringName(w.trim_prefix("answer:"))), w)
+		conds.append(String(l.when))
+	for r in CampaignDB.reactions:
+		conds.append(r.when)
+	for s in CampaignDB.campaign.sessions:
+		for c in s.cue_list():
+			conds.append(c.cond)
+	var named := 0
+	for cond in conds:
+		for w in Line.condition_parts(cond):
+			if w.begins_with("answer:"):
+				named += 1
+				var id := StringName(w.trim_prefix("answer:"))
+				assert_true(ChangeDB.get_change(id) != null or id in PLANNED_CHANGES, w)
+	assert_gt(named, 0, "the audit's !answer:path_auto gates are checked too")
+	assert_false(&"path_atuo" in PLANNED_CHANGES)
 
 
 func test_the_s4_intro_says_one_direction_line() -> void:
@@ -341,7 +358,7 @@ func test_the_s4_intro_says_one_direction_line() -> void:
 			assert_eq(texts.size(), 3, "mascot, walls, then the dash and its direction in one line")
 
 
-## The & join (M42.2 review): both halves must hold; only dash conditions join.
+## The & join (M42.2 review): both halves must hold. M43 (PLAN v9 1.1): any conditions join.
 func test_dash_conditions_join_with_and() -> void:
 	var l := Line.parse("dash:grapple&dash_aim:aim happy: x")
 	assert_eq([l.problem, l.expression, l.text], ["", &"happy", "x"])
@@ -351,8 +368,14 @@ func test_dash_conditions_join_with_and() -> void:
 	assert_false(l.passes({dash = &"grapple"}), "a missing key fails")
 	assert_string_contains(Line.parse("dash:grapple&dash_aim:nope: x").problem, "unknown dash direction")
 	assert_string_contains(Line.parse("dash:nope&dash_aim:aim: x").problem, "unknown dash")
-	assert_string_contains(Line.parse("won&dash:classic: x").problem, "join")
-	assert_string_contains(Line.parse("dash:classic&event:x: x").problem, "join")
+	var any := Line.parse("won&dash:classic: x")
+	assert_eq(any.problem, "", "M43: plain conditions join too")
+	assert_true(any.passes({outcome = &"won", dash = &"classic"}))
+	assert_false(any.passes({outcome = &"died", dash = &"classic"}))
+	var ev := Line.parse("dash:classic&event:x: x")
+	assert_eq(ev.problem, "")
+	assert_true(ev.passes({dash = &"classic", events = ["x"]}))
+	assert_false(ev.passes({dash = &"classic", events = []}))
 
 
 ## M42.2 review: the S4 direction line overran the 12 s bouncy-walls cue (whose warning,

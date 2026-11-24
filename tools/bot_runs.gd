@@ -70,6 +70,18 @@ extends SceneTree
 ##                                --only plays move (unanswered) and the chain picks by the
 ##                                seed. Each --only line ends with aim=<aim|move> (after
 ##                                air=), and "deaths:" adds by_aim=
+##   --answer=<fork>=<change>     with --campaign (PLAN v9 1.1, M43; repeatable): answers
+##                                that fork with that option. With --only it ships before
+##                                the session (before the seed answers its enemy fork); in
+##                                the chain, the debrief picks it. --dash=<style> (not none)
+##                                and --dash-aim=<aim> are its aliases (fork_dash=dash_<s>,
+##                                fork_dash_aim=dashdir_<a>). Parsed by the game's own
+##                                CampaignDB.answers_from_args: --answer= wins over its
+##                                alias, and the first flag of one kind wins (a first
+##                                --dash=none too); --dash=none with an --answer= for
+##                                fork_dash fails
+## A session that opens a stage card (PLAN v9 2) has it skipped on its first frame; the
+## chain's line then ends with card=<stage> (after version=).
 ## With --only the session's forks are answered by the seed (enemy=), and a session with
 ## a scripted event prints event=<id>@start-end steps=n/N hits_in_event=n (unblocked,
 ## by kind) per seed and an "events:" summary: played fully, died during it (M41 gate).
@@ -118,6 +130,8 @@ var campaign := false
 var only := &""
 var dash_arg := ""                           ## --dash (M42.1): "" = by the seed / classic
 var dash_aim_arg := ""                       ## --dash-aim (M42.2): "" = by the seed / move
+## --answer (PLAN v9 M43) and the dash aliases: fork id -> change id.
+var answers := {}
 
 
 func _initialize() -> void:
@@ -180,19 +194,39 @@ func _run() -> void:
 		elif arg.begins_with("--session-set="):
 			session_set.append_array(arg.trim_prefix("--session-set=").split(",", false))
 		elif arg.begins_with("--dash="):
-			dash_arg = arg.trim_prefix("--dash=")
-			if not StringName(dash_arg) in Change.DASHES and dash_arg != "none":
-				print("[botrun] FAILED: bad --dash=%s (%s or none)" % [dash_arg, Change.DASHES])
+			var style := arg.trim_prefix("--dash=")
+			if not StringName(style) in Change.DASHES and style != "none":
+				print("[botrun] FAILED: bad --dash=%s (%s or none)" % [style, Change.DASHES])
 				quit(1)
 				return
+			if dash_arg == "":
+				dash_arg = style   # the first --dash= wins (CampaignDB.answers_from_args)
 		elif arg.begins_with("--dash-aim="):
-			dash_aim_arg = arg.trim_prefix("--dash-aim=")
-			if not StringName(dash_aim_arg) in Change.DASH_AIMS:
-				print("[botrun] FAILED: bad --dash-aim=%s (%s)" % [dash_aim_arg, Change.DASH_AIMS])
+			var aim := arg.trim_prefix("--dash-aim=")
+			if not StringName(aim) in Change.DASH_AIMS:
+				print("[botrun] FAILED: bad --dash-aim=%s (%s)" % [aim, Change.DASH_AIMS])
+				quit(1)
+				return
+			if dash_aim_arg == "":
+				dash_aim_arg = aim
+		elif arg.begins_with("--answer="):
+			var pair := arg.trim_prefix("--answer=")
+			var fork_id := StringName(pair.get_slice("=", 0))
+			var change_id := StringName(pair.get_slice("=", 1) if "=" in pair else "")
+			var fork: Resource = root.get_node("ChangeDB").get_fork(fork_id)
+			if fork == null or not change_id in (fork.get(&"options") as Array):
+				print("[botrun] FAILED: bad %s (--answer=<fork>=<one of its options>)" % arg)
 				quit(1)
 				return
 		else:
 			specs.append(arg)
+	# The game's own parser, so a bot line and a game jump with the same flags answer the
+	# same forks (--answer= wins over its alias; the first of one kind wins).
+	answers = root.get_node("CampaignDB").call(&"answers_from_args", OS.get_cmdline_user_args())
+	if dash_arg == "none" and answers.has(&"fork_dash"):
+		print("[botrun] FAILED: --dash=none (a locked dash) but fork_dash is answered %s" % answers[&"fork_dash"])
+		quit(1)
+		return
 	if specs.is_empty():
 		specs = PackedStringArray(["1", "2", "3", "4i", "5i"])
 	var telemetry: GDScript = load("res://systems/telemetry.gd")
@@ -363,6 +397,16 @@ func _hit_kinds() -> Dictionary:
 	return kinds
 
 
+## Skips the game's stage card if it is open (PLAN v9 2: the bot never waits on the
+## paused tree). Returns the card's stage, or 0 when none was shown.
+func _skip_card(game: Node) -> int:
+	var card: Node = game.get(&"stage_card")
+	if card == null or not card.call(&"is_open"):
+		return 0
+	card.call(&"skip")
+	return int(card.get(&"stage"))
+
+
 ## The archetype a session's "fork:" enemy resolved to from the save ("-": none).
 func _forked_enemy(session: Resource) -> String:
 	if not (session.get(&"enemies") as Array).any(func(e: StringName) -> bool: return String(e).begins_with("fork:")):
@@ -415,16 +459,16 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		if not db.jump_to(only):
 			print("[botrun] FAILED: no session %s" % only)
 			return failures + 1
+		# --answer= (and the dash aliases) first, so the seed answers only what they leave.
+		for f: StringName in answers:
+			db.answer_fork(f, answers[f])
 		var forked := _answer_forks(db.get_session(only), run_seed)
-		if dash_arg != "" and dash_arg != "none":
-			db.answer_dash(StringName(dash_arg))
-		if dash_aim_arg != "":
-			db.answer_dash_aim(StringName(dash_aim_arg))
 		main_script.set(&"next_seed", run_seed)
 		var game: Node = load("res://main.tscn").instantiate()
 		root.add_child(game)
 		current_scene = game
 		await physics_frame
+		_skip_card(game)
 		run_state.invincible = invincible
 		game.player.set_bot(true)
 		dash_count.uses = 0
@@ -577,8 +621,10 @@ func _answer_forks(session: Resource, run_seed: int) -> String:
 			continue
 		var f: Resource = root.get_node("ChangeDB").get_fork(StringName(String(e).trim_prefix("fork:")))
 		var opts: Array = f.call(&"changes")
-		var pick: Resource = opts[posmod(run_seed, opts.size())]
-		save.call(&"ship", pick.get(&"id"), &"patch")
+		var pick: Resource = f.call(&"answer")   # answered already (--answer=): keep it
+		if pick == null:
+			pick = opts[posmod(run_seed, opts.size())]
+			save.call(&"ship", pick.get(&"id"), &"patch")
 		out = "-"
 		var types: Array = session.call(&"enemy_types")
 		for t: StringName in types:
@@ -668,13 +714,11 @@ func _through_debrief(debrief: Node, pick_seed: int) -> String:
 		if debrief.phase == &"fork":
 			var options: Array = debrief.fork_options()
 			var index := posmod(floori(float(pick_seed) / float(div)), options.size())
-			if dash_arg != "" and dash_arg != "none":
+			# --answer= (and --dash= / --dash-aim=): that fork picks its named option.
+			var fork_id: StringName = options[0].fork if not options.is_empty() else &""
+			if answers.has(fork_id):
 				for k in options.size():
-					if String(options[k].id) == "dash_" + dash_arg:
-						index = k
-			if dash_aim_arg != "":
-				for k in options.size():
-					if String(options[k].id) == "dashdir_" + dash_aim_arg:
+					if options[k].id == answers[fork_id]:
 						index = k
 			div *= options.size()
 			picks.append(String(options[index].id))
@@ -721,6 +765,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		run_state.invincible = invincible
 		game.player.set_bot(true)
 		var attempt: int = db.attempt(session.id)
+		var card_stage := _skip_card(game)
 		var opened := false
 		for frame in MAX_FRAMES:
 			if game.debrief.is_open():
@@ -769,7 +814,10 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			read_sum += FORK_SECONDS * pick.split(",").size()
 		read_sum += _read_estimate(game)
 		var last: bool = db.is_done()   # the title screen comes next
-		print(line + " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()])
+		line += " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()]
+		if card_stage > 0:
+			line += " card=%d" % card_stage   # PLAN v9 2: last, so the Stage 1 lines stay byte-identical
+		print(line)
 		if last:
 			break
 		if step > 50:

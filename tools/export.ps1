@@ -1,5 +1,6 @@
 # Windows export check (playtest builds; G13): export the release build, boot the
-# exported game headless, and require the game banner, the campaign data, the full
+# exported game headless, and require the game banner, the campaign data (its session
+# and reaction counts and last session read from the data, PLAN v9 4), the full
 # mutation list (big patches marked) and a clean log; then boot S5 and S4 (teleport) too.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
@@ -12,6 +13,18 @@ $outDir = Join-Path $root 'builds\windows'
 New-Item -ItemType Directory -Force $logDir, $outDir | Out-Null
 $errorPattern = 'SCRIPT ERROR|Parse Error|^\s*ERROR:|Could not find type|Failed to load script'
 $failures = @()
+
+# PLAN v9 4 (M43): the campaign's size and last session, read as check.ps1 reads them.
+$campaignText = Get-Content (Join-Path $root 'campaign\campaign.tres') -Raw
+$sessionRids = @{}
+foreach ($m in [regex]::Matches($campaignText, '\[ext_resource type="Resource" path="res://campaign/sessions/(\w+)\.tres" id="([^"]+)"\]')) {
+    $sessionRids[$m.Groups[2].Value] = $m.Groups[1].Value
+}
+$sessionsList = [regex]::Match($campaignText, '(?m)^sessions = Array\[ExtResource\("[^"]+"\)\]\(\[(.*)\]\)').Groups[1].Value
+$sessionIds = @([regex]::Matches($sessionsList, 'ExtResource\("([^"]+)"\)') | ForEach-Object { $sessionRids[$_.Groups[1].Value] } | Where-Object { $_ })
+$sessionCount = $sessionIds.Count
+$lastSession = if ($sessionCount -gt 0) { $sessionIds[-1] } else { '' }
+$reactionCount = @(Get-ChildItem (Join-Path $root 'campaign\reactions') -Filter '*.tres').Count
 
 Write-Host '[1/2] export'
 $exportLog = Join-Path $logDir 'export.log'
@@ -43,8 +56,8 @@ if ($failures.Count -eq 0) {
     # M42: Godot 4.7's text-to-binary resource conversion empties every PackedStringArray
     # (lines, cues, intros) in the export; project.godot keeps text resources as text.
     # A regression shows here as "reaction <id>: no lines" errors.
-    if ($text -match '\[campaign\] (\d+ sessions: .*)') { Write-Host "    campaign: $($Matches[1].Trim())" }
-    if ($text -notmatch '\[campaign\] 7 sessions: .*s1_06_playground; 30 reactions') { $failures += 'boot: the campaign data did not load' }
+    if ($text -match '\[campaign\] (\d+ sessions: .*)') { Write-Host "    campaign: $($Matches[1].Trim()) (data: $sessionCount sessions, last $lastSession, $reactionCount reactions)" }
+    if ($sessionCount -eq 0 -or $text -notmatch "\[campaign\] $sessionCount sessions: .*$lastSession; $reactionCount reactions") { $failures += 'boot: the campaign data did not load' }
     # Both lines end with the save's fork answers (PLAN v6 M36); the inert smoke boot has none.
     if (([regex]::Matches($text, '\[boot\] Patch Notes .*, answers -')).Count -lt 2) { $failures += 'boot: lines without the save''s answers' }
     $expected = (Get-ChildItem (Join-Path $root 'mutations') -Directory).Count
