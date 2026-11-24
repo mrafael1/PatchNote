@@ -217,6 +217,12 @@ if ($BotRuns) {
     Select-String -Path $flip.Log -Pattern '^\[botrun\] session=s1_06_playground' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($flip.Text -notmatch 'landed=edit_gift_explode@[\d.]+,edit_big_enemies@[\d.]+,edit_inverted@(\d+\.\d),edit_slowmo@(\d+\.\d)' -or ([double]$Matches[2] - [double]$Matches[1]) -lt 0 -or ([double]$Matches[2] - [double]$Matches[1]) -gt 0.11) { $failures += 'bot_s6_flip: slow-mo did not land with the flip' }
     if ($flip.Text -notmatch '\[botrun\] summary: s1_06_playground x1, .* 0 failures') { $failures += 'bot_s6_flip: run failed' }
+    # M44: the S7 stub (dev jump only) hands the shotgun at 12 s through the give cue.
+    $s7 = Invoke-Godot 'bot_s7_stub' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_01_tryout 3i'
+    Test-Errors 'bot_s7_stub' $s7
+    Select-String -Path $s7.Log -Pattern '^\[botrun\] session=s2_01_tryout' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($s7.Text -notmatch '(?m)outcome=win .* weapons=pistol:1,shotgun:1\r?$') { $failures += 'bot_s7_stub: not won, or the give cue did not hand the shotgun' }
+    if ($s7.Text -notmatch '\[botrun\] summary: s2_01_tryout x1, .* 0 failures') { $failures += 'bot_s7_stub: run failed' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }

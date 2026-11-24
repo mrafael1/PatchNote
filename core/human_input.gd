@@ -4,6 +4,7 @@ extends PlayerInput
 
 var _stick_aim_active := false
 var _wait_release := false
+var _pending_step := 0   ## a mouse wheel notch (pressed and released in one event pair)
 
 
 func _physics_process(_delta: float) -> void:
@@ -13,6 +14,9 @@ func _physics_process(_delta: float) -> void:
 	jump_pressed = Input.is_action_just_pressed(&"jump")
 	jump_held = Input.is_action_pressed(&"jump")
 	wait_pressed = Input.is_action_just_pressed(&"wait")
+	var step := int(Input.is_action_just_pressed(&"weapon_next")) - int(Input.is_action_just_pressed(&"weapon_prev"))
+	switch_step = _pending_step if _pending_step != 0 else step
+	_pending_step = 0
 	if _wait_release:
 		if fire or jump_held or Input.is_action_pressed(&"dash"):
 			fire = false
@@ -20,6 +24,7 @@ func _physics_process(_delta: float) -> void:
 			jump_pressed = false
 			dash_pressed = false
 			wait_pressed = false
+			switch_step = 0
 		else:
 			_wait_release = false
 
@@ -42,3 +47,10 @@ func require_fresh_press() -> void:
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		_stick_aim_active = false
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+		# The wheel presses and releases in one frame: a physics-tick read can miss it.
+		match (event as InputEventMouseButton).button_index:
+			MOUSE_BUTTON_WHEEL_DOWN:
+				_pending_step = 1
+			MOUSE_BUTTON_WHEEL_UP:
+				_pending_step = -1

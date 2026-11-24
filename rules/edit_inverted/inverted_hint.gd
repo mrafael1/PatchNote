@@ -58,35 +58,15 @@ static func moved(dir: Vector2) -> Vector2:
 	return dir.rotated(deg_to_rad(turn)) if turn != 0.0 else dir
 
 
-## The first keyboard key bound to `action` ("" if none), for the arrow's label. The move
-## keys are bound by physical position (InputSetup), so the label is the letter printed on
-## the player's keyboard at that spot (Z, not W, on AZERTY). `to_label` maps a physical
-## code to the layout's key (tests pass their own layout); by default the DisplayServer's.
+## The first keyboard key bound to `action` ("" if none), for the arrow's label: the
+## letter printed on the player's keyboard at that spot (InputSetup.key_label).
 static func key_label(action: StringName, to_label := Callable()) -> String:
-	if not InputMap.has_action(action):
-		return ""
-	if not to_label.is_valid():
-		to_label = layout_label
-	for ev in InputMap.action_get_events(action):
-		var k := ev as InputEventKey
-		if k == null:
-			continue
-		var code := k.keycode
-		if k.physical_keycode != KEY_NONE:
-			code = to_label.call(k.physical_keycode)
-			if code == KEY_NONE:
-				code = k.physical_keycode
-		if code != KEY_NONE:
-			return OS.get_keycode_string(code)
-	return ""
+	return InputSetup.key_label(action, to_label)
 
 
-## The key printed at physical position `physical` on the current layout (headless has no
-## layout: the position's own name).
+## The key printed at physical position `physical` on the current layout.
 static func layout_label(physical: Key) -> Key:
-	if DisplayServer.get_name() == "headless":
-		return physical
-	return DisplayServer.keyboard_get_label_from_physical(physical)
+	return InputSetup.layout_label(physical)
 
 
 ## The arrows: {from, dir, label} per input (tests read it).

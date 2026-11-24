@@ -299,8 +299,11 @@ func test_bounce_explode_gravity_gives_arcing_explosive_ricochets() -> void:
 
 ## A mutation is added by adding its folder. Nothing outside that folder may name it.
 func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
+	# M44 (D1): res://weapons/ is skipped: the weapon ids orbit (and later well) are PLAN v9
+	# 1.4's names, and the orbit weapon reuses the v6 shard script. test_weapons.gd keeps
+	# weapons/ off RunState.apply / add_ai / MutationDB instead.
 	var files := _source_files("res://", ["res://addons/", "res://tests/", "res://tools/",
-			"res://.godot/", "res://.check/"])
+			"res://.godot/", "res://.check/", "res://weapons/"])
 	assert_gt(files.size(), 30)
 	for m in MutationDB.all:
 		var own := "res://mutations/%s/" % m.id

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"launcher"
+title = "Launcher"
+mode = &"aimed"
+cooldown = 0.9
+damage = 2.0
+speed = 600.0
+size = 1.6
+blast_radius = 1.6
+ammo = 10
+pickup_ammo = 4
+icon = &"ball"
+ranks = Array[Dictionary]([{"traits": [&"sticky"]}, {"traits": [&"sticky", &"implode"]}])
+pitch = "Slow shells that blow up on contact."
+card_text = PackedStringArray("Launcher: shells blow up on contact.", "Launcher II: shells stick, then blow bigger.", "Launcher III: shells pull enemies in before they blow.")

@@ -20,6 +20,7 @@ var damage_locked := false
 @onready var health: Health = $Health
 @onready var shooter: Shooter = $Shooter
 @onready var dasher: Dasher = $Dasher
+@onready var loadout: Loadout = $Loadout   ## M44: every shot goes through it (the pistol at rank 1 is today's)
 @onready var _aim: Node2D = $Aim
 @onready var _visual: RectVisual = $Visual
 
@@ -102,16 +103,18 @@ func _physics_process(_delta: float) -> void:
 			dasher.use(_facing, input.aim_dir)
 	if shooting_locked:
 		return
+	if input.switch_step != 0:
+		loadout.switch(input.switch_step)
 	if input.fire:
-		shooter.try_fire(input.aim_dir)
-	elif RunState.rules.auto_attack and shooter.can_fire():
+		loadout.try_fire(input.aim_dir)
+	elif RunState.rules.auto_attack and loadout.can_fire():
 		auto_fire()
 
 
 ## auto_attack: one shot at the nearest visible enemy. Returns true if it fired.
 func auto_fire() -> bool:
 	var target := _auto_target()
-	return target != null and shooter.try_fire(target.global_position - global_position, true) != null
+	return target != null and loadout.try_fire(target.global_position - global_position, true)
 
 
 ## Nearest enemy in range with a clear line. Same Shooter, same cooldown as manual fire.

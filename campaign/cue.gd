@@ -47,9 +47,10 @@ const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
 ## Parsed and validated, but nothing runs them yet: CampaignDB.problems() refuses each in
 ## the campaign's data ("not built yet"). Each later milestone shrinks these lists.
-const UNBUILT_ACTIONS: Array[StringName] = [&"path", &"give", &"drop", &"look", &"boss"]
+## M44: give runs (SessionRunner -> Loadout.give).
+const UNBUILT_ACTIONS: Array[StringName] = [&"path", &"drop", &"look", &"boss"]
 const UNBUILT_WHENS: Array[StringName] = [&"room", &"boss_hp", &"level", &"picked"]
-const UNBUILT_TAG := true   ## a "[tag]" cue: the pool rule that reads it comes with weapons (M44)
+const UNBUILT_TAG := true   ## a "[tag]" cue: the pool rule that reads it comes with offers (M45a)
 
 var when: StringName = &""
 var value := 0.0

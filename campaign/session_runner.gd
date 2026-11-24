@@ -55,9 +55,12 @@ func _ready() -> void:
 
 
 ## Queues a line (dropped when muted). The next one comes once this one has been read.
+## A "{key:<action>}" in its text becomes the key printed on the player's keyboard
+## (with_keys; M44 review: AZERTY prints A where weapon_prev's Q sits).
 func say(line: Line) -> void:
 	if muted or line == null:
 		return
+	line = with_keys(line)
 	_queue.append(line)
 	line_queued.emit(line)
 
@@ -65,6 +68,14 @@ func say(line: Line) -> void:
 ## The lines waiting their turn, oldest first (the intro, queued before anyone listens).
 func queued_lines() -> Array[Line]:
 	return _queue.duplicate()
+
+
+## `line`, or a copy with its {key:...} tokens named for this keyboard (the parse is
+## cached and shared: never changed in place).
+static func with_keys(line: Line, to_label := Callable()) -> Line:
+	if not line.text.contains("{key:"):
+		return line
+	return Line.make(InputSetup.expand_keys(line.text, to_label), line.expression, line.when)
 
 
 static func read_seconds(text: String) -> float:
@@ -156,6 +167,13 @@ func _fire(cue: Cue, index: int) -> void:
 				push_warning("Session %s: no event player for %s" % [session.id, cue.target])
 			else:
 				event_player.play(cue.target, &"cue")   # false: seen (skipped) or busy
+		&"give":
+			# M44: with no path, a free slot (or a rank up). Paths redefine it (M45a-M47).
+			var loadout: Loadout = null
+			if genre != null and is_instance_valid(genre.player):
+				loadout = Component.find(genre.player, Loadout) as Loadout
+			if loadout == null or not loadout.give(cue.target, cue.rank):
+				push_warning("Session %s: give %s %d refused" % [session.id, cue.target, cue.rank])
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
 

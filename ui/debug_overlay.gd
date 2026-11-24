@@ -13,6 +13,7 @@ var _rework_box: VBoxContainer
 var _buttons := {}
 var _edit_buttons := {}   ## rule edit id -> Button (PLAN v8 1.4; a campaign session only)
 var _event_buttons := {}  ## scripted event id -> Button (PLAN v8 1.5)
+var _weapon_buttons := {}  ## weapon id -> Button (M44)
 var _frame := 0
 
 
@@ -39,7 +40,24 @@ func _ready() -> void:
 	var box := VBoxContainer.new()
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)
-	# Rule edits first (PLAN v8 1.4): through the rule book, warning included.
+	# Weapons first (M44): give one to the player, or rank it up (capped at 3).
+	var weapons_heading := Label.new()
+	weapons_heading.text = "WEAPONS (give / rank up; the player's loadout)"
+	box.add_child(weapons_heading)
+	for w in WeaponDB.all():
+		var wb := Button.new()
+		wb.focus_mode = Control.FOCUS_NONE
+		wb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		wb.pressed.connect(give_weapon.bind(w.id))
+		box.add_child(wb)
+		_weapon_buttons[w.id] = wb
+	var clear_button := Button.new()
+	clear_button.focus_mode = Control.FOCUS_NONE
+	clear_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	clear_button.text = "clear (pistol only)"
+	clear_button.pressed.connect(clear_weapons)
+	box.add_child(clear_button)
+	# Rule edits (PLAN v8 1.4): through the rule book, warning included.
 	var edits_heading := Label.new()
 	edits_heading.text = "RULE EDITS (campaign session: click to request with its warning / take back)"
 	box.add_child(edits_heading)
@@ -92,6 +110,38 @@ func _ready() -> void:
 	EventBus.big_swapped.connect(func(_o: Resource, _n: Resource, _d: Array) -> void: _refresh_console())
 	EventBus.ai_patch_added.connect(func(_m: Resource, _o: StringName) -> void: _refresh_console())
 	EventBus.ai_patch_removed.connect(func(_m: Resource, _r: StringName) -> void: _refresh_console())
+	EventBus.weapon_changed.connect(func(_id: StringName, _rank: int) -> void: _refresh_weapons())
+	_refresh_weapons()
+
+
+## The player's loadout, or null (no game, no player).
+func loadout() -> Loadout:
+	if game == null or not is_instance_valid(game.player):
+		return null
+	return Component.find(game.player, Loadout) as Loadout
+
+
+## F2's weapon row: give it (held: one rank up, capped at 3).
+func give_weapon(id: StringName) -> bool:
+	var lo := loadout()
+	var ok := lo != null and lo.give(id)
+	_refresh_weapons()
+	return ok
+
+
+func clear_weapons() -> void:
+	var lo := loadout()
+	if lo != null:
+		lo.clear()
+	_refresh_weapons()
+
+
+func _refresh_weapons() -> void:
+	var lo := loadout()
+	for id: StringName in _weapon_buttons:
+		var rank := lo.rank_of(id) if lo != null else 0
+		(_weapon_buttons[id] as Button).text = "%s %s — %s" % [
+				"[r%d]" % rank if rank > 0 else "[ ]", id, WeaponDB.get_weapon(id).title]
 
 
 ## F2's rule edit row: live, take it back; pending, cancel it; otherwise request it
@@ -180,6 +230,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_console.visible = not _console.visible
 		if _console.visible:
 			_refresh_rework()
+			_refresh_weapons()
 	elif event.is_action_pressed(&"debug_invincible"):
 		RunState.invincible = not RunState.invincible
 	elif event.is_action_pressed(&"debug_spawn"):
@@ -280,6 +331,10 @@ func _build_text() -> String:
 	for key: String in rules:
 		var changed := "  *" if rules[key] != base[key] else ""
 		lines.append("  %s = %s%s" % [key, rules[key], changed])
+	var lo := loadout()
+	if lo != null:
+		var w := lo.current()
+		lines.append("weapon=%s:%d loadout=%s" % [w.def.id if w else &"-", w.rank if w else 0, lo.summary()])
 	lines.append("kills by source: %s" % [RunState.kills_by_source])
 	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F6 prompt  F7 bot  F9 dev session  Shift+F9 ship next")
 	return "\n".join(lines)

@@ -203,6 +203,9 @@ static func _clock(seconds: float) -> String:
 static func _source_title(key: String) -> String:
 	if key == "base":
 		return "Base weapon"
+	if key.begins_with("weapon:"):   # M44: a weapon's kills ("weapon:shotgun")
+		var w := WeaponDB.get_weapon(StringName(key.trim_prefix("weapon:")))
+		return w.title if w else key
 	var m := MutationDB.get_mutation(StringName(key))
 	return m.title if m else key
 

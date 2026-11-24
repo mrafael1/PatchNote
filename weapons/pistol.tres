@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"pistol"
+title = "Pistol"
+mode = &"aimed"
+cooldown = 0.18
+damage = 1.0
+speed = 900.0
+icon = &"dot"
+ranks = Array[Dictionary]([{"traits": [&"heavy_round"]}, {"traits": [&"heavy_round", &"seeker"]}])
+pitch = "The gun you started with. It still works."
+card_text = PackedStringArray("Pistol: the gun you started with.", "Pistol II: every fifth shot is heavy.", "Pistol III: shots bend toward the nearest enemy.")

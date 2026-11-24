@@ -70,6 +70,13 @@ extends SceneTree
 ##                                --only plays move (unanswered) and the chain picks by the
 ##                                seed. Each --only line ends with aim=<aim|move> (after
 ##                                air=), and "deaths:" adds by_aim=
+##   --loadout=<id:rank>[,<id:rank>...]   with --only (M44, bot only; M45a reuses it): on
+##                                the session's first frame the player's loadout is cleared
+##                                and each weapon set at exactly that rank (1-3), in order;
+##                                the first aimed one is active (a passive rides along with
+##                                the pistol). Each --only line then ends with
+##                                weapons=<id:rank,...> (the loadout at the end), as it does
+##                                for a session that lists weapons
 ##   --answer=<fork>=<change>     with --campaign (PLAN v9 1.1, M43; repeatable): answers
 ##                                that fork with that option. With --only it ships before
 ##                                the session (before the seed answers its enemy fork); in
@@ -132,6 +139,8 @@ var dash_arg := ""                           ## --dash (M42.1): "" = by the seed
 var dash_aim_arg := ""                       ## --dash-aim (M42.2): "" = by the seed / move
 ## --answer (PLAN v9 M43) and the dash aliases: fork id -> change id.
 var answers := {}
+## --loadout (M44): [[id, rank], ...]
+var loadout_arg: Array = []
 
 
 func _initialize() -> void:
@@ -209,6 +218,16 @@ func _run() -> void:
 				return
 			if dash_aim_arg == "":
 				dash_aim_arg = aim
+		elif arg.begins_with("--loadout="):
+			var db_script: GDScript = load("res://weapons/weapon_db.gd")
+			for pair in arg.trim_prefix("--loadout=").split(",", false):
+				var wid := StringName(pair.get_slice(":", 0))
+				var wrank := int(pair.get_slice(":", 1)) if ":" in pair else 1
+				if not db_script.call(&"has", wid) or wrank < 1 or wrank > 3:
+					print("[botrun] FAILED: bad --loadout entry %s (<weapon>:<rank 1-3>)" % pair)
+					quit(1)
+					return
+				loadout_arg.append([wid, wrank])
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=")
 			var fork_id := StringName(pair.get_slice("=", 0))
@@ -479,6 +498,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		var aim_name := "aim" if game.player.dasher.aims else "move"
 		if lift > 0.0:
 			game.run_loop.goal_value = lift
+		var loadout: Node = game.player.get_node_or_null(^"Loadout")
+		if not loadout_arg.is_empty() and loadout != null:
+			_force_loadout(loadout)
 		if cond != "":
 			game.session_runner.drop_cues(&"edit")
 			if cond != "none":
@@ -562,6 +584,10 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		landed_text += " dash=%s uses=%d misses=%d fizzles=%d air=%.1f" % [dash_name, dash_count.uses,
 				dash_count.misses, dash_count.fizzles, air]
 		landed_text += " aim=%s" % aim_name   # M42.2: after air=, so dash=<s> uses= regexes hold
+		# M44: at the very end, only where weapons are in play (every older assert holds).
+		var listed: Array = run_state.session.weapons if run_state.session != null else []
+		if loadout != null and is_instance_valid(loadout) and (not loadout_arg.is_empty() or not listed.is_empty()):
+			landed_text += " weapons=%s" % loadout.summary()
 		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
@@ -612,6 +638,19 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			ev_stats.died_during, reached, roundi(rate * 100.0), "PASS" if rate <= 0.25 else "FAIL",
 			ev_stats.died_before, ev_stats.hits, ",".join(kinds) if not kinds.is_empty() else "-"])
 	return failures
+
+
+## --loadout (M44): clear, then each weapon at exactly its rank; the first aimed one active.
+func _force_loadout(loadout: Node) -> void:
+	loadout.clear()
+	var first_aimed := &""
+	for pair: Array in loadout_arg:
+		loadout.set_weapon(pair[0], pair[1])
+		var def: Resource = load("res://weapons/weapon_db.gd").call(&"get_weapon", pair[0])
+		if first_aimed == &"" and def.get(&"mode") == &"aimed":
+			first_aimed = pair[0]
+	if first_aimed != &"":
+		loadout.select(first_aimed)
 
 
 ## With --only: answers each fork the session's enemies name, picked by the seed (an

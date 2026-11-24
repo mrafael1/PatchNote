@@ -10,6 +10,7 @@ var dash_pressed := false       ## true for one physics tick
 var jump_pressed := false       ## true for one physics tick
 var jump_held := false
 var wait_pressed := false       ## true for one physics tick; passes a turn under B2
+var switch_step := 0            ## -1 / +1 for one physics tick: the previous / next weapon (M44)
 
 
 func _init() -> void:

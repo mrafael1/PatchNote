@@ -396,10 +396,11 @@ func test_path_cues_need_a_tryout_and_new_things_are_not_built_yet() -> void:
 	var text := "\n".join(CampaignDB.problems(_campaign([s])))
 	for expected in ["cue 'at 3: path auto': path is not built yet", "[tag] is not built yet",
 			"level is not built yet", "room is not built yet", "checkpoint is not built yet",
-			"stages are not built yet", "weapons are not built yet", "path is not built yet (M45a)",
+			"stages are not built yet", "path is not built yet (M45a)",
 			"spawn_weights are not built yet"]:
 		assert_string_contains(text, expected)
 	assert_false("hp_floor" in text, "the floor is built")
+	assert_false("weapons" in text, "weapons are built (M44)")
 	s.goal = SessionDef.BOSS
 	s.stages = &""
 	assert_string_contains(str(s.problems()), "goal boss needs a boss and checkpoint")

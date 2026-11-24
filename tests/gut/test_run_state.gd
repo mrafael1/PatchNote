@@ -179,11 +179,15 @@ func test_reset_returns_to_a_clean_run() -> void:
 
 func test_same_seed_gives_same_random_streams() -> void:
 	RunState.reset(99)
-	var a := [RunState.director_rng.randi(), RunState.gameplay_rng.randi()]
+	var a := [RunState.director_rng.randi(), RunState.gameplay_rng.randi(), RunState.loot_rng.randi(),
+			RunState.pick_rng.randi()]
 	RunState.reset(99)
-	var b := [RunState.director_rng.randi(), RunState.gameplay_rng.randi()]
+	var b := [RunState.director_rng.randi(), RunState.gameplay_rng.randi(), RunState.loot_rng.randi(),
+			RunState.pick_rng.randi()]
 	assert_eq(a, b)
-	assert_ne(a[0], a[1], "director and gameplay streams differ")
+	for i in a.size():
+		for j in range(i + 1, a.size()):
+			assert_ne(a[i], a[j], "the four streams differ (M44: loot and pick)")
 
 
 func test_pause_reasons_combine() -> void:

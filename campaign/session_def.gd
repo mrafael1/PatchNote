@@ -206,6 +206,29 @@ func asked_forks() -> Array[StringName]:
 	return out
 
 
+## M44 (PLAN v9 1.2, 1.3): `weapons` names known weapons once each and, when set, lists the
+## pistol (the start weapon with no path); every `give` cue hands out one of them.
+func _weapon_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	var seen := {}
+	for w in weapons:
+		if not WeaponDB.has(w):
+			out.append("%s: unknown weapon %s" % [where, w])
+		if seen.has(w):
+			out.append("%s: weapon %s is listed twice" % [where, w])
+		seen[w] = true
+	if not weapons.is_empty() and not Loadout.PISTOL in weapons:
+		out.append("%s: weapons must list %s (the start weapon)" % [where, Loadout.PISTOL])
+	for c in cue_list():
+		if c.problem != "" or c.action != &"give":
+			continue
+		if not WeaponDB.has(c.target):
+			out.append("%s: cue '%s': unknown weapon %s" % [where, c.source, c.target])
+		elif not c.target in weapons:
+			out.append("%s: cue '%s': give %s: not in the session's weapons" % [where, c.source, c.target])
+	return out
+
+
 ## Everything wrong with this session on its own (CampaignDB adds what needs the order).
 func problems() -> Array[String]:
 	var out: Array[String] = []
@@ -247,6 +270,7 @@ func problems() -> Array[String]:
 	for c in ships:
 		if ChangeDB.get_change(c) == null:
 			out.append("%s: ships unknown change %s" % [where, c])
+	out.append_array(_weapon_problems(where))
 	for k in cooking:
 		if k.strip_edges() == "":
 			out.append("%s: an empty cooking line" % where)

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"orbit"
+title = "Orbit"
+mode = &"passive"
+cooldown = 0.4
+damage = 1.0
+pellets = 2
+speed = 0.0
+icon = &"ring"
+ranks = Array[Dictionary]([{"traits": [&"flare"]}, {"traits": [&"flare", &"guard"]}])
+pitch = "Two shards circle you and hurt what they touch."
+card_text = PackedStringArray("Orbit: two shards circle you.", "Orbit II: a dash flares them out.", "Orbit III: shards eat enemy shots.")

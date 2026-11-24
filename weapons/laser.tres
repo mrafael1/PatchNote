@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"laser"
+title = "Laser"
+mode = &"aimed"
+cooldown = 0.6
+damage = 2.0
+pierce = 3
+speed = 1600.0
+size = 1.5
+ammo = 16
+pickup_ammo = 6
+icon = &"line"
+ranks = Array[Dictionary]([{"traits": [&"burn_line"]}, {"traits": [&"burn_line", &"ricochet"]}])
+pitch = "Fast, and it goes through things."
+card_text = PackedStringArray("Laser: goes through three enemies.", "Laser II: leaves a burning line.", "Laser III: bounces once off a wall, piercing again.")

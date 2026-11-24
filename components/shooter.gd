@@ -48,3 +48,52 @@ func try_fire(dir: Vector2, auto := false) -> Node:
 	_ready_in = cooldown
 	EventBus.projectile_fired.emit(projectile)
 	return projectile
+
+
+## A weapon's shot (PLAN v9 1.4, M44): `pellets` projectiles in an even fan of
+## `spread_deg` (no randomness), each with the weapon's pierce, bounces, size, lifetime,
+## blast and knockback, credited to "weapon:<id>". Traits edit each pellet's params and
+## attach to it. Returns the pellets spawned (empty at the cap). The Loadout owns the
+## weapon's cooldown: this never touches _ready_in, and try_fire above is unchanged.
+func fire(weapon: Weapon, dir: Vector2, auto := false) -> Array[Node]:
+	var out: Array[Node] = []
+	if dir == Vector2.ZERO or weapon == null:
+		return out
+	var shooter := get_parent() as Node2D
+	var from := shooter.global_position
+	var aim := dir.normalized()
+	var muzzle := from + aim * muzzle_offset
+	var query := PhysicsRayQueryParameters2D.create(from, muzzle, Tuning.LAYER_WORLD)
+	if not shooter.get_world_2d().direct_space_state.intersect_ray(query).is_empty():
+		muzzle = from
+	var n := int(weapon.value(&"pellets"))
+	var spread := float(weapon.value(&"spread_deg"))
+	var source := StringName("weapon:%s" % weapon.id())
+	for i in n:
+		var a := 0.0 if n <= 1 else deg_to_rad(-spread / 2.0 + spread * i / (n - 1))
+		var params := {
+			&"kind": &"player_projectile" if faction == &"player" else &"enemy_projectile",
+			&"faction": faction,
+			&"velocity": aim.rotated(a) * float(weapon.value(&"speed")),
+			&"damage": float(weapon.value(&"damage")),
+			&"auto_fired": auto,
+			&"pierce_left": int(weapon.value(&"pierce")),
+			&"bounces_left": int(weapon.value(&"bounces")),
+			&"size": float(weapon.value(&"size")),
+			&"lifetime": float(weapon.value(&"lifetime")),
+			&"blast_radius": float(weapon.value(&"blast_radius")) * Tuning.TILE,
+			&"knockback": -1.0,
+			&"weapon_id": weapon.id(),
+			&"source_patch": source,
+			&"origin": muzzle,
+		}
+		for t in weapon.traits:
+			t.shot(weapon, i, params)
+		var projectile := RunState.spawn(PROJECTILE, muzzle, params)
+		if projectile == null:
+			continue
+		for t in weapon.traits:
+			t.spawned(weapon, projectile)
+		out.append(projectile)
+		EventBus.projectile_fired.emit(projectile)
+	return out

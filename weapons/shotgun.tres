@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"shotgun"
+title = "Shotgun"
+mode = &"aimed"
+cooldown = 0.55
+damage = 1.0
+pellets = 5
+spread_deg = 28.0
+speed = 900.0
+lifetime = 0.35
+ammo = 24
+pickup_ammo = 8
+icon = &"fan"
+ranks = Array[Dictionary]([{"traits": [&"knockback_cone"]}, {"traits": [&"knockback_cone", &"point_blank"], "spread_deg": 18.0}])
+pitch = "Five pellets, short reach. Get close."
+card_text = PackedStringArray("Shotgun: five pellets, short reach.", "Shotgun II: knockback.", "Shotgun III: a tighter cone, double damage up close.")

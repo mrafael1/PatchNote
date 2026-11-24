@@ -76,6 +76,8 @@ static func parse(source: String) -> Line:
 		l.problem = "empty line '%s'" % source
 	else:
 		l.problem = condition_problem(String(l.when), source)
+		if l.problem == "":
+			l.problem = InputSetup.keys_problem(l.text)
 	return l
 
 

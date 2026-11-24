@@ -30,6 +30,10 @@ var session: SessionDef
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
+## PLAN v9 1.4 (M44): drops (M47) and pick offers (M45a) draw here, never from the two
+## above. Nothing draws from them yet.
+var loot_rng := RandomNumberGenerator.new()
+var pick_rng := RandomNumberGenerator.new()
 
 var game_time := 0.0          ## unpaused, time-scaled seconds since the run started
 var real_frames := 0          ## physics frames since the run started, pauses included (telemetry)
@@ -493,6 +497,8 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
+	loot_rng.seed = hash([new_seed, "loot"])
+	pick_rng.seed = hash([new_seed, "pick"])
 	_pending.clear()
 	_grace_until = -1.0
 	_time_factors.clear()

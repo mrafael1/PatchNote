@@ -27,6 +27,7 @@ signal player_touched
 signal turn_started(number: int)   ## B2: the player's action is fixed (TurnClock.player_tile); enemies plan
 signal turn_ended(number: int)     ## B2: the turn's time is over; hits resolve on tiles
 signal explosion(pos: Vector2, radius: float)   ## presentation hook; carries no damage
+signal weapon_changed(id: StringName, rank: int)   ## PLAN v9 1.6 (M44): given, ranked up, switched to
 signal patch_applied(mutation: Resource)
 signal patch_reverted(mutation: Resource)
 signal big_swapped(old: Resource, new: Resource, dropped: Array)   ## old may be null

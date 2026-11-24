@@ -188,8 +188,9 @@ static func _unbuilt_problems(s: SessionDef) -> Array[String]:
 	for cue in s.cue_list():
 		if cue.problem == "" and cue.unbuilt() != "":
 			out.append("%s: cue '%s': %s" % [where, cue.source, cue.unbuilt()])
-	if not s.weapons.is_empty():
-		out.append("%s: weapons are not built yet (M44)" % where)
+	for cue in s.cue_list():
+		if cue.problem == "" and cue.action == &"give" and cue.rank > Loadout.MAX_RANK:
+			out.append("%s: cue '%s': rank %d is not built yet (M50.1)" % [where, cue.source, cue.rank])
 	if s.path != &"":
 		out.append("%s: path is not built yet (M45a)" % where)
 	if s.stages != &"" or s.goal == SessionDef.STAGES:

@@ -68,7 +68,10 @@ func _draw() -> void:
 		fill = Color.WHITE
 	elif telegraph > 0.0:
 		# Flicker toward white, faster and brighter as the shot nears.
-		var blink := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.04 * (1.0 + telegraph))
+		# M44: on the unscaled physics clock (not the wall clock), so a same-seed frame is
+		# the same picture (the tier-0 screenshot baseline); not game_time, which slow-mo
+		# would slow and B1 would freeze.
+		var blink := 0.5 + 0.5 * sin(RunState.real_time() * 1000.0 * 0.04 * (1.0 + telegraph))
 		fill = color.lerp(Color.WHITE, telegraph * (0.45 + 0.55 * blink))
 	var rect := Rect2(-body / 2.0, body)
 	draw_rect(rect, fill)
