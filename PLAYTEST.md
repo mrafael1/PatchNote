@@ -2,11 +2,20 @@
 
 One page. The player reads **Before** and **Controls** only. The observer keeps the rest until the end.
 
+## G13b changes (M43.2, from your S3-S7 notes of 2026-11-24)
+- **S3:** 10 kills (was 15).
+- **S4:** unchanged.
+- **S5:** 25 kills (was 90 s; 2.5 min at most, "Time's up" after that). The gravity mix-up comes at ~20 s, right after the AI's version line, and each direction lasts 2.5 s longer (~17.5 s in all, the counter and the spawns paused). The session cannot end in the middle of it: reach 25 during the mix-up and the counter waits at 25/25 until gravity is fixed.
+- **S6:** 40 kills (was 60). Explosive shots at ~11 s, big enemies at ~14 kills, then at ~27 kills the AI says your controls flip and that it will slow time down: the flip and slow-mo land together (10 s), and arrows around you show where each key goes now for the first few seconds (with reduce flashing on they stay still and only fade).
+- **S7:** no longer playable. After S6 the Stage 2 card shows the AI cooking the next version (a few progress lines, a bar that never quite fills), then "To be continued"; a key goes back to the title. The real three-game tryout comes in a later build.
+- **Your save** goes straight to that screen: nothing replays. It already reads v0.8.0 from the old S7 stub; the real S7 keeps that number. A new chain now ends Stage 1 at v0.7.0 and shows "Building v0.8.0".
+- The cooking lines ("Trying three kinds of shooter...", "Compiling... mostly.", "One of them is on fire.", "Not ready yet. Soon.") are my draft: tone edits welcome.
+
 ## Before
 - In `%APPDATA%\Godot\app_userdata\Patch Notes\`, back up, then move aside `save\save.json` (e.g. rename it to `save.before-g13.json`) and `playtest\runs.jsonl`. Without this the first-launch question is skipped and the logs mix.
 - A New game is needed: the dash pick and where it goes are asked at S3's end. An old save stays on the classic dash, going where you move, for good.
 - Run `PatchNotes.exe`. The screen reads "New campaign". Answer the flashing question the way you like.
-- Play Stage 1 **in one sitting** until "To be continued" (about 7 min). After a death, Retry or Move on as you like.
+- Play Stage 1 **in one sitting** until "To be continued" (about 6 min). After a death, Retry or Move on as you like.
 - No F-keys (F1–F9 work in this build). The observer is silent: no help, no explaining, no reacting.
 - **No spoilers** beforehand: not the mascot pick, not the gravity "mistake", not that the early sessions are broken on purpose.
 
@@ -28,10 +37,10 @@ One page. The player reads **Before** and **Controls** only. The observer keeps 
 - **S0:** nothing works, 5 s.
 - **S1:** movement, 5 s.
 - **S2:** things appear, no damage until ~11 s, then the overrun. A death is expected (Next, not Retry).
-- **S3:** shots pass through until ~9.5 s, 15 kills, then the mascot pick, then the dash pick (classic / grappling hook / teleport), then where it goes (where you aim / where you move).
+- **S3:** shots pass through until ~9.5 s, 10 kills, then the mascot pick, then the dash pick (classic / grappling hook / teleport), then where it goes (where you aim / where you move).
 - **S4:** the AI's body, walls and the dash you picked (its line says how and where it goes), 30 s; bouncy walls ~13.5–23.5 s; then the enemy pick.
-- **S5:** the picked enemy arrives at ~6 s; the version stamp appears at ~15 s (the AI says so); 90 s. At 40 s the "speed" warning becomes gravity left / up / down (~10 s, clock and spawns paused), then +1 HP as an apology. A bomber you shoot blinks and explodes too (bigger blast); the AI says so the first time.
-- **S6:** explosive shots at ~11 s, big enemies at 20 kills, inverted controls at 40 kills, slow-mo once when HP drops to 2 (it waits while another change is being announced or running); a bomber you shoot blinks and explodes too (bigger blast); 60 kills (or 4 min), then "To be continued" and the title screen.
+- **S5:** the picked enemy arrives at ~6 s; the version stamp appears at ~15 s (the AI says so); 25 kills (2.5 min at most). At 20 s the "speed" warning becomes gravity left / up / down (6.5 / 5.5 / 5.5 s, clock and spawns paused; the session cannot end during it), then +1 HP as an apology. A bomber you shoot blinks and explodes too (bigger blast); the AI says so the first time.
+- **S6:** explosive shots at ~11 s, big enemies at 14 kills, inverted controls and slow-mo together at 27 kills (one warning for both, arrows around the player for ~3.5 s); a bomber you shoot blinks and explodes too (bigger blast); 40 kills (or 4 min), then Next session: the Stage 2 card with the AI cooking, "To be continued" and the title screen.
 
 ## Observer: write down during the session
 - Per session: attempts, deaths, Retry or Move on, wall-clock time including the debrief.
@@ -58,17 +67,17 @@ One page. The player reads **Before** and **Controls** only. The observer keeps 
    - **b2.** (Hook only) Did the hook miss too often?
    - **b3.** (Teleport with "where you aim") It goes a fixed 4 tiles along your aim, not to the cursor. Did you expect a blink to the cursor?
    - **c.** A shot bomber blinks for a moment, then blows up. It hurts you if you're within about 2 tiles, and its victims count as your kills. Too strong, too weak? Is the blink long enough to get away?
-   - **d.** Your G13 questions are still open: answer any you care about.
+   - **d.** Your G13 questions still open, updated to this build: answer any you care about.
      - Explosive shots for all of S6, or ~20 s?
      - The gravity gag counts as seen when it starts (dying mid-event never shows its end). Keep, or when it finishes?
      - S5 difficulty: fair for you?
      - My own lines and titles (S5 "The wrong slider", S6 "Playground", the version line, S4's hit_none line): edit any.
-     - Length: about 4.9 min of action, 7 min in all. Right, or should S6 grow?
+     - Length (M43.2): about 4 min of action (bot chain 242 s, was 290 s), about 6 min in all, then the cooking screen. Right, or should S6 grow?
      - Move on after the first death? The mascot top-right? The names Cursor / Window / Blob?
      - The S0 glyphs as ASCII? The version stamp without "build N"?
-     - S6 ends with only "To be continued". Enough?
      - Fun without the AI (`PatchNotes.exe -- --autostart --mute-ai`)?
-     - S6 goal 60 kills, big enemies / inverted at 20 / 40 kills, slow-mo waits for other changes. Keep?
+     - S6 now: 40 kills, big enemies at 14 kills, then at 27 kills the flip and slow-mo together (one warning, arrows around you for ~3.5 s). Keep, or move any of them?
+     - S6 now ends on the cooking screen (Stage 2's card, the AI building v0.8.0, then "To be continued"). Enough, or too long / too short?
 
 ## Files to send back (before Part B)
 From `%APPDATA%\Godot\app_userdata\Patch Notes\`:

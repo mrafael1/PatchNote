@@ -84,6 +84,7 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 	var forks := {}
 	var last_stage := 1
 	var ids := {}
+	var cooking_seen: StringName = &""   ## M43.2: the first cooking session
 	for s in c.sessions:
 		if s != null:
 			ids[s.id] = true
@@ -104,6 +105,10 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 			if not forks.has(f):
 				out.append("campaign: %s uses fork:%s before it is asked" % [s.id, f])
 		out.append_array(_unbuilt_problems(s))
+		if cooking_seen != &"" and not s.is_cooking():
+			out.append("campaign: %s is playable after %s, which is still cooking" % [s.id, cooking_seen])
+		if s.is_cooking() and cooking_seen == &"":
+			cooking_seen = s.id
 		for cond in _session_conditions(s):
 			out.append_array(_died_in_problems(cond, ids, "session %s" % s.id))
 		var mine := {}   # a fork repeated within one session is the session's own problem
@@ -207,7 +212,13 @@ static func _unbuilt_problems(s: SessionDef) -> Array[String]:
 ## (an M42.2 file) maps its `index` through M42_2_ORDER (7 or more: the session after
 ## s1_06_playground today); otherwise (next "" on a new or finished save) the session
 ## after the furthest one done, so content added after the end continues a finished save.
+## M43.2: never past the first cooking session (cooking_index()): a save that played the
+## old S7 stub (s2_01_tryout done, v0.8.0) lands on the cooking screen, not past it.
 func current_index() -> int:
+	return mini(_save_index(), cooking_index())
+
+
+func _save_index() -> int:
 	var camp := SaveGame.campaign()
 	var next := String(camp.get("next", ""))
 	if next != "" and index_of(StringName(next)) >= 0:
@@ -227,13 +238,30 @@ func current_index() -> int:
 	return furthest + 1
 
 
-## The session the save plays next; null once the campaign is done.
+## The session the save plays next; the cooking session (M43.2) when nothing playable is
+## left (is_done() is true then: the flow shows the cooking screen, a dev jump plays it);
+## null past the end.
 func current() -> SessionDef:
 	return session(current_index())
 
 
+## Nothing playable is left: the save stands at the first cooking session (M43.2) or past
+## the last session.
 func is_done() -> bool:
-	return current_index() >= size()
+	return current_index() >= cooking_index()
+
+
+## The index of the first session still cooking (SessionDef.cooking), or size() if none.
+func cooking_index() -> int:
+	for i in size():
+		if campaign.sessions[i] != null and campaign.sessions[i].is_cooking():
+			return i
+	return size()
+
+
+## The session the cooking screen shows (M43.2), or null when no session is cooking.
+func cooking() -> SessionDef:
+	return session(cooking_index())
 
 
 ## Has the save started the campaign (a session done or attempted)?

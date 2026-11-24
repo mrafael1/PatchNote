@@ -65,6 +65,11 @@ func hold_session_clock(_owner_id: StringName, _on: bool) -> void:
 	pass
 
 
+## Holds or releases the session goal's ending: no goal ends while held (M43.2, an event).
+func hold_session_goal(_owner_id: StringName, _on: bool) -> void:
+	pass
+
+
 ## A cue's "spawn <archetype> <count>": the genre places them. False if it can't.
 func spawn_archetype(_archetype: StringName, _count: int) -> bool:
 	return false

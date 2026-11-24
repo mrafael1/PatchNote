@@ -6,7 +6,7 @@ extends GutTest
 
 const SPEED_LINE := "Enemies feel slow. One sec, I'll bump their speed."
 const GRAVITY := [&"edit_gravity_left", &"edit_gravity_up", &"edit_gravity_down"]
-const EVENT_FRAMES := 720   ## the event takes 690 ticks (11.5 s); a margin
+const EVENT_FRAMES := 1200   ## the event takes 1140 ticks (19.0 s, M43.2); a margin
 
 
 func before_each() -> void:
@@ -46,7 +46,7 @@ func _event_game() -> Main:
 
 ## Moves S5's clock to the cue and waits for the event to start.
 func _to_event(game: Main) -> void:
-	game.run_loop.goal_clock = 40.0
+	game.run_loop.goal_clock = 20.0
 	for i in 10:
 		await wait_physics_frames(1)
 		if game.event_player.is_playing():
@@ -101,12 +101,14 @@ func test_the_event_line_condition() -> void:
 
 func test_s5_is_the_wrong_variable_session() -> void:
 	var s := CampaignDB.get_session(&"s1_05_wrong")
-	assert_eq([s.goal, s.goal_value, s.bump, s.fork], [SessionDef.SURVIVE, 90.0, &"minor", &""])
+	assert_eq([s.goal, s.goal_value, s.time_limit, s.bump, s.fork], [SessionDef.KILLS, 25.0, 150.0, &"minor", &""],
+			"M43.2 (G13b): a 25-kill goal")
 	assert_true(&"fork:fork_enemy" in s.enemies)
 	var cues := s.cue_list()
 	var events := cues.filter(func(c: Cue) -> bool: return c.action == &"event")
 	assert_eq(events.size(), 1)
-	assert_eq([events[0].when, events[0].value, events[0].target], [&"at", 40.0, &"wrong_variable"])
+	assert_eq([events[0].when, events[0].value, events[0].target], [&"at", 20.0, &"wrong_variable"],
+			"M43.2: early, after the version line (15 s + its 4.4 s)")
 	var adds := cues.filter(func(c: Cue) -> bool: return c.action == &"add")
 	assert_eq(adds.size(), 1, "M42: S5 adds the version stamp live")
 	assert_eq([adds[0].when, adds[0].value, adds[0].target], [&"at", 15.0, &"version"])
@@ -320,11 +322,11 @@ func test_wrong_variable_plays_its_steps_in_order() -> void:
 	var steps: Array = []
 	for n in range(1, 7):
 		steps.append(snappedf(_logged_at(&"event_step", "step", n) - t0, 0.05))
-	assert_eq(steps, [0.0, 0.0, 1.5, 5.5, 8.5, 11.5], "the steps' times")
+	assert_eq(steps, [0.0, 0.0, 1.5, 8.0, 13.5, 19.0], "the steps' times (M43.2: +2.5 s per direction)")
 	var lands: Array = []
 	for id: StringName in GRAVITY:
 		lands.append(snappedf(_logged_at(&"edit_landed", "id", String(id)) - t0, 0.05))
-	assert_eq(lands, [1.5, 5.5, 8.5], "left, up, down")
+	assert_eq(lands, [1.5, 8.0, 13.5], "left, up, down")
 	assert_eq(game.rule_book.landed.map(func(l: Dictionary) -> String: return l.id),
 			["edit_gravity_left", "edit_gravity_up", "edit_gravity_down"])
 	assert_false(RunState.rules.gravity_enabled, "gravity is off again")
@@ -347,13 +349,13 @@ func test_wrong_variable_holds_the_clock_from_the_first_flip_to_the_clear() -> v
 	assert_false(game.event_player.said.has("That's… not speed."), "the line comes 0.8 s later")
 	var held_at := RunState.game_time
 	var clock := game.run_loop.goal_clock
-	assert_almost_eq(clock, 41.5, 0.1, "the warning counts toward the goal")
+	assert_almost_eq(clock, 21.5, 0.1, "the warning counts toward the goal")
 	await wait_physics_frames(300)
 	assert_true(game.run_loop.clock_held())
 	assert_almost_eq(game.run_loop.goal_clock, clock, 0.02, "held")
 	while game.run_loop.clock_held():
 		await wait_physics_frames(1)
-	assert_almost_eq(RunState.game_time - held_at, 10.0, 0.05, "held 10 s")
+	assert_almost_eq(RunState.game_time - held_at, 17.5, 0.05, "held 17.5 s (M43.2)")
 	await wait_physics_frames(30)
 	assert_gt(game.run_loop.goal_clock, clock + 0.4, "and running again")
 
@@ -400,7 +402,7 @@ func test_once_per_save_then_skipped_and_the_session_still_completes() -> void:
 	await wait_physics_frames(2)
 	RunState.reset(0)
 	var again := await _event_game()   # same save
-	again.run_loop.goal_clock = 40.0
+	again.run_loop.goal_clock = 20.0
 	await wait_physics_frames(10)
 	assert_false(again.event_player.is_playing())
 	assert_true(again.event_player.played[0].skipped)
@@ -408,9 +410,74 @@ func test_once_per_save_then_skipped_and_the_session_still_completes() -> void:
 	assert_true(RunState.ai.is_empty())
 	assert_eq(again.event_player.said, [] as Array[String])
 	assert_eq(again.event_player.played_ids(), [] as Array[String])
-	again.run_loop.goal_clock = 89.95
+	RunState.kills = 25   # M43.2: a kills goal
 	await wait_physics_frames(10)
 	assert_eq(again.run_loop.outcome, &"win", "the session plays on and is won")
+
+
+## M43.2 (G13b): S5 is a 25-kill goal, so the goal can be reached while the event plays.
+## No goal ends during an event (from its start, warning included, to its end): the win
+## waits for the clear, then lands on the next tick.
+func _kills_during_event(at_step: int) -> Main:
+	var game := await _event_game()
+	await _to_event(game)
+	while int(game.event_player.played[0].steps_done) < at_step:
+		await wait_physics_frames(1)
+	RunState.kills = 25
+	await wait_physics_frames(2)
+	assert_eq(game.run_loop.phase, RunLoop.PLAY, "step %d: the goal waits for the event" % at_step)
+	assert_true(game.run_loop.goal_held())
+	assert_eq(game.run_loop.goal_text(), "Kills 25/25")
+	RunState.kills = 26
+	assert_eq(game.run_loop.goal_text(), "Kills 25/25", "the shown kills stop at the goal")
+	for i in EVENT_FRAMES:
+		if game.run_loop.phase != RunLoop.PLAY:
+			break
+		await wait_physics_frames(1)
+	var rec: Dictionary = game.event_player.played[0]
+	assert_true(rec.completed, "the event played to its end")
+	assert_eq(rec.steps_done, 6)
+	assert_eq(game.run_loop.outcome, &"win", "then the session is won")
+	var ended_at := _logged_at(&"event_ended")
+	assert_gte(_logged_at(&"run_ended") if _logged_at(&"run_ended") >= 0.0 else RunState.game_time, ended_at)
+	assert_eq(RunState.run_log.filter(func(e: Dictionary) -> bool: return e.get("event") == &"goal_waited").size(), 1,
+			"logged once")
+	assert_false(game.run_loop.goal_held(), "released at the end")
+	return game
+
+
+func test_a_kill_goal_reached_in_the_warning_waits_for_the_event() -> void:
+	var game := await _kills_during_event(2)
+	assert_false(game.run_loop.clock_held())
+
+
+func test_a_kill_goal_reached_mid_flip_waits_for_the_event() -> void:
+	await _kills_during_event(4)
+
+
+func test_a_held_goal_never_ends_and_a_released_one_does() -> void:
+	var game := await _event_game()
+	game.session_runner.drop_cues(&"event")
+	game.run_loop.hold_goal(&"test", true)
+	RunState.kills = 25
+	await wait_physics_frames(3)
+	assert_eq(game.run_loop.phase, RunLoop.PLAY)
+	game.run_loop.goal_clock = 200.0   # past the time limit too
+	await wait_physics_frames(2)
+	assert_eq(game.run_loop.phase, RunLoop.PLAY, "the time limit waits as well")
+	game.run_loop.hold_goal(&"test", false)
+	await wait_physics_frames(2)
+	assert_eq(game.run_loop.outcome, &"win")
+
+
+func test_a_death_during_the_event_still_ends_the_session() -> void:
+	var game := await _event_game()
+	await _to_event(game)
+	EventBus.player_died.emit()
+	await wait_physics_frames(3)
+	assert_ne(game.run_loop.phase, RunLoop.PLAY, "a death is not held")
+	await wait_physics_frames(3)
+	assert_false(game.run_loop.goal_held())
 
 
 func test_the_debrief_opens_on_guilty_only_after_the_event() -> void:
@@ -580,7 +647,7 @@ func test_same_seed_same_event_same_session() -> void:
 		game.session_runner.drop_cues(&"event")
 		game.session_runner.inject("at 2: event wrong_variable")
 		var trace: Array[int] = []
-		for f in 900:
+		for f in 1380:   # the event at 2 s takes 19 s (M43.2)
 			if f % 10 == 0:
 				trace.append(_world_hash(game))
 			await wait_physics_frames(1)

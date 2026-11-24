@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M43.1"
+const BUILD := "M43.2"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -340,7 +340,7 @@ func _on_report_ready(outcome: StringName) -> void:
 
 ## The debrief's way on (PLAN v8 1.2): one telemetry line, then the save moves on (next,
 ## move_on) or counts the attempt (retry), and the next scene plays it. After the last
-## session the title screen comes back.
+## session the title screen comes back (M43.2: the cooking screen, while one is cooking).
 func _end_session(choice: StringName) -> void:
 	var s := RunState.session
 	if s == null or not debrief.is_open():
@@ -357,7 +357,7 @@ func _end_session(choice: StringName) -> void:
 		return   # a test's copy: the save moved on, nothing reloads
 	debrief.close()
 	if CampaignDB.is_done():
-		get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)
+		get_tree().change_scene_to_file(CookingScreen.after_campaign_scene())
 	else:
 		next_seed = debrief.next_seed
 		next_genre = RunState.genre

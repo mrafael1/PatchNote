@@ -152,6 +152,11 @@ func queued() -> int:
 	return _queue.size()
 
 
+## Drops the lines still waiting (the one on screen stays): a scene that jumps to its end.
+func drop_queued() -> void:
+	_queue.clear()
+
+
 ## Hides the corner (the debrief draws its own, larger mascot) and drops what is queued.
 func silence() -> void:
 	_queue.clear()

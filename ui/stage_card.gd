@@ -8,6 +8,12 @@ extends CanvasLayer
 ## RunState.set_pause(&"stage_card"), like the debrief and the panels, so the intro and
 ## the cues wait. It counts frame time (deterministic under --fixed-fps). skip() always
 ## closes it (the bot calls it on the first frame); the 0.5 s gate is only for keys.
+##
+## Cooking mode (M43.2, G13b; setup() with cooking lines): the cooking screen's card. The
+## AI is still building the stage's first session: "Building v0.8.0", a working
+## indicator, its progress lines typed one by one with a bar that stalls short of full,
+## then "To be continued". It never closes itself: after 0.5 s a key jumps to the end,
+## the next key closes it.
 
 signal closed
 
@@ -16,25 +22,54 @@ const SKIP_AFTER := 0.5
 const TITLE_DELAY := 0.3   ## the stage number first, then the title types
 const LINE := "Okay. Now we make it a real game."
 const LAYER := 95
+## Cooking mode (M43.2).
+const COOK_LINE := "Give me a minute. I'm cooking."
+const END_LINE := "Next time. Promise."
+const TO_BE_CONTINUED := "To be continued"
+const LINES_FROM := 1.5     ## the first progress line, after the title
+const LINE_EVERY := 1.6     ## then one every this many seconds
+const BAR_MAX := 0.8        ## the bar stalls here: it is not ready
+const SPIN := ["|", "/", "-", "\\"]
+const SPIN_HZ := 6.0
+const DOTS := [".", "..", "..."]
+const DOTS_HZ := 1.5
 
 var stage := 2
 var title := ""
 var elapsed := 0.0
 var mascot: Mascot
+## Cooking mode: the progress lines and the version being built ("" = no label).
+var cooking_lines := PackedStringArray()
+var building := ""
+var ended := false          ## cooking: "To be continued" is up
+var shown_lines := 0        ## cooking: progress lines on screen
+var gentle := false         ## reduce flashing: dots instead of the spinner
 
 var _open := false
 var _stage_label: Label
 var _title_label: Label
+var _building_label: Label
+var _spinner: Label
+var _bar: ProgressBar
+var _lines_box: VBoxContainer
+var _end_label: Label
 
 
-func setup(p_stage: int, p_title: String) -> void:
+func setup(p_stage: int, p_title: String, p_cooking := PackedStringArray(), p_building := "") -> void:
 	stage = p_stage
 	title = p_title
+	cooking_lines = p_cooking
+	building = p_building
+
+
+func is_cooking() -> bool:
+	return not cooking_lines.is_empty()
 
 
 func _ready() -> void:
 	layer = LAYER
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	gentle = SaveGame.reduce_flashing()
 	var back := ColorRect.new()
 	back.color = Color.BLACK
 	back.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -53,6 +88,8 @@ func _ready() -> void:
 	_title_label = _label(title, 56, Color.WHITE)
 	_title_label.visible_characters = 0
 	box.add_child(_title_label)
+	if is_cooking():
+		_build_cooking()
 	mascot = Mascot.new()
 	mascot.name = "CardMascot"
 	add_child(mascot)
@@ -60,8 +97,44 @@ func _ready() -> void:
 	mascot.setup(true, SaveGame.mascot())
 	_place_mascot()
 	mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY)
+	if is_cooking():
+		mascot.say(Line.make(COOK_LINE, &"thinking"), SessionRunner.PRIORITY)
 	_open = true
 	RunState.set_pause(&"stage_card", true)
+
+
+func _build_cooking() -> void:
+	var box := VBoxContainer.new()
+	box.name = "Cooking"
+	box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	box.offset_left = -260.0
+	box.offset_right = 260.0
+	box.offset_bottom = -40.0
+	box.alignment = BoxContainer.ALIGNMENT_END
+	box.add_theme_constant_override(&"separation", 6)
+	add_child(box)
+	var head := HBoxContainer.new()
+	head.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(head)
+	_building_label = _label("Building %s" % building if building != "" else "Building", 22, Color(0.85, 0.85, 0.9))
+	head.add_child(_building_label)
+	_spinner = _label(spinner_text(), 22, Color(1.0, 0.85, 0.3))
+	_spinner.custom_minimum_size = Vector2(36.0, 0.0)
+	head.add_child(_spinner)
+	_bar = ProgressBar.new()
+	_bar.min_value = 0.0
+	_bar.max_value = 1.0
+	_bar.show_percentage = false
+	_bar.custom_minimum_size = Vector2(520.0, 10.0)
+	box.add_child(_bar)
+	_lines_box = VBoxContainer.new()
+	_lines_box.custom_minimum_size = Vector2(520.0, 4 * 24.0)
+	box.add_child(_lines_box)
+	_end_label = _label(TO_BE_CONTINUED, 30, Color.WHITE)
+	_end_label.visible = false
+	box.add_child(_end_label)
 
 
 func _label(text: String, size: int, color: Color) -> Label:
@@ -77,7 +150,10 @@ func _label(text: String, size: int, color: Color) -> Label:
 ## and its bubble (which grows to the left) are centred under the title.
 func _place_mascot() -> void:
 	var view := get_viewport().get_visible_rect().size
-	var group := Mascot.bubble_width(LINE) + 10.0 + Mascot.SIZE
+	var widest := Mascot.bubble_width(LINE)
+	if is_cooking():
+		widest = maxf(widest, Mascot.bubble_width(COOK_LINE))
+	var group := widest + 10.0 + Mascot.SIZE
 	mascot.offset = Vector2(view.x * 0.5 + group * 0.5 - (view.x - Mascot.MARGIN),
 			view.y * 0.5 + 40.0 - Mascot.TOP)
 
@@ -87,8 +163,59 @@ func _process(delta: float) -> void:
 		return
 	elapsed += delta
 	_title_label.visible_characters = int(maxf(0.0, elapsed - TITLE_DELAY) * Mascot.TYPE_CPS)
-	if elapsed >= DURATION:
+	if is_cooking():
+		_cook()
+	elif elapsed >= DURATION:
 		close()
+
+
+## Cooking mode: the lines come one by one, the bar follows them to BAR_MAX, then the end.
+func _cook() -> void:
+	if ended:
+		return
+	var due := clampi(floori((elapsed - LINES_FROM) / LINE_EVERY) + 1, 0, cooking_lines.size())
+	while shown_lines < due:
+		_lines_box.add_child(_label(cooking_lines[shown_lines], 18, Color(0.7, 0.9, 0.7)))
+		shown_lines += 1
+	_bar.value = BAR_MAX * float(shown_lines) / float(cooking_lines.size())
+	_spinner.text = spinner_text()
+	if elapsed >= LINES_FROM + LINE_EVERY * cooking_lines.size():
+		_end()
+
+
+## The working indicator now: a spinner, or dots with reduce flashing on; "" once ended.
+func spinner_text() -> String:
+	if ended:
+		return ""
+	if gentle:
+		return DOTS[posmod(floori(elapsed * DOTS_HZ), DOTS.size())]
+	return SPIN[posmod(floori(elapsed * SPIN_HZ), SPIN.size())]
+
+
+## Cooking mode: every line up, the bar stalled, "To be continued".
+func _end() -> void:
+	if ended or _lines_box == null:
+		return
+	_title_label.visible_characters = -1
+	while shown_lines < cooking_lines.size():
+		_lines_box.add_child(_label(cooking_lines[shown_lines], 18, Color(0.7, 0.9, 0.7)))
+		shown_lines += 1
+	ended = true
+	_bar.value = BAR_MAX
+	_spinner.text = ""
+	_end_label.visible = true
+	mascot.drop_queued()   # a key jumped here: the cooking line must not follow the promise
+	mascot.say(Line.make(END_LINE, &"happy"), SessionRunner.PRIORITY, true)
+
+
+## What the screen ends on (the bot): "to_be_continued" once a cooking card has ended.
+func ending_text() -> String:
+	return "to_be_continued" if ended else ""
+
+
+## The progress lines on screen, in order (tests).
+func lines_shown() -> PackedStringArray:
+	return cooking_lines.slice(0, shown_lines)
 
 
 func _input(event: InputEvent) -> void:
@@ -99,11 +226,16 @@ func _input(event: InputEvent) -> void:
 			or (event is InputEventJoypadButton and event.pressed)
 	if pressed:
 		get_viewport().set_input_as_handled()
-		close()
+		if is_cooking() and not ended:
+			_end()
+		else:
+			close()
 
 
-## Closes the card now, whatever its age (the bot, tests).
+## Closes the card now, whatever its age (the bot, tests). A cooking card ends first.
 func skip() -> void:
+	if is_cooking():
+		_end()
 	close()
 
 

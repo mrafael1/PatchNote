@@ -537,6 +537,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			if ev.failed:
 				print("[botrun] session=%s seed=%d FAILED: %s" % [only, run_seed, ev.why])
 				failures += 1
+		# M43.2: the goal was reached during the event and waited for its end.
+		if (run_state.run_log as Array).any(func(e: Dictionary) -> bool: return e.get("event") == &"goal_waited"):
+			event_text += " goal_waited"
 		var outcome := String(rec.get("outcome", "?"))
 		var died := outcome in ["lose", "died"]
 		outcomes[outcome] = int(outcomes.get(outcome, 0)) + 1
@@ -751,12 +754,18 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 	var play_sum := 0.0
 	var real_sum := 0.0
 	var read_sum := 0.0
+	var cooked := false      ## M43.2: the cooking screen was shown (and skipped)
 	while true:
 		var game := await _wait_for_game(previous)
 		if game == null:
 			print("[botrun] campaign FAILED: the game scene never loaded (step %d)" % step)
 			return failures + 1
 		previous = game
+		if _is_cooking_screen(game):
+			# M43.2: nothing playable is left (a save past Stage 1 starts here).
+			_cook_line(game)
+			cooked = true
+			break
 		var run_state := root.get_node("RunState")
 		var session: Resource = run_state.session
 		if session == null:
@@ -823,6 +832,16 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		if step > 50:
 			print("[botrun] campaign FAILED: more than 50 sessions played")
 			return failures + 1
+	# M43.2: after the last playable session, the cooking screen (when a session is
+	# cooking), then the title.
+	if not cooked:
+		for f in 300:
+			await process_frame
+			if current_scene != null and current_scene != previous and _is_cooking_screen(current_scene):
+				_cook_line(current_scene)
+				break
+			if current_scene != null and current_scene.has_method(&"refresh_campaign"):
+				break
 	print("[botrun] chain: sessions=%d attempts=%d play=%.1f real=%.1f read≈%.1f total≈%.1f" % [
 		seen.size(), played, play_sum, real_sum, read_sum, play_sum + read_sum])
 	# The title screen comes back after the last session.
@@ -941,10 +960,31 @@ func _wait_for_game(previous: Node) -> Node:
 	for f in 300:
 		await process_frame
 		var scene := current_scene
+		if scene != null and scene != previous and _is_cooking_screen(scene):
+			return scene
 		if scene != null and scene != previous and scene.get(&"run_loop") != null:
 			await physics_frame
 			return scene
 	return null
+
+
+## The cooking screen (M43.2): where the campaign stands when its next session is cooking.
+func _is_cooking_screen(scene: Node) -> bool:
+	return scene.scene_file_path == "res://ui/cooking_screen.tscn"
+
+
+## Prints the cooking screen's line and skips its card (the bot never waits on the paused
+## tree): "[botrun] cooking: session=<id> stage=<n> lines=<k> building=<vX> then=to_be_continued card=<n>".
+func _cook_line(screen: Node) -> void:
+	var card: Node = screen.get(&"card")
+	var session: Resource = screen.get(&"session")
+	if card == null or session == null:
+		print("[botrun] cooking: FAILED: no card")
+		return
+	card.call(&"skip")
+	print("[botrun] cooking: session=%s stage=%d lines=%d building=%s then=%s card=%d" % [session.get(&"id"),
+			int(session.get(&"stage")), (session.get(&"cooking") as PackedStringArray).size(),
+			String(card.get(&"building")), String(card.call(&"ending_text")), int(card.get(&"stage"))])
 
 
 ## Plays one run to its report. Returns the summary line, or "" on timeout.

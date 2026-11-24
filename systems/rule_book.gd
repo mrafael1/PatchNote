@@ -31,6 +31,7 @@ var _tick := 0
 var _pending: Array[Dictionary] = []   ## {edit, by, seconds, land_tick}
 var _live := {}                        ## id -> {edit, end_tick (-1: until the session ends)}
 var _marker: EditMarker
+var _hints := {}                       ## id -> the edit's visual help on the player (M43.2)
 
 
 func _ready() -> void:
@@ -42,6 +43,7 @@ func _ready() -> void:
 	add_child(_marker)
 	EventBus.run_ended.connect(func(_o: StringName) -> void: clear())
 	EventBus.ai_patch_removed.connect(_on_ai_removed)
+	edit_ended.connect(func(e: RuleEdit, _r: StringName) -> void: _free_hint(e.id))
 
 
 ## Asks for edit `id`. by: &"cue", &"console", &"event". seconds: how long it stays
@@ -226,12 +228,40 @@ func _land(p: Dictionary) -> void:
 	landed.append({"id": String(e.id), "at": snappedf(RunState.game_time, 0.01), "by": String(p.by)})
 	RunState.log_event(&"edit_landed", {"id": String(e.id), "by": String(p.by)})
 	edit_landed.emit(e)
+	_add_hint(e)
+
+
+## The edit's visual help (RuleEdit.landed_hint, M43.2), under the player while it lives
+## (it frees itself after its seconds; the edit ending frees it sooner).
+func _add_hint(e: RuleEdit) -> void:
+	if game == null or not is_instance_valid(game.player):
+		return
+	var hint := e.landed_hint(game.player)
+	if hint == null:
+		return
+	_free_hint(e.id)
+	game.player.add_child(hint)
+	_hints[e.id] = hint
+
+
+## The live visual help of edit `id`, or null (tests).
+func hint_of(id: StringName) -> Node2D:
+	var h: Variant = _hints.get(id)
+	return h as Node2D if is_instance_valid(h) else null
+
+
+func _free_hint(id: StringName) -> void:
+	var h: Variant = _hints.get(id)
+	_hints.erase(id)
+	if is_instance_valid(h):
+		(h as Node).queue_free()
 
 
 ## An edit removed by someone else (F2's v6 rows, a rollback): forget it, no line.
 func _on_ai_removed(m: Resource, _reason: StringName) -> void:
 	if m is RuleEdit and _live.has(m.id):
 		_live.erase(m.id)
+		_free_hint(m.id)
 
 
 ## Gravity changed (an edit landed or ended): no contact damage for a moment, so a flip

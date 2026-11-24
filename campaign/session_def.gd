@@ -84,10 +84,22 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## the next session's data says what its build has).
 @export var ships: Array[StringName] = []
 
+@export_group("Cooking")
+## M43.2 (G13b): not playable yet. The campaign flow never plays this session: it shows
+## the cooking screen (the stage card, the AI building it: these progress lines, then
+## "To be continued"). A dev jump (--session=, the bot's --only=) still plays its data.
+## Empty = a playable session. The real session's milestone clears it (M47 for S7).
+@export var cooking: PackedStringArray = []
+
 var _intro: Array[Line] = []
 var _cues: Array[Cue] = []
 var _debrief: Array[Line] = []
 var _parsed := false
+
+
+## The campaign shows this session cooking instead of playing it (M43.2).
+func is_cooking() -> bool:
+	return not cooking.is_empty()
 
 
 func intro_lines() -> Array[Line]:
@@ -235,6 +247,9 @@ func problems() -> Array[String]:
 	for c in ships:
 		if ChangeDB.get_change(c) == null:
 			out.append("%s: ships unknown change %s" % [where, c])
+	for k in cooking:
+		if k.strip_edges() == "":
+			out.append("%s: an empty cooking line" % where)
 	for l in intro_lines() + debrief_lines():
 		if l.problem != "":
 			out.append("%s: %s" % [where, l.problem])
@@ -268,6 +283,20 @@ func problems() -> Array[String]:
 		elif c.when == &"hp" and not &"health" in basics and not cue_list().any(
 				func(x: Cue) -> bool: return x.action == &"add" and x.target == &"health"):
 			out.append("%s: cue '%s': hp needs the health basic" % [where, c.source])
+	# M43.2: a quiet edit says nothing itself, so an earlier warned edit cue with the same
+	# time must announce it (PLAN v8 0.4: the AI says so before it edits).
+	var all_cues := cue_list()
+	for i in all_cues.size():
+		var q := all_cues[i]
+		if q.problem != "" or q.action != &"edit" or not q.quiet:
+			continue
+		var announced := false
+		for j in i:
+			var w := all_cues[j]
+			if w.problem == "" and w.action == &"edit" and not w.quiet and w.when == q.when and w.value == q.value:
+				announced = true
+		if not announced:
+			out.append("%s: cue '%s': a quiet edit needs an earlier warned edit cue at the same time" % [where, q.source])
 	for l in intro_lines():
 		if reads_outcome(l.when):
 			out.append("%s: an intro line cannot depend on the outcome" % where)

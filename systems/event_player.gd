@@ -11,6 +11,10 @@ extends Node
 ## and marks nothing. The session ending (death, win) aborts it: the clock and the
 ## reactions are released, the mutations it applied are taken back (the rule book's
 ## clear() takes back its edits), and the script returns at its next wait.
+##
+## M43.2 (G13b): while an event plays (from its start to its end, any outcome) the
+## session's goal cannot end it (Genre.hold_session_goal): a kills goal reached during
+## the event wins on the first tick after it. A death still ends the session at once.
 
 signal ticked
 
@@ -79,6 +83,8 @@ func play(id: StringName, by := &"cue", force := false) -> bool:
 	RunState.log_event(&"event_started", {"id": String(id), "by": String(by)})
 	if reactions != null:
 		reactions.hold(&"event", true)
+	if game != null and game.genre != null:
+		game.genre.hold_session_goal(&"event", true)
 	_run(ev, ctx)
 	return true
 
@@ -115,6 +121,8 @@ func _finish(ctx: EventContext) -> void:
 		hold_clock(owner_id, false)
 	if reactions != null:
 		reactions.hold(&"event", false)
+	if is_instance_valid(game) and is_instance_valid(game.genre):
+		game.genre.hold_session_goal(&"event", false)
 	ctx.record.end = snappedf(RunState.game_time, 0.01)
 	ctx.record.completed = not ctx.aborted and int(ctx.record.steps_done) >= ctx.event.steps
 	RunState.log_event(&"event_ended", {"id": String(ctx.event.id), "steps": int(ctx.record.steps_done),

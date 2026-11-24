@@ -44,6 +44,14 @@ $sessionCount = $sessionIds.Count
 $lastSession = if ($sessionCount -gt 0) { $sessionIds[-1] } else { '' }
 $reactionCount = @(Get-ChildItem (Join-Path $root 'campaign\reactions') -Filter '*.tres').Count
 Write-Host "campaign: $sessionCount sessions, last $lastSession; $reactionCount reactions"
+# M43.2: a session with a `cooking` list is not played by the flow (the cooking screen
+# shows it); the chain plays the sessions before the first one.
+$cookingIds = @($sessionIds | Where-Object { (Get-Content (Join-Path $root "campaign\sessions\$($_).tres") -Raw) -match '(?m)^cooking = PackedStringArray\(' })
+$firstCooking = if ($cookingIds.Count -gt 0) { $cookingIds[0] } else { '' }
+$playable = @(if ($firstCooking -ne '') { $sessionIds[0..([array]::IndexOf($sessionIds, $firstCooking) - 1)] } else { $sessionIds })
+$playableCount = $playable.Count
+$lastPlayable = if ($playableCount -gt 0) { $playable[-1] } else { '' }
+Write-Host "campaign: $playableCount playable, cooking: $($cookingIds -join ', ')"
 if ($sessionCount -eq 0) { $failures += 'campaign.tres: no sessions read' }
 
 function Invoke-Godot([string]$name, [string]$godotArgs) {
@@ -127,25 +135,25 @@ if ($BotRuns) {
     Select-String -Path $camp.Log -Pattern '^\[botrun\] (session|save|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($camp.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign: summary missing or failures' }
     if ($camp.Text -notmatch '\[botrun\] session=s1_00_nothing attempt=1 \(invincible\) outcome=stopped .*version=v0\.0\.0->v0\.1\.0') { $failures += 'bot_campaign: S0 did not stop and ship v0.1.0' }
-    # PLAN v9 1.14 (M43): the save points at the next session by id; at the end it is ""
-    # with the last session done (D2: "next":"s2_01_tryout" cannot hold once S7 is last;
-    # the campaign_door step below checks that an M42.2 save continues at S7).
-    if ($camp.Text -notmatch '"next":""' -or $camp.Text -notmatch ('"done":\[[^\]]*"' + $lastSession + '"\]')) { $failures += 'bot_campaign: the save did not reach the end of the campaign' }
+    # PLAN v9 1.14 (M43): the save points at the next session by id. M43.2: the chain ends
+    # with the last playable session done and the save pointing at the cooking one (S7).
+    $nextId = if ($firstCooking -ne '') { $firstCooking } else { '' }
+    if ($camp.Text -notmatch ('"next":"' + $nextId + '"') -or $camp.Text -notmatch ('"done":\[[^\]]*"' + $lastPlayable + '"\]')) { $failures += 'bot_campaign: the save did not reach the end of the playable campaign' }
     # PLAN v8 M39: from S3 on the AI reacts live.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*reactions=[1-9]') { $failures += 'bot_campaign: no live reactions in S4' }
     # PLAN v8 M40: S4 bends its walls at 12 s; the rule book lands it.
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level .*edits=1') { $failures += 'bot_campaign: S4 rule edit did not land' }
     # PLAN v8 M41: S5 plays wrong_variable; three gravity flips land through the rule book (the speed is the event's own).
     if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*edits=3 events=wrong_variable') { $failures += 'bot_campaign: S5 did not play wrong_variable' }
-    # PLAN v8 M42: S5 now offers Next; S6 ends Stage 1 at v0.7.0 (invincible: no "hp 2"
-    # cue, so the gift, the big enemies and inverted = 3 edits). M43: S6 offers Next too,
-    # and the last session from data offers "To be continued".
+    # PLAN v8 M42: S5 now offers Next; S6 ends Stage 1 at v0.7.0. M43: S6 offers Next too.
+    # M43.2 (G13b): S6 is 40 kills and slow-mo lands with the flip (a quiet cue): the gift,
+    # the big enemies, inverted, slow-mo = 4 edits. Then the cooking screen, not S7.
     if ($camp.Text -notmatch '\[botrun\] session=s1_05_wrong attempt=1 \(invincible\) outcome=won .*choice=next_session') { $failures += 'bot_campaign: S5 is no longer the last session' }
-    if ($camp.Text -notmatch '\[botrun\] session=s1_06_playground attempt=1 \(invincible\) outcome=won .*choice=next_session .*edits=3 .*version=v0\.6\.0->v0\.7\.0') { $failures += 'bot_campaign: S6 did not end Stage 1' }
-    if ($camp.Text -notmatch ('\[botrun\] session=' + $lastSession + ' attempt=1 \(invincible\) outcome=(won|stopped) .*choice=to_be_continued')) { $failures += "bot_campaign: the last session ($lastSession) did not offer To be continued" }
-    # PLAN v9 2: Stage 2 opens with its stage card (the bot skips it; card= ends the line).
-    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_01_tryout .* card=2\r?$') { $failures += 'bot_campaign: no stage card before S7' }
-    if ($camp.Text -notmatch "\[botrun\] chain: sessions=$sessionCount ") { $failures += 'bot_campaign: no chain total' }
+    if ($camp.Text -notmatch '\[botrun\] session=s1_06_playground attempt=1 \(invincible\) outcome=won .*choice=next_session .*edits=4 .*landed=edit_gift_explode,edit_big_enemies,edit_inverted,edit_slowmo .*version=v0\.6\.0->v0\.7\.0') { $failures += 'bot_campaign: S6 did not end Stage 1 with its 4 edits' }
+    # M43.2: after S6, the cooking screen (Stage 2's card, the AI building S7, then To be continued).
+    if ($camp.Text -notmatch ('(?m)\[botrun\] cooking: session=' + $firstCooking + ' stage=2 lines=[1-9] building=v0\.8\.0 then=to_be_continued card=2\r?$')) { $failures += "bot_campaign: no cooking screen for $firstCooking after Stage 1" }
+    if ($camp.Text -match '\[botrun\] session=s2_01_tryout ') { $failures += 'bot_campaign: the S7 stub was played (it is cooking)' }
+    if ($camp.Text -notmatch "\[botrun\] chain: sessions=$playableCount ") { $failures += 'bot_campaign: no chain total' }
     Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
     # M42.1: then fork_dash. The chains pick by seed: this invincible chain (1i) has
@@ -163,13 +171,18 @@ if ($BotRuns) {
     Select-String -Path $campMortal.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($campMortal.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'bot_campaign_mortal: summary missing or failures' }
     # PLAN v9 1.14 (M43): an M42.2 save at the end of Stage 1 (a fixture, read-only: the
-    # snapshot never writes or moves it) continues at S7, with the stage card first.
-    $door = Invoke-Godot 'campaign_door' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --save=res://tests/gut/save_m42_2_stage1_end.json 1i'
-    Test-Errors 'campaign_door' $door
-    Select-String -Path $door.Log -Pattern '^\[botrun\] (session|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
-    $doorFirst = Select-String -Path $door.Log -Pattern '^\[botrun\] session=' | Select-Object -First 1
-    if (-not $doorFirst -or $doorFirst.Line -notmatch '^\[botrun\] session=s2_01_tryout attempt=1 ' -or $doorFirst.Line -notmatch ' card=2$') { $failures += 'campaign_door: an M42.2 end-of-Stage-1 save did not continue at S7 with the stage card' }
-    if ($door.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += 'campaign_door: summary missing or failures' }
+    # snapshot never writes or moves it). M43.2: it lands on the cooking screen (S7 is
+    # cooking), plays nothing and replays nothing; so does a save that played the old stub.
+    foreach ($fixture in @('save_m42_2_stage1_end', 'save_m43_owner_shape')) {
+        $door = Invoke-Godot "campaign_door_$fixture" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --save=res://tests/gut/$fixture.json 1i"
+        Test-Errors "campaign_door_$fixture" $door
+        Select-String -Path $door.Log -Pattern '^\[botrun\] (session|cooking|chain|summary)' | ForEach-Object { Write-Host "    $($_.Line)" }
+        $doorFirst = Select-String -Path $door.Log -Pattern '^\[botrun\] (session=|cooking:)' | Select-Object -First 1
+        if (-not $doorFirst -or $doorFirst.Line -notmatch ('^\[botrun\] cooking: session=' + $firstCooking + ' stage=2 .*then=to_be_continued card=2$')) { $failures += "campaign_door ($fixture): the save did not land on the cooking screen" }
+        if ($door.Text -match '\[botrun\] session=') { $failures += "campaign_door ($fixture): a session was played" }
+        if ($door.Text -notmatch '\[botrun\] chain: sessions=0 attempts=0 ') { $failures += "campaign_door ($fixture): no empty chain" }
+        if ($door.Text -notmatch '\[botrun\] summary: campaign, 0 failures') { $failures += "campaign_door ($fixture): summary missing or failures" }
+    }
     # M42.1: S4 with each new dash forced: it wins (invincible) and the dash is used.
     foreach ($style in @('grapple', 'teleport')) {
         $dashRun = Invoke-Godot "bot_dash_$style" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_04_level --dash=$style 3i"
@@ -191,17 +204,19 @@ if ($BotRuns) {
     if (([regex]::Matches($edits.Text, '\[botrun\] summary: s1_04_level x1, .* 0 failures')).Count -ne 6) { $failures += 'bot_edits: a forced edit run failed' }
     if (([regex]::Matches($edits.Text, 'edit=edit_\w+ landed=edit_\w+@13\.5')).Count -ne 6) { $failures += 'bot_edits: a forced edit did not land at 13.5 s' }
     # PLAN v8 M41: wrong_variable plays every step in S5 (invincible seed) and the session is still won.
+    # M43.2 (G13b): a 25-kill goal, the event at 20 s, 2.5 s longer per direction (19 s).
     $ev = Invoke-Godot 'bot_event' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_05_wrong 3i'
     Test-Errors 'bot_event' $ev
     Select-String -Path $ev.Log -Pattern '^\[botrun\] events:' | ForEach-Object { Write-Host "    $($_.Line)" }
-    if ($ev.Text -notmatch 'outcome=win t=100\.0 enemy=\w+ event=wrong_variable@40\.0-51\.5 steps=6/6') { $failures += 'bot_event: wrong_variable did not play fully' }
+    if ($ev.Text -notmatch 'outcome=win t=67\.0 enemy=\w+ event=wrong_variable@20\.0-39\.0 steps=6/6') { $failures += 'bot_event: wrong_variable did not play fully' }
     if ($ev.Text -notmatch '\[botrun\] summary: s1_05_wrong x1, .* 0 failures') { $failures += 'bot_event: run failed' }
-    # PLAN v8 M42: S6's "hp 2" cue lands slow-mo after a hit (3 max HP; mortal seed 15
-    # takes hits early: slow-mo at 20.4 s, death at 39.2 s).
-    $hp = Invoke-Godot 'bot_hpcue' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_06_playground --set=player_max_hp=3 15'
-    Test-Errors 'bot_hpcue' $hp
-    Select-String -Path $hp.Log -Pattern '^\[botrun\] session=s1_06_playground' | ForEach-Object { Write-Host "    $($_.Line)" }
-    if ($hp.Text -notmatch 'landed=[^ ]*edit_slowmo@(\d+\.\d)' -or [double]$Matches[1] -le 1.5) { $failures += 'bot_hpcue: the hp 2 cue did not land slow-mo after a hit' }
+    # M43.2 (G13b): S6's slow-mo lands with the flip (a quiet cue at the same kill count:
+    # 1-3 ticks after it, within the printed 0.1 s), replacing M42's "hp 2" cue.
+    $flip = Invoke-Godot 'bot_s6_flip' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_06_playground 3i'
+    Test-Errors 'bot_s6_flip' $flip
+    Select-String -Path $flip.Log -Pattern '^\[botrun\] session=s1_06_playground' | ForEach-Object { Write-Host "    $($_.Line)" }
+    if ($flip.Text -notmatch 'landed=edit_gift_explode@[\d.]+,edit_big_enemies@[\d.]+,edit_inverted@(\d+\.\d),edit_slowmo@(\d+\.\d)' -or ([double]$Matches[2] - [double]$Matches[1]) -lt 0 -or ([double]$Matches[2] - [double]$Matches[1]) -gt 0.11) { $failures += 'bot_s6_flip: slow-mo did not land with the flip' }
+    if ($flip.Text -notmatch '\[botrun\] summary: s1_06_playground x1, .* 0 failures') { $failures += 'bot_s6_flip: run failed' }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }

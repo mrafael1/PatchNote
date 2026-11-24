@@ -41,3 +41,10 @@ func warn() -> Line:
 
 func done() -> Line:
 	return Line.parse(done_line) if done_line != "" else null
+
+
+## A visual help shown on the player while this edit is new (M43.2, G13b: the flip's
+## arrows), or null. Presentation only, campaign only: RuleBook adds it under the
+## player when the edit lands and frees it when the edit ends. Never gameplay state.
+func landed_hint(_player: Node2D) -> Node2D:
+	return null

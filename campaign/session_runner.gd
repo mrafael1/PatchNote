@@ -149,7 +149,7 @@ func _fire(cue: Cue, index: int) -> void:
 		&"add":
 			RunState.add_basic(cue.target)
 		&"edit":
-			if rule_book == null or not rule_book.request(cue.target, &"cue", cue.seconds):
+			if rule_book == null or not rule_book.request(cue.target, &"cue", cue.seconds, not cue.quiet):
 				push_warning("Session %s: edit %s refused" % [session.id, cue.target])
 		&"event":
 			if event_player == null:

@@ -16,6 +16,9 @@ extends RefCounted
 ##   "at 11: add health"              the AI adds a basic, live (M39.2)
 ##   "at 12: edit edit_bouncy_walls"  a rule edit (M40), for the edit's own duration
 ##   "at 12: edit edit_bouncy_walls 10"  the same, live for 10 s
+##   "kills 27: edit edit_slowmo 10 quiet"  no warning of its own: it lands on the next
+##                                    tick (M43.2); it must share its time with an earlier
+##                                    warned edit cue, whose line announces both
 ##   "at 40: event wrong_variable"    a scripted event (M41)
 ##   "hp 2: edit edit_slowmo"         the first time the player's HP is 2 or less (needs
 ##                                    health; a death never fires it) (M42)
@@ -56,6 +59,7 @@ var archetype: StringName      ## spawn
 var count := 1                 ## spawn; drop: how many
 var target: StringName         ## add: the basic; edit / event / path / give / drop / look / boss: the id
 var seconds := -1.0            ## edit / look: how long it stays (-1: its own duration / for good)
+var quiet := false             ## edit: no warning of its own (M43.2; another edit's line announced it)
 var cond := ""                 ## a Line condition ("" = always); failing at start drops the cue
 var at_seconds := -1.0         ## room N at s: s seconds after part N starts (-1: at its start)
 var tag: StringName = &""      ## [tag]: the weapon a say cue announces
@@ -144,11 +148,14 @@ static func parse(p_source: String) -> Cue:
 					else:
 						c.count = words[2].to_int()
 		&"edit":
+			if words.size() >= 3 and words[words.size() - 1] == "quiet":
+				c.quiet = true
+				words.remove_at(words.size() - 1)
 			if words.size() == 3 and words[2].is_valid_float() and words[2].to_float() > 0.0:
 				c.target = StringName(words[1])
 				c.seconds = words[2].to_float()
 			elif words.size() != 2:
-				c.problem = "cue '%s': edit takes an id and optional seconds" % p_source
+				c.problem = "cue '%s': edit takes an id, optional seconds and optional 'quiet'" % p_source
 			else:
 				c.target = StringName(words[1])
 		&"add", &"event":

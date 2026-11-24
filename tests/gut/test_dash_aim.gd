@@ -412,3 +412,27 @@ func test_every_intro_ends_before_its_first_edit_or_event() -> void:
 		assert_lt(worst + MARGIN, first, "%s: the intro takes %.2f s (%s), its first cue is at %.1f s"
 				% [s.id, worst, worst_combo, first])
 	assert_gt(checked, 0, "S4 at least has an edit cue")
+
+
+## M43.2 (G13b): S5's event moved to 20 s, after the 15 s version line. Every "at" say cue
+## must be spoken before the next "at" edit or event (whose priority-3 warning would cut
+## it), with the same margin.
+func test_every_timed_line_ends_before_the_next_edit_or_event() -> void:
+	const MARGIN := 0.25
+	var checked := 0
+	for s in CampaignDB.campaign.sessions:
+		var cues := s.cue_list()
+		for say in cues:
+			if say.when != &"at" or say.action != &"say":
+				continue
+			var next := INF
+			for c in cues:
+				if c.when == &"at" and c.action in [&"edit", &"event"] and c.value >= say.value:
+					next = minf(next, c.value)
+			if next == INF:
+				continue
+			checked += 1
+			var ends := say.value + Reactions.speak_seconds(say.line.text) + MARGIN
+			assert_lt(ends, next, "%s: '%s' at %.1f s ends at %.2f s, the next edit or event is at %.1f s"
+					% [s.id, say.line.text, say.value, ends, next])
+	assert_gt(checked, 0, "S5's version line at least")

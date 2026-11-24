@@ -21,3 +21,4 @@ cues = PackedStringArray("at 30: say thinking: Halfway. The real versions come s
 debrief = PackedStringArray("ended thinking: Okay. Three games next time. Promise.")
 bump = &"minor"
 notes = PackedStringArray("The shooter, three ways (work in progress)")
+cooking = PackedStringArray("Trying three kinds of shooter...", "Compiling... mostly.", "One of them is on fire.", "Not ready yet. Soon.")

@@ -5,9 +5,10 @@ extends ScriptedEvent
 
 const GRAVITY: Array[StringName] = [&"edit_gravity_left", &"edit_gravity_up", &"edit_gravity_down"]
 const BEAT := 0.8        ## the slide is seen before the mascot says what it sees
-const LEFT_FOR := 4.0
-const UP_FOR := 3.0
-const DOWN_FOR := 3.0
+## G13b (M43.2): each gravity direction lasts 2.5 s longer (was 4 / 3 / 3).
+const LEFT_FOR := 6.5
+const UP_FOR := 5.5
+const DOWN_FOR := 5.5
 const SORRY_HEAL := 1.0  ## HP given back at the clear (M42 E7, D15)
 
 

@@ -260,6 +260,10 @@ func hold_session_clock(owner_id: StringName, on: bool) -> void:
 	_sync_spawner()
 
 
+func hold_session_goal(owner_id: StringName, on: bool) -> void:
+	run_loop.hold_goal(owner_id, on)
+
+
 ## Places `count` enemies of `archetype` at the spawner's off-screen points (a cue).
 func spawn_archetype(archetype: StringName, count: int) -> bool:
 	if not Spawner.SCENES.has(archetype):

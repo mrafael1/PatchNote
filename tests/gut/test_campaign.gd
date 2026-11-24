@@ -244,11 +244,67 @@ func test_s6_is_the_playground() -> void:
 	var s := CampaignDB.get_session(&"s1_06_playground")
 	assert_eq(s.problems(), [] as Array[String])
 	assert_eq([s.goal, s.goal_value, s.time_limit, s.spawn_rate, s.spawn_cap, s.bump, s.fork],
-			[SessionDef.KILLS, 60.0, 240.0, 1.3, 1.3, &"minor", &""])   # M42 E-S6b: 1.2 -> 1.3
+			[SessionDef.KILLS, 40.0, 240.0, 1.3, 1.3, &"minor", &""])   # M43.2 (G13b): 60 -> 40
 	assert_true(&"version" in s.basics, "the stamp from frame one")
-	var edits: Array = s.cue_list().map(func(c: Cue) -> Array: return [c.when, c.value, c.target])
-	assert_eq(edits, [[&"at", 10.0, &"edit_gift_explode"], [&"kills", 20.0, &"edit_big_enemies"],
-			[&"kills", 40.0, &"edit_inverted"], [&"hp", 2.0, &"edit_slowmo"]])
+	var edits: Array = s.cue_list().map(func(c: Cue) -> Array: return [c.when, c.value, c.target, c.seconds, c.quiet])
+	assert_eq(edits, [[&"at", 10.0, &"edit_gift_explode", -1.0, false], [&"kills", 14.0, &"edit_big_enemies", -1.0, false],
+			[&"kills", 27.0, &"edit_inverted", -1.0, false], [&"kills", 27.0, &"edit_slowmo", 10.0, true]],
+			"M43.2: the gift, then big enemies, then the flip with slow-mo (no more hp 2 cue)")
+	assert_string_contains(s.intro[1], "Forty")
+
+
+## M43.2 (G13b): S3 is ten kills, its praise comes before the end.
+func test_s3_is_ten_kills() -> void:
+	var s := CampaignDB.get_session(&"s1_03_shooting")
+	assert_eq([s.goal, s.goal_value], [SessionDef.KILLS, 10.0])
+	var says := s.cue_list().filter(func(c: Cue) -> bool: return c.when == &"kills" and c.action == &"say")
+	assert_eq(says.map(func(c: Cue) -> float: return c.value), [1.0, 7.0])
+	assert_eq(s.problems(), [] as Array[String])
+
+
+## M43.2 (G13b): S5 is a 25-kill goal; nothing it says counts seconds any more.
+func test_s5_lines_fit_a_kill_goal() -> void:
+	var s := CampaignDB.get_session(&"s1_05_wrong")
+	assert_eq([s.goal, s.goal_value, s.time_limit], [SessionDef.KILLS, 25.0, 150.0])
+	var texts: Array[String] = []
+	for l in s.intro_lines() + s.debrief_lines():
+		texts.append(l.text)
+	for c in s.cue_list():
+		if c.line != null:
+			texts.append(c.line.text)
+	for t in texts:
+		for word in ["Ninety", "Sixty", "seconds"]:
+			assert_false(t.contains(word), "'%s' says %s" % [t, word])
+	assert_true(s.debrief_lines().any(func(l: Line) -> bool: return l.when == &"stopped"), "a time limit needs its line")
+
+
+func test_the_quiet_edit_word() -> void:
+	var c := Cue.parse("kills 27: edit edit_slowmo 10 quiet")
+	assert_eq([c.problem, c.when, c.value, c.target, c.seconds, c.quiet], ["", &"kills", 27.0, &"edit_slowmo", 10.0, true])
+	c = Cue.parse("at 5: edit edit_slowmo quiet")
+	assert_eq([c.problem, c.target, c.seconds, c.quiet], ["", &"edit_slowmo", -1.0, true])
+	assert_false(Cue.parse("at 5: edit edit_slowmo 10").quiet)
+	assert_ne(Cue.parse("at 5: edit edit_slowmo loud").problem, "", "an unknown word")
+	assert_false(Cue.parse("at 5: edit quiet").quiet, "a lone quiet is an id (problems() refuses it)")
+
+
+func test_a_quiet_edit_needs_a_warned_edit_at_its_time() -> void:
+	var s := _session(&"q")
+	s.basics = [&"movement"]
+	s.cues = PackedStringArray(["kills 5: edit edit_slowmo quiet"])
+	assert_string_contains("\n".join(s.problems()), "a quiet edit needs an earlier warned edit cue")
+	s = _session(&"q2")
+	s.basics = [&"movement"]
+	s.cues = PackedStringArray(["kills 4: edit edit_inverted", "kills 5: edit edit_slowmo quiet"])
+	assert_string_contains("\n".join(s.problems()), "a quiet edit needs", "not the same time")
+	s = _session(&"q3")
+	s.basics = [&"movement"]
+	s.cues = PackedStringArray(["kills 5: edit edit_slowmo quiet", "kills 5: edit edit_inverted"])
+	assert_string_contains("\n".join(s.problems()), "a quiet edit needs", "the warned one must come first")
+	s = _session(&"q4")
+	s.basics = [&"movement"]
+	s.cues = PackedStringArray(["kills 5: edit edit_inverted", "kills 5: edit edit_slowmo quiet"])
+	assert_false("\n".join(s.problems()).contains("quiet"))
 
 
 ## M43: the last session is the data's (S7 today); S6 offers Next.
@@ -308,16 +364,24 @@ func test_s6_retry_does_not_play_the_ending() -> void:
 	d.close()
 
 
+## M43.2 (G13b): the campaign is done once only cooking sessions are left (S7's tryout):
+## seven bumps (v0.7.0), the title says "to be continued", and Continue shows the cooking
+## screen.
 func test_done_campaign_shows_to_be_continued() -> void:
 	SaveGame.go_live(TEST_PATH, true)
-	for i in CampaignDB.size():
+	assert_eq(CampaignDB.cooking_index(), CampaignDB.index_of(&"s2_01_tryout"))
+	for i in CampaignDB.cooking_index():
 		assert_false(CampaignDB.is_done(), "not done before session %d" % i)
 		CampaignDB.complete(CampaignDB.session(i))
 	assert_true(CampaignDB.is_done())
-	assert_eq(SaveGame.version().label(), "v0.8.0", "eight minor bumps (M43: S7)")
+	assert_eq(CampaignDB.current().id, &"s2_01_tryout", "the cooking session")
+	assert_eq(SaveGame.version().label(), "v0.7.0", "seven minor bumps (M43.2: v0.8.0 comes with the real S7)")
+	assert_eq(CampaignDB.version_after(CampaignDB.cooking()).label(), "v0.8.0", "what the cooking screen builds")
 	assert_true(StartScreen.campaign_line().ends_with("· to be continued"), StartScreen.campaign_line())
+	assert_eq(StartScreen.continue_target(), CookingScreen.SCENE)
+	assert_eq(CookingScreen.after_campaign_scene(), CookingScreen.SCENE)
 	var screen := await _screen()
-	assert_false(screen.continue_button.visible)
+	assert_true(screen.continue_button.visible, "Continue shows the cooking screen")
 
 
 func test_a_broken_campaign_reports_each_problem() -> void:
@@ -487,7 +551,7 @@ func test_shooting_comes_with_a_kill_count() -> void:
 	assert_false(game.player.shooting_locked)
 	assert_true(game.player.dash_locked, "the dash ships after this session")
 	assert_eq(game.run_loop.goal, SessionDef.KILLS)
-	assert_eq(game.hud.goal_shown(), "Kills 0/15")
+	assert_eq(game.hud.goal_shown(), "Kills 0/10")
 	RunState.kills = 1
 	await wait_physics_frames(3)
 	assert_eq(game.session_runner.fired_count(), 1, "the first kill: 'Oh. That works.'")

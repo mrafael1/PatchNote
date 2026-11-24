@@ -224,7 +224,7 @@ static func campaign_line() -> String:
 
 func refresh_campaign() -> void:
 	save_label.text = campaign_line()
-	continue_button.visible = CampaignDB.started() and not CampaignDB.is_done()
+	continue_button.visible = CampaignDB.started() and (not CampaignDB.is_done() or CampaignDB.cooking() != null)
 	continue_button.disabled = SaveGame.read_only
 	new_button.disabled = SaveGame.read_only
 	new_button.text = NEW_ARMED if _new_armed else NEW_GAME
@@ -292,7 +292,15 @@ func set_reduce_flashing(on: bool) -> void:
 func _start_campaign() -> void:
 	CampaignDB.active = true
 	Main.next_seed = parse_seed(seed_field.text)
-	_start_game()
+	get_tree().change_scene_to_file(continue_target())
+
+
+## Where the campaign goes on (M43.2): the game, or the cooking screen once nothing
+## playable is left and the next session is still cooking.
+static func continue_target() -> String:
+	if CampaignDB.is_done() and CampaignDB.cooking() != null:
+		return CookingScreen.SCENE
+	return GAME_SCENE
 
 
 func _row(label_text: String, control: Control) -> HBoxContainer:

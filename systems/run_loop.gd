@@ -19,6 +19,9 @@ extends Node
 ## it "stopped") or stop (the AI ends it at that time, "stopped", after a read beat).
 ## The goal clock is game time that can be held (hold_clock), so a scripted event can
 ## pause the countdown without pausing play. No prompts and no release candidate.
+## M43.2 (G13b): a goal can also be held (hold_goal): while anyone holds it, no goal
+## ends the session (a kills goal reached waits, logged once as goal_waited), so a
+## scripted event always plays to its end; a death still ends it at once.
 
 signal phase_changed(phase: StringName)
 signal report_ready(outcome: StringName)
@@ -65,6 +68,8 @@ var goal_clock := 0.0        ## game seconds counted toward the goal (held while
 var stop_said := false       ## a stop goal reached its time (the AI's line is a cue)
 var _clock_holds := {}
 var _clock_last := 0.0
+var _goal_holds: Array[StringName] = []   ## M43.2: no goal ends while non-empty
+var _goal_waited := false
 
 var _report_at := -1.0
 var _clear_until := -1.0
@@ -113,6 +118,7 @@ func set_goal(kind: StringName, value: float, limit := 0.0) -> void:
 	time_limit = limit
 	goal_clock = 0.0
 	_clock_last = RunState.game_time
+	_goal_waited = false
 
 
 ## Holds (true) or releases the goal clock for `owner_id`; it counts while no one holds it.
@@ -127,11 +133,29 @@ func clock_held() -> bool:
 	return not _clock_holds.is_empty()
 
 
+## Holds (true) or releases the goal's ending for `owner_id` (M43.2: a scripted event,
+## from its cue to its end). The goal clock still counts unless hold_clock holds it.
+func hold_goal(owner_id: StringName, on: bool) -> void:
+	if on and not owner_id in _goal_holds:
+		_goal_holds.append(owner_id)
+	elif not on:
+		_goal_holds.erase(owner_id)
+
+
+func goal_held() -> bool:
+	return not _goal_holds.is_empty()
+
+
 func _update_goal() -> void:
 	var now := RunState.game_time
 	if _clock_holds.is_empty():
 		goal_clock += now - _clock_last
 	_clock_last = now
+	if not _goal_holds.is_empty():
+		if goal == SessionDef.KILLS and RunState.kills >= int(goal_value) and not _goal_waited:
+			_goal_waited = true
+			RunState.log_event(&"goal_waited")
+		return
 	match goal:
 		SessionDef.SURVIVE:
 			if goal_clock >= goal_value:
