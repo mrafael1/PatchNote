@@ -42,6 +42,9 @@ static var unlock_all := true     ## everything counts as shipped (Unlocks)
 static var read_only := false     ## the file on disk is from a newer build
 static var last_load: StringName = INERT
 static var data := {}   ## read through state(): filled on first use, once GenreDB exists
+## M47 (PLAN v9 2, D17): replay-as-path. While non-empty the game plays a deep copy of the
+## save in memory (never written); it holds the mode to restore exactly (end_replay).
+static var _replay := {}
 
 
 ## The current state (a new save until something loads or resets it).
@@ -56,6 +59,7 @@ static func state() -> Dictionary:
 ## The real game: read path (default: the real save) and write to it from now on.
 ## fresh starts from a new save, whatever the file holds (bot --fresh --keep-save).
 static func go_live(path := DEFAULT_PATH, fresh := false) -> void:
+	_replay = {}   # M47: a mode change ends any replay
 	save_path = path
 	persist = true
 	unlock_all = false
@@ -68,6 +72,7 @@ static func go_live(path := DEFAULT_PATH, fresh := false) -> void:
 ## A read-only snapshot (bot runs without --keep-save): every run sees the same state
 ## and nothing is written. An empty path or fresh means a new save in memory.
 static func use_snapshot(path := "", fresh := false) -> void:
+	_replay = {}   # M47: a mode change ends any replay
 	persist = false
 	unlock_all = false
 	save_path = path if path != "" else DEFAULT_PATH
@@ -79,10 +84,54 @@ static func use_snapshot(path := "", fresh := false) -> void:
 
 ## Back to the default: inert, everything unlocked, the real path, a new save in memory.
 static func go_inert() -> void:
+	_replay = {}   # M47: a mode change ends any replay
 	save_path = DEFAULT_PATH
 	persist = false
 	unlock_all = true
 	_use(new_state(), INERT)
+
+
+## M47: is a replay-as-path playing (the copy in memory)?
+static func in_replay() -> bool:
+	return not _replay.is_empty()
+
+
+## M47 (D17): from now on the game plays a deep copy of the save, never written, with
+## `fork_id` answered by `change_id` in memory and no version bump (ship() would bump).
+## The current mode (persist, unlock_all, path, data, last load) is stored for end_replay().
+static func begin_replay(fork_id: StringName, change_id: StringName) -> void:
+	if in_replay():
+		return
+	_replay = {"persist": persist, "unlock_all": unlock_all, "save_path": save_path, "data": state(),
+			"last_load": last_load, "read_only": read_only}
+	data = state().duplicate(true)
+	persist = false
+	var f := ChangeDB.get_fork(fork_id)
+	if f != null:
+		for c in f.changes():
+			(state().shipped as Array).erase(String(c.id))
+	if not has_shipped(change_id):
+		(state().shipped as Array).append(String(change_id))
+
+
+## M47 (D17): back to exactly the stored mode and state (never a load from disk). Settings
+## changed during the replay (reduce flashing...) are kept, and written only if the restored
+## mode persists.
+static func end_replay() -> void:
+	if not in_replay():
+		return
+	var settings: Dictionary = (state().get("settings", {}) as Dictionary).duplicate(true)
+	persist = bool(_replay.persist)
+	unlock_all = bool(_replay.unlock_all)
+	save_path = String(_replay.save_path)
+	data = _replay.data
+	last_load = _replay.last_load
+	read_only = bool(_replay.read_only)
+	_replay = {}
+	var changed: bool = settings != state().get("settings", {})
+	state().settings = settings
+	if changed and persist:
+		write()
 
 
 static func _use(state: Dictionary, how: StringName) -> void:

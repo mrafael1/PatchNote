@@ -214,14 +214,16 @@ func test_path_def_problems_bite_on_a_cards_path() -> void:
 
 # --- 2. Built ----------------------------------------------------------------------------------
 
-func test_path_arsenal_is_built_and_survival_is_not() -> void:
+func test_path_arsenal_is_built_and_survival_too() -> void:
 	assert_eq(Cue.parse("at 3: path arsenal").unbuilt(), "")
-	assert_eq(Cue.parse("at 3: path survival").unbuilt(), "path survival is not built yet (M47)")
+	assert_eq(Cue.parse("at 3: path survival").unbuilt(), "", "M47 builds Survival")
 	await _arena()
 	assert_true(game.debug.switch_path(&"arsenal"))
 	assert_eq(game.path_runner.path_id, &"arsenal")
 	assert_eq(_loadout().fire_mode, &"manual_one")
-	assert_false(game.debug.switch_path(&"survival"))
+	assert_true(game.debug.switch_path(&"survival"), "M47: F2 PATH survival")
+	assert_eq(_loadout().fire_mode, &"manual_ammo")
+	await wait_physics_frames(2)   # Survival's deferred pieces land before the game is freed (no orphan)
 
 
 # --- 3. Binds -----------------------------------------------------------------------------------

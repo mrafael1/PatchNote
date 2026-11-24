@@ -18,6 +18,7 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	_cook_out()
 	Telemetry.log_path = Telemetry.DEFAULT_PATH
 	RunState.set_pause(&"stage_card", false)
 	SaveGame.go_inert()
@@ -148,24 +149,48 @@ func test_a_card_without_lines_is_the_plain_card() -> void:
 	assert_false(card.is_open(), "it still closes itself at 3 s")
 
 
-func test_the_cooking_screen_shows_s7_and_writes_nothing() -> void:
+## M47: nothing cooks in the campaign (S7 is real); a test-only cooking session appended
+## after S8 keeps the screen covered (removed in after_each, never left for problems()).
+const COOK_ID := &"s2_99_test_cook"
+
+
+func _cook_in() -> SessionDef:
+	var s := SessionDef.new()
+	s.id = COOK_ID
+	s.stage = 2
+	s.title = "Cooking (test)"
+	s.bump = &"minor"
+	s.cooking = PackedStringArray(LINES)
+	CampaignDB.campaign.sessions.append(s)
+	return s
+
+
+func _cook_out() -> void:
+	while CampaignDB.get_session(COOK_ID) != null:
+		CampaignDB.campaign.sessions.erase(CampaignDB.get_session(COOK_ID))
+
+
+func test_the_cooking_screen_shows_a_cooking_session_and_writes_nothing() -> void:
 	SaveGame.go_live(TEST_PATH, true)
-	for i in CampaignDB.cooking_index():
+	for i in CampaignDB.size():
 		CampaignDB.complete(CampaignDB.session(i))
+	assert_eq(CookingScreen.after_campaign_scene(), StartScreen.TITLE_SCENE, "M47: nothing cooks")
+	_cook_in()
+	assert_eq(CookingScreen.after_campaign_scene(), CookingScreen.SCENE)
 	SaveGame.write()
 	var save_text := FileAccess.get_file_as_string(TEST_PATH)
 	assert_eq(Telemetry.log_path, TEST_LOG, "the scratch log")
 	var screen: CookingScreen = load(CookingScreen.SCENE).instantiate()
 	add_child_autofree(screen)
 	assert_not_null(screen.card)
-	assert_eq(screen.session.id, &"s2_01_tryout")
+	assert_eq(screen.session.id, COOK_ID)
 	assert_true(screen.card.is_open())
 	assert_eq(screen.card.title, "The shooter")
 	assert_eq(screen.card.cooking_lines, screen.session.cooking)
-	assert_eq(screen.card.building, "v0.8.0")
+	assert_eq(screen.card.building, "v0.9.0")
 	screen.card.skip()
 	assert_false(get_tree().paused)
-	assert_eq(SaveGame.version().label(), "v0.7.0", "no bump")
+	assert_eq(SaveGame.version().label(), "v0.8.1", "no bump")
 	assert_eq(FileAccess.get_file_as_string(TEST_PATH), save_text, "no save write")
 	assert_false(FileAccess.file_exists(TEST_LOG), "no telemetry")
 

@@ -80,6 +80,9 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var bump: StringName = &"minor"
 ## The patch notes: what changed with this session.
 @export var notes: PackedStringArray = []
+## M47 (D16): Lines the debrief says after the take line of the session's last asked fork
+## (S7: "The other two go in a drawer.").
+@export var after_pick: PackedStringArray = []
 ## Changes shipped into the save when the session is done (none needed for the basics:
 ## the next session's data says what its build has).
 @export var ships: Array[StringName] = []
@@ -90,10 +93,14 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## "To be continued"). A dev jump (--session=, the bot's --only=) still plays its data.
 ## Empty = a playable session. The real session's milestone clears it (M47 for S7).
 @export var cooking: PackedStringArray = []
+## M47 (D2): progress lines the stage card shows before its title when it plays before this
+## session (the AI cooking it, a short beat; S7). Empty = the plain card.
+@export var cook_beat: PackedStringArray = []
 
 var _intro: Array[Line] = []
 var _cues: Array[Cue] = []
 var _debrief: Array[Line] = []
+var _after_pick: Array[Line] = []
 var _parsed := false
 
 
@@ -117,6 +124,11 @@ func debrief_lines() -> Array[Line]:
 	return _debrief
 
 
+func after_pick_lines() -> Array[Line]:
+	_parse()
+	return _after_pick
+
+
 func _parse() -> void:
 	if _parsed:
 		return
@@ -124,6 +136,7 @@ func _parse() -> void:
 	_intro = Line.parse_all(intro)
 	_cues = Cue.parse_all(cues)
 	_debrief = Line.parse_all(debrief)
+	_after_pick = Line.parse_all(after_pick)
 
 
 ## The arena this session plays.
@@ -313,6 +326,14 @@ func problems() -> Array[String]:
 	for k in cooking:
 		if k.strip_edges() == "":
 			out.append("%s: an empty cooking line" % where)
+	for k in cook_beat:
+		if k.strip_edges() == "":
+			out.append("%s: an empty cook_beat line" % where)
+	if not after_pick.is_empty() and asked_forks().is_empty():
+		out.append("%s: after_pick lines need a fork" % where)
+	for l in after_pick_lines():
+		if l.problem != "":
+			out.append("%s: after_pick: %s" % [where, l.problem])
 	for l in intro_lines() + debrief_lines():
 		if l.problem != "":
 			out.append("%s: %s" % [where, l.problem])

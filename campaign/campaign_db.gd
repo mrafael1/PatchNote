@@ -14,6 +14,12 @@ const REACTIONS_DIR := "res://campaign/reactions/"
 ## a save without `campaign.next` maps its index through it.
 const M42_2_ORDER: Array[StringName] = [&"s1_00_nothing", &"s1_01_move", &"s1_02_enemies",
 		&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong", &"s1_06_playground"]
+## M47 (frozen, PLAN v9 1.14, D3): the sessions a save may have in `done` from a stub that a
+## later milestone replaced (the M43.2 S7 stub: the owner's v0.8.0 save). While the save is
+## stub-era (_stub_era) they are ignored by the furthest-done scan and by stage_card_due(),
+## so the real session plays, with its card; version_after() still sees them done (no
+## second bump). Completing the real session points `next` past it: the rule turns off.
+const STUB_DONE: Array[StringName] = [&"s2_01_tryout"]
 
 var campaign: CampaignDef
 ## The AI's live reactions (PLAN v8 1.7), every file in REACTIONS_DIR, sorted by id.
@@ -240,9 +246,37 @@ func _save_index() -> int:
 		if mapped >= 0:
 			return mapped
 	var furthest := -1
+	var stub := _stub_era(camp)
 	for d: Variant in (camp.done as Array):
+		if stub and StringName(String(d)) in STUB_DONE:
+			continue
 		furthest = maxi(furthest, index_of(StringName(String(d))))
 	return furthest + 1
+
+
+## M47 (D3): the save finished a stub session in STUB_DONE and nothing after it: a STUB_DONE
+## id is in `done`, no `done` id comes after it in the campaign, and `next` is "", absent or
+## a STUB_DONE id.
+func _stub_era(camp: Dictionary = SaveGame.campaign()) -> bool:
+	var next := StringName(String(camp.get("next", "")))
+	if next != &"" and not next in STUB_DONE:
+		return false
+	var done: Array = camp.get("done", [])
+	var stub_at := -1
+	for id in STUB_DONE:
+		if String(id) in done:
+			stub_at = maxi(stub_at, index_of(id))
+	if stub_at < 0:
+		return false
+	for d: Variant in done:
+		if index_of(StringName(String(d))) > stub_at:
+			return false
+	return true
+
+
+## Is the save stub-era (M47, D3)? Tests and the report read it.
+func stub_era() -> bool:
+	return _stub_era(SaveGame.campaign())
 
 
 ## The session the save plays next; the cooking session (M43.2) when nothing playable is
@@ -456,9 +490,11 @@ func stage_card_due(s: SessionDef) -> bool:
 	if s == null or s.stage <= 1 or not campaign.stage_titles.has(s.stage):
 		return false
 	var camp := SaveGame.campaign()
+	var stub := _stub_era(camp)
 	for other in campaign.sessions:
-		if other != null and other.stage == s.stage and (String(other.id) in (camp.done as Array)
-				or int((camp.attempts as Dictionary).get(String(other.id), 0)) > 0):
+		if other == null or other.stage != s.stage or (stub and other.id in STUB_DONE):
+			continue   # M47 (D3): the old stub's done entry does not count
+		if String(other.id) in (camp.done as Array) or int((camp.attempts as Dictionary).get(String(other.id), 0)) > 0:
 			return false
 	return true
 
@@ -520,7 +556,8 @@ func retry(s: SessionDef) -> void:
 ## `dash_aim` is where the dash goes after them (aim or move).
 func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName, hits: int,
 		choice: StringName, build := "", pick: Change = null, reactions: Array[String] = [],
-		edits: Array = [], events: Array = [], more_picks: Array[Change] = []) -> Dictionary:
+		edits: Array = [], events: Array = [], more_picks: Array[Change] = [],
+		path_runner: Node = null) -> Dictionary:
 	var fork_record: Variant = null
 	var mascot := SaveGame.mascot()
 	var dash := Unlocks.dash_answer()
@@ -543,7 +580,7 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 			dash = c.take.id
 		elif c.kind == &"dash_aim":
 			dash_aim = c.take.id
-	return {
+	var rec := {
 		"schema": Telemetry.CAMPAIGN_SCHEMA,
 		"type": "campaign",
 		"session_id": Telemetry.session(),
@@ -579,6 +616,42 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"enemy_shots_refused": RunState.enemy_shots_refused,
 		"player_shots_refused": RunState.player_shots_refused,
 	}
+	rec.merge(path_record(s, path_runner))
+	return rec
+
+
+## PLAN v9 1.15 (M47, additive: the schema stays 4): the path keys of a campaign line. path:
+## the answered path ("" in a tryout and Stage 1); fp: the play fingerprint (null in a
+## tryout and without a path); fp_tastes / swaps: a tryout's per-taste fingerprints and its
+## swaps ("arsenal@14.5"); weapons {id: rank}; pickups {kind: n}; kill_heal n; picks
+## [{at, offer, pick}]; replay (a replay-as-path, SaveGame.in_replay()).
+func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
+	var tryout := s != null and s.tryout
+	var out := {"path": "" if tryout or s == null else String(s.resolve(&"path")), "fp": null,
+			"fp_tastes": {}, "swaps": [], "weapons": {}, "pickups": {}, "kill_heal": 0, "picks": [],
+			"replay": SaveGame.in_replay()}
+	for e: Dictionary in RunState.run_log:
+		match e.get("event"):
+			&"path_swapped":
+				if tryout:
+					(out.swaps as Array).append("%s@%.1f" % [e.get("to", ""), float(e.get("time", 0.0))])
+			&"pick":
+				(out.picks as Array).append({"at": snappedf(float(e.get("time", 0.0)), 0.1),
+						"offer": e.get("offer", []), "pick": e.get("pick", "")})
+			&"kill_heal":
+				out.kill_heal = int(out.kill_heal) + 1
+	if runner == null:
+		return out
+	out.pickups = (runner.get(&"pickup_kinds") as Dictionary).duplicate()
+	var lo: Loadout = runner.call(&"loadout")
+	if lo != null:
+		for w in lo.slots + lo.passives:
+			(out.weapons as Dictionary)[String(w.def.id)] = w.rank
+	if tryout:
+		out.fp_tastes = (runner.get(&"taste_fps") as Dictionary).duplicate()
+	elif String(out.path) != "":
+		out.fp = runner.call(&"fingerprint")
+	return out
 
 
 ## {id, pick, shelved} of one fork pick (telemetry).

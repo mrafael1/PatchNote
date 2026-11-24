@@ -13,7 +13,7 @@ const BEFORE_BLOCK := Vector2(15, 20)
 const OPEN := Vector2(34, 20)
 ## M43: answer: conditions may name these before their changes exist (the path changes
 ## land with fork_path in M47, which empties this list); a typo still fails.
-const PLANNED_CHANGES: Array[StringName] = [&"path_arsenal", &"path_auto", &"path_survival"]
+const PLANNED_CHANGES: Array[StringName] = []   ## M47: the path changes exist now
 
 var game: Main
 var player: CharacterBody2D

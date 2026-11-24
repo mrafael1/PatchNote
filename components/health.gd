@@ -16,6 +16,8 @@ signal shield_hit(info: DamageInfo)
 var shield_hits := 0
 var hp_ratio := 1.0
 var dead := false
+## M47: max HP never below this after the rules (0 = no floor; a splitter's minis: 1).
+var min_max_hp := 0.0
 var _invuln_until := -1.0
 
 
@@ -26,6 +28,8 @@ func max_hp() -> float:
 	var m := base_max_hp * rules.enemy_hp_mult + rules.enemy_hp_add
 	if rules.enemy_hp_one:
 		m = minf(m, 1.0)   # edit_tiny_enemies: one hit each
+	if min_max_hp > 0.0:
+		m = maxf(m, min_max_hp)
 	return m
 
 

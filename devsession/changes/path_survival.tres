@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Change" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"survival"
+title = "Survival"
+line = "Scavenger. Good. I'll hide guns everywhere."
+
+[resource]
+script = ExtResource("1")
+id = &"path_survival"
+title = "Path: Survival (scavenger)"
+pitch = "Scavenge. Guns on the ground, ammo runs out, kills heal you."
+kind = &"path"
+tags = Array[StringName]([&"path"])
+take = SubResource("take")

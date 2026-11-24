@@ -1,3 +1,49 @@
+# Patch Notes: G14a (M47 build, ~15 min): the three paths
+
+One page. The G13 sheet is kept below for reference.
+
+## Before
+- In `%APPDATA%\Godot\app_userdata\Patch Notes\`, back up, then move aside `save\save.json` and `playtest\runs.jsonl` (e.g. rename them `*.before-g14a.*`).
+- Or keep playing your own save: it goes straight to S7, with the Stage 2 card first. It stays at v0.8.0 after S7 (the old stub already gave you that number), then S8 makes it v0.8.1.
+- A new game reaches S7 in about 6 minutes (Stage 1 as before).
+- Run `PatchNotes.exe`. F-keys work in this build. The observer stays silent.
+
+## What to play
+1. **S7 "Three games"** once (2.5 min, you can't lose). The AI swaps the whole game twice: cards (Arsenal), guns on the floor (Survival), then auto-fire (Auto). At the end it asks which one to build.
+2. **S8 "Day one"** on the path you picked (2 min, you can lose; Retry or Move on).
+3. Back on the title screen, the **Replay** row (new): pick S8 and another path, then Replay. Do it for both other paths. A replay never touches your save: it plays a copy, and the title restores it.
+
+## Controls added
+| | Keyboard and mouse | Pad |
+|---|---|---|
+| Arsenal: switch card | Q / E, mouse wheel, 1-3 | Bumpers |
+| Survival: take a gun, ammo or a heal | Walk over it (your old gun drops at your feet) | Walk over it |
+
+## Files to send back
+- `playtest\runs.jsonl` (the `fp` lines are your play fingerprints, next to the bots').
+- `lines_stage2.md` (next to this sheet) if you edit any line.
+
+## Questions (build-changing first, one line each)
+1. Arsenal's cards and Auto's level-ups, next to "no 3-way choices for patches": fine?
+2. Back to the pistol every session: fun or a loss?
+3. 13 forks in the plan: drop `fork_hud`?
+4. Do they feel like three games? Score each pair 1-5: Arsenal-Auto, Arsenal-Survival, Auto-Survival.
+5. Which would you keep, and why?
+6. The look comes after S8 (next build) instead of at the end of Stage 1: right moment?
+7. The lines file (`lines_stage2.md`): any tone edits?
+8. G13's 7a-7j (the sheet below), one line each.
+
+## Open one-liners
+- Arsenal's first card in S8 comes at 25 kills (the plan said 15): ok?
+- Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it; nothing offers it before S9.)
+- Path line budget (250 own lines per path): nova and well counted as shared code (Auto 182) or as Auto's own (315, over)? Survival is at 250 exactly (paths/survival/) on the first reading, or about 485 if its shared Loadout / Pickup / bot / pickup-field lines count as its own.
+- S7's timings moved from the plan: the swaps cue at 13 / 56 / 99 / 143 s (planned 2 / 48 / 96 / 143), because the three intro lines take 12 s and no swap may start while the AI is still talking. Each line inside a taste moved 1-12 s with it; the tastes are 43 / 43 / 44 s instead of ~48 / 46 / 47. Ok?
+- The "AI cooking" beat now plays on S7's stage card, before its title ("Building v0.8.0", four progress lines, the bar fills). Is that what you meant by "the AI cooking on the chat screen", or did you mean S6's debrief tail?
+
+If G14a goes unanswered, M48 goes ahead on the plan's defaults. M47.1 only happens if you score a pair 2 or less.
+
+---
+
 # Patch Notes: playtest sheet (G13.2, Stage 1 with your G13 feedback)
 
 One page. The player reads **Before** and **Controls** only. The observer keeps the rest until the end.

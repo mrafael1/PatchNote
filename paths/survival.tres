@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="PathDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://paths/path_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"survival"
+fire_mode = &"manual_ammo"
+growth = &"pickups"
+start = Array[StringName]([&"pistol"])
+max_slots = 1
+max_passives = 1
+offer_pool_extra = Array[StringName]([])
+spawn_rate_mult = 1.0
+max_enemies_mult = 1.0
+enemy_hp_mult = 1.0
+kill_goal_mult = 1.0
+boss_hp_mult = 0.9
+widget = &"ammo"
+bot_policy = &"survival"
+basics = Array[StringName]([&"pickups", &"kill_heal"])
+max_picks = 0
+warn_line = "happy: New version. Guns are lying around."

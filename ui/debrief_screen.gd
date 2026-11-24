@@ -352,9 +352,9 @@ func _card(c: Change, index: int) -> Button:
 		b.mouse_exited.connect(func() -> void: preview.set_expression(&"idle"))
 		b.focus_entered.connect(func() -> void: preview.set_expression(&"happy"))
 		b.focus_exited.connect(func() -> void: preview.set_expression(&"idle"))
-	elif c.take != null and c.take.image != null:
+	elif _still_for(c) != null:
 		var still := TextureRect.new()
-		still.texture = c.take.image
+		still.texture = _still_for(c)
 		still.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		still.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		still.custom_minimum_size = Vector2(0, 110)
@@ -376,6 +376,14 @@ func _card(c: Change, index: int) -> Button:
 		if cards_ready():
 			pick(index))
 	return b
+
+
+## A card's still (M47, 1.12): a path option shows the player's own taste of it when S7
+## captured one (PathRunner.taste_stills), else its take's image; null = text only.
+static func _still_for(c: Change) -> Texture2D:
+	if c.kind == &"path" and c.take != null and PathRunner.taste_stills.has(String(c.take.id)):
+		return PathRunner.taste_stills[String(c.take.id)]
+	return c.take.image if c.take != null else null
 
 
 ## The cards take player input input_delay after they show: a Space tap meant for the
@@ -409,6 +417,9 @@ func pick(index: int) -> bool:
 		big_body.set_expression(&"happy")
 	if c.take != null and c.take.line != "":
 		_pending.append(Line.make(c.take.line, &"happy"))
+	if fork() == null:   # M47 (D16): the session's after_pick lines follow its last fork's take
+		_pending.append_array(Line.passing(session.after_pick_lines(), CampaignDB.line_context(session,
+				outcome, hits_seen, events, moved_on)))
 	_next_line()
 	return true
 

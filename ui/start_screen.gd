@@ -50,6 +50,12 @@ var new_button: Button
 var flashing: CheckButton
 var flash_panel: Control
 var _new_armed := false
+## M47 (PLAN v9 2, D17): replay-as-path. The row shows once a done session's path is
+## `fork:fork_path` (S8).
+var replay_row: HBoxContainer
+var replay_session: OptionButton
+var replay_path: OptionButton
+const REPLAY_FORK := &"fork_path"
 var _after_question: Callable
 
 
@@ -139,6 +145,7 @@ func _ready() -> void:
 # --- The campaign's screen (PLAN v8 2) -----------------------------------------------
 
 func _build_campaign(column: VBoxContainer) -> void:
+	SaveGame.end_replay()   # M47: the title after a replay restores the stored save mode
 	continue_button = _big_button(CONTINUE, press_continue)
 	column.add_child(continue_button)
 	new_button = _big_button(NEW_GAME, press_new_game)
@@ -165,6 +172,23 @@ func _build_campaign(column: VBoxContainer) -> void:
 	answers.add_child(no)
 	flash_panel.add_child(answers)
 	column.add_child(flash_panel)
+
+	replay_row = HBoxContainer.new()
+	replay_row.name = "ReplayRow"
+	replay_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	replay_row.add_theme_constant_override(&"separation", 8)
+	replay_session = OptionButton.new()
+	replay_row.add_child(replay_session)
+	replay_path = OptionButton.new()
+	for c in _replay_changes():
+		replay_path.add_item(String(c.take.title) if c.take != null else String(c.id))
+		replay_path.set_item_metadata(replay_path.item_count - 1, c.id)
+	replay_row.add_child(replay_path)
+	var replay := Button.new()
+	replay.text = "Replay"
+	replay.pressed.connect(func() -> void: press_replay(_selected(replay_session), _selected(replay_path)))
+	replay_row.add_child(replay)
+	column.add_child(replay_row)
 
 	seed_field = LineEdit.new()
 	seed_field.placeholder_text = "Seed (empty = random)"
@@ -231,6 +255,52 @@ func refresh_campaign() -> void:
 	flashing.set_block_signals(true)
 	flashing.button_pressed = bool(SaveGame.setting("reduce_flashing"))
 	flashing.set_block_signals(false)
+	_refresh_replay()
+
+
+# --- Replay as path (M47, PLAN v9 2, D17) ----------------------------------------------
+
+## The done sessions whose path is the path fork (S8), in campaign order.
+static func replay_sessions() -> Array[SessionDef]:
+	var out: Array[SessionDef] = []
+	for s in CampaignDB.campaign.sessions:
+		if s != null and String(s.path) == "fork:%s" % REPLAY_FORK and String(s.id) in (SaveGame.campaign().done as Array):
+			out.append(s)
+	return out
+
+
+static func _replay_changes() -> Array[Change]:
+	var f := ChangeDB.get_fork(REPLAY_FORK)
+	return f.changes() if f != null else ([] as Array[Change])
+
+
+func _refresh_replay() -> void:
+	if replay_row == null:
+		return
+	var sessions := replay_sessions()
+	replay_row.visible = not sessions.is_empty() and not SaveGame.read_only
+	replay_session.clear()
+	for s in sessions:
+		replay_session.add_item(s.title)
+		replay_session.set_item_metadata(replay_session.item_count - 1, s.id)
+
+
+static func _selected(b: OptionButton) -> StringName:
+	return StringName(b.get_item_metadata(b.selected)) if b.selected >= 0 else &""
+
+
+## Plays session `id` again as path change `change_id`, on an in-memory copy of the save
+## (never written; the title after it restores the save exactly).
+func press_replay(id: StringName, change_id: StringName) -> bool:
+	if id == &"" or change_id == &"" or SaveGame.read_only:
+		return false
+	_go_live()
+	SaveGame.begin_replay(REPLAY_FORK, change_id)
+	if not CampaignDB.jump_to(id):
+		SaveGame.end_replay()
+		return false
+	_start_campaign()
+	return true
 
 
 func press_continue() -> void:

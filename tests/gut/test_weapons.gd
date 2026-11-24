@@ -28,13 +28,18 @@ var _tuning := {}
 var _links: Array = []   ## [signal, callable] connected by a test, cut in after_each
 
 
+const STUB := &"s7_auto_stub"
+
+
 func before_each() -> void:
+	_stub_in()
 	Telemetry.log_path = TEST_LOG
 	for key in ["shoot_cooldown", "projectile_speed", "hard_max_projectiles"]:
 		_tuning[key] = Tuning.get(key)
 
 
 func after_each() -> void:
+	_stub_out()
 	for l: Array in _links:
 		if (l[0] as Signal).is_connected(l[1]):
 			(l[0] as Signal).disconnect(l[1])
@@ -657,7 +662,7 @@ func test_the_shotgun_never_passes_the_projectile_cap() -> void:
 # --- 12: the give cue ----------------------------------------------------------------------
 
 func test_the_give_cue_hands_the_weapon() -> void:
-	var g := await _session_game(&"s2_01_tryout")
+	var g := await _session_game(STUB)
 	var lo := Component.find(g.player, Loadout) as Loadout
 	assert_eq(lo.summary(), "pistol:1")
 	g.session_runner.inject("at 0.5: give shotgun")
@@ -690,7 +695,7 @@ func test_give_problems() -> void:
 
 
 func test_the_stub_gives_after_its_intro() -> void:
-	var s := CampaignDB.get_session(&"s2_01_tryout")
+	var s := CampaignDB.get_session(STUB)
 	assert_eq(s.weapons, [&"pistol", &"shotgun"] as Array[StringName])
 	var intro := 0.0
 	for l in s.intro_lines():
@@ -755,7 +760,7 @@ func test_the_switch_line_names_the_keys_on_the_players_layout() -> void:
 	assert_eq(InputSetup.key_label(&"move_left", azerty), "Q", "the key printed Q moves left on AZERTY")
 	assert_string_contains(Line.parse("happy: press {key:fly}").problem, "unknown action")
 	assert_string_contains(Line.parse("happy: press {key:dash").problem, "unclosed")
-	var g := await _session_game(&"s2_01_tryout")
+	var g := await _session_game(STUB)
 	g.session_runner.inject("at 0.5: say happy: {key:weapon_prev} and {key:weapon_next}.")
 	await wait_physics_frames(45)
 	var texts: Array[String] = g.session_runner.said.duplicate()
@@ -820,7 +825,7 @@ func _same_fields(now: Dictionary, want: Dictionary, where: String) -> void:
 ## through main._end_session (CampaignDB writes the in-memory save), and only then is the
 ## save scanned. The retry's fresh scene (no jump) starts bare.
 func test_a_weapon_never_outlives_its_session_or_reaches_the_save() -> void:
-	var g := await _session_game(&"s2_01_tryout")
+	var g := await _session_game(STUB)
 	var lo := Component.find(g.player, Loadout) as Loadout
 	assert_true(lo.give(&"shotgun", 3))
 	assert_eq(lo.summary(), "pistol:1,shotgun:3")
@@ -829,7 +834,7 @@ func test_a_weapon_never_outlives_its_session_or_reaches_the_save() -> void:
 	var before := str(SaveGame.state())
 	g._end_session(&"retry")
 	assert_ne(str(SaveGame.state()), before, "Retry wrote the save")
-	assert_eq(SaveGame.attempts(&"s2_01_tryout"), 1)
+	assert_eq(SaveGame.attempts(STUB), 1)
 	_no_weapon_keys("after Retry")
 	g.free()
 	await wait_physics_frames(1)
@@ -838,7 +843,7 @@ func test_a_weapon_never_outlives_its_session_or_reaches_the_save() -> void:
 	if again.stage_card != null:
 		again.stage_card.skip()
 	await wait_physics_frames(2)
-	assert_eq(RunState.session.id, &"s2_01_tryout", "the same session again")
+	assert_eq(RunState.session.id, STUB, "the same session again")
 	var lo2 := Component.find(again.player, Loadout) as Loadout
 	assert_eq(lo2.summary(), "pistol:1", "the retry starts bare")
 	assert_true(lo2.give(&"laser", 2))
@@ -848,7 +853,7 @@ func test_a_weapon_never_outlives_its_session_or_reaches_the_save() -> void:
 	before = str(SaveGame.state())
 	again._end_session(&"next")
 	assert_ne(str(SaveGame.state()), before, "Next wrote the save")
-	assert_true(&"s2_01_tryout" in SaveGame.campaign().done or "s2_01_tryout" in SaveGame.campaign().done, "the session is done")
+	assert_true(STUB in SaveGame.campaign().done or "s7_auto_stub" in SaveGame.campaign().done, "the session is done")
 	_no_weapon_keys("after Next")
 
 
@@ -901,3 +906,20 @@ func test_weapons_never_apply_patches() -> void:
 		var text := FileAccess.get_file_as_string(path)
 		for word in ["RunState.apply", "add_ai", "MutationDB", "swap_big"]:
 			assert_false(text.contains(word), "%s uses %s" % [path, word])
+
+
+## M47 (D5): the old Auto-taste stub is a draft now; these tests insert it (after S8) and
+## after_each removes it.
+const STUB_DRAFT := "res://campaign/drafts/s7_auto_stub.tres"
+
+
+func _stub_in() -> void:
+	if CampaignDB.get_session(STUB) == null:
+		CampaignDB.campaign.sessions.insert(CampaignDB.cooking_index(), load(STUB_DRAFT) as SessionDef)
+
+
+func _stub_out() -> void:
+	var s := CampaignDB.get_session(STUB)
+	while s != null:
+		CampaignDB.campaign.sessions.erase(s)
+		s = CampaignDB.get_session(STUB)

@@ -17,6 +17,11 @@ extends Node
 ## (Arsenal: the card meter fed by player kills, HandWidget), each built once its basic is
 ## live; Arsenal's `quick_draw` basic turns its quick-draw on. It also samples the play
 ## fingerprint (1.15, report-only).
+##
+## M47: Survival (`pickups`: Drops, crates, the ammo widget; `kill_heal`), per-cue swap
+## warnings, picks counted per path since the last swap (`picked n` cues), a second sweep
+## on the tick after a swap (deferred spawns from the swap tick) and leftovers(), checked
+## then and logged as `path_leftovers`; S7's per-taste fingerprints.
 
 signal started(path_id: StringName)
 
@@ -25,11 +30,21 @@ const LevelMeter := preload("res://paths/auto/level_meter.gd")
 const LevelWidget := preload("res://paths/auto/level_widget.gd")
 const CardMeter := preload("res://paths/arsenal/card_meter.gd")
 const HandWidget := preload("res://paths/arsenal/hand_widget.gd")
+const Drops := preload("res://paths/survival/drops.gd")
+const AmmoWidget := preload("res://paths/survival/ammo_widget.gd")
 const SWAP_WARN_SECONDS := 1.5
 const GLITCH := 0.6        ## one pulse: one flash, far under 3 a second (D12)
 const FADE_SECONDS := 0.4  ## the pulse under reduce flashing
 ## The mascot's word after a pick (priority 1, muted with --mute-ai; D8, first to cut).
 const PICK_LINES: Array[String] = ["happy: Ooh, that one.", "proud: Good pick."]
+## M47 (1.12, D15): S7 captures a still of each taste this long after it lands (windowed
+## only), for fork_path's cards.
+const STILL_AFTER := 30.0
+const STILL_SIZE := Vector2i(480, 270)
+
+## M47: path id (String) -> ImageTexture of the player's taste (process memory only, never
+## saved; cleared when a tryout starts and when its scene goes).
+static var taste_stills := {}
 
 var game: Node            ## main.gd
 var panel: PickPanel
@@ -50,6 +65,14 @@ var taste := Taste.new()        ## the session's, never saved (D7)
 var said: Array[String] = []    ## every line it gave the mascot (tests, the bot)
 var offers: Array[PickOffer] = []
 var fp := Fingerprint.new()     ## the play fingerprint (1.15, report-only)
+## M47: picks made since the live path started (the `picked n` cues read it).
+var picks_on_path := 0
+var pickup_kinds := {}          ## M47: kind -> pickups taken (telemetry)
+## M47 (S7): path id -> the fingerprint of that taste (taken at the swap away from it).
+var taste_fps := {}
+## M47: the leftovers found on the tick after each swap ([] = clean), in order.
+var leftover_checks: Array = []
+var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or the fade)
 
 var _gems: Node
 var _meter: RefCounted
@@ -63,6 +86,17 @@ var _first: StringName = &""
 var _opening := false
 var _stopped := false
 var _fade: CanvasLayer
+var _drops: Node
+var _sweep_tick := -1      ## the physics frame after a swap: the second sweep
+var _check_tick := -1      ## the frame after that: the leftovers check
+## M47 review: what the swap's two sweeps removed (weak refs). The check a frame later
+## reports any of them still alive, so it can fail (a sweep that frees nothing shows).
+var _swept: Array[WeakRef] = []
+## Tests turn the second sweep's freeing off to see the check report the swap-tick spawns.
+var late_sweep := true
+var _late_swept := 0
+var _fp_base := [0, 0, 0]   ## picks, switches, pickups when the taste started
+var _still_tick := -1
 
 
 func _ready() -> void:
@@ -73,6 +107,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _tryout():
+		taste_stills.clear()
 	_feed_cards(false)
 	if EventBus.basic_added.is_connected(_on_basic_added):
 		EventBus.basic_added.disconnect(_on_basic_added)
@@ -82,6 +118,8 @@ func _exit_tree() -> void:
 
 ## The session's own path at boot (none: nothing happens until a `path` cue or F2).
 func begin() -> void:
+	if _tryout():
+		taste_stills.clear()
 	var id := RunState.live_path()
 	if id != &"":
 		_apply(id)
@@ -117,7 +155,8 @@ func kills_to_next() -> int:
 ## The play fingerprint's 8 values (1.15).
 func fingerprint() -> Dictionary:
 	var lo := loadout()
-	return fp.values(picks, lo.switches if lo != null else 0, pickups_taken)
+	return fp.values(picks - int(_fp_base[0]), (lo.switches if lo != null else 0) - int(_fp_base[1]),
+			pickups_taken - int(_fp_base[2]))
 
 
 func _levelups() -> bool:
@@ -153,11 +192,13 @@ func swap_pending() -> bool:
 
 ## A `path` cue (S7): the warning (the target's warn_line at priority 3, as a rule edit's),
 ## then 1.5 s later the swap. False when the session is over.
-func request_swap(target: StringName) -> bool:
+func request_swap(target: StringName, warn: Line = null) -> bool:
 	if _stopped or _over():
 		return false
 	var to := PathDB.get_def(target)
-	_speak(to.warn() if to != null else null, 3)
+	# M47 (D12): the cue's own line, else the path's fallback (keys expanded either way).
+	var line := warn if warn != null else (to.warn() if to != null else null)
+	_speak(SessionRunner.with_keys(line) if line != null else null, 3)
 	_swap_target = target
 	_swap_tick = _tick + roundi(SWAP_WARN_SECONDS * Engine.physics_ticks_per_second)
 	RunState.log_event(&"path_requested", {"to": String(target)})
@@ -168,18 +209,101 @@ func request_swap(target: StringName) -> bool:
 ## starts, one glitch pulse. &"off" = no path: the legacy pistol again.
 func swap_now(target: StringName) -> void:
 	_swap_tick = -1
-	for group: StringName in [&"player_projectile", &"pickup"]:
-		for n in get_tree().get_nodes_in_group(group):
-			if is_instance_valid(n) and not n.is_queued_for_deletion():
-				n.queue_free()
+	_swept.clear()
+	_sweep()
+	# M47: what a deferred spawn adds on this frame goes on the next physics frame (counted
+	# in frames, so a swap from F2 or a test before this node's own tick waits as well).
+	_sweep_tick = Engine.get_physics_frames() + 1
+	_check_tick = -1
+	if RunState.session != null and RunState.session.tryout and path_id != &"":
+		taste_fps[String(path_id)] = fingerprint()
 	RunState.session_path = &"off" if target == &"off" or target == &"" else target
 	_apply(RunState.live_path())
 	RunState.log_event(&"path_swapped", {"to": String(target)})
 	_wipe()
 
 
+func _tryout() -> bool:
+	return RunState.session != null and RunState.session.tryout
+
+
+## The taste's still (windowed only: a headless viewport has no image). Tests call it.
+func capture_still() -> bool:
+	if path_id == &"" or DisplayServer.get_name() == "headless" or not is_inside_tree():
+		return false
+	var img := get_viewport().get_texture().get_image()
+	if img == null or img.is_empty():
+		return false
+	img.resize(STILL_SIZE.x, STILL_SIZE.y)
+	taste_stills[String(path_id)] = ImageTexture.create_from_image(img)
+	return true
+
+
+## Player shots and pickups go (enemies stay), except `keep` (the new path's own spawns:
+## Survival's first crates). Each one goes on _swept for the check; `free` false only
+## records (the test hook late_sweep).
+func _sweep(keep: Array = [], free := true) -> void:
+	for group: StringName in [&"player_projectile", &"pickup"]:
+		for n in get_tree().get_nodes_in_group(group):
+			if is_instance_valid(n) and not n.is_queued_for_deletion() and not keep.has(n):
+				_swept.append(weakref(n))
+				if free:
+					n.queue_free()
+
+
+## What another path left behind after a swap (M47, "no leftovers"): shots, pickups, a
+## growth node or widget of another path, the crowd overlay off its path, a kill feed on
+## the wrong path, weapons other than the path's start. [] = clean.
+func leftovers() -> Array[String]:
+	var out: Array[String] = []
+	# A shot or pickup the swap's sweeps took is gone by now (freed at the end of its frame).
+	for group: StringName in [&"player_projectile", &"pickup"]:
+		for r in _swept:
+			var n: Variant = r.get_ref()
+			if n != null and is_instance_valid(n) and (n as Node).is_in_group(group):
+				out.append(String(group))
+				break
+	var growth: StringName = def.growth if def != null else &""
+	if is_instance_valid(_gems) and growth != &"levelups":
+		out.append("gems")
+	if is_instance_valid(_drops) and growth != &"pickups":
+		out.append("drops")
+	if _meter != null and growth == &"":
+		out.append("meter")
+	if is_instance_valid(_widget) and (def == null or not _widget_fits()):
+		out.append("widget")
+	if EventBus.enemy_killed.is_connected(_on_enemy_killed) and growth != &"cards":
+		out.append("card_feed")
+	if RunState.ai_owner.values().has(&"path") and (def == null or not &"crowd" in def.basics):
+		out.append("crowd")
+	var lo := loadout()
+	if lo != null:
+		var start: Array = def.start.duplicate() if def != null else [Loadout.PISTOL]
+		var want := ",".join(start.map(func(w: StringName) -> String: return "%s:1" % w))
+		if lo.summary() != want:
+			out.append("loadout")
+	return out
+
+
+func _widget_fits() -> bool:
+	match def.widget:
+		&"hand":
+			return _widget.get_script() == HandWidget
+		&"level":
+			return _widget.get_script() == LevelWidget
+		&"ammo":
+			return _widget.get_script() == AmmoWidget
+	return false
+
+
 func _apply(id: StringName) -> void:
 	_clear_growth()
+	picks_on_path = 0
+	_still_tick = _tick + roundi(STILL_AFTER * Engine.physics_ticks_per_second) if _tryout() and id != &"" else -1
+	var lo0 := loadout()
+	_fp_base = [picks, lo0.switches if lo0 != null else 0, pickups_taken]
+	if RunState.session != null and RunState.session.tryout:
+		fp = Fingerprint.new()
 	RunState.expire_ai(&"path")   # no-op (no build) when no overlay is live
 	_overlay = null
 	path_id = id
@@ -204,6 +328,8 @@ func _grow() -> void:
 		_build_levels()
 	if def.growth == &"cards" and _meter == null and not frozen and Unlocks.has_basic(&"cards"):
 		_build_cards()
+	if def.growth == &"pickups" and not frozen:
+		_grow_survival()
 	var lo := loadout()
 	if lo != null and def.quick_draw_mult > 1.0 and &"quick_draw" in def.basics \
 			and Unlocks.has_basic(&"quick_draw"):
@@ -213,6 +339,45 @@ func _grow() -> void:
 		_overlay = PathOverlay.make(def)
 		if not RunState.add_ai(_overlay, &"path"):
 			_overlay = null
+
+
+## Survival (M47): Drops and the ammo widget while the path is live; `pickups` arms the
+## drops (and crates outside a tryout), `kill_heal` its heals, each only as its own basic.
+func _grow_survival() -> void:
+	if _drops == null:
+		_drops = Drops.new()
+		_drops.name = "Drops"
+		_drops.runner = self
+		_drops.crates = RunState.session == null or not RunState.session.tryout
+		add_child(_drops)
+		_widget = AmmoWidget.new()
+		_widget.name = "AmmoWidget"
+		_widget.loadout = loadout()
+		var hud: Node = game.get(&"hud") if game != null else null
+		if hud != null and hud.has_method(&"set_path_widget"):
+			hud.set_path_widget(_widget)
+		else:
+			add_child(_widget)
+	if &"pickups" in def.basics and Unlocks.has_basic(&"pickups"):
+		_drops.arm_pickups()
+	if &"kill_heal" in def.basics and Unlocks.has_basic(&"kill_heal"):
+		_drops.arm_kill_heal()
+
+
+## Kill-heals on Survival (0 elsewhere).
+func heals() -> int:
+	return int(_drops.get(&"heals")) if is_instance_valid(_drops) else 0
+
+
+func crates_taken() -> int:
+	return int(_drops.get(&"crates_taken")) if is_instance_valid(_drops) else 0
+
+
+## A `drop` cue (D9): false unless Survival is live (the caller warns).
+func drop(what: StringName, n: int) -> bool:
+	if not is_instance_valid(_drops) or def == null or def.growth != &"pickups" or _stopped:
+		return false
+	return int(_drops.call(&"drop_now", what, n)) > 0
 
 
 func _build_levels() -> void:
@@ -276,6 +441,10 @@ func _clear_growth() -> void:
 	if is_instance_valid(_gems):
 		_gems.queue_free()
 	_gems = null
+	if is_instance_valid(_drops):
+		remove_child(_drops)   # its kill listener goes now (_exit_tree), not at frame end
+		_drops.queue_free()
+	_drops = null
 	_meter = null
 	if is_instance_valid(_widget):
 		_widget.queue_free()
@@ -284,7 +453,7 @@ func _clear_growth() -> void:
 
 
 func _on_basic_added(id: StringName) -> void:
-	if id in [&"levelups", &"crowd", &"cards", &"quick_draw"]:
+	if id in [&"levelups", &"crowd", &"cards", &"quick_draw", &"pickups", &"kill_heal"]:
 		_grow()
 
 
@@ -293,8 +462,9 @@ func _on_gem_taken(value: int) -> void:
 		_meter.call(&"add", value)
 
 
-func _on_pickup_taken(_kind: StringName, _id: StringName) -> void:
+func _on_pickup_taken(kind: StringName, _id: StringName) -> void:
 	pickups_taken += 1
+	pickup_kinds[String(kind)] = int(pickup_kinds.get(String(kind), 0)) + 1
 
 
 ## The bot's --loadout= (D13): a fixed loadout from now on, no growth (no gems, no picks).
@@ -305,6 +475,10 @@ func freeze() -> void:
 	if is_instance_valid(_gems):
 		_gems.queue_free()
 	_gems = null
+	if is_instance_valid(_drops):   # M47: Survival drops nothing either
+		_drops.set(&"pickups_on", false)
+		_drops.set(&"heal_on", false)
+		_drops.set(&"_next_crate", -1)
 
 
 ## F2's "+1 level": the gems the next level needs (Arsenal: the kills the next card needs).
@@ -331,6 +505,9 @@ func announce(w: StringName) -> void:
 ## slot: a free card, the weakest non-active card replaced when the hand is full; 1.3).
 func give(w: StringName) -> bool:
 	announce(w)
+	if def != null and def.growth == &"pickups" and is_instance_valid(_drops):
+		# M47 (1.3): a crate near the player; with no tile free, the gun into the slot.
+		return bool(_drops.call(&"crate_near_player", w))
 	if def == null or def.growth != &"levelups":
 		return false
 	_first = w
@@ -384,6 +561,26 @@ func _physics_process(_delta: float) -> void:
 	var p: Node = game.get(&"player") if game != null else null
 	if not _stopped and def != null and is_instance_valid(p):
 		fp.sample(p as Node2D)
+		if def.growth == &"pickups":
+			var lo := loadout()
+			fp.survival_tick(lo != null and lo.on_sidearm() and Unlocks.has_basic(&"pickups"))
+	if _still_tick >= 0 and _tick >= _still_tick:
+		_still_tick = -1
+		capture_still()
+	if _sweep_tick >= 0 and Engine.get_physics_frames() >= _sweep_tick:
+		_sweep_tick = -1
+		var before := _swept.size()
+		var keep := []   # untyped: has() is asked of shots too, never only Pickups
+		if is_instance_valid(_drops):
+			keep.append_array(_drops.get(&"_mine") as Array)
+		_sweep(keep, late_sweep)
+		_late_swept = _swept.size() - before
+		_check_tick = Engine.get_physics_frames() + 1
+	elif _check_tick >= 0 and Engine.get_physics_frames() >= _check_tick:
+		_check_tick = -1
+		var left := leftovers()
+		leftover_checks.append(left)
+		RunState.log_event(&"path_leftovers", {"to": String(path_id), "left": left, "late": _late_swept})
 	if _swap_tick >= 0 and _tick >= _swap_tick:
 		swap_now(_swap_target)
 	if _want > 0 and not _opening and can_open_now():
@@ -430,6 +627,7 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 	var card: Dictionary = offer.cards[index]
 	_want = maxi(0, _want - 1)
 	picks += 1
+	picks_on_path += 1
 	var lo := loadout()
 	if card.kind == &"new" and lo != null:
 		lo.give(card.id, 1)
@@ -496,6 +694,7 @@ func _speak(line: Line, priority: int, queued := false) -> void:
 
 ## One glitch pulse, or a 0.4 s fade under reduce flashing (D12).
 func _wipe() -> void:
+	wipes += 1
 	if not SaveGame.reduce_flashing():
 		var transition: Transition = game.get(&"transition") if game != null else null
 		if transition != null:
@@ -517,8 +716,17 @@ func _wipe() -> void:
 
 
 ## F1's line: "path=auto level=2 picks=1 pickups=7"; Arsenal (M46):
-## "path=arsenal cards=1 kills=20/36 picks=1 pickups=0".
+## "path=arsenal cards=1 kills=20/36 picks=1 pickups=0"; Survival (M47):
+## "path=survival weapon=shotgun:2 ammo=18/24 picks=0 pickups=7 heals=2" (the sidearm: ammo=-).
 func state_text() -> String:
+	if def != null and def.growth == &"pickups":
+		var lo := loadout()
+		var w: Weapon = lo.current() if lo != null else null
+		var ammo := "-"
+		if w != null and not lo.on_sidearm() and w.def.ammo > 0:
+			ammo = "%d/%d" % [w.ammo_left, w.def.ammo]
+		return "path=survival weapon=%s ammo=%s picks=%d pickups=%d heals=%d" % [
+				"%s:%d" % [w.def.id, w.rank] if w != null else "-", ammo, picks, pickups_taken, heals()]
 	if _cards_growth():
 		var need := int(_meter.call(&"next_need")) if _meter != null else -1
 		return "path=%s cards=%d kills=%d/%s picks=%d pickups=%d" % [path_id, cards(),

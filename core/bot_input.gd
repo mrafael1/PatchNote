@@ -12,7 +12,8 @@ var keep_distance := 220.0
 ## today's code byte for byte) and a degenerate probe (--probe=afk: no move, no dash, no
 ## jump, no fire; Auto still fires by itself). M46: `no_switch` (the arsenal policy never
 ## switches) and `first_pick` (bot_runs only: card 0, its own pick_rng draw still consumed;
-## offers stay paired with the default only while the hands match).
+## offers stay paired with the default only while the hands match). M47: `no_pickup` (the
+## survival policy never detours to pickups; it still takes what it walks over).
 var policy: StringName = &""
 var probe: StringName = &""
 var _tick := 0
@@ -31,6 +32,17 @@ const GROUP := 3
 const HOLD_TICKS := 30
 var _card: StringName = &""
 var _card_tick := -1000000
+
+## Survival (M47): with no enemy within GREED_CLEAR it walks to the best pickup along one
+## multi-source BFS field, rebuilt every FIELD_EVERY ticks.
+const GREED_CLEAR := 4.0 * 48.0
+const FIELD_EVERY := 15
+var _field: PickupField
+var _field_tick := -1000000
+## M47 review: the aimed gun the bot last swapped away from, and the one it held (so a
+## dropped gun is never walked back to while another aimed gun is in hand).
+var _dropped: StringName = &""
+var _held: StringName = &""
 
 
 func _physics_process(_delta: float) -> void:
@@ -54,6 +66,9 @@ func _physics_process(_delta: float) -> void:
 		return
 	if policy == &"arsenal":
 		_arsenal_policy()
+		return
+	if policy == &"survival":
+		_survival_policy()
 		return
 	var here := origin()
 	var nearest: Node2D = null
@@ -181,6 +196,121 @@ func _arsenal_policy() -> void:
 	jump_pressed = _tick % 90 == 0
 	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12
+
+
+## Survival (PLAN v9 4, M47): today's move, aim and fire (aim nearest, hold fire, kite at
+## keep_distance, the gate wins) and the flank rule; with no enemy within GREED_CLEAR it
+## walks to a pickup along the BFS field: the wanted ones (a gun it holds, any gun while on
+## the sidearm, ammo under half) first, the others last. --probe=no_pickup never detours.
+## No RNG.
+func _survival_policy() -> void:
+	var here := origin()
+	var nearest: Node2D = null
+	var best := INF
+	for e in get_tree().get_nodes_in_group(&"enemy") + get_tree().get_nodes_in_group(&"threat"):
+		var n := e as Node2D
+		if n == null or n.is_queued_for_deletion():
+			continue
+		var d := here.distance_squared_to(n.global_position)
+		if d < best:
+			best = d
+			nearest = n
+	var gate := get_tree().get_first_node_in_group(ExitGate.GROUP) as ExitGate
+	var to_pickup := _pickup_dir(here) if probe != &"no_pickup" else Vector2.ZERO
+	if nearest == null:
+		fire = false
+		if gate:
+			move = gate.direction_from(here)
+		elif to_pickup != Vector2.ZERO:
+			move = to_pickup
+		else:
+			move = Vector2.RIGHT.rotated(_tick * 0.01)
+		return
+	var to_enemy := nearest.global_position - here
+	aim_dir = to_enemy.normalized()
+	fire = true
+	if to_pickup != Vector2.ZERO and to_enemy.length() > GREED_CLEAR:
+		move = to_pickup
+	elif to_enemy.length() < keep_distance:
+		move = -aim_dir.rotated(0.6)
+	else:
+		move = aim_dir.rotated(1.2) * 0.6
+	var step := flank_step(here, nearest)
+	if step != Vector2.ZERO:
+		move = step
+		fire = false
+	if gate:
+		move = gate.direction_from(here)
+	jump_pressed = _tick % 90 == 0
+	dash_pressed = _tick % 150 == 75
+	jump_held = _tick % 90 < 12
+
+
+## Toward the best pickup (ZERO: none). The field is rebuilt every FIELD_EVERY ticks.
+func _pickup_dir(here: Vector2) -> Vector2:
+	var wanted: Array[Vector2] = []
+	var others: Array[Vector2] = []
+	var lo := Component.find(get_parent(), Loadout) as Loadout
+	_note_swap(lo)
+	for g in get_tree().get_nodes_in_group(&"pickup"):
+		var p := g as Pickup
+		if p == null or p.is_queued_for_deletion() or p.is_gem() or p.untouchable:
+			continue
+		if _would_bounce(lo, p, _dropped):
+			continue
+		(wanted if _wants(lo, p) else others).append(p.global_position)
+	var sources := wanted if not wanted.is_empty() else others
+	if sources.is_empty():
+		return Vector2.ZERO
+	if _field == null or _tick - _field_tick >= FIELD_EVERY:
+		if _field == null:
+			_field = PickupField.new(RunState.session.arena_def() if RunState.session != null else null)
+		_field.build(sources)
+		_field_tick = _tick
+	var dir := _field.direction_from(here)
+	if dir == Vector2.ZERO:
+		var near := sources[0]
+		for s in sources:
+			if here.distance_squared_to(s) < here.distance_squared_to(near):
+				near = s
+		dir = (near - here).normalized() if here.distance_to(near) > 1.0 else Vector2.ZERO
+	return dir
+
+
+## Remembers the aimed gun the bot just swapped away from.
+func _note_swap(lo: Loadout) -> void:
+	var w := lo.current() if lo != null else null
+	var now: StringName = w.def.id if w != null and not lo.on_sidearm() else &""
+	if now != _held:
+		if _held != &"" and now != &"":
+			_dropped = _held
+		_held = now
+
+
+## True for a weapon pickup that would swap out the aimed gun in hand for another one,
+## while that gun still has half its ammo, or for the gun just dropped (M47 review: no
+## leave-and-come-back loop between two guns). A pistol or passive pickup never swaps.
+static func _would_bounce(lo: Loadout, p: Pickup, dropped: StringName) -> bool:
+	if lo == null or p.pickup_kind != &"weapon" or lo.on_sidearm():
+		return false
+	var w := lo.current()
+	if w == null or w.def.id == p.weapon_id or p.weapon_id == Loadout.PISTOL:
+		return false
+	var def := WeaponDB.get_weapon(p.weapon_id)
+	if def == null or def.is_passive():
+		return false
+	return p.weapon_id == dropped or w.def.ammo <= 0 or w.ammo_left * 2 >= w.def.ammo
+
+
+static func _wants(lo: Loadout, p: Pickup) -> bool:
+	if lo == null:
+		return true
+	var w := lo.current()
+	if p.pickup_kind == &"weapon":
+		return lo.on_sidearm() or (w != null and w.def.id == p.weapon_id)
+	if p.pickup_kind == &"ammo":
+		return w != null and not lo.on_sidearm() and w.def.ammo > 0 and w.ammo_left * 2 < w.def.ammo
+	return p.pickup_kind == &"heal"
 
 
 ## Sets _card (held HOLD_TICKS once chosen) and returns the launcher's group node (or null).

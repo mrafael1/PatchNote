@@ -216,6 +216,8 @@ func problems(c: Change) -> Array[String]:
 		out.append("Dash change '%s' has no take naming a style (%s)" % [c.id, Change.DASHES])
 	if c.kind == &"dash_aim" and (c.take == null or not c.take.id in Change.DASH_AIMS):
 		out.append("Dash-aim change '%s' has no take naming a direction (%s)" % [c.id, Change.DASH_AIMS])
+	if c.kind == &"path" and (c.take == null or not PathDB.has(c.take.id)):
+		out.append("Path change '%s' has no take naming a path (%s)" % [c.id, PathDB.ids()])
 	if c.kind == &"stages":
 		if c.take == null or not c.take.preset is StageSet:
 			out.append("Stages change '%s' has no take with a stage set" % c.id)

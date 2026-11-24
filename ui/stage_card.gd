@@ -14,6 +14,11 @@ extends CanvasLayer
 ## indicator, its progress lines typed one by one with a bar that stalls short of full,
 ## then "To be continued". It never closes itself: after 0.5 s a key jumps to the end,
 ## the next key closes it.
+##
+## Beat mode (M47, D2; setup_beat() before setup()): the session's cook_beat first, a short
+## beat of the AI cooking it ("Building v0.8.0", a spinner, its lines one by one, the bar to
+## full), then the card as usual (title, mascot line, 3 s). After 0.5 s a key ends the beat,
+## the next closes the card; skip() closes it at once. Never the cooking branches.
 
 signal closed
 
@@ -33,6 +38,9 @@ const SPIN := ["|", "/", "-", "\\"]
 const SPIN_HZ := 6.0
 const DOTS := [".", "..", "..."]
 const DOTS_HZ := 1.5
+## Beat mode (M47).
+const BEAT_FIRST := 0.5
+const BEAT_EVERY := 0.6
 
 var stage := 2
 var title := ""
@@ -44,6 +52,15 @@ var building := ""
 var ended := false          ## cooking: "To be continued" is up
 var shown_lines := 0        ## cooking: progress lines on screen
 var gentle := false         ## reduce flashing: dots instead of the spinner
+## Beat mode (M47): the beat's lines, and how many are up; beat_done once the card shows.
+var beat_lines := PackedStringArray()
+var beat_shown := 0
+var beat_done := true
+var _beat_end := 0.0        ## when the card's own part starts (0: no beat)
+var _beat_box: VBoxContainer
+var _beat_spinner: Label
+var _beat_bar: ProgressBar
+var _beat_list: VBoxContainer
 
 var _open := false
 var _stage_label: Label
@@ -59,11 +76,24 @@ func setup(p_stage: int, p_title: String, p_cooking := PackedStringArray(), p_bu
 	stage = p_stage
 	title = p_title
 	cooking_lines = p_cooking
-	building = p_building
+	if p_building != "" or beat_lines.is_empty():   # M47: setup_beat's label stays
+		building = p_building
 
 
 func is_cooking() -> bool:
 	return not cooking_lines.is_empty()
+
+
+## Beat mode (M47): call before setup(). `p_building` is the version label being built.
+func setup_beat(lines: PackedStringArray, p_building: String) -> void:
+	beat_lines = lines
+	building = p_building
+	beat_done = lines.is_empty()
+	_beat_end = BEAT_FIRST + BEAT_EVERY * lines.size() if not lines.is_empty() else 0.0
+
+
+func in_beat() -> bool:
+	return not beat_done
 
 
 func _ready() -> void:
@@ -90,13 +120,18 @@ func _ready() -> void:
 	box.add_child(_title_label)
 	if is_cooking():
 		_build_cooking()
+	elif in_beat():
+		_build_beat()
+		_stage_label.visible = false
+		_title_label.visible = false
 	mascot = Mascot.new()
 	mascot.name = "CardMascot"
 	add_child(mascot)
 	mascot.layer = LAYER + 1
 	mascot.setup(true, SaveGame.mascot())
 	_place_mascot()
-	mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY)
+	if not in_beat():
+		mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY)
 	if is_cooking():
 		mascot.say(Line.make(COOK_LINE, &"thinking"), SessionRunner.PRIORITY)
 	_open = true
@@ -137,6 +172,66 @@ func _build_cooking() -> void:
 	box.add_child(_end_label)
 
 
+func _build_beat() -> void:
+	_beat_box = VBoxContainer.new()
+	_beat_box.name = "Beat"
+	_beat_box.set_anchors_preset(Control.PRESET_CENTER)
+	_beat_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_beat_box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_beat_box.offset_left = -260.0
+	_beat_box.offset_right = 260.0
+	_beat_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_beat_box.add_theme_constant_override(&"separation", 6)
+	add_child(_beat_box)
+	var head := HBoxContainer.new()
+	head.alignment = BoxContainer.ALIGNMENT_CENTER
+	_beat_box.add_child(head)
+	head.add_child(_label("Building %s" % building if building != "" else "Building", 22, Color(0.85, 0.85, 0.9)))
+	_beat_spinner = _label(spinner_text(), 22, Color(1.0, 0.85, 0.3))
+	_beat_spinner.custom_minimum_size = Vector2(36.0, 0.0)
+	head.add_child(_beat_spinner)
+	_beat_bar = ProgressBar.new()
+	_beat_bar.min_value = 0.0
+	_beat_bar.max_value = 1.0
+	_beat_bar.show_percentage = false
+	_beat_bar.custom_minimum_size = Vector2(520.0, 10.0)
+	_beat_box.add_child(_beat_bar)
+	_beat_list = VBoxContainer.new()
+	_beat_box.add_child(_beat_list)
+
+
+## The beat's bar (tests): 0..1, full once every line is up.
+func beat_bar() -> float:
+	return _beat_bar.value if _beat_bar != null else 1.0
+
+
+func _beat() -> void:
+	var due := clampi(floori((elapsed - BEAT_FIRST) / BEAT_EVERY) + 1, 0, beat_lines.size())
+	while beat_shown < due:
+		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Color(0.7, 0.9, 0.7)))
+		beat_shown += 1
+	_beat_bar.value = float(beat_shown) / float(beat_lines.size())
+	_beat_spinner.text = spinner_text()
+	if elapsed >= _beat_end:
+		_end_beat()
+
+
+## The beat is over (or skipped by a key): every line up, the bar full, then the card.
+func _end_beat() -> void:
+	if beat_done:
+		return
+	while beat_shown < beat_lines.size():
+		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Color(0.7, 0.9, 0.7)))
+		beat_shown += 1
+	_beat_bar.value = 1.0
+	beat_done = true
+	_beat_end = elapsed
+	_beat_box.visible = false
+	_stage_label.visible = true
+	_title_label.visible = true
+	mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY)
+
+
 func _label(text: String, size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -162,10 +257,13 @@ func _process(delta: float) -> void:
 	if not _open:
 		return
 	elapsed += delta
-	_title_label.visible_characters = int(maxf(0.0, elapsed - TITLE_DELAY) * Mascot.TYPE_CPS)
+	if in_beat():
+		_beat()
+		return
+	_title_label.visible_characters = int(maxf(0.0, elapsed - _beat_end - TITLE_DELAY) * Mascot.TYPE_CPS)
 	if is_cooking():
 		_cook()
-	elif elapsed >= DURATION:
+	elif elapsed - _beat_end >= DURATION:
 		close()
 
 
@@ -228,7 +326,9 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		if is_cooking() and not ended:
 			_end()
-		else:
+		elif in_beat():
+			_end_beat()
+		elif elapsed - _beat_end >= SKIP_AFTER or _beat_end == 0.0:
 			close()
 
 

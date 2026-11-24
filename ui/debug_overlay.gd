@@ -63,7 +63,7 @@ func _ready() -> void:
 	box.add_child(path_heading)
 	var path_row := HBoxContainer.new()
 	box.add_child(path_row)
-	for pair: Array in [[&"off", ""], [&"auto", ""], [&"arsenal", ""], [&"survival", "M47"]]:
+	for pair: Array in [[&"off", ""], [&"auto", ""], [&"arsenal", ""], [&"survival", ""]]:
 		var pb := Button.new()
 		pb.focus_mode = Control.FOCUS_NONE
 		pb.text = String(pair[0]) if pair[1] == "" else "%s (%s)" % [pair[0], pair[1]]

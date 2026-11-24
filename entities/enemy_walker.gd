@@ -22,6 +22,10 @@ var generation := 0
 var from_spawner := false
 var size_mult := 1.0   ## smaller or bigger copy (set through spawn params)
 var hp_mult := 1.0
+## M47 (PLAN v9 1.9): the EnemyVariant this walker plays (&"" = the plain base), and a floor
+## on its max HP after every overlay (a splitter's minis: 1).
+var variant: StringName = &""
+var min_hp := 0.0
 
 var _contact_damage := 1.0
 var _hop_cooldown_time := 0.5
@@ -40,6 +44,8 @@ var _avoid_side := 1.0
 
 func _ready() -> void:
 	health.base_max_hp = _tuned("hp") * hp_mult
+	if min_hp > 0.0:
+		health.min_max_hp = min_hp
 	half_width *= size_mult
 	EnemyCommon.apply_size(self, size_mult)
 	health.died.connect(_on_died)
@@ -119,6 +125,8 @@ func _shows_rim() -> bool:
 
 ## Health ran out: freed here; a subclass may delay it.
 func _on_died(_info: DamageInfo) -> void:
+	if variant != &"":
+		VariantDeath.on_died(self, variant)
 	queue_free()
 
 

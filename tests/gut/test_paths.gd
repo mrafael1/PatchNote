@@ -16,7 +16,7 @@ const OPEN := Vector2(34, 20)
 const TEST_DIR := "user://save_paths_test/"
 ## The telemetry log while these tests run: a scratch file, never user://playtest/runs.jsonl.
 const TEST_LOG := "user://save_paths_test/runs.jsonl"
-const STUB := &"s2_01_tryout"
+const STUB := &"s7_auto_stub"
 
 var game: Main
 var player: CharacterBody2D
@@ -24,10 +24,12 @@ var _links: Array = []
 
 
 func before_each() -> void:
+	_stub_in()
 	Telemetry.log_path = TEST_LOG
 
 
 func after_each() -> void:
+	_stub_out()
 	for l: Array in _links:
 		if (l[0] as Signal).is_connected(l[1]):
 			(l[0] as Signal).disconnect(l[1])
@@ -131,7 +133,7 @@ func _pick(runner: PathRunner, i := 0) -> PickOffer:
 
 func test_the_path_data_is_valid() -> void:
 	assert_eq(PathDB.problems(), [] as Array[String])
-	assert_eq(PathDB.ids(), [&"arsenal", &"auto"] as Array[StringName], "Auto (M45a), Arsenal (M46)")
+	assert_eq(PathDB.ids(), [&"arsenal", &"auto", &"survival"] as Array[StringName], "Auto (M45a), Arsenal (M46), Survival (M47)")
 	var a := _auto()
 	assert_eq(a.fire_mode, &"auto_all")
 	assert_eq(a.growth, &"levelups")
@@ -775,10 +777,12 @@ func test_f2_path_and_f1_line() -> void:
 	assert_true(game.debug.switch_path(&"auto"))
 	assert_not_null(game.path_runner)
 	assert_eq(_loadout().fire_mode, &"auto_all")
-	assert_false(game.debug.switch_path(&"survival"), "M47")
 	assert_string_contains(game.path_runner.state_text(), "path=auto level=")
 	game.debug.add_level()
 	assert_eq(game.path_runner.level(), 2)
+	assert_true(game.debug.switch_path(&"survival"), "M47: F2 PATH survival")
+	assert_eq(_loadout().fire_mode, &"manual_ammo")
+	await wait_physics_frames(2)   # Survival's deferred pieces land before the game is freed (no orphan)
 	assert_true(game.debug.switch_path(&"off"))
 	assert_eq(_loadout().fire_mode, &"manual_one")
 
@@ -792,3 +796,20 @@ func test_the_stub_before_its_path_cue_matches_s6_rules_but_hp_floor() -> void:
 			if k == "hp_floor":
 				continue
 			assert_eq(d[part].get(k), want[part][k], "%s.%s" % [part, k])
+
+
+## M47 (D5): the old Auto-taste stub is a draft now; these tests insert it (after S8) and
+## after_each removes it.
+const STUB_DRAFT := "res://campaign/drafts/s7_auto_stub.tres"
+
+
+func _stub_in() -> void:
+	if CampaignDB.get_session(STUB) == null:
+		CampaignDB.campaign.sessions.insert(CampaignDB.cooking_index(), load(STUB_DRAFT) as SessionDef)
+
+
+func _stub_out() -> void:
+	var s := CampaignDB.get_session(STUB)
+	while s != null:
+		CampaignDB.campaign.sessions.erase(s)
+		s = CampaignDB.get_session(STUB)

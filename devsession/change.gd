@@ -9,8 +9,9 @@ extends Resource
 ## mascot: the AI's body (PLAN v8 1.6, fork_mascot); its take's id is a body (MASCOTS).
 ## dash: the player's dash (PLAN v8 6.8, fork_dash); its take's id is a style (DASHES).
 ## dash_aim: where the dash goes (PLAN v8 6.9, fork_dash_aim); its take's id is in DASH_AIMS.
+## path: the shooter path (PLAN v9 1.12, fork_path, M47); its take's id is a PathDB id.
 const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic", &"stages", &"mascot", &"dash",
-		&"dash_aim"]
+		&"dash_aim", &"path"]
 ## The mascot bodies a mascot change can pick (MascotBody.IDS draws them).
 const MASCOTS: Array[StringName] = [&"cursor", &"window", &"blob"]
 ## The dash styles a dash change can pick (Dasher.style plays them).

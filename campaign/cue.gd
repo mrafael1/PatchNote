@@ -32,11 +32,15 @@ extends RefCounted
 ##                                            session start when it fails (never half-fired)
 ##   "room 2 at 5: ..."  "boss_hp 50: ..."  "level 3: ..."  "picked 1: ..."
 ##   "at 25 [laser]: say ..."                 the weapon a say cue announces (the pool rule)
-##   actions: path <arsenal|auto|survival|off>, give <weapon> [rank 1-4],
+##   actions: path <arsenal|auto|survival|off> [<line>], give <weapon> [rank 1-4],
 ##   drop <weapon|ammo|heal> [n], look <take|fork:fork_look[@tier]> [seconds],
 ##   boss <id|fork:fork_boss> [dummy]
 ## The head ends at the first word that ends with ":" (a condition such as
 ## "answer:path_auto" has its colon inside).
+## M47: a `path` cue may carry its own warning, a Line after the target ("at 13: path
+## arsenal happy: Version one."), said 1.5 s before the swap instead of the path's
+## warn_line. A `picked n` cue counts the picks on the path that starts after the session
+## reaches it (or the one live then), since that swap; a later swap expires it unfired.
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
 		&"level", &"picked"]
@@ -45,17 +49,19 @@ const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event",
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
+## M47: what a `drop` cue drops besides a weapon id.
+const DROP_KINDS: Array[StringName] = [&"ammo", &"heal"]
 ## Parsed and validated, but nothing runs them yet: CampaignDB.problems() refuses each in
 ## the campaign's data ("not built yet"). Each later milestone shrinks these lists.
 ## M44: give runs (SessionRunner -> Loadout.give). M45a: path (PathRunner; Arsenal and
 ## Survival still refused, unbuilt(); M46 builds Arsenal), the whens level and picked, and
-## [tag] (the pool rule).
-const UNBUILT_ACTIONS: Array[StringName] = [&"drop", &"look", &"boss"]
+## [tag] (the pool rule). M47: drop runs (Survival's PathRunner.drop).
+const UNBUILT_ACTIONS: Array[StringName] = [&"look", &"boss"]
 const UNBUILT_WHENS: Array[StringName] = [&"room", &"boss_hp"]
 const UNBUILT_TAG := false   ## M45a: a "[tag]" say cue adds its weapon to the live pool
-## The `path` targets whose PathDef is not built yet (M47 Survival; Arsenal is built since
-## M46). An explicit list: `off` is never a PathDB id and must pass.
-const UNBUILT_PATHS := {&"survival": "M47"}
+## The `path` targets whose PathDef is not built yet (empty since M47: Survival is built).
+## An explicit list: `off` is never a PathDB id and must pass.
+const UNBUILT_PATHS := {}
 
 var when: StringName = &""
 var value := 0.0
@@ -170,10 +176,13 @@ static func parse(p_source: String) -> Cue:
 			else:
 				c.target = StringName(words[1])
 		&"path":
-			if words.size() != 2 or not StringName(words[1]) in PATH_TARGETS:
-				c.problem = "cue '%s': path takes one of %s" % [p_source, PATH_TARGETS]
+			if words.size() < 2 or not StringName(words[1]) in PATH_TARGETS:
+				c.problem = "cue '%s': path takes one of %s and optionally a line" % [p_source, PATH_TARGETS]
 			else:
 				c.target = StringName(words[1])
+				if words.size() > 2:
+					c.line = Line.parse(body.substr(body.find(words[1]) + words[1].length()).strip_edges())
+					c.problem = c.line.problem
 		&"give":
 			if words.size() < 2 or words.size() > 3 or (words.size() == 3 and (not words[2].is_valid_int()
 					or words[2].to_int() < 1 or words[2].to_int() > 4)):
@@ -185,6 +194,8 @@ static func parse(p_source: String) -> Cue:
 			if words.size() < 2 or words.size() > 3 or (words.size() == 3 and (not words[2].is_valid_int()
 					or words[2].to_int() < 1)):
 				c.problem = "cue '%s': drop takes a weapon, ammo or heal and optionally a count" % p_source
+			elif not (StringName(words[1]) in DROP_KINDS or WeaponDB.has(StringName(words[1]))):
+				c.problem = "cue '%s': drop %s: not a weapon, ammo or heal" % [p_source, words[1]]
 			else:
 				c.target = StringName(words[1])
 				c.count = words[2].to_int() if words.size() == 3 else 1

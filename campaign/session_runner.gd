@@ -36,6 +36,8 @@ var said: Array[String] = []   ## every line said, in order (tests, F1)
 
 var _cues: Array[Cue] = []
 var _fired: Array[bool] = []
+## M47: `picked n` cues bound to the path that started after the session reached them.
+var _bound := {}   ## cue index -> true
 var _queue: Array[Line] = []
 var _free_at_msec := 0
 
@@ -104,15 +106,31 @@ func _physics_process(_delta: float) -> void:
 			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched,
 			"hp": _player_hp(),
 			"level": path_runner.level() if path_runner != null else -1,
-			"picks": path_runner.picks if path_runner != null else 0}
+			"picks": path_runner.picks_on_path if path_runner != null else 0}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
+		if _cues[i].when == &"picked" and not _bound.has(i):
+			continue   # M47: not bound to a path yet
 		if _cues[i].due(ctx) and not _waits(_cues[i]):
 			_fired[i] = true
 			_fire(_cues[i], i)
 		elif _cues[i].expired(ctx):
 			_fired[i] = true   # dropped, not said
+
+
+## M47 (C1.7): a path started. Each unfired `picked` cue binds to it, or, bound to the
+## previous one, expires unfired (logged cue_expired): "Better gun, same card" never plays
+## on Auto's level-up.
+func on_path_started(_path_id: StringName) -> void:
+	for i in _cues.size():
+		if _fired[i] or _cues[i].when != &"picked":
+			continue
+		if _bound.has(i):
+			_fired[i] = true
+			RunState.log_event(&"cue_expired", {"index": i})
+		else:
+			_bound[i] = true
 
 
 ## An "hp N:" cue holds while the rule book is busy (another edit's warning, a timed
@@ -159,8 +177,12 @@ func _fire(cue: Cue, index: int) -> void:
 			if cue.line.passes(CampaignDB.line_context(session)):
 				say(cue.line)
 		&"path":
-			if path_runner == null or not path_runner.request_swap(cue.target):
+			if path_runner == null or not path_runner.request_swap(cue.target, cue.line):
 				push_warning("Session %s: path %s refused" % [session.id, cue.target])
+		&"drop":
+			# M47 (D9): Survival only; anything else warns.
+			if path_runner == null or not path_runner.drop(cue.target, cue.count):
+				push_warning("Session %s: drop %s refused" % [session.id, cue.target])
 		&"spawn":
 			var archetype := _resolve_archetype(cue.archetype)
 			if archetype == &"":
@@ -209,6 +231,8 @@ func inject(text: String) -> Cue:
 	if c.problem == "":
 		_cues.append(c)
 		_fired.append(false)
+		if c.when == &"picked" and path_runner != null and path_runner.path_id != &"":
+			_bound[_cues.size() - 1] = true
 	return c
 
 

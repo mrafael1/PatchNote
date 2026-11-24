@@ -8,6 +8,11 @@ extends Component
 ## Shooter.try_fire exactly as before M44 (its own cooldown, synced from Tuning by the
 ## player), so the hashes hold. Every other weapon or rank goes through Shooter.fire, with
 ## the weapon's own cooldown here.
+##
+## M47 (Survival, fire_mode manual_ammo): one aimed slot. `sidearm` is the pistol at its rank
+## (never empty, infinite ammo); slots[0] is the held weapon, else the sidearm. Each trigger
+## shot spends one ammo; at 0 the slot is the sidearm again in the same call. A passive's
+## ammo is a battery in seconds (WeaponDef.ammo): at 0 its node goes until refilled.
 
 const MAX_RANK := 3          ## M50.1 raises it (rank-4 evolutions)
 const PISTOL := &"pistol"
@@ -23,6 +28,8 @@ var max_slots := 3                          ## no path (D5); paths set their own
 ## the next shot that fires spends it (QuickDraw.mult).
 var quick_draw_mult := 1.0
 var switches := 0                           ## real changes of the active card (fp, M46)
+var sidearm: Weapon                         ## M47: manual_ammo only (null otherwise)
+var _battery := {}                          ## M47: passive id -> seconds left (manual_ammo)
 
 var _drawn := false
 
@@ -39,6 +46,8 @@ func _physics_process(delta: float) -> void:
 		w.ready_in = maxf(0.0, w.ready_in - delta)
 	for w in passives:
 		w.ready_in = maxf(0.0, w.ready_in - delta)
+	if fire_mode == &"manual_ammo":
+		_drain(delta)
 
 
 func shooter() -> Shooter:
@@ -69,7 +78,51 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 	_drawn = false
 	w.ready_in = float(w.value(&"cooldown"))
 	w.shots += 1
+	if fire_mode == &"manual_ammo" and w.ammo_left > 0:
+		w.ammo_left -= 1
+		if w.ammo_left == 0:
+			to_sidearm()
 	return true
+
+
+## M47: the held weapon ran dry (or is dropped): the sidearm again, at once.
+func to_sidearm() -> void:
+	if sidearm == null:
+		return
+	slots = [sidearm]
+	active = 0
+	RunState.log_event(&"ammo_empty")
+	EventBus.weapon_changed.emit(sidearm.def.id, sidearm.rank)
+
+
+## M47: only the sidearm in hand (Survival's dry time).
+func on_sidearm() -> bool:
+	return sidearm != null and current() == sidearm
+
+
+## M47: seconds of battery left on passive `id` (-1: none tracked).
+func battery(id: StringName) -> float:
+	return float(_battery.get(id, -1.0))
+
+
+## M47: a battery pickup: every passive back to its full battery (its node back on).
+func refill_battery() -> void:
+	for w in passives:
+		var full := float(w.def.ammo)
+		if full > 0.0:
+			_battery[w.def.id] = full
+			if not _passive_nodes.has(w.def.id):
+				_attach(w)
+
+
+func _drain(delta: float) -> void:
+	for w in passives:
+		if not _battery.has(w.def.id) or float(_battery[w.def.id]) <= 0.0:
+			continue
+		_battery[w.def.id] = float(_battery[w.def.id]) - delta
+		if float(_battery[w.def.id]) <= 0.0:
+			_battery[w.def.id] = 0.0
+			_free_node(w.def.id)
 
 
 func can_fire() -> bool:
@@ -83,6 +136,8 @@ func held(id: StringName) -> Weapon:
 	for w in slots + passives:
 		if w.def.id == id:
 			return w
+	if sidearm != null and sidearm.def.id == id:
+		return sidearm   # M47: the pistol in the pocket while another gun is in hand
 	return null
 
 
@@ -182,6 +237,9 @@ func clear() -> void:
 	slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
 	active = 0
 	_drawn = false
+	_battery.clear()
+	if sidearm != null:
+		sidearm = slots[0]   # M47: manual_ammo keeps a sidearm
 	EventBus.weapon_changed.emit(PISTOL, 1)
 
 
@@ -191,6 +249,8 @@ func clear() -> void:
 func apply_path(def: PathDef) -> void:
 	clear()
 	quick_draw_mult = 1.0
+	sidearm = null
+	_battery.clear()
 	fire_mode = def.fire_mode if def != null else &"manual_one"
 	max_slots = def.max_slots if def != null else 3
 	if def == null or def.start.is_empty():
@@ -201,6 +261,8 @@ func apply_path(def: PathDef) -> void:
 	if slots.is_empty():
 		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
 	active = 0
+	if fire_mode == &"manual_ammo":
+		sidearm = slots[0]
 
 
 ## Auto (fire_mode auto_all, M45a): every aimed weapon off its cooldown fires on its own at
@@ -240,7 +302,9 @@ func passive_node(id: StringName) -> Node:
 
 func _add(def: WeaponDef, rank: int) -> void:
 	var w := Weapon.new(def, rank)
-	if def.is_passive():
+	if fire_mode == &"manual_ammo":
+		_add_survival(w)
+	elif def.is_passive():
 		passives.append(w)
 		_attach(w)
 	elif slots.size() < max_slots:
@@ -254,6 +318,25 @@ func _add(def: WeaponDef, rank: int) -> void:
 				weakest = i
 		slots[weakest] = w
 	EventBus.weapon_changed.emit(def.id, rank)
+
+
+## M47 (manual_ammo): an aimed weapon replaces slots[0] (the sidearm stays), a passive
+## replaces the passive (max one) with its battery full. Never slots[-1].
+func _add_survival(w: Weapon) -> void:
+	if w.def.is_passive():
+		for old in passives:
+			_free_node(old.def.id)
+			_battery.erase(old.def.id)
+		passives = [w]
+		if w.def.ammo > 0:
+			_battery[w.def.id] = float(w.def.ammo)
+		_attach(w)
+	elif w.def.id == PISTOL and sidearm != null:
+		sidearm.set_rank(maxi(sidearm.rank, w.rank))
+		slots = [sidearm]
+	else:
+		slots = [w]
+	active = 0
 
 
 func _rank_to(w: Weapon, rank: int) -> void:

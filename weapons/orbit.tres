@@ -10,6 +10,7 @@ mode = &"passive"
 cooldown = 0.4
 damage = 1.0
 pellets = 2
+ammo = 20
 speed = 0.0
 icon = &"ring"
 ranks = Array[Dictionary]([{"traits": [&"flare"]}, {"traits": [&"flare", &"guard"]}])

@@ -9,7 +9,8 @@ extends Resource
 ## "path basic under another path" problem), `level_thresholds` / `taste_thresholds`
 ## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there),
 ## `warn_line` (the `path` cue's fallback warning; M47 gives each S7 cue its own) and
-## `max_passives`. M46 adds `full_line`, `pick_line` and `quick_draw_mult` (Arsenal).
+## `max_passives`. M46 adds `full_line`, `pick_line` and `quick_draw_mult` (Arsenal). M47 adds
+## Survival (paths/survival.tres: `manual_ammo`, `pickups`, one slot, no thresholds).
 
 const FIRE_MODES: Array[StringName] = [&"manual_one", &"auto_all", &"manual_ammo"]
 const GROWTHS: Array[StringName] = [&"cards", &"levelups", &"pickups"]

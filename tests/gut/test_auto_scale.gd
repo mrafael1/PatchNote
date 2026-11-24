@@ -17,7 +17,7 @@ const OPEN := Vector2(34, 20)
 const TEST_DIR := "user://save_auto_scale_test/"
 ## The telemetry log while these tests run: a scratch file, never user://playtest/runs.jsonl.
 const TEST_LOG := "user://save_auto_scale_test/runs.jsonl"
-const STUB := &"s2_01_tryout"
+const STUB := &"s7_auto_stub"
 
 var game: Main
 var player: CharacterBody2D
@@ -25,10 +25,12 @@ var _links: Array = []
 
 
 func before_each() -> void:
+	_stub_in()
 	Telemetry.log_path = TEST_LOG
 
 
 func after_each() -> void:
+	_stub_out()
 	for l: Array in _links:
 		if (l[0] as Signal).is_connected(l[1]):
 			(l[0] as Signal).disconnect(l[1])
@@ -742,3 +744,20 @@ func test_auto_with_nova_and_well_replays_to_the_same_hash() -> void:
 	assert_gt(int(a[1][1]), 0, "kills left fields")
 	assert_eq(a[1], b[1])
 	assert_eq(a[0], b[0], "the same seed, the same run")
+
+
+## M47 (D5): the old Auto-taste stub is a draft now; these tests insert it (after S8) and
+## after_each removes it.
+const STUB_DRAFT := "res://campaign/drafts/s7_auto_stub.tres"
+
+
+func _stub_in() -> void:
+	if CampaignDB.get_session(STUB) == null:
+		CampaignDB.campaign.sessions.insert(CampaignDB.cooking_index(), load(STUB_DRAFT) as SessionDef)
+
+
+func _stub_out() -> void:
+	var s := CampaignDB.get_session(STUB)
+	while s != null:
+		CampaignDB.campaign.sessions.erase(s)
+		s = CampaignDB.get_session(STUB)

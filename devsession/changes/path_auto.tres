@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Change" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"auto"
+title = "Auto"
+line = "Auto! I'll make more enemies. Many more."
+
+[resource]
+script = ExtResource("1")
+id = &"path_auto"
+title = "Path: Auto"
+pitch = "Auto. It shoots for you; you pick upgrades and dodge."
+kind = &"path"
+tags = Array[StringName]([&"path"])
+take = SubResource("take")

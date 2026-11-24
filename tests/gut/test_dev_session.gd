@@ -11,9 +11,10 @@ const ALL: Array[String] = ["basic_movement", "basic_world", "dash_classic", "da
 		"enemy_tank", "look_1_arcade", "look_1_clean", "look_1_punchy", "mascot_blob",
 		"mascot_cursor", "mascot_window", "patch_auto_attack",
 		"patch_echo", "patch_elite", "patch_horde_mode", "patch_hunter", "patch_magnet",
-		"patch_motion_time", "patch_orbit", "patch_well", "stages_breakout", "stages_gauntlet",
-		"stages_shifting"]
-const FORKS: Array[String] = ["fork_dash", "fork_dash_aim", "fork_enemy", "fork_mascot", "look_1", "stages"]
+		"patch_motion_time", "patch_orbit", "patch_well", "path_arsenal", "path_auto", "path_survival",
+		"stages_breakout", "stages_gauntlet", "stages_shifting"]
+const FORKS: Array[String] = ["fork_dash", "fork_dash_aim", "fork_enemy", "fork_mascot", "fork_path", "look_1",
+		"stages"]
 ## The questions the v6 loop asks (fork_mascot, fork_dash and fork_dash_aim are campaign-only).
 const LOOP_FORKS: Array[String] = ["fork_enemy", "look_1", "stages"]
 ## The in-run patches the AI builds itself, one per IMPLEMENT session.
@@ -136,9 +137,9 @@ func test_the_changes_and_forks_are_valid() -> void:
 	# Looks, enemies, the Stages step and the campaign's mascot and dash answer a question; basics
 	# and in-run patches answer none (the AI builds those itself, owner feedback after M34).
 	for c in ChangeDB.all:
-		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash", &"dash_aim"]
+		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash", &"dash_aim", &"path"]
 		assert_eq(c.fork != &"", asked,
-				"%s: in a fork only if a look, an enemy, stages, a mascot, a dash or a dash direction" % c.id)
+				"%s: in a fork only if a look, an enemy, stages, a mascot, a dash, a dash direction or a path (M47)" % c.id)
 	assert_eq(DevSession.new_patches_left().map(func(c: Change) -> String: return String(c.id)), NEW_PATCHES,
 			"a fresh save: every in-run patch is still to build")
 	var look := _fork(&"look_1")

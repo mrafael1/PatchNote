@@ -12,11 +12,16 @@ extends Resource
 ## Off-screen spawn markers (the spawner picks among them), in tiles.
 @export var spawn_tiles: PackedVector2Array = PackedVector2Array()
 @export var player_start := Vector2(33, 14)
+## Where Survival's crates and cue drops land (PLAN v9 1.6, M47), in tiles; empty = the
+## fallback (Drops: the spawn markers farthest from enemies first).
+@export var pickup_tiles: PackedVector2Array = PackedVector2Array()
 ## The genres this layout is checked for (problems()). Only the top-down rules exist;
 ## arena_0's gravity reachability is tests/gut/test_gravity.gd's own check.
 @export var genres: Array[StringName] = [&"topdown"]
 
 const MIN_SPAWNS := 8
+const MIN_PICKUP_TILES := 4   ## M47: when pickup_tiles is set, 4-8 of them
+const MAX_PICKUP_TILES := 8
 const CLEARANCE := 0.5   ## tiles from any block for the start and every marker
 
 
@@ -43,6 +48,15 @@ func problems(genre_id: StringName = &"topdown") -> Array[String]:
 	for p in spawn_tiles:
 		if not reach.has(Vector2i(p.floor())):
 			out.append("%s: marker %s cannot be walked to from the start" % [id, p])
+	if not pickup_tiles.is_empty():
+		if pickup_tiles.size() < MIN_PICKUP_TILES or pickup_tiles.size() > MAX_PICKUP_TILES:
+			out.append("%s: %d pickup tiles, needs %d-%d" % [id, pickup_tiles.size(), MIN_PICKUP_TILES,
+					MAX_PICKUP_TILES])
+		for p in pickup_tiles:
+			if not inner.has_point(p) or _distance_to_blocks(p) < CLEARANCE:
+				out.append("%s: pickup tile %s is inside or against a block" % [id, p])
+			elif not reach.has(Vector2i(p.floor())):
+				out.append("%s: pickup tile %s cannot be walked to from the start" % [id, p])
 	return out
 
 

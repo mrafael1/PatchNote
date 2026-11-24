@@ -1,7 +1,8 @@
 # Windows export check (playtest builds; G13): export the release build, boot the
 # exported game headless, and require the game banner, the campaign data (its session
 # and reaction counts and last session read from the data, PLAN v9 4), the full
-# mutation list (big patches marked) and a clean log; then boot S5 and S4 (teleport) too.
+# mutation list (big patches marked) and a clean log; then boot S5, S4 (teleport), S7 and
+# S8 on each path (M47) too.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File tools\export.ps1
 # Output: builds\windows\PatchNotes.exe (+ PatchNotes.console.exe, PLAYTEST.md: the G13.1 sheet)
@@ -98,7 +99,28 @@ if ($failures.Count -eq 0) {
     if ($text4 -notmatch ', session s1_04_level ') { $failures += 'boot S4: the export did not jump to S4' }
     elseif ($text4 -notmatch 'answers .*fork_dash=dash_teleport.* fork_dash_aim=dashdir_aim') { $failures += 'boot S4: --dash=teleport --dash-aim=aim did not answer both forks' }
     else { Write-Host '    boot S4: session s1_04_level, dash teleport + aim, clean log' }
+    # M47 (G14a): S7 (the three tastes) and S8 on each path (--answer= answers fork_path in
+    # the boot's own save; --autostart keeps it off the real save).
+    $bootLog7 = Join-Path $logDir 'export_boot_s7.log'
+    cmd /c "`"$exe`" --headless --quit-after 300 -- --autostart --session=s2_01_tryout > `"$bootLog7`" 2>&1"
+    $text7 = Get-Content $bootLog7 -Raw
+    if ($LASTEXITCODE -ne 0) { $failures += "boot S7: exit code $LASTEXITCODE" }
+    if (Select-String -Path $bootLog7 -Pattern $errorPattern) { $failures += 'boot S7: error lines in log' }
+    if ($text7 -notmatch ', session s2_01_tryout ') { $failures += 'boot S7: the export did not jump to S7' }
+    else { Write-Host '    boot S7: session s2_01_tryout, clean log' }
+    foreach ($p in @('arsenal', 'auto', 'survival')) {
+        $bootLog8 = Join-Path $logDir "export_boot_s8_$p.log"
+        cmd /c "`"$exe`" --headless --quit-after 300 -- --autostart --session=s2_02_day_one --answer=fork_path=path_$p > `"$bootLog8`" 2>&1"
+        $text8 = Get-Content $bootLog8 -Raw
+        if ($LASTEXITCODE -ne 0) { $failures += "boot S8 ${p}: exit code $LASTEXITCODE" }
+        if (Select-String -Path $bootLog8 -Pattern $errorPattern) { $failures += "boot S8 ${p}: error lines in log" }
+        if ($text8 -notmatch ', session s2_02_day_one ') { $failures += "boot S8 ${p}: the export did not jump to S8" }
+        elseif ($text8 -notmatch "answers .*fork_path=path_$p") { $failures += "boot S8 ${p}: --answer did not answer fork_path" }
+        else { Write-Host "    boot S8: session s2_02_day_one, path $p, clean log" }
+    }
     Copy-Item (Join-Path $root 'PLAYTEST.md') $outDir -Force
+    # M47 (0.4): the Stage 2 lines file goes next to the sheet (the owner edits tone there).
+    Copy-Item (Join-Path $root 'campaign\lines_stage2.md') $outDir -Force
     $size = (Get-Item (Join-Path $outDir 'PatchNotes.exe')).Length / 1MB
     Write-Host ("    PatchNotes.exe {0:N1} MB" -f $size)
 }

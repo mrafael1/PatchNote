@@ -85,6 +85,10 @@ extends SceneTree
 ##                                no dash, no jump, no fire (Auto still fires by itself). The
 ##                                line gets probe=afk at its end
 ##   --probe=no_switch            (M46) the arsenal policy never switches cards
+##   --probe=no_pickup            (M47) the survival policy never walks to a pickup (it still
+##                                takes what it walks over)
+##   (M47) On Survival a "survival:" summary follows the paths: line (pickups per min, heals,
+##   ammo_dry_share and crates taken per run: median min-max).
 ##   --probe=first_pick           (M46) every pick panel takes card 0; its own pick_rng draw is
 ##                                still consumed, but offers stay paired with the default only
 ##                                while both hands match: PickOffer.draw rolls once per card
@@ -105,6 +109,13 @@ extends SceneTree
 ##   gets the same fields after card=. Pick panels are chosen with RunState.pick_rng. With a
 ##   path, --loadout= is forced again each time the path starts, then growth is frozen (no
 ##   gems, no level-ups: a fixed loadout for the whole session).
+##   (M47) On a tryout (S7) the --only and chain lines get swaps=<id>@<t>,... (each path
+##   swap, game time) and leftovers=<n> (swaps that left something behind) right after the
+##   path fields, and a "tryout:" summary follows (swaps in place, leftovers 0, the `picked`
+##   line said before the second swap). --only answers every fork the session names (enemy
+##   and path forks), by the seed unless --answer= names it; a path session that still
+##   resolves no path fails.
+##   --max-sessions=<n>           (M47) with --campaign (the chain): stop after n sessions
 ##   --answer=<fork>=<change>     with --campaign (PLAN v9 1.1, M43; repeatable): answers
 ##                                that fork with that option. With --only it ships before
 ##                                the session (before the seed answers its enemy fork); in
@@ -172,7 +183,8 @@ var loadout_arg: Array = []
 var draft_arg := ""                          ## --draft (M45a)
 var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 no_switch, first_pick
 var fp_arg := false                          ## --fp (M46)
-const PROBES := ["afk", "no_switch", "first_pick"]
+var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
+const PROBES := ["afk", "no_switch", "first_pick", "no_pickup"]
 
 
 func _initialize() -> void:
@@ -264,6 +276,8 @@ func _run() -> void:
 			draft_arg = arg.trim_prefix("--draft=")
 		elif arg == "--fp":
 			fp_arg = true
+		elif arg.begins_with("--max-sessions="):
+			max_sessions = int(arg.trim_prefix("--max-sessions="))
 		elif arg.begins_with("--probe="):
 			probe_arg = arg.trim_prefix("--probe=")
 			if not probe_arg in PROBES:
@@ -527,6 +541,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		if wid != "" and p.get(&"faction") == &"player":
 			(cards_run.shots as Dictionary)[wid] = int((cards_run.shots as Dictionary).get(wid, 0)) + 1)
 	var arsenal_runs: Array = []   ## {offers, gaps, mean, tail, fired} per Arsenal run (M46)
+	var tryout_runs: Array = []    ## {swaps, leftovers, picked_at} per tryout run (M47)
 	for spec in specs:
 		var run_seed := int(_seed_of(spec))
 		var invincible := spec.ends_with("i")
@@ -540,6 +555,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		for f: StringName in answers:
 			db.answer_fork(f, answers[f])
 		var forked := _answer_forks(db.get_session(only), run_seed)
+		_answer_path_fork(db.get_session(only), run_seed)
 		main_script.set(&"next_seed", run_seed)
 		var game: Node = load("res://main.tscn").instantiate()
 		root.add_child(game)
@@ -663,6 +679,16 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		# M45a: at the very end, only when a path was live (every older assert holds).
 		var path_text := _path_text(runner)
 		landed_text += path_text
+		var tryout_text := _tryout_text(runner)   # M47: right after the path fields
+		landed_text += tryout_text
+		if tryout_text != "":
+			tryout_runs.append({"swaps": _swaps(), "leftovers": _leftover_count(),
+					"picked_at": _picked_at(game.session_runner)})
+		if run_state.session != null and String(run_state.session.path) != "" and runner != null \
+				and String(runner.get(&"path_id")) == "":
+			print("[botrun] session=%s seed=%d FAILED: no path (path %s resolved to nothing)" % [only,
+					run_seed, run_state.session.path])
+			failures += 1
 		if path_text != "":
 			var pid := String(runner.get(&"path_id"))
 			var pp: Array = by_path.get(pid, [0, 0])
@@ -672,7 +698,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 					"enemy_shots_refused": int(run_state.get(&"enemy_shots_refused")),
 					"player_shots_refused": int(run_state.get(&"player_shots_refused")),
 					"kills": int(rec.get("kills", run_state.kills)), "id": pid,
-					"fp": runner.call(&"fingerprint")})
+					"fp": runner.call(&"fingerprint"), "heals": int(runner.call(&"heals")),
+					"crates": int(runner.call(&"crates_taken"))})
 		if probe_arg != "":
 			landed_text += " probe=%s" % probe_arg
 		# M46: Arsenal's cards, at the very end (Auto's lines are unchanged).
@@ -743,6 +770,26 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		if fp_arg:
 			for fp_id: String in path_ids:
 				_fp_summary(fp_id, path_runs.filter(func(r: Dictionary) -> bool: return r.id == fp_id))
+		var surv := path_runs.filter(func(r: Dictionary) -> bool: return r.id == "survival")
+		if not surv.is_empty():
+			var parts: Array[String] = []
+			for pair: Array in [["pickups_per_min", func(r: Dictionary) -> float: return float(r.fp.pickups_per_min)],
+					["heals", func(r: Dictionary) -> float: return float(r.heals)],
+					["dry_share", func(r: Dictionary) -> float: return float(r.fp.ammo_dry_share)],
+					["crates", func(r: Dictionary) -> float: return float(r.crates)]]:
+				var vals: Array = surv.map(pair[1])
+				parts.append("%s median=%.2f (%.2f-%.2f)" % [pair[0], _median(vals), vals.min(), vals.max()])
+			print("[botrun] survival: %s n=%d %s" % [only, surv.size(), " ".join(parts)])
+	if not tryout_runs.is_empty():
+		var swaps_ok := tryout_runs.filter(func(r: Dictionary) -> bool: return r.swaps == tryout_runs[0].swaps).size()
+		var clean := tryout_runs.filter(func(r: Dictionary) -> bool: return int(r.leftovers) == 0).size()
+		var second := _second_swap_at(tryout_runs[0].swaps)
+		var picked_ok := tryout_runs.filter(func(r: Dictionary) -> bool:
+			return float(r.picked_at) >= 0.0 and float(r.picked_at) < second).size()
+		print("[botrun] tryout: %s swaps=%s same %d/%d leftovers=0 %d/%d picked_before=%.1f %d/%d picked_at=%s" % [
+			only, _join_or_dash(tryout_runs[0].swaps), swaps_ok, tryout_runs.size(), clean, tryout_runs.size(),
+			second, picked_ok, tryout_runs.size(),
+			",".join(tryout_runs.map(func(r: Dictionary) -> String: return "%.1f" % float(r.picked_at)))])
 	if not arsenal_runs.is_empty():
 		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
 		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
@@ -1051,15 +1098,19 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		if card_stage > 0:
 			line += " card=%d" % card_stage   # PLAN v9 2: last, so the Stage 1 lines stay byte-identical
 		line += _path_text(game.get(&"path_runner"))   # M45a: after card=, only with a live path
+		line += _tryout_text(game.get(&"path_runner"))   # M47: a tryout's swaps and leftovers
 		print(line)
 		if last:
+			break
+		if max_sessions > 0 and played >= max_sessions:
 			break
 		if step > 50:
 			print("[botrun] campaign FAILED: more than 50 sessions played")
 			return failures + 1
 	# M43.2: after the last playable session, the cooking screen (when a session is
 	# cooking), then the title.
-	if not cooked:
+	var early: bool = max_sessions > 0 and played >= max_sessions and not db.is_done()
+	if not cooked and not early:
 		for f in 300:
 			await process_frame
 			if current_scene != null and current_scene != previous and _is_cooking_screen(current_scene):
@@ -1069,12 +1120,12 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 				break
 	print("[botrun] chain: sessions=%d attempts=%d play=%.1f real=%.1f read≈%.1f total≈%.1f" % [
 		seen.size(), played, play_sum, real_sum, read_sum, play_sum + read_sum])
-	# The title screen comes back after the last session.
-	for f in 300:
+	# The title screen comes back after the last session (not after --max-sessions).
+	for f in (0 if early else 300):
 		await process_frame
 		if current_scene != null and current_scene.get(&"run_loop") == null and current_scene.has_method(&"refresh_campaign"):
 			break
-	if not current_scene or not current_scene.has_method(&"refresh_campaign"):
+	if not early and (not current_scene or not current_scene.has_method(&"refresh_campaign")):
 		print("[botrun] campaign FAILED: no title screen after the last session")
 		failures += 1
 	var added := _line_count() - lines_before
@@ -1113,6 +1164,57 @@ func _insert_draft() -> bool:
 	(db.get(&"campaign").get(&"sessions") as Array).insert(at, d)
 	print("[botrun] draft %s inserted at %d" % [d.get(&"id"), at])
 	return true
+
+
+## M47: on a tryout, " swaps=<id>@<t>,... leftovers=<n>" (else "").
+func _tryout_text(runner: Node) -> String:
+	var session: Resource = root.get_node("RunState").session
+	if runner == null or session == null or not session.get(&"tryout"):
+		return ""
+	return " swaps=%s leftovers=%d" % [_join_or_dash(_swaps()), _leftover_count()]
+
+
+func _swaps() -> Array:
+	var out: Array = []
+	for e: Dictionary in root.get_node("RunState").run_log:
+		if e.get("event") == &"path_swapped":
+			out.append("%s@%.1f" % [e.get("to", ""), float(e.get("time", 0.0))])
+	return out
+
+
+func _leftover_count() -> int:
+	var n := 0
+	for e: Dictionary in root.get_node("RunState").run_log:
+		if e.get("event") == &"path_leftovers" and not (e.get("left", []) as Array).is_empty():
+			n += 1
+	return n
+
+
+## The game time the session's `picked` say cue fired (-1: never).
+func _picked_at(runner: Node) -> float:
+	var cues: Array = runner.get(&"_cues")
+	for e: Dictionary in root.get_node("RunState").run_log:
+		if e.get("event") == &"cue" and int(e.get("index", -1)) < cues.size() \
+				and cues[int(e.index)].get(&"when") == &"picked":
+			return float(e.get("time", -1.0))
+	return -1.0
+
+
+static func _second_swap_at(swaps: Array) -> float:
+	return float(String(swaps[1]).get_slice("@", 1)) if swaps.size() > 1 else INF
+
+
+## M47 (C2.9): --only answers the session's path fork too (by the seed; an --answer= for it
+## came first), so a fork:fork_path session never plays with no path.
+func _answer_path_fork(session: Resource, run_seed: int) -> void:
+	var fork_id := String(session.get(&"path")).trim_prefix("fork:").get_slice("@", 0)
+	if not String(session.get(&"path")).begins_with("fork:"):
+		return
+	var f: Resource = root.get_node("ChangeDB").get_fork(StringName(fork_id))
+	if f == null or f.call(&"answer") != null:
+		return
+	var opts: Array = f.call(&"changes")
+	save.call(&"ship", opts[posmod(run_seed, opts.size())].get(&"id"), &"patch")
 
 
 ## The PathRunner's line fields (M45a): " path=<id> level=n picks=n pickups=n", or "" when

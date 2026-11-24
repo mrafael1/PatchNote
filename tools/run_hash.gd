@@ -20,6 +20,15 @@ extends SceneTree
 ## seed), so a later change to how a jump answers forks cannot move the hash. Without
 ## --session it plays s1_03_shooting, s1_04_level, s1_05_wrong and s1_06_playground. One
 ## line per session and seed: {"session", "seed", "hashes"}.
+##
+## M47 (PLAN v9 5, C2.8): --frames=<n> hashes every n unpaused game ticks instead of once
+## per second (ticks under an open pick panel or card never count), the loop then bounded
+## by game_time < --seconds. --answer=<fork>=<change> (repeatable) overrides the seed's
+## answer, after the Stage 1 ones; a fork:fork_path session with no --answer gets option 0
+## (Arsenal). In path sessions only (a tryout or a session with a path), open pick panels
+## are chosen as bot_runs' _choose_pick does (pick_card on pick_rng), and the hash adds the
+## live path, Loadout.summary(), the pick log and the pickups (count and positions);
+## Stage 1 hashes are unchanged (G3/G4 refs stay valid).
 
 var seconds := 120
 var out_path := ""
@@ -27,6 +36,8 @@ var compare_path := ""
 var campaign := false
 var seconds_set := false
 var session_ids: Array[StringName] = []
+var frames_every := 0                ## --frames (M47): 0 = once per second
+var answers := {}                    ## --answer (M47): fork id -> change id
 const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong",
 		&"s1_06_playground"]
 const CAMPAIGN_SECONDS := 300
@@ -53,6 +64,12 @@ func _run() -> void:
 		elif arg.begins_with("--session="):
 			for id in arg.trim_prefix("--session=").split(",", false):
 				session_ids.append(StringName(id))
+		elif arg.begins_with("--frames="):
+			frames_every = int(arg.trim_prefix("--frames="))
+		elif arg.begins_with("--answer="):
+			var pair := arg.trim_prefix("--answer=").split("=")
+			if pair.size() == 2:
+				answers[StringName(pair[0])] = StringName(pair[1])
 		else:
 			seeds.append(int(arg))
 	if seeds.is_empty():
@@ -196,6 +213,7 @@ func _run_campaign(seeds: Array[int]) -> void:
 		for run_seed in seeds:
 			save.call(&"go_inert")
 			_answer_forks(save, run_seed)
+			_answer_more(save, db.call(&"get_session", id))
 			db.set(&"active", true)
 			db.call(&"jump_to", id)
 			main_script.set(&"next_seed", run_seed)
@@ -259,10 +277,53 @@ func _answer_forks(save: GDScript, run_seed: int) -> void:
 			save.call(&"set_mascot", pick.get(&"take").get(&"id"))
 
 
+## M47: the --answer overrides, then fork_path for a fork:fork_path session (option 0).
+func _answer_more(save: GDScript, session: Resource) -> void:
+	var change_db: Node = root.get_node("ChangeDB")
+	for fork_id: StringName in answers:
+		var f: Resource = change_db.call(&"get_fork", fork_id)
+		if f == null:
+			continue
+		for c: Resource in f.call(&"changes"):
+			(save.call(&"state").shipped as Array).erase(String(c.get(&"id")))
+		save.call(&"ship", answers[fork_id], &"patch")
+	if String(session.get(&"path")).begins_with("fork:"):
+		var f: Resource = change_db.call(&"get_fork", StringName(String(session.get(&"path")).trim_prefix("fork:")))
+		if f != null and f.call(&"answer") == null:
+			save.call(&"ship", (f.call(&"changes") as Array)[0].get(&"id"), &"patch")
+
+
+static func _path_session(run_state: Node) -> bool:
+	var s: Resource = run_state.session
+	return s != null and (bool(s.get(&"tryout")) or String(s.get(&"path")) != "")
+
+
+## M47: the path fields of a path session's hash.
+func _path_hash(game: Node, run_state: Node) -> String:
+	var runner: Node = game.get(&"path_runner")
+	var parts: Array[String] = ["path=%s" % run_state.call(&"live_path")]
+	var lo: Node = runner.call(&"loadout") if runner != null else null
+	parts.append("lo=%s" % (lo.call(&"summary") if lo != null else "-"))
+	var picks: Array[String] = []
+	for e: Dictionary in run_state.run_log:
+		if e.get("event") == &"pick":
+			picks.append(String(e.get("pick", "")))
+	parts.append("picks=%s" % ",".join(picks))
+	var pk: Array[String] = []
+	for p: Node in run_state.get_tree().get_nodes_in_group(&"pickup"):
+		var pos: Vector2 = (p as Node2D).global_position
+		pk.append("%.2f,%.2f" % [pos.x, pos.y])
+	pk.sort()
+	parts.append("pk%d:%s" % [pk.size(), ";".join(pk)])
+	return "|".join(parts)
+
+
 ## One session, invincible bot, a hash per second of game time until the debrief opens.
 func _play_session(game: Node, run_state: Node) -> Array[String]:
 	run_state.invincible = true
 	game.player.set_bot(true)
+	if frames_every > 0:
+		return await _play_session_frames(game, run_state)
 	var hashes: Array[String] = []
 	var next_second := 1.0
 	var frames := 0
@@ -272,4 +333,31 @@ func _play_session(game: Node, run_state: Node) -> Array[String]:
 			hashes.append(_hash(game, run_state))
 		await physics_frame
 		frames += 1
+	return hashes
+
+
+## M47 (--frames): a hash every frames_every unpaused ticks while game_time < seconds; open
+## pick panels chosen in path sessions; path fields in the hash there.
+func _play_session_frames(game: Node, run_state: Node) -> Array[String]:
+	var hashes: Array[String] = []
+	var ticks := 0
+	var frames := 0
+	var path_session := _path_session(run_state)
+	var bot: GDScript = load("res://tools/bot_runs.gd")
+	while run_state.game_time < seconds and not game.debrief.is_open() and frames < seconds * 60 * 4:
+		if path_session:
+			var panel: Node = game.get(&"pick_panel")
+			if panel != null and panel.call(&"can_choose"):
+				var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
+				panel.call(&"choose", bot.call(&"pick_card", run_state.get(&"pick_rng"), n, ""))
+		await physics_frame
+		frames += 1
+		if paused:
+			continue
+		ticks += 1
+		if ticks % frames_every == 0:
+			var h := _hash(game, run_state)
+			if path_session:
+				h = (h + "|" + _path_hash(game, run_state)).md5_text()
+			hashes.append(h)
 	return hashes

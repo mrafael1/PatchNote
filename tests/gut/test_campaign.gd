@@ -62,14 +62,16 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 8)
+	assert_eq(CampaignDB.size(), 9)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
 	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
 	assert_eq(CampaignDB.session(5).id, &"s1_05_wrong")
 	assert_eq(CampaignDB.session(6).id, &"s1_06_playground", "S6 ends Stage 1 (M42)")
 	assert_eq(CampaignDB.session(7).id, &"s2_01_tryout", "S7 opens Stage 2 (M43)")
-	assert_null(CampaignDB.session(8))
+	assert_eq(CampaignDB.session(8).id, &"s2_02_day_one", "S8 (M47)")
+	assert_null(CampaignDB.session(9))
+	assert_null(CampaignDB.cooking(), "M47: nothing cooks")
 
 
 func test_lines_parse_a_condition_an_expression_and_the_text() -> void:
@@ -364,24 +366,24 @@ func test_s6_retry_does_not_play_the_ending() -> void:
 	d.close()
 
 
-## M43.2 (G13b): the campaign is done once only cooking sessions are left (S7's tryout):
-## seven bumps (v0.7.0), the title says "to be continued", and Continue shows the cooking
-## screen.
+## M47: the campaign is done after S8 (nothing cooks): eight minor bumps and S8's patch
+## (v0.8.1), the title says "to be continued", Continue is gone and the title comes back.
 func test_done_campaign_shows_to_be_continued() -> void:
 	SaveGame.go_live(TEST_PATH, true)
-	assert_eq(CampaignDB.cooking_index(), CampaignDB.index_of(&"s2_01_tryout"))
-	for i in CampaignDB.cooking_index():
+	assert_eq(CampaignDB.cooking_index(), CampaignDB.size(), "M47: no cooking session")
+	for i in CampaignDB.size():
 		assert_false(CampaignDB.is_done(), "not done before session %d" % i)
+		if CampaignDB.session(i).id == &"s2_01_tryout":
+			assert_eq(SaveGame.version().label(), "v0.7.0")
+			assert_eq(CampaignDB.version_after(CampaignDB.session(i)).label(), "v0.8.0", "S7: v0.8.0")
 		CampaignDB.complete(CampaignDB.session(i))
 	assert_true(CampaignDB.is_done())
-	assert_eq(CampaignDB.current().id, &"s2_01_tryout", "the cooking session")
-	assert_eq(SaveGame.version().label(), "v0.7.0", "seven minor bumps (M43.2: v0.8.0 comes with the real S7)")
-	assert_eq(CampaignDB.version_after(CampaignDB.cooking()).label(), "v0.8.0", "what the cooking screen builds")
-	assert_true(StartScreen.campaign_line().ends_with("· to be continued"), StartScreen.campaign_line())
-	assert_eq(StartScreen.continue_target(), CookingScreen.SCENE)
-	assert_eq(CookingScreen.after_campaign_scene(), CookingScreen.SCENE)
+	assert_eq(SaveGame.version().label(), "v0.8.1", "S8 is a patch")
+	assert_true(StartScreen.campaign_line().ends_with("v0.8.1 · to be continued"), StartScreen.campaign_line())
+	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)
+	assert_eq(CookingScreen.after_campaign_scene(), StartScreen.TITLE_SCENE, "nothing cooks: the title")
 	var screen := await _screen()
-	assert_true(screen.continue_button.visible, "Continue shows the cooking screen")
+	assert_false(screen.continue_button.visible, "nothing left to continue")
 
 
 func test_a_broken_campaign_reports_each_problem() -> void:

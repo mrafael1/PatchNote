@@ -350,6 +350,8 @@ func test_every_stage_1_cue_parses_as_before() -> void:
 			var colon := t.find(":")
 			var head := t.left(colon).strip_edges().split(" ", false)
 			var body := t.substr(colon + 1).strip_edges().split(" ", false)
+			if s.stage > 1:
+				continue   # M47: Stage 2 cues carry answer: conditions (test_s8_day_one)
 			assert_eq([c.problem, c.cond, c.tag, c.at_seconds], ["", "", &"", -1.0], src)
 			assert_eq(c.when, StringName(head[0]), src)
 			assert_eq(c.value, head[1].to_float() if head.size() > 1 else 0.0, src)
@@ -401,15 +403,17 @@ func test_path_cues_need_a_tryout_and_new_things_are_not_built_yet() -> void:
 	# M45a: path auto, [tag], level and picked are built.
 	for gone in ["path is not built yet", "[tag] is not built yet", "level is not built yet", "path auto"]:
 		assert_false(gone in text, gone)
-	s.cues = PackedStringArray(["at 3: path arsenal", "at 4: path survival", "at 5: path off", "picked 1: say x"])
+	s.cues = PackedStringArray(["at 3: path arsenal", "at 4: path survival", "at 5: path off", "picked 1: say x",
+			"at 6: drop shotgun", "at 7: drop ammo", "at 8: drop heal"])
 	s._parsed = false
 	text = "\n".join(CampaignDB.problems(_campaign([s])))
 	assert_false("path arsenal" in text, "M46 builds Arsenal")
-	assert_string_contains(text, "path survival is not built yet (M47)")
+	assert_false("path survival" in text, "M47 builds Survival")
+	assert_false("drop" in text, "M47 builds drop")
 	assert_false("path off" in text, "off is never a PathDB id and passes")
 	assert_false("picked" in text)
 	s.path = &"survival"
-	assert_string_contains("\n".join(CampaignDB.problems(_campaign([s]))), "path survival is not built yet")
+	assert_false("survival" in "\n".join(CampaignDB.problems(_campaign([s]))), "a Survival session")
 	s.path = &"auto"
 	assert_false("hp_floor" in text, "the floor is built")
 	assert_false("weapons" in text, "weapons are built (M44)")

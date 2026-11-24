@@ -308,6 +308,8 @@ func _edge(d: ReactionDef, holds: bool) -> bool:
 func _allowed(d: ReactionDef, t: float) -> bool:
 	if d.once_per_session and _count.has(d.id):
 		return false
+	if not live_path_holds(d.when):
+		return false
 	if _last_at.has(d.id) and t - float(_last_at[d.id]) < d.cooldown:
 		return false
 	if d.priority >= 3:
@@ -332,6 +334,21 @@ func _say(d: ReactionDef, t: float) -> void:
 	RunState.log_event(&"reaction", {"id": String(d.id)})
 	note_spoken(line, d.priority)
 	line_said.emit(line, d.priority)
+
+
+## M47 (C1.3): a `when` naming answer:path_<p> reads the live path while one is live (S7's
+## tastes: "My bad" never fights "That's the point!"), else the save's answer as at start.
+func live_path_holds(when: String) -> bool:
+	if not when.contains("answer:path_") or RunState.live_path() == &"":
+		return true
+	var ctx := CampaignDB.line_context(session) if session != null else {}
+	var shipped: Array = []
+	for c: Variant in ctx.get("shipped", []):
+		if not String(c).begins_with("path_"):
+			shipped.append(c)
+	shipped.append(StringName("path_%s" % RunState.live_path()))
+	ctx["shipped"] = shipped
+	return Line.condition_holds(when, ctx)
 
 
 ## The line d says the nth time it fires this session: from the lines for the save's

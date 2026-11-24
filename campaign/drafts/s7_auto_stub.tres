@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s7_auto_stub"
+stage = 2
+title = "Three games"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits", &"version"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
+spawn_rate = 1.3
+spawn_cap = 1.3
+tryout = true
+hp_floor = 1
+goal = &"survive"
+goal_value = 60.0
+face = true
+intro = PackedStringArray("happy: Stage two. I want to make a real shooter.", "thinking: But which kind? I'm still building them.", "worried: Can't lose today. It's a tryout.")
+weapons = Array[StringName]([&"pistol", &"shotgun"])
+cues = PackedStringArray("at 13: path auto", "at 16: say surprised: It shoots for you. You just move.", "at 20: add crowd", "at 20: say happy: And more enemies. Lots more. You'll need them.", "at 24: give shotgun", "at 24: say happy: I put a shotgun in your next level-up.", "at 28: add levelups", "at 28: say happy: Grab the gems. You'll level up.", "picked 1: say proud: See? Level up. That's the idea.", "at 47: say panic: That's a lot of them. That's the point!")
+debrief = PackedStringArray("ended thinking: Okay. Three games next time. Promise.")
+bump = &"minor"
+notes = PackedStringArray("The shooter, three ways (work in progress)")

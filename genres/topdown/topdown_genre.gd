@@ -272,12 +272,18 @@ func hold_session_goal(owner_id: StringName, on: bool) -> void:
 
 ## Places `count` enemies of `archetype` at the spawner's off-screen points (a cue).
 func spawn_archetype(archetype: StringName, count: int) -> bool:
-	if not Spawner.SCENES.has(archetype):
+	# M47 (PLAN v9 1.9): a variant spawns its base scene carrying its data.
+	var v := EnemyDB.variant(archetype)
+	var base := v.base if v != null else archetype
+	if not Spawner.SCENES.has(base):
 		return false
 	for i in count:
 		var rng := RunState.gameplay_rng
 		var jitter := Vector2(rng.randf_range(-16, 16), rng.randf_range(-16, 16))
-		RunState.spawn(Spawner.SCENES[archetype], spawner.pick_point() + jitter, {&"from_spawner": true})
+		var params := {&"from_spawner": true}
+		if v != null:
+			params.merge({&"variant": v.id, &"size_mult": v.scale, &"hp_mult": v.hp_mult})
+		RunState.spawn(Spawner.SCENES[base], spawner.pick_point() + jitter, params)
 	return true
 
 

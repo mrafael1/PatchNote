@@ -7,7 +7,8 @@ extends SceneTree
 ##   godot --headless --path . -s tools/path_lines.gd
 ##
 ## Prints "[path_lines] arsenal=N auto=N survival=0 budget=250" and exits 1 over budget
-## (Arsenal since M46: paths/arsenal/; Survival is M47).
+## (Arsenal since M46: paths/arsenal/; Survival since M47: paths/survival/, built there
+## instead of PLAN 1.6's systems/drops.gd so it counts, D11).
 
 const BUDGET := 250
 const PATHS: Array[String] = ["arsenal", "auto", "survival"]

@@ -37,6 +37,8 @@ func before_each() -> void:
 
 
 func after_each() -> void:
+	while CampaignDB.get_session(STUB) != null:
+		CampaignDB.campaign.sessions.erase(CampaignDB.get_session(STUB))
 	Telemetry.log_path = Telemetry.DEFAULT_PATH
 	CampaignDB.active = false
 	SaveGame.go_inert()
@@ -96,6 +98,8 @@ func test_a_save_with_next_reads_the_id() -> void:
 	_load({"index": 1, "done": _done(1), "next": "s1_04_level"})
 	assert_eq(CampaignDB.current().id, &"s1_04_level", "next wins over the index mirror")
 	_load({"index": 9, "done": _done(7) + ["s2_01_tryout"], "next": ""})
+	assert_eq(CampaignDB.current().id, &"s2_01_tryout", "M47 (D3): a stub-era save plays the real S7")
+	_load({"index": 9, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one"], "next": ""})
 	assert_true(CampaignDB.is_done(), "next \"\": after the furthest done")
 	_load({"done": _done(2), "next": "s9_gone"})
 	assert_eq(CampaignDB.current().id, &"s1_02_enemies", "an unknown id: after the furthest done")
@@ -153,16 +157,16 @@ func test_complete_and_jump_write_next() -> void:
 	assert_true(CampaignDB.is_done())
 
 
-## M43.2 (G13b): S7 is cooking, so the end-of-Stage-1 save goes on to the cooking screen.
+## M47: S7 is real, so the end-of-Stage-1 save plays it, with the Stage 2 card.
 func test_the_end_of_stage_1_save_continues_at_s7_with_the_card() -> void:
 	var before := FileAccess.get_file_as_string(FIXTURE)
 	SaveGame.use_snapshot(FIXTURE)
 	assert_eq(SaveGame.last_load, SaveGame.LOADED)
 	assert_eq(SaveGame.version().label(), "v0.7.0")
-	assert_true(CampaignDB.started() and CampaignDB.is_done(), "nothing playable is left (M43.2)")
-	assert_eq(CampaignDB.cooking().id, &"s2_01_tryout")
-	assert_eq(StartScreen.continue_target(), CookingScreen.SCENE, "Continue shows the cooking screen")
-	assert_eq(CampaignDB.version_after(CampaignDB.cooking()).label(), "v0.8.0", "building v0.8.0")
+	assert_true(CampaignDB.started() and not CampaignDB.is_done(), "S7 is playable (M47)")
+	assert_null(CampaignDB.cooking(), "nothing cooks")
+	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE, "Continue plays S7")
+	assert_eq(CampaignDB.version_after(CampaignDB.current()).label(), "v0.8.0", "S7 ships v0.8.0")
 	var s7 := CampaignDB.current()
 	assert_eq(s7.id, &"s2_01_tryout")
 	assert_true(CampaignDB.stage_card_due(s7))
@@ -238,6 +242,8 @@ func test_the_card_shows_the_mascot_and_writes_no_telemetry() -> void:
 
 func test_every_stage_needs_a_title() -> void:
 	assert_eq(CampaignDB.campaign.stage_titles, {1: "The prototype", 2: "The shooter"})
+	assert_false(CampaignDB.get_session(&"s2_01_tryout").cook_beat.is_empty(), "S7's card has its cook beat (M47 D2)")
+	assert_true(CampaignDB.get_session(&"s2_02_day_one").cook_beat.is_empty())
 	var copy := CampaignDef.new()
 	copy.sessions.assign(CampaignDB.campaign.sessions)
 	copy.stage_titles = {1: "The prototype"}
@@ -304,21 +310,30 @@ func test_the_floor_is_live_in_the_real_boot() -> void:
 	assert_eq(RunState.rules.hp_floor, 0)
 
 
-# --- S7, the stub -----------------------------------------------------------------------
+# --- S7's old stub, a draft now (M47 D5) ----------------------------------------------
 
-## M43.2 (G13b): the campaign flow shows S7 cooking; a dev jump still plays the stub.
-func test_a_dev_jump_still_plays_the_s7_stub() -> void:
-	var s := CampaignDB.get_session(&"s2_01_tryout")
+const STUB := &"s7_auto_stub"
+const STUB_DRAFT := "res://campaign/drafts/s7_auto_stub.tres"
+
+
+## M47: the M43-M46 Auto-taste stub is a draft (a dev jump plays it once inserted); S7 is real.
+func test_a_dev_jump_still_plays_the_s7_auto_stub_draft() -> void:
+	var real := CampaignDB.get_session(&"s2_01_tryout")
+	assert_false(real.is_cooking(), "M47: S7 is real")
+	assert_false(FileAccess.get_file_as_string("res://campaign/sessions/s2_01_tryout.tres").contains("cooking = "),
+			"the cooking line is deleted, not emptied")
+	var s := load(STUB_DRAFT) as SessionDef
+	assert_eq(s.id, STUB)
 	assert_eq(s.problems(), [] as Array[String])
-	assert_true(s.is_cooking(), "M43.2: cooking until M47 writes the real tryout")
-	assert_eq(s.cooking.size(), 4)
+	assert_false(s.is_cooking())
 	assert_eq([s.stage, s.goal, s.goal_value, s.hp_floor, s.tryout, s.face, s.bump, s.fork],
 			[2, SessionDef.SURVIVE, 60.0, 1, true, true, &"minor", &""])
 	assert_eq(s.basics, CampaignDB.get_session(&"s1_06_playground").basics, "Stage 1's build")
-	assert_eq(CampaignDB.index_of(s.id), CampaignDB.size() - 1, "the last session")
 	assert_true(s.cue_list().any(func(c: Cue) -> bool: return c.action == &"path" and c.target == &"auto"),
 			"M45a: the stub is an Auto taste")
-	for pair: Array in [[&"s2_01_tryout", DebriefScreen.LAST], [&"s1_06_playground", DebriefScreen.NEXT]]:
+	CampaignDB.campaign.sessions.insert(CampaignDB.cooking_index(), s)
+	assert_eq(CampaignDB.index_of(s.id), CampaignDB.size() - 1, "inserted after S8 (C2.12)")
+	for pair: Array in [[STUB, DebriefScreen.LAST], [&"s1_06_playground", DebriefScreen.NEXT]]:
 		var d := DebriefScreen.new()
 		add_child_autofree(d)
 		d.input_delay = 0.0
@@ -326,7 +341,7 @@ func test_a_dev_jump_still_plays_the_s7_stub() -> void:
 		d.finish_lines()
 		assert_eq(d.choices(), [pair[1]], String(pair[0]))
 		d.close()
-	var game := await _game(&"s2_01_tryout")
+	var game := await _game(STUB)
 	assert_eq(game.run_loop.goal, SessionDef.SURVIVE)
 	assert_eq(game.run_loop.goal_value, 60.0)
 
@@ -346,7 +361,7 @@ func test_after_and_until_fit_the_old_sessions() -> void:
 
 func test_the_stage_2_reaction_lists_match_their_fixture() -> void:
 	var fixture: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(REACTIONS_FIXTURE))
-	assert_eq(fixture.size(), 4, "s2_01_tryout x (none, 3 paths)")
+	assert_eq(fixture.size(), 4, "M47: s2_01_tryout (one row: live-path reactions), s2_02_day_one x 3 paths")
 	for key: String in fixture:
 		var session := CampaignDB.get_session(StringName(key.get_slice("|", 0)))
 		assert_not_null(session, key)
@@ -364,42 +379,50 @@ func test_the_stage_2_reaction_lists_match_their_fixture() -> void:
 
 
 func test_a_gated_reaction_is_not_loaded() -> void:
-	var plain := await _game(&"s2_01_tryout")
+	SaveGame.ship(&"path_arsenal", GameVersion.PATCH)
+	var plain := await _game(&"s2_02_day_one")
 	assert_true(&"not_shooting" in plain.reactions.active_ids())
 	assert_true(&"camping" in plain.reactions.active_ids())
 	plain.free()
+	SaveGame.go_inert()
 	SaveGame.ship(&"path_auto", GameVersion.PATCH)
-	var auto := await _game(&"s2_01_tryout")
+	var auto := await _game(&"s2_02_day_one")
 	for id in AUTO_GATED:
 		assert_false(id in auto.reactions.active_ids(), "%s never on Auto" % id)
 	assert_true(&"camping" in auto.reactions.active_ids(), "camping stays (D8)")
 
 
-# --- M43.2: S7 cooking, the saves that passed it ---------------------------------------
+# --- M47 (D3): the saves that passed the old stub play the real S7 -----------------------
 
-func test_the_owner_shaped_save_lands_on_the_cooking_screen() -> void:
+func test_the_owner_shaped_save_plays_the_real_s7_with_its_card() -> void:
 	var before := FileAccess.get_file_as_string(OWNER_FIXTURE)
 	SaveGame.use_snapshot(OWNER_FIXTURE)
 	assert_eq(SaveGame.last_load, SaveGame.LOADED)
 	assert_eq(SaveGame.version().label(), "v0.8.0", "from the old stub")
 	assert_true("s2_01_tryout" in (SaveGame.campaign().done as Array))
-	assert_eq(CampaignDB.current_index(), CampaignDB.index_of(&"s2_01_tryout"), "clamped to the cooking session")
-	assert_eq(CampaignDB.current().id, &"s2_01_tryout")
-	assert_true(CampaignDB.is_done())
+	assert_true(CampaignDB.stub_era(), "stub-era")
+	assert_eq(CampaignDB.current().id, &"s2_01_tryout", "the real S7 plays")
+	assert_false(CampaignDB.is_done())
 	assert_true(CampaignDB.started())
-	assert_eq(CampaignDB.version_after(CampaignDB.cooking()).label(), "v0.8.0", "never bumped twice")
-	assert_eq(StartScreen.continue_target(), CookingScreen.SCENE)
-	assert_true(StartScreen.campaign_line().ends_with("v0.8.0 · to be continued"), StartScreen.campaign_line())
+	assert_true(CampaignDB.stage_card_due(CampaignDB.current()), "with the Stage 2 card")
+	assert_eq(CampaignDB.version_after(CampaignDB.current()).label(), "v0.8.0", "never bumped twice")
+	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)
+	assert_true(StartScreen.campaign_line().begins_with("Stage 2 · Session 7 · v0.8.0"), StartScreen.campaign_line())
 	assert_eq(FileAccess.get_file_as_string(OWNER_FIXTURE), before, "a snapshot never writes")
 
 
 func test_the_clamp_holds_for_every_save_past_stage_1() -> void:
 	_load({"index": 9, "done": _done(7) + ["s2_01_tryout"]})   # no next: an M42.2-style index past the end
-	assert_eq(CampaignDB.current().id, &"s2_01_tryout")
+	assert_eq(CampaignDB.current().id, &"s2_01_tryout", "stub-era: the real S7")
 	_load({"index": 7, "done": _done(7), "next": "s2_01_tryout"})   # a Stage 1 chain end (M43.2)
 	assert_eq(CampaignDB.current().id, &"s2_01_tryout")
-	assert_true(CampaignDB.is_done())
-	assert_eq(CampaignDB.version_after(CampaignDB.cooking()).label(), "v0.8.0")
+	assert_false(CampaignDB.is_done())
+	assert_eq(CampaignDB.version_after(CampaignDB.current()).label(), "v0.8.0")
+	_load({"index": 8, "done": _done(7) + ["s2_01_tryout"], "next": "s2_02_day_one"})
+	assert_false(CampaignDB.stub_era(), "past the real S7: the rule is off")
+	assert_eq(CampaignDB.current().id, &"s2_02_day_one")
+	_load({"index": 9, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one"], "next": ""})
+	assert_true(CampaignDB.is_done(), "after S8: to be continued")
 	_load({"index": 5, "done": _done(5), "next": "s1_05_wrong"})
 	assert_false(CampaignDB.is_done(), "mid Stage 1: playable")
 	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)
@@ -409,29 +432,31 @@ func test_nothing_playable_comes_after_a_cooking_session() -> void:
 	var copy := CampaignDef.new()
 	copy.stage_titles = CampaignDB.campaign.stage_titles.duplicate()
 	copy.sessions.assign(CampaignDB.campaign.sessions)
+	assert_eq(CampaignDB.problems(copy), [] as Array[String], "M47: nothing cooks")
+	var cook := SessionDef.new()
+	cook.id = &"s2_98_cook"
+	cook.stage = 2
+	cook.title = "Cooking"
+	cook.cooking = PackedStringArray(["one..."])
+	copy.sessions.append(cook)
 	var extra := SessionDef.new()
-	extra.id = &"s2_02_after"
+	extra.id = &"s2_99_after"
 	extra.stage = 2
 	extra.title = "After"
 	copy.sessions.append(extra)
-	assert_string_contains(str(CampaignDB.problems(copy)), "s2_02_after is playable after s2_01_tryout")
+	assert_string_contains(str(CampaignDB.problems(copy)), "s2_99_after is playable after s2_98_cook")
 	var blank := CampaignDB.get_session(&"s2_01_tryout").duplicate() as SessionDef
 	blank.cooking = PackedStringArray(["ok", " "])
+	blank.cook_beat = PackedStringArray(["ok", ""])
 	assert_string_contains(str(blank.problems()), "an empty cooking line")
+	assert_string_contains(str(blank.problems()), "an empty cook_beat line")
 
 
-func test_the_end_of_stage_1_goes_to_the_cooking_screen() -> void:
+func test_the_end_of_stage_1_goes_to_s7() -> void:
 	SaveGame.go_live(TEST_PATH, true)
 	assert_true(CampaignDB.jump_to(&"s1_06_playground"))
 	CampaignDB.complete(CampaignDB.get_session(&"s1_06_playground"))
-	assert_eq(SaveGame.campaign().next, "s2_01_tryout", "the save points at the cooking session")
-	assert_true(CampaignDB.is_done())
-	assert_eq(CookingScreen.after_campaign_scene(), CookingScreen.SCENE)
-	var real := CampaignDB.campaign
-	var copy := CampaignDef.new()
-	copy.stage_titles = real.stage_titles.duplicate()
-	copy.sessions.assign(real.sessions.slice(0, real.sessions.size() - 1))
-	CampaignDB.campaign = copy
-	var without := CookingScreen.after_campaign_scene()
-	CampaignDB.campaign = real
-	assert_eq(without, StartScreen.TITLE_SCENE, "no cooking session: the title")
+	assert_eq(SaveGame.campaign().next, "s2_01_tryout", "the save points at S7")
+	assert_false(CampaignDB.is_done(), "M47: S7 is playable")
+	assert_true(CampaignDB.stage_card_due(CampaignDB.current()))
+	assert_eq(CookingScreen.after_campaign_scene(), StartScreen.TITLE_SCENE, "nothing cooks: the title")

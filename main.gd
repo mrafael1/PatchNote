@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M46"
+const BUILD := "M47"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -168,6 +168,8 @@ func _ready() -> void:
 		if CampaignDB.stage_card_due(RunState.session):
 			stage_card = StageCard.new()
 			stage_card.name = "StageCard"
+			if not RunState.session.cook_beat.is_empty():   # M47 (D2): the AI cooking it first
+				stage_card.setup_beat(RunState.session.cook_beat, CampaignDB.version_after(RunState.session).label())
 			stage_card.setup(RunState.session.stage, CampaignDB.campaign.stage_titles[RunState.session.stage])
 			add_child(stage_card)
 
@@ -216,6 +218,7 @@ func ensure_path_runner() -> PathRunner:
 	add_child(path_runner)
 	if session_runner != null:
 		session_runner.path_runner = path_runner
+		path_runner.started.connect(session_runner.on_path_started)   # M47: `picked` cues
 	if genre != null and genre.is_over():
 		path_runner.stop()
 	return path_runner
@@ -378,7 +381,7 @@ func _end_session(choice: StringName) -> void:
 	if is_live_game():
 		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
 				session_runner.hits, choice, BUILD, debrief.picked, reactions.fired_ids(), rule_book.landed,
-				event_player.played_ids(), debrief.more_picks()))
+				event_player.played_ids(), debrief.more_picks(), path_runner))
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:
@@ -386,7 +389,9 @@ func _end_session(choice: StringName) -> void:
 	if get_tree().current_scene != self:
 		return   # a test's copy: the save moved on, nothing reloads
 	debrief.close()
-	if CampaignDB.is_done():
+	if SaveGame.in_replay() and choice != &"retry":
+		get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)   # M47: the title ends the replay
+	elif CampaignDB.is_done():
 		get_tree().change_scene_to_file(CookingScreen.after_campaign_scene())
 	else:
 		next_seed = debrief.next_seed
