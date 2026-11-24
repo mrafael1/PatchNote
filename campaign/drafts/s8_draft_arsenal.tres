@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s8_draft_arsenal"
+stage = 2
+title = "Day one (draft, Arsenal)"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits", &"version"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
+spawn_rate = 1.3
+spawn_cap = 1.3
+path = &"arsenal"
+hp_floor = 0
+goal = &"survive"
+goal_value = 120.0
+face = true
+intro = PackedStringArray("happy: Cards. Today it's you and one card: the pistol.", "thinking: Two minutes. I'll build it properly this time.")
+weapons = Array[StringName]([&"pistol", &"shotgun"])
+cues = PackedStringArray("at 10: add cards", "at 10: say happy: Remember the cards? Now they're real. Rank pips, a meter. Twenty-five kills, a new card.", "at 20: add quick_draw", "at 20: say thinking: Secret: the first shot after a switch hits twice as hard. Switch a lot.", "at 30: give shotgun", "at 30: say happy: The shotgun's in. Close range, big mess.")
+debrief = PackedStringArray("won happy: Day one. It works!", "died guilty: Day one bugs. Want another go, or should I just patch it?", "thinking: Cards feel good. I want more of them.")
+bump = &"patch"
+notes = PackedStringArray("Day one (draft)")

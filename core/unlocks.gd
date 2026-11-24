@@ -21,8 +21,10 @@ const BASICS: Array[StringName] = [&"movement", &"enemies", &"level"]
 ## never ships them).
 ## PLAN v9 1.2 (M45a): + `levelups` (Auto's gems, LV bar and level-ups) and `crowd` (Auto's
 ## crowd overlay), Auto's path basics (PathDef.basics): nothing reads them without a live path.
+## M46: + `cards` (Arsenal's card meter and hand) and `quick_draw` (its first-shot-after-a-
+## switch bonus), Arsenal's path basics.
 const CAMPAIGN_BASICS: Array[StringName] = [&"movement", &"shooting", &"dash", &"enemies", &"level",
-		&"health", &"hits", &"version", &"levelups", &"crowd"]
+		&"health", &"hits", &"version", &"levelups", &"crowd", &"cards", &"quick_draw"]
 
 
 ## Patches that may be offered: the starters plus what shipped changes unlock, never

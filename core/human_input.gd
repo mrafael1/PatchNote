@@ -6,6 +6,8 @@ var _stick_aim_active := false
 var _wait_release := false
 var _pending_step := 0   ## a mouse wheel notch (pressed and released in one event pair)
 
+const SLOT_ACTIONS: Array[StringName] = [&"weapon_1", &"weapon_2", &"weapon_3"]
+
 
 func _physics_process(_delta: float) -> void:
 	move = Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
@@ -17,16 +19,26 @@ func _physics_process(_delta: float) -> void:
 	var step := int(Input.is_action_just_pressed(&"weapon_next")) - int(Input.is_action_just_pressed(&"weapon_prev"))
 	switch_step = _pending_step if _pending_step != 0 else step
 	_pending_step = 0
+	# M46: keys 1-3 pick a card of the hand, never while a panel (or anything) pauses play.
+	select_slot = -1
+	if not RunState.is_paused_except(&""):
+		for i in SLOT_ACTIONS.size():
+			if Input.is_action_just_pressed(SLOT_ACTIONS[i]):
+				select_slot = i
+				break
 	if _wait_release:
-		if fire or jump_held or Input.is_action_pressed(&"dash"):
+		if fire or jump_held or Input.is_action_pressed(&"dash") or _slot_held():
 			fire = false
 			jump_held = false
 			jump_pressed = false
 			dash_pressed = false
 			wait_pressed = false
 			switch_step = 0
+			select_slot = -1
 		else:
 			_wait_release = false
+			# A digit tapped and released before this tick still reads just-pressed now.
+			select_slot = -1
 
 	var stick := Input.get_vector(&"aim_left", &"aim_right", &"aim_up", &"aim_down")
 	if stick.length() > 0.3:
@@ -42,6 +54,13 @@ func _physics_process(_delta: float) -> void:
 
 func require_fresh_press() -> void:
 	_wait_release = true
+
+
+func _slot_held() -> bool:
+	for a in SLOT_ACTIONS:
+		if Input.is_action_pressed(a):
+			return true
+	return false
 
 
 func _input(event: InputEvent) -> void:

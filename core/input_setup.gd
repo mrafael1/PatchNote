@@ -8,6 +8,7 @@ const ACTIONS: Array[StringName] = [
 	&"move_left", &"move_right", &"move_up", &"move_down",
 	&"aim_left", &"aim_right", &"aim_up", &"aim_down",
 	&"shoot", &"dash", &"jump", &"wait", &"weapon_prev", &"weapon_next",
+	&"weapon_1", &"weapon_2", &"weapon_3",
 	&"patch_history", &"pause",
 	&"choose_1", &"choose_2", &"choose_3", &"choose_4",
 	&"debug_overlay", &"debug_console", &"debug_invincible", &"debug_spawn",
@@ -32,6 +33,12 @@ func _init() -> void:
 	# dash is on the left trigger.
 	_bind(&"weapon_prev", [_key(KEY_Q), _mouse(MOUSE_BUTTON_WHEEL_UP), _pad(JOY_BUTTON_LEFT_SHOULDER)])
 	_bind(&"weapon_next", [_key(KEY_E), _mouse(MOUSE_BUTTON_WHEEL_DOWN), _pad(JOY_BUTTON_RIGHT_SHOULDER)])
+	# M46 (PLAN v9 1.5, 9): Arsenal's hand by number, the number-row keys by position (the
+	# same physical keys as choose_1..3, which keep them inside a panel; HumanInput reads
+	# these only while nothing is paused). No pad bind: the bumpers already cycle.
+	_bind(&"weapon_1", [_key(KEY_1)])
+	_bind(&"weapon_2", [_key(KEY_2)])
+	_bind(&"weapon_3", [_key(KEY_3)])
 	_bind(&"patch_history", [_key(KEY_TAB), _pad(JOY_BUTTON_BACK)])
 	_bind(&"pause", [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)])
 	_bind(&"choose_1", [_key(KEY_1)])
@@ -67,9 +74,21 @@ static func key_label(action: StringName, to_label := Callable()) -> String:
 			code = to_label.call(k.physical_keycode)
 			if code == KEY_NONE:
 				code = k.physical_keycode
+			code = number_row_label(k.physical_keycode, code)
 		if code != KEY_NONE:
 			return OS.get_keycode_string(code)
 	return ""
+
+
+## M46 (D2): a number-row key (physical KEY_0..KEY_9) whose layout label is not a letter or
+## a digit (AZERTY: "&", "é", '"') is named by its digit, which every Latin layout prints on
+## that key too ("[1]", never "[Ampersand]").
+static func number_row_label(physical: Key, label: Key) -> Key:
+	if physical < KEY_0 or physical > KEY_9:
+		return label
+	if (label >= KEY_A and label <= KEY_Z) or (label >= KEY_0 and label <= KEY_9):
+		return label
+	return physical
 
 
 ## The key printed at physical position `physical` on the current layout (headless has no

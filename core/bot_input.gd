@@ -10,7 +10,9 @@ const LANE_TILES := 16
 var keep_distance := 220.0
 ## PLAN v9 4 (M45a): the live path's bot policy (PathDef.bot_policy, read each tick; "" =
 ## today's code byte for byte) and a degenerate probe (--probe=afk: no move, no dash, no
-## jump, no fire; Auto still fires by itself).
+## jump, no fire; Auto still fires by itself). M46: `no_switch` (the arsenal policy never
+## switches) and `first_pick` (bot_runs only: card 0, its own pick_rng draw still consumed;
+## offers stay paired with the default only while the hands match).
 var policy: StringName = &""
 var probe: StringName = &""
 var _tick := 0
@@ -20,12 +22,23 @@ const SECTORS := 8
 const CROWD_REACH := 6.0 * 48.0
 const GEM_CLEAR := 3.0 * 48.0
 
+## Arsenal (M46): when each card is wanted, and how long a choice is held (a policy constant:
+## switches_per_min reads it).
+const SHOTGUN_REACH := 4.0 * 48.0
+const LASER_REACH := 12.0 * 48.0
+const LASER_CORRIDOR := 0.5 * 48.0
+const GROUP := 3
+const HOLD_TICKS := 30
+var _card: StringName = &""
+var _card_tick := -1000000
+
 
 func _physics_process(_delta: float) -> void:
 	_tick += 1
 	dash_pressed = false
 	jump_pressed = false
 	wait_pressed = false
+	select_slot = -1   # M46: only the arsenal policy sets it
 	if RunState.rules.turn_based:
 		_turn_policy()
 		return
@@ -38,6 +51,9 @@ func _physics_process(_delta: float) -> void:
 		return
 	if policy == &"auto":
 		_auto_policy()
+		return
+	if policy == &"arsenal":
+		_arsenal_policy()
 		return
 	var here := origin()
 	var nearest: Node2D = null
@@ -114,6 +130,128 @@ func _auto_policy() -> void:
 	jump_pressed = _tick % 90 == 0
 	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12
+
+
+## Arsenal (PLAN v9 4, M46): today's movement, aim and fire (aim nearest, hold fire, kite at
+## keep_distance, the gate wins), plus the hand. The card it wants: the shotgun with an enemy
+## within 4 T, the laser with >= 3 enemies in a 0.5 T corridor along the aim to 12 T, the
+## launcher into a group of >= 3 within its blast (aimed there), else the highest rank (ties:
+## slot order); a choice is held HOLD_TICKS. It switches through select_slot, as keys 1-3 do.
+## The flank rule (contract for M50's shielder): a target with `shield_arc_deg` > 0 whose
+## front arc (around `facing`) covers the bot is stepped around (90 degrees, the shorter way
+## out) with fire held. No RNG.
+func _arsenal_policy() -> void:
+	var here := origin()
+	var nearest: Node2D = null
+	var best := INF
+	for e in get_tree().get_nodes_in_group(&"enemy") + get_tree().get_nodes_in_group(&"threat"):
+		var n := e as Node2D
+		if n == null or n.is_queued_for_deletion():
+			continue
+		var d := here.distance_squared_to(n.global_position)
+		if d < best:
+			best = d
+			nearest = n
+	var gate := get_tree().get_first_node_in_group(ExitGate.GROUP) as ExitGate
+	if nearest == null:
+		fire = false
+		move = gate.direction_from(here) if gate else Vector2.RIGHT.rotated(_tick * 0.01)
+		return
+	var to_enemy := nearest.global_position - here
+	aim_dir = to_enemy.normalized()
+	fire = true
+	if to_enemy.length() < keep_distance:
+		move = -aim_dir.rotated(0.6)
+	else:
+		move = aim_dir.rotated(1.2) * 0.6
+	var lo := Component.find(get_parent(), Loadout) as Loadout
+	var group_at := _choose_card(lo, here, to_enemy.length())
+	if _card == &"launcher" and group_at != null:
+		aim_dir = (group_at.global_position - here).normalized()
+	if lo != null and probe != &"no_switch":
+		for i in lo.slots.size():
+			if lo.slots[i].def.id == _card and i != lo.active:
+				select_slot = i
+	var step := flank_step(here, nearest)
+	if step != Vector2.ZERO:
+		move = step
+		fire = false
+	if gate:
+		move = gate.direction_from(here)
+	jump_pressed = _tick % 90 == 0
+	dash_pressed = _tick % 150 == 75
+	jump_held = _tick % 90 < 12
+
+
+## Sets _card (held HOLD_TICKS once chosen) and returns the launcher's group node (or null).
+func _choose_card(lo: Loadout, here: Vector2, nearest_d: float) -> Node2D:
+	if lo == null or lo.slots.is_empty():
+		return null
+	var want := &""
+	var group_at: Node2D = null
+	if lo.held(&"shotgun") != null and lo.held(&"shotgun") in lo.slots and nearest_d < SHOTGUN_REACH:
+		want = &"shotgun"
+	elif lo.held(&"laser") != null and lo.held(&"laser") in lo.slots and _in_corridor(here) >= GROUP:
+		want = &"laser"
+	elif lo.held(&"launcher") != null and lo.held(&"launcher") in lo.slots:
+		var w := lo.held(&"launcher")
+		var radius := float(w.value(&"blast_radius")) * Tuning.TILE
+		group_at = AutoFire.densest(get_parent() as Node2D, Tuning.auto_attack_range, radius)
+		if group_at != null and _around(group_at.global_position, radius) >= GROUP:
+			want = &"launcher"
+		else:
+			group_at = null
+	if want == &"":
+		var top: Weapon = null
+		for w in lo.slots:
+			if top == null or w.rank > top.rank:
+				top = w
+		want = top.def.id
+	if want != _card and (_card == &"" or _tick - _card_tick >= HOLD_TICKS or lo.held(_card) == null):
+		_card = want
+		_card_tick = _tick
+	return group_at if _card == &"launcher" else null
+
+
+## Enemies in the LASER_CORRIDOR along aim_dir, out to LASER_REACH.
+func _in_corridor(here: Vector2) -> int:
+	var n := 0
+	for e in get_tree().get_nodes_in_group(&"enemy"):
+		var m := e as Node2D
+		if m == null or m.is_queued_for_deletion():
+			continue
+		var v := m.global_position - here
+		var along := v.dot(aim_dir)
+		if along > 0.0 and along <= LASER_REACH and absf(v.cross(aim_dir)) <= LASER_CORRIDOR:
+			n += 1
+	return n
+
+
+## Enemies within `radius` of `at`.
+func _around(at: Vector2, radius: float) -> int:
+	var n := 0
+	for e in get_tree().get_nodes_in_group(&"enemy"):
+		var m := e as Node2D
+		if m != null and not m.is_queued_for_deletion() and m.global_position.distance_squared_to(at) <= radius * radius:
+			n += 1
+	return n
+
+
+## The flank rule (M46 contract, M50's shielder): Vector2.ZERO unless `target` exposes
+## shield_arc_deg > 0 and facing, and its front arc covers `here`; then the unit step 90
+## degrees around it, toward the nearer edge of the arc (ties: counter-clockwise).
+static func flank_step(here: Vector2, target: Node2D) -> Vector2:
+	var arc: Variant = target.get(&"shield_arc_deg")
+	var facing: Variant = target.get(&"facing")
+	if arc == null or facing == null or float(arc) <= 0.0 or (facing as Vector2) == Vector2.ZERO:
+		return Vector2.ZERO
+	var v := here - target.global_position
+	if v == Vector2.ZERO:
+		return Vector2.ZERO
+	var off := (facing as Vector2).angle_to(v)
+	if absf(off) >= deg_to_rad(float(arc)) / 2.0:
+		return Vector2.ZERO
+	return v.normalized().rotated(PI / 2.0 if off >= 0.0 else -PI / 2.0)
 
 
 ## The direction of the most crowded of SECTORS slices within CROWD_REACH (each enemy

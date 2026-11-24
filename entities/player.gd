@@ -109,6 +109,8 @@ func _physics_process(_delta: float) -> void:
 		return
 	if input.switch_step != 0:
 		loadout.switch(input.switch_step)
+	if input.select_slot >= 0:
+		loadout.select_slot(input.select_slot)   # M46: keys 1-3 (a no-op with one slot)
 	if input.fire:
 		loadout.try_fire(input.aim_dir)
 	elif RunState.rules.auto_attack and loadout.can_fire():

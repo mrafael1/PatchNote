@@ -48,13 +48,14 @@ const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off
 ## Parsed and validated, but nothing runs them yet: CampaignDB.problems() refuses each in
 ## the campaign's data ("not built yet"). Each later milestone shrinks these lists.
 ## M44: give runs (SessionRunner -> Loadout.give). M45a: path (PathRunner; Arsenal and
-## Survival still refused, unbuilt()), the whens level and picked, and [tag] (the pool rule).
+## Survival still refused, unbuilt(); M46 builds Arsenal), the whens level and picked, and
+## [tag] (the pool rule).
 const UNBUILT_ACTIONS: Array[StringName] = [&"drop", &"look", &"boss"]
 const UNBUILT_WHENS: Array[StringName] = [&"room", &"boss_hp"]
 const UNBUILT_TAG := false   ## M45a: a "[tag]" say cue adds its weapon to the live pool
-## The `path` targets whose PathDef is not built yet (M46 Arsenal, M47 Survival). An explicit
-## list: `off` is never a PathDB id and must pass.
-const UNBUILT_PATHS := {&"arsenal": "M46", &"survival": "M47"}
+## The `path` targets whose PathDef is not built yet (M47 Survival; Arsenal is built since
+## M46). An explicit list: `off` is never a PathDB id and must pass.
+const UNBUILT_PATHS := {&"survival": "M47"}
 
 var when: StringName = &""
 var value := 0.0

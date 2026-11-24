@@ -1,7 +1,7 @@
 class_name PickOffer
 extends RefCounted
 ## An in-run pick (PLAN v9 1.4, 1.5): up to three weapon cards (Arsenal's card meter, Auto's
-## level-ups). Never an Offer: a pick goes to the Loadout only, never RunState.apply, the
+## level-ups; the panel's line is the path's pick_line, M46). Never an Offer: a pick goes to the Loadout only, never RunState.apply, the
 ## AiDirector, the save, build_number or the patch notes (0.4). Drawn from pick_rng out of
 ## the live pool (the pool rule, 1.2), leaning on the session's taste.
 
@@ -50,7 +50,7 @@ static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], first:
 		candidates.remove_at(pick)
 	if offer.cards.is_empty():
 		offer.cards.append({"id": HP, "rank": 0, "kind": HP, "text": "+1 HP (this session)"})
-	offer.line = "Level up. Pick one."
+	offer.line = def.pick_line if def != null else "Level up. Pick one."
 	return offer
 
 

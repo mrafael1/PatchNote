@@ -9,7 +9,7 @@ extends Resource
 ## "path basic under another path" problem), `level_thresholds` / `taste_thresholds`
 ## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there),
 ## `warn_line` (the `path` cue's fallback warning; M47 gives each S7 cue its own) and
-## `max_passives`.
+## `max_passives`. M46 adds `full_line`, `pick_line` and `quick_draw_mult` (Arsenal).
 
 const FIRE_MODES: Array[StringName] = [&"manual_one", &"auto_all", &"manual_ammo"]
 const GROWTHS: Array[StringName] = [&"cards", &"levelups", &"pickups"]
@@ -36,13 +36,22 @@ const THRESHOLD_STEP := 20
 @export var bot_policy: StringName = &""
 ## The path's own basics (Unlocks.CAMPAIGN_BASICS).
 @export var basics: Array[StringName] = []
-## Total gems for level 2, 3, ... (then +THRESHOLD_STEP each).
+## Total gems for level 2, 3, ... (then +THRESHOLD_STEP each). Cards growth (Arsenal, M46):
+## the cumulative player kills for card 1, 2, ...; it needs at least max_picks entries (past
+## the list only +THRESHOLD_STEP would follow, which is not the ×1.4 of 1.5).
 @export var level_thresholds: PackedInt32Array = PackedInt32Array()
 ## In a tryout (S7's taste): the only levels, then the meter stops quietly.
 @export var taste_thresholds: PackedInt32Array = PackedInt32Array()
 @export var max_picks := 10
 ## Line syntax: the mascot's warning before a `path` cue swaps to this path.
 @export var warn_line := ""
+## Line syntax (M46): said once when the growth meter stops after max_picks.
+@export var full_line := ""
+## The pick panel's line (M46).
+@export var pick_line := "Level up. Pick one."
+## Quick-draw (M46, Arsenal): the first shot after a real switch does this much damage, once
+## the `quick_draw` basic is live. 1.0 = none.
+@export var quick_draw_mult := 1.0
 
 
 ## The gems needed to reach level `level + 1` from `level` (level >= 1); -1 past a tryout's
@@ -98,6 +107,14 @@ func problems(file_id: StringName = id) -> Array[String]:
 				break
 	if growth == &"levelups" and level_thresholds.is_empty():
 		out.append("%s: a levelups path needs level_thresholds" % where)
-	if warn_line != "" and Line.parse(warn_line).problem != "":
-		out.append("%s: warn_line: %s" % [where, Line.parse(warn_line).problem])
+	if growth == &"cards" and level_thresholds.size() < max_picks:
+		out.append("%s: a cards path needs a threshold for each of its %d picks" % [where, max_picks])
+	for pair: Array in [["warn_line", warn_line], ["full_line", full_line]]:
+		var text: String = pair[1]
+		if text != "" and Line.parse(text).problem != "":
+			out.append("%s: %s: %s" % [where, pair[0], Line.parse(text).problem])
+	if pick_line == "":
+		out.append("%s: an empty pick_line" % where)
+	if quick_draw_mult < 1.0:
+		out.append("%s: quick_draw_mult must be >= 1" % where)
 	return out

@@ -63,7 +63,7 @@ func _ready() -> void:
 	box.add_child(path_heading)
 	var path_row := HBoxContainer.new()
 	box.add_child(path_row)
-	for pair: Array in [[&"off", ""], [&"auto", ""], [&"arsenal", "M46"], [&"survival", "M47"]]:
+	for pair: Array in [[&"off", ""], [&"auto", ""], [&"arsenal", ""], [&"survival", "M47"]]:
 		var pb := Button.new()
 		pb.focus_mode = Control.FOCUS_NONE
 		pb.text = String(pair[0]) if pair[1] == "" else "%s (%s)" % [pair[0], pair[1]]
@@ -72,7 +72,7 @@ func _ready() -> void:
 		path_row.add_child(pb)
 	var level_button := Button.new()
 	level_button.focus_mode = Control.FOCUS_NONE
-	level_button.text = "+1 level"
+	level_button.text = "+1 level/card"
 	level_button.pressed.connect(add_level)
 	path_row.add_child(level_button)
 	# Rule edits (PLAN v8 1.4): through the rule book, warning included.
@@ -158,7 +158,7 @@ func switch_path(id: StringName) -> bool:
 	return true
 
 
-## F2's "+1 level": the live meter jumps to its next level (a pick follows).
+## F2's "+1 level/card": the live meter jumps to its next level or card (a pick follows).
 func add_level() -> void:
 	var runner: PathRunner = game.get(&"path_runner") if game else null
 	if runner != null:

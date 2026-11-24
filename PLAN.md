@@ -960,6 +960,102 @@ Auto holds its crowd. Path sessions get spatial-hash separation and split projec
   - Bot runs used `--log=user://m45b_r2|r3|r3p/...`, and GUT redirected `Telemetry.log_path` to `user://save_auto_scale_test/runs.jsonl` (asserted never written).
   - Benches and captures ran with `--inert-save`, and check.ps1's real-save snapshot passed.
 
+---
+
+### 6.7 As built (M46): Arsenal
+Arsenal is playable as a draft (`s8_draft_arsenal`): a hand of up to 3 cards switched with Q / E, the wheel, the bumpers or keys 1-3, quick-draw, a card meter fed by kills, the HandWidget, and the `arsenal` bot policy with the flank rule (stub-tested). Stage 1 and the legacy loop do not move: both v6 hashes, the m43.3 campaign hash, S4 vs m42.2 and every Stage 1 `WorldRules` field are unchanged. The S7 stub stays an Auto taste and its line is unchanged. `BUILD = "M46"`.
+- **References first (`.check/ref_m46/`):** on the M45b tree (a scratch worktree at 8f73984) `before_s7_3i.log` (`win t=60.0 ... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=32`) and the Auto S8 mortal baseline `auto_mortal/before_shard1-4.log` (median_t 132.5 s, as M45b R3). No new hash recording: G3 compares `ref_m43.3`, G4 `ref_m42.2`, tier 0 `ref_m45b`.
+- **Data:**
+  - `PathDef` gains `full_line` (the meter-full line, which replaces `PathRunner.FULL_LINE`; Auto's .tres carries the same text), `pick_line` (the panel's line, default "Level up. Pick one.") and `quick_draw_mult`. `problems()`: a `cards` path needs `level_thresholds.size() >= max_picks` (for cards they are **cumulative kills**), `full_line` must parse, `pick_line` must not be empty, and `quick_draw_mult >= 1`.
+  - `paths/arsenal.tres`: `manual_one`, `cards`, start `[pistol]`, 3 slots, 1 passive (D5: nothing offers one in M46), `offer_pool_extra []`, every density ×1.0, widget `hand`, policy `arsenal`, basics `[cards, quick_draw]`, **`level_thresholds` 25, 60, 109, 178, 274, 408** (base 25, ×1.4; D1 retune, see Deviations), taste `[10]` (S7, M47), 6 picks, `quick_draw_mult` 2.0, warn "happy: New version. Your guns are cards.", full "thinking: That's enough cards for one test.", pick "New card. Pick one.".
+  - `Unlocks.CAMPAIGN_BASICS` += `cards`, `quick_draw`. `Cue.UNBUILT_PATHS` = `{survival: M47}`. F2 PATH enables `arsenal`, and "+1 level" is now "+1 level/card".
+  - `campaign/drafts/s8_draft_arsenal.tres` (outside `campaign.tres`, like `s8_draft`): S6's basics, chaser / shooter / `fork:fork_enemy`, spawn ×1.3 / cap ×1.3, `hp_floor 0`, survive 120, weapons pistol + shotgun. Its cues are `at 10: add cards` + "Remember the cards? Now they're real. Rank pips, a meter. Twenty-five kills, a new card.", `at 20: add quick_draw` + the quick-draw secret, and `at 30: give shotgun` + its line. Its debrief has the three 3.2 S8 (Arsenal) lines.
+- **Runtime:**
+  - **Keys 1-3** (`weapon_1..3`, physical KEY_1..3, the same keys as `choose_1..3`; no pad bind). `HumanInput.select_slot` is the first just-pressed of them, -1 while anything pauses play. `_wait_release` also waits for a held digit, and the tick that ends the wait clears `select_slot`. The player calls `Loadout.select_slot(i)` after `switch_step` (manual modes). `BotInput` resets `select_slot = -1` every tick.
+  - **AZERTY labels (D2):** `InputSetup.number_row_label`: a number-row key whose layout label is not A-Z / 0-9 (`&`, `é`, `"`) prints its digit. This also fixes the pick panel's `[{key:choose_n}]` on AZERTY.
+  - **`Loadout`:** `select_slot(i)` (out of range or already active: a no-op, so Stage 1's one pistol never moves), `switches` (fp), `quick_draw_mult` (reset by `apply_path`) and the quick-draw flag. A real change of the active slot (cycle or number) arms it, and the next shot that fires spends it (no timeout, D4). The legacy pistol branch is untouched.
+  - **Quick-draw** (`paths/arsenal/quick_draw.gd`, `QuickDraw.mult`): ×2 once armed and live, logged as `quick_draw` in `run_log`. The multiplier goes into the pellet params through `Shooter.fire(..., damage_mult := 1.0)`, so traits' `shot`/`spawned` and `projectile_fired` see ×2. It is live only after `add quick_draw` (D3).
+  - **The card meter** (`paths/arsenal/card_meter.gd`): it counts player-faction kills (the gems' filter; a bomber's own fuse kill does not count) from the moment `cards` is added. Each cumulative threshold deals a card (`want_pick`). It stops after 6 cards with `full_line`, and a tryout stops quietly after its taste list.
+  - **`PathRunner`:**
+    - `_build_cards` runs with the same guards as `_build_levels` (`_meter == null`, `not frozen`, the basic live). The `quick_draw` basic sets `Loadout.quick_draw_mult`.
+    - The `enemy_killed` feed is connected only while a card meter exists. `_clear_growth` (swap / F2), `freeze()` and `_exit_tree` disconnect it.
+    - `level()` and `gems()` read only a levelups meter (Arsenal reports level 1 and gems 0). New `cards()`, `kills_to_next()` and `fingerprint()`.
+    - `force_level()` fills the next card's kills. F1 shows `path=arsenal cards=n kills=k/need picks=n pickups=n`.
+    - On cards, `_open_offer` puts `most_fired(lo)` first (the held aimed card with the most shots that can still rank up; ties go to slot order; D7). `PickOffer.draw` sets `offer.line = def.pick_line`.
+    - `give()` is unchanged (false on cards → SessionRunner hands a free card, the weakest non-active replaced on a full hand).
+    - After a pick, the player's input gets `require_fresh_press()`, so the key that picked card n never also picks slot n.
+    - The crowd overlay is built only when `crowd` is in the path's own basics (D6).
+  - **`HandWidget`** (`paths/arsenal/hand_widget.gd`, the LevelWidget corner style): one row per aimed card, `[{key:weapon_n}] Pistol ●○○`, the active row raised 6 px and brighter, then "cards n/6" and a thin bar to the next card. It has no passive row until M51.
+  - **The fingerprint** (`paths/fingerprint.gd`, shared, report-only, 1.15) is sampled on PathRunner's physics tick: fire_share, picks / switches / pickups per min, travel_tps, mean nearest-enemy distance (every 6 ticks) and ammo_dry_share 0. `menu_s` is wall time from offer to pick (the tree is paused meanwhile). It is not written to telemetry (D9, M47 adds it).
+- **Bot and tools:**
+  - `BotInput._arsenal_policy` (shared bot code). It moves, aims and fires like the default policy; the default branch is unchanged (G1/G2). It wants the shotgun with an enemy < 4 T, the laser with ≥ 3 enemies in a 0.5 T corridor to 12 T, and the launcher with ≥ 3 enemies within its blast of `AutoFire.densest`'s node (aimed there; a cross-path call into `paths/auto/`, R5). Otherwise it wants the highest rank. It holds a choice 30 ticks and switches through `select_slot`.
+  - **Flank rule:** a target with `shield_arc_deg` > 0 whose arc around `facing` covers the bot is stepped around 90° (the shorter way out), with fire held. `BotInput.flank_step` is static and tested on a stub.
+  - `tools/bot_runs.gd`:
+    - `--probe=no_switch|first_pick`. `first_pick` takes card 0 but still consumes its own `pick_rng` draw (`pick_card`). Offers stay paired with the default run only while both hands match: `PickOffer.draw` rolls `randf` once per card after `first`, so once the hands differ (offer 3 or 4 on the draft) the candidate counts and the stream diverge. R4's first_pick numbers are therefore an unpaired comparison.
+    - On Arsenal, the `--only` line ends with `cards=n offers=@t,... cards_fired=k shots=<id:pellets>`, and an `[botrun] arsenal:` summary follows (offers, gaps, per-seed mean gap, tails, in_band, cards_fired>=2).
+    - **`--fp`** (off by default) adds per-seed `fp=` at the end of each path line, a `[botrun] fp:` summary per path and `t_list=` on `deaths:`. check.ps1 never passes it.
+  - `path_lines.gd` header updated.
+- **Tests:** the new `tests/gut/test_arsenal.gd` has **32** tests (30 at build, 2 added by the review) covering data, built/unbuilt, binds and AZERTY, select_slot, pause / fresh-press / tap, quick-draw ×4 (as spawned, traits, no boost on Auto / no path / before the basic / legacy, default mult exact), the card meter ×5 (feeds and disconnects included), offers, give, HandWidget, G6, G7, the bot ×5 (shotgun + hysteresis + laser, launcher 3-vs-2, no_switch, first_pick, the flank stub), a 15 s replay, power-stays, the draft's audit rows and fp. `test_paths` and `test_answers` take the built Arsenal.
+- **Deviations:**
+  - **D1 retune (H1 missed on the PLAN numbers).** With 15, ×1.4 (cumulative 15, 36, 65, 106, 164, 245), H1 gave **in_band 0/16**: 5 offers on every seed, mean gap **30.4-32.3 s**, tails 8.4-17.9 s, single gaps 16.9-49.0 s. H2 was 16/16 (`.check/ref_m46/h1_plan/`). Base 25 (×1.4: 25, 35, 49, 69, 96, 134 → cumulative **25, 60, 109, 178, 274, 408**) gives in_band **16/16** (below). The draft's line says "Twenty-five kills" (the test reads the number from the .tres). PLAN 1.5 "15, then ×1.4", 3.2's S8 line and 3.5's "(15, ×1.4)" row are owner-facing. **Owner question (non-blocking): "first card at 25 kills, not 15?"**
+  - **The flank rule:** the M46 row says "the arsenal policy (with the flank rule)", while C2.32 and the M50 row put it in M50. M46 builds Arsenal's flank rule against the `shield_arc_deg` / `facing` contract (stub-tested, no live enemy has the fields). M50 wires the live shielder to it and adds Survival's.
+  - **`at 20: add quick_draw`** in the draft is new data not in 3.2. M47's real S8 must carry `"answer:path_arsenal at 20: add quick_draw"` before the say.
+  - **Per-seed `fp=` (PLAN 4)** prints only behind `--fp`, because check.ps1's `bot_s7_stub` regex is end-anchored. The `[botrun] fp:` summary uses the same flag.
+  - **`Shooter.fire` gains `damage_mult` (default 1.0).**
+  - `freeze()` disconnects the card meter's kill feed instead of dropping the meter (the widget stays). Every pick asks the player's input for a fresh press (the PlayerInput base is a no-op, so no `has_method` test), on Auto too.
+  - The H1 gap clock starts at the `add cards` time (`basic_added`), not a hard-coded 10.0 (equal in the draft). The meter counts kills only from `add cards` on.
+  - The replay test keys its 90 hashes on the runner's own ticks: GUT's frame waits can start a session a frame apart.
+- **Gates (logs in `.check/ref_m46/`):**
+  - **H1 (hard, invincible, 16 seeds, `h1/`):** **in_band 16/16**. Offers per seed 3, 3, 4, 4, 3, 3, 4, 4, 3, 4, 3, 3, 3, 3, 4, 4 (all ≥ 3). The mean gap is 37.0-41.8 s per seed, the tail 2.8-58.9 s (max 58.9 ≤ 60), and single gaps run 28.7-56.8 s. A repeat on the final bot_runs (`h1/` vs `h1_first/`) was identical 16/16.
+  - **H2 (hard):** **cards_fired>=2 16/16** (pistol and shotgun on every seed).
+  - **G1** v6 compare: **4 runs, 0 failures**. **G2** gauntlet: **4/0**. **G3** campaign vs `ref_m43.3`: **16/0**. **G4** S4 vs `ref_m42.2`: **4/0**. Each ran twice: after the runtime steps and on the final tree (`g*_final.log`).
+  - **G5:** `test_stage_1_rules_equal_the_m43_3_fixture_field_by_field` is green (test_weapons 36/36).
+  - **G6:** `test_six_arsenal_picks_leave_the_stack_build_and_save_alone` is green. **G7:** `test_no_arsenal_offer_carries_the_shotgun_before_its_give` is green.
+  - **G8:** the full GUT suite is **799/799** (46 scripts, 14595 asserts, 131 s), with no SCRIPT ERROR / Parse Error / ERROR / resources-in-use lines.
+  - **G9:** check.ps1 -BotRuns gave **CHECK PASSED** (799/799 inside). All 56 `[botrun]` lines equal M45b's `check_botruns_review.log` apart from wall times (and the log's `≈`/`~` encoding): chain `play=225.8`, `bot_s7_stub` `... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=32`. The real-save snapshot passed.
+  - **G10:** export.ps1 gave **EXPORT PASSED** (PatchNotes.exe 104.9 MB).
+  - **G11 tier 0 (windowed, RX 7900 XTX):** vs `ref_m45b/tier0_*`, seeds 3 and 4 are **0 px**, but **seed 2 is 1 px** (685, 484; max delta 232, background → `fff280`). Seeds 1 / 5 are 109-153 / 24-38 px (particle noise).
+    - Two full captures gave the same result. A seed-2-only capture of M46 is 0 px.
+    - **The cause is the `BUILD` constant, not M46's code:** the M45b tree with only `BUILD = "M46"` reproduces the pixel exactly (0 px vs M46 on seeds 2-4), and the M45b tree as committed is 0 px vs the baseline. This is the same pixel M45a flipped. Not re-baselined; left for the owner.
+  - **G12:** `path_lines.gd` → `arsenal=127 auto=182 survival=0` (exit 0).
+  - **Bites (reverted, not committed):** the legacy branch with `p.damage *= 2.0` (what a lost legacy short-circuit / default mult would do) gave G3 **16 runs, 16 failures** (`bite_g3.log`). `Shooter.fire`'s default `damage_mult := 2.0` fails `test_shooter_fire_with_the_default_mult_is_todays_damage` (29/30, `bite_gut_default_mult.log`).
+- **Reported (never gated; bot-runs-as-tuning-proxy):**
+  - **R1 afk** (Arsenal, mortal, 16): `lose=16/16`, median_t **11.5 s** (9.4-12.0), hits contact 80. That is 0.19× the Arsenal default, with no offers.
+  - **R2 mortal, not paired by seed (Auto's ×1.6 spawns):**
+    - Arsenal: lose 16/16, min 30.4 / p25 47.9 / **median 59.8** / p75 86.5 / max 114.4 s, hits projectile 71, contact 8, explosion 1. Offers median 1, cards_fired>=2 15/16.
+    - Auto (M46 tree, identical per seed to the M45b baseline, 16/16 lines): lose 16/16, 36.0 / 56.6 / **132.5** / 158.3 / 176.8 s, hits projectile 128, contact 6, explosion 5, charge 1.
+    - Arsenal dies about 2× sooner with fewer projectile hits. That is a "check the policy first" signal (the default kite plus switching, at ×1.0 density, versus Auto's kite-away-from-the-crowd), not a design verdict.
+  - **R3 fp (invincible, 16 seeds each; per-seed medians, min-max):**
+    - fire_share: Arsenal 0.996, Auto 0.000.
+    - menu_s: Arsenal 0.052, Auto 0.048 (wall time, ~0 by construction: the bot picks the next frame).
+    - picks_per_min: Arsenal 1.000 (1.0-1.333), Auto 3.333.
+    - switches_per_min: Arsenal 18.7 (2.3-28.7), Auto 0.
+    - pickups_per_min: Arsenal 0, Auto 92.8.
+    - travel_tps: Arsenal 5.10, Auto 6.66.
+    - mean_enemy_dist: Arsenal 5.57 T, Auto 6.55 T.
+    - ammo_dry_share: 0 on both.
+
+    These are mostly policy constants: a regression signal between milestones.
+  - **R4 probes (16 seeds each; bot reading only):**
+    - `no_switch` invincible: in_band 16/16, offers median 4, cards_fired>=2 **0/16** (the shotgun is never drawn). Mortal: median_t **54.5 s** (30.4-141.5), hits projectile 65, contact 13, explosion 1, charge 1.
+    - `first_pick` invincible: in_band 15/16, offers median 4, cards_fired>=2 16/16. Mortal: median_t **63.4 s** (30.4-114.4), hits projectile 71, contact 7, explosion 2.
+    - Versus the default's 59.8 s, switching and pick choice barely move the bot's time to death. Neither probe is paired by seed with the default (first_pick's offers diverge once its hand differs, see Bot and tools), so these are unpaired medians.
+  - **R5 path_lines, two readings (the M45b D2 default, shared vs path-only, still pending the owner):**
+    - (1) The tool reads `arsenal=127` (quick_draw 8, card_meter 34, hand_widget 85).
+    - (2) The PLAN 1.5 reading ("HandWidget + switching + quick-draw, ~170") adds the switching lines (input_setup +11, human_input +14 net, player_input +1, player +2) and the quick-draw arming / hook in Loadout (+21 net) and Shooter (2 changed), about **178**.
+    - Shared additions, not counted: PathRunner +79 net, fingerprint 56, the arsenal bot policy +109 (with its cross-path `AutoFire.densest` call), bot_runs +78, PathDef +11.
+  - **R6:** the S7 stub `3i` line is byte-identical before and after (`win t=60.0 ... path=auto level=2 picks=1 pickups=32`).
+- **Review (3 findings, 3 upheld, all fixed):**
+  - **`first_pick` was documented as paired with the default run; it is not.** `pick_card` keeps its own `pick_rng` draw, but `PickOffer.draw` rolls `randf` once per card after `first`, so once first_pick's hand differs from the default's (offer 3 or 4 on the draft) the candidate counts, `n` and the stream diverge. Fixed in the docs (the bot_runs header and `pick_card` comment, the BotInput header, Bot and tools and R4 above): only the pick draw is kept, and offers stay paired only while the hands match; R4's probe medians are unpaired. `PickOffer.draw` is unchanged (a fixed roll count would move Auto's stream). Doc-only, so no failing-first test.
+  - **The scene-free part of `test_a_real_kill_reaches_the_meter_and_swaps_leave_no_feed` was vacuous.** It freed a frozen runner, which had no card feed, so `PathRunner._exit_tree`'s `_feed_cards(false)` was never exercised. The test now frees the scene with a live feed and asserts `before + 1` before `remove_child`, `before` right after it (the tree exit, before Godot's free-time auto-disconnect) and after `free()`. The freeze half moved to the new `test_freeze_drops_the_card_feed` (also: a frozen runner's `swap_now(&"arsenal")` builds no feed). With `_feed_cards(false)` removed from `_exit_tree` the test fails ("leaving the tree drops it": 1 vs 0).
+  - **`QuickDraw.mult` logged `quick_draw` on shots refused at the projectile cap.** `mult()` is now pure; the new `QuickDraw.spent(loadout, m)` logs once, called by `Loadout.try_fire` only after `Shooter.fire` returned pellets, next to `_drawn = false`. New `test_a_quick_draw_refused_at_the_cap_logs_nothing_and_stays_armed` (player budget 0 for 3 ready ticks: no event, still armed; then the first spawned shot is x2 and logs exactly 1; the next logs nothing). With the old order (log before fire) it fails (3 vs 0, 4 vs 1).
+  - **After the fixes:** full GUT **801/801** (46 scripts, 14720 asserts, 144 s; no SCRIPT ERROR / Parse Error / ERROR / resources-in-use lines). v6 compare 4 runs, 0 failures; gauntlet 4 runs, 0 failures. check.ps1 -BotRuns **CHECK PASSED** (801/801 inside, chain `play=225.8`, S7 stub line unchanged). export.ps1 **EXPORT PASSED** (104.9 MB). `path_lines` now reads `arsenal=130 auto=182 survival=0` (quick_draw 8 → 11). Logs: `.check/ref_m46/review/`.
+- Nothing touched the owner's real save or `user://playtest/runs.jsonl`.
+  - Bot runs used `--log=user://m46_*/...`, and GUT redirected `Telemetry.log_path` to `user://save_arsenal_test/runs.jsonl` (asserted never written).
+  - Captures ran with `--inert-save`, and check.ps1's real-save snapshot passed.
+
+- **Tier-0 decision (2026-11-24, at commit):** seed 2's pixel (685, 484) flips with the `BUILD` string alone (M45b tree + `BUILD = "M46"` reproduces it), so it is capture noise, not a game change. From M46 on, the tier-0 compare masks that one pixel; the baseline stays `.check/ref_m45b/tier0_*`.
+
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**
 1. **Length:** Stage 1 is ~7 min against ~20, Stage 2 is planned at 30–40 against 45, and the campaign target is ~2 h 30. Grow now (a session in a stage's middle) or later?

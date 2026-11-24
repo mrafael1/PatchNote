@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="PathDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://paths/path_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"arsenal"
+fire_mode = &"manual_one"
+growth = &"cards"
+start = Array[StringName]([&"pistol"])
+max_slots = 3
+max_passives = 1
+offer_pool_extra = Array[StringName]([])
+spawn_rate_mult = 1.0
+max_enemies_mult = 1.0
+enemy_hp_mult = 1.0
+kill_goal_mult = 1.0
+boss_hp_mult = 1.0
+widget = &"hand"
+bot_policy = &"arsenal"
+basics = Array[StringName]([&"cards", &"quick_draw"])
+level_thresholds = PackedInt32Array(25, 60, 109, 178, 274, 408)
+taste_thresholds = PackedInt32Array(10)
+max_picks = 6
+warn_line = "happy: New version. Your guns are cards."
+full_line = "thinking: That's enough cards for one test."
+pick_line = "New card. Pick one."
+quick_draw_mult = 2.0

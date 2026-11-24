@@ -12,16 +12,22 @@ extends Node
 ## a rule edit's warning or an event is playing (1.5's pause rule).
 ##
 ## Power stays in the session: nothing here is saved, and the next scene starts without it.
+##
+## Growth per path (M46): `levelups` (Auto: gems, LevelMeter, LevelWidget) or `cards`
+## (Arsenal: the card meter fed by player kills, HandWidget), each built once its basic is
+## live; Arsenal's `quick_draw` basic turns its quick-draw on. It also samples the play
+## fingerprint (1.15, report-only).
 
 signal started(path_id: StringName)
 
 const Gems := preload("res://paths/auto/gems.gd")
 const LevelMeter := preload("res://paths/auto/level_meter.gd")
 const LevelWidget := preload("res://paths/auto/level_widget.gd")
+const CardMeter := preload("res://paths/arsenal/card_meter.gd")
+const HandWidget := preload("res://paths/arsenal/hand_widget.gd")
 const SWAP_WARN_SECONDS := 1.5
 const GLITCH := 0.6        ## one pulse: one flash, far under 3 a second (D12)
 const FADE_SECONDS := 0.4  ## the pulse under reduce flashing
-const FULL_LINE := "thinking: That's enough levels for one test."
 ## The mascot's word after a pick (priority 1, muted with --mute-ai; D8, first to cut).
 const PICK_LINES: Array[String] = ["happy: Ooh, that one.", "proud: Good pick."]
 
@@ -43,6 +49,7 @@ var live_pool: Array[StringName] = []
 var taste := Taste.new()        ## the session's, never saved (D7)
 var said: Array[String] = []    ## every line it gave the mascot (tests, the bot)
 var offers: Array[PickOffer] = []
+var fp := Fingerprint.new()     ## the play fingerprint (1.15, report-only)
 
 var _gems: Node
 var _meter: RefCounted
@@ -66,6 +73,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_feed_cards(false)
 	if EventBus.basic_added.is_connected(_on_basic_added):
 		EventBus.basic_added.disconnect(_on_basic_added)
 	if EventBus.pickup_taken.is_connected(_on_pickup_taken):
@@ -84,12 +92,40 @@ func loadout() -> Loadout:
 	return Component.find(p, Loadout) as Loadout if is_instance_valid(p) else null
 
 
+## Auto's level (1 on any other growth, so `level N` cues never fire on Arsenal).
 func level() -> int:
-	return int(_meter.get(&"level")) if _meter != null else 1
+	return int(_meter.get(&"level")) if _meter != null and _levelups() else 1
 
 
 func gems() -> int:
-	return int(_meter.get(&"gems")) if _meter != null else 0
+	return int(_meter.get(&"gems")) if _meter != null and _levelups() else 0
+
+
+## Arsenal's cards dealt (0 on any other growth).
+func cards() -> int:
+	return int(_meter.get(&"cards")) if _meter != null and _cards_growth() else 0
+
+
+## Kills to the next card (-1: none, or not a cards path).
+func kills_to_next() -> int:
+	if _meter == null or not _cards_growth():
+		return -1
+	var need := int(_meter.call(&"next_need"))
+	return maxi(0, need - int(_meter.get(&"kills"))) if need >= 0 else -1
+
+
+## The play fingerprint's 8 values (1.15).
+func fingerprint() -> Dictionary:
+	var lo := loadout()
+	return fp.values(picks, lo.switches if lo != null else 0, pickups_taken)
+
+
+func _levelups() -> bool:
+	return def != null and def.growth == &"levelups"
+
+
+func _cards_growth() -> bool:
+	return def != null and def.growth == &"cards"
 
 
 func meter() -> RefCounted:
@@ -166,7 +202,14 @@ func _grow() -> void:
 		return
 	if def.growth == &"levelups" and _meter == null and not frozen and Unlocks.has_basic(&"levelups"):
 		_build_levels()
-	if _overlay == null and Unlocks.has_basic(&"crowd"):
+	if def.growth == &"cards" and _meter == null and not frozen and Unlocks.has_basic(&"cards"):
+		_build_cards()
+	var lo := loadout()
+	if lo != null and def.quick_draw_mult > 1.0 and &"quick_draw" in def.basics \
+			and Unlocks.has_basic(&"quick_draw"):
+		lo.quick_draw_mult = def.quick_draw_mult
+	# The crowd overlay only on its own path (D6, M46): outside a session every basic is on.
+	if _overlay == null and &"crowd" in def.basics and Unlocks.has_basic(&"crowd"):
 		_overlay = PathOverlay.make(def)
 		if not RunState.add_ai(_overlay, &"path"):
 			_overlay = null
@@ -193,7 +236,43 @@ func _build_levels() -> void:
 		add_child(_widget)
 
 
+## Arsenal (M46): the card meter, fed by player kills, and the hand widget.
+func _build_cards() -> void:
+	_meter = CardMeter.new()
+	_meter.def = def
+	_meter.tryout = RunState.session != null and RunState.session.tryout
+	_meter.on_card = want_pick
+	_meter.on_full = _on_meter_full
+	_feed_cards(true)
+	_widget = HandWidget.new()
+	_widget.name = "HandWidget"
+	_widget.meter = _meter
+	_widget.loadout = loadout()
+	_widget.max_cards = def.max_picks
+	var hud: Node = game.get(&"hud") if game != null else null
+	if hud != null and hud.has_method(&"set_path_widget"):
+		hud.set_path_widget(_widget)
+	else:
+		add_child(_widget)
+
+
+## The card meter's kill feed (connected only while a card meter exists).
+func _feed_cards(on: bool) -> void:
+	var connected := EventBus.enemy_killed.is_connected(_on_enemy_killed)
+	if on and not connected:
+		EventBus.enemy_killed.connect(_on_enemy_killed)
+	elif not on and connected:
+		EventBus.enemy_killed.disconnect(_on_enemy_killed)
+
+
+## The gems' filter: only the player's kills fill the card meter.
+func _on_enemy_killed(_enemy: Node, info: RefCounted) -> void:
+	if _meter != null and not frozen and _cards_growth() and (info as DamageInfo).faction == &"player":
+		_meter.call(&"add", 1)
+
+
 func _clear_growth() -> void:
+	_feed_cards(false)
 	if is_instance_valid(_gems):
 		_gems.queue_free()
 	_gems = null
@@ -205,7 +284,7 @@ func _clear_growth() -> void:
 
 
 func _on_basic_added(id: StringName) -> void:
-	if id in [&"levelups", &"crowd"]:
+	if id in [&"levelups", &"crowd", &"cards", &"quick_draw"]:
 		_grow()
 
 
@@ -222,18 +301,21 @@ func _on_pickup_taken(_kind: StringName, _id: StringName) -> void:
 func freeze() -> void:
 	frozen = true
 	_want = 0
+	_feed_cards(false)   # Arsenal: no kills fill the card meter either
 	if is_instance_valid(_gems):
 		_gems.queue_free()
 	_gems = null
 
 
-## F2's "+1 level": the gems the next level needs.
+## F2's "+1 level": the gems the next level needs (Arsenal: the kills the next card needs).
 func force_level() -> void:
 	if _meter == null:
 		return
 	var need := int(_meter.call(&"next_need"))
-	if need >= 0:
-		_meter.call(&"add", maxi(1, need - gems()))
+	if need < 0:
+		return
+	var have := int(_meter.get(&"kills")) if _cards_growth() else gems()
+	_meter.call(&"add", maxi(1, need - have))
 
 
 # --- The pool rule (1.2) -----------------------------------------------------------------
@@ -245,7 +327,8 @@ func announce(w: StringName) -> void:
 
 
 ## A `give` cue under a path: Auto offers it first at its next level-up (no slot is filled).
-## False with no path live (the caller hands it over itself, M44's free slot).
+## False with no path live, and on Arsenal: the caller hands it over itself (M44's free
+## slot: a free card, the weakest non-active card replaced when the hand is full; 1.3).
 func give(w: StringName) -> bool:
 	announce(w)
 	if def == null or def.growth != &"levelups":
@@ -277,7 +360,8 @@ func want_pick() -> void:
 
 
 func _on_meter_full() -> void:
-	_speak(Line.parse(FULL_LINE), SessionRunner.PRIORITY, true)
+	if def != null and def.full_line != "":
+		_speak(Line.parse(def.full_line), SessionRunner.PRIORITY, true)
 
 
 ## 1.5's pause rule: never over a rule edit's warning, an event or a pending swap, never
@@ -297,6 +381,9 @@ func can_open_now() -> bool:
 
 func _physics_process(_delta: float) -> void:
 	_tick += 1
+	var p: Node = game.get(&"player") if game != null else null
+	if not _stopped and def != null and is_instance_valid(p):
+		fp.sample(p as Node2D)
 	if _swap_tick >= 0 and _tick >= _swap_tick:
 		swap_now(_swap_target)
 	if _want > 0 and not _opening and can_open_now():
@@ -311,14 +398,35 @@ func _open_offer() -> void:
 	var lo := loadout()
 	if _want <= 0 or lo == null or not can_open_now():
 		return
-	var offer := PickOffer.draw(lo, def, offer_pool(), _first, RunState.pick_rng, taste)
+	var first := _first
+	if first == &"" and _cards_growth():
+		first = most_fired(lo)   # Arsenal: the most-fired card's upgrade first (1.5, D7)
+	var offer := PickOffer.draw(lo, def, offer_pool(), first, RunState.pick_rng, taste)
 	_first = &""
 	offers.append(offer)
 	EventBus.pick_offered.emit(offer)
+	fp.menu_open()
 	panel.open(offer)
 
 
+## The held aimed card with the most shots that can still rank up (ties: slot order), or
+## &"" for none. Offered first only if it is in the live pool (PickOffer.draw).
+static func most_fired(lo: Loadout) -> StringName:
+	var best: Weapon = null
+	for w in lo.slots:
+		if w.rank >= mini(Loadout.MAX_RANK, w.def.max_rank()):
+			continue
+		if best == null or w.shots > best.shots:
+			best = w
+	return best.def.id if best != null else &""
+
+
 func _on_picked(offer: PickOffer, index: int) -> void:
+	fp.menu_close()
+	# The key that picked card n must not also pick slot n (keys 1-3, M46).
+	var p: Node = game.get(&"player") if game != null else null
+	if is_instance_valid(p) and p.get(&"input") != null:
+		(p.get(&"input") as PlayerInput).require_fresh_press()
 	var card: Dictionary = offer.cards[index]
 	_want = maxi(0, _want - 1)
 	picks += 1
@@ -355,6 +463,7 @@ func stop() -> void:
 	_stopped = true
 	_want = 0
 	_swap_tick = -1
+	fp.menu_close()
 	if panel != null:
 		panel.dismiss()
 	if is_instance_valid(_gems):
@@ -407,7 +516,13 @@ func _wipe() -> void:
 	tween.tween_callback(_fade.queue_free)
 
 
-## F1's line: "path=auto level=2 picks=1 pickups=7".
+## F1's line: "path=auto level=2 picks=1 pickups=7"; Arsenal (M46):
+## "path=arsenal cards=1 kills=20/36 picks=1 pickups=0".
 func state_text() -> String:
+	if _cards_growth():
+		var need := int(_meter.call(&"next_need")) if _meter != null else -1
+		return "path=%s cards=%d kills=%d/%s picks=%d pickups=%d" % [path_id, cards(),
+				int(_meter.get(&"kills")) if _meter != null else 0, str(need) if need >= 0 else "-", picks,
+				pickups_taken]
 	return "path=%s level=%d picks=%d pickups=%d" % [path_id if path_id != &"" else &"-", level(), picks,
 			pickups_taken]

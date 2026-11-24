@@ -2,7 +2,7 @@ class_name PathDB
 extends RefCounted
 ## The shooter paths (PLAN v9 1.5): every paths/<id>.tres, loaded on first use and sorted by
 ## id (the WeaponDB pattern). Not an autoload; no preloads (the export lists .tres files).
-## M45a builds Auto only; Arsenal (M46) and Survival (M47) add their files.
+## M45a built Auto, M46 Arsenal; Survival (M47) adds its file.
 
 const DIR := "res://paths/"
 

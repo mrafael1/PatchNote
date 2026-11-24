@@ -84,6 +84,21 @@ extends SceneTree
 ##   --probe=afk                  with --only (PLAN v9 4, M45a): a degenerate strategy: no move,
 ##                                no dash, no jump, no fire (Auto still fires by itself). The
 ##                                line gets probe=afk at its end
+##   --probe=no_switch            (M46) the arsenal policy never switches cards
+##   --probe=first_pick           (M46) every pick panel takes card 0; its own pick_rng draw is
+##                                still consumed, but offers stay paired with the default only
+##                                while both hands match: PickOffer.draw rolls once per card
+##                                after `first`, so once the hands differ the candidate counts
+##                                (and the stream) diverge. Not a paired-by-seed comparison
+##   (M46) On Arsenal (cards growth) the --only line ends with cards=n offers=@t,... (game
+##   time of each pick offer) cards_fired=k (cards that fired >= 1 player shot) and
+##   shots=<id:pellets,...>, and an "arsenal:" summary follows (offers, gaps from the `add
+##   cards` time, in_band = >= 3 offers, mean gap 35-60 s and a tail <= 60 s; cards_fired>=2).
+##   --fp                         (M46) also print a "fp:" summary per path (the play
+##                                fingerprint of PLAN v9 1.15: medians and min/max over the
+##                                runs), fp=<key:value,...> at the very end of each path
+##                                run's --only line, and t_list= (sorted times) to "deaths:".
+##                                Off by default, so check.ps1's lines never move
 ##   (M45a) With a live path the --only line ends with path=<id> level=n picks=n pickups=n
 ##   (pickups taken), "deaths:" adds by_path=, and a "paths:" summary follows (M45b: it ends
 ##   with enemy_shots_refused median/max and player_shots_refused median); the chain line
@@ -155,7 +170,9 @@ var answers := {}
 ## --loadout (M44): [[id, rank], ...]
 var loadout_arg: Array = []
 var draft_arg := ""                          ## --draft (M45a)
-var probe_arg := ""                          ## --probe (M45a): "" or afk
+var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 no_switch, first_pick
+var fp_arg := false                          ## --fp (M46)
+const PROBES := ["afk", "no_switch", "first_pick"]
 
 
 func _initialize() -> void:
@@ -245,10 +262,12 @@ func _run() -> void:
 				loadout_arg.append([wid, wrank])
 		elif arg.begins_with("--draft="):
 			draft_arg = arg.trim_prefix("--draft=")
+		elif arg == "--fp":
+			fp_arg = true
 		elif arg.begins_with("--probe="):
 			probe_arg = arg.trim_prefix("--probe=")
-			if probe_arg != "afk":
-				print("[botrun] FAILED: bad %s (--probe=afk)" % arg)
+			if not probe_arg in PROBES:
+				print("[botrun] FAILED: bad %s (--probe=%s)" % [arg, "|".join(PROBES)])
 				quit(1)
 				return
 		elif arg.begins_with("--answer="):
@@ -497,6 +516,17 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	bus.player_dashed.connect(func() -> void: dash_count.uses = int(dash_count.uses) + 1)
 	bus.player_hook_missed.connect(func(_f: Vector2, _t: Vector2) -> void: dash_count.misses = int(dash_count.misses) + 1)
 	bus.player_dash_fizzled.connect(func() -> void: dash_count.fizzles = int(dash_count.fizzles) + 1)
+	# M46: per run, the pick offers' game times, the `add cards` time and player shots by weapon.
+	var cards_run := {"offers": [], "cards_at": -1.0, "shots": {}}
+	bus.pick_offered.connect(func(_o: RefCounted) -> void: (cards_run.offers as Array).append(float(run_state.game_time)))
+	bus.basic_added.connect(func(id: StringName) -> void:
+		if id == &"cards" and float(cards_run.cards_at) < 0.0:
+			cards_run.cards_at = float(run_state.game_time))
+	bus.projectile_fired.connect(func(p: Node) -> void:
+		var wid := String(p.get(&"weapon_id")) if p.get(&"weapon_id") != null else ""
+		if wid != "" and p.get(&"faction") == &"player":
+			(cards_run.shots as Dictionary)[wid] = int((cards_run.shots as Dictionary).get(wid, 0)) + 1)
+	var arsenal_runs: Array = []   ## {offers, gaps, mean, tail, fired} per Arsenal run (M46)
 	for spec in specs:
 		var run_seed := int(_seed_of(spec))
 		var invincible := spec.ends_with("i")
@@ -523,6 +553,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		dash_count.uses = 0
 		dash_count.misses = 0
 		dash_count.fizzles = 0
+		cards_run.offers = []
+		cards_run.cards_at = -1.0
+		cards_run.shots = {}
 		var air := 0.0
 		var dash_name: String = "none" if dash_arg == "none" else String(game.player.dasher.style)
 		var aim_name := "aim" if game.player.dasher.aims else "move"
@@ -638,9 +671,20 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 					"pickups": int(runner.get(&"pickups_taken")), "gems": int(runner.call(&"gems")),
 					"enemy_shots_refused": int(run_state.get(&"enemy_shots_refused")),
 					"player_shots_refused": int(run_state.get(&"player_shots_refused")),
-					"kills": int(rec.get("kills", run_state.kills)), "id": pid})
+					"kills": int(rec.get("kills", run_state.kills)), "id": pid,
+					"fp": runner.call(&"fingerprint")})
 		if probe_arg != "":
 			landed_text += " probe=%s" % probe_arg
+		# M46: Arsenal's cards, at the very end (Auto's lines are unchanged).
+		if path_text != "" and runner.get(&"def") != null and runner.get(&"def").get(&"growth") == &"cards":
+			var ar := _arsenal_run(cards_run, duration)
+			arsenal_runs.append(ar)
+			landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
+					_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),
+					int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots))]
+		# M46: PLAN 4's per-seed fp=, only behind --fp (check.ps1's anchored regexes never see it).
+		if fp_arg and path_text != "":
+			landed_text += " fp=%s" % _fp_text(runner.call(&"fingerprint"))
 		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
@@ -680,11 +724,12 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	path_ids.sort()
 	for d: String in path_ids:
 		path_parts.append("%s:%d/%d" % [d, by_path[d][0], by_path[d][1]])
-	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s by_aim=%s hits=%s%s%s" % [
+	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s by_aim=%s hits=%s%s%s%s" % [
 		only, int(outcomes.get("lose", 0)) + int(outcomes.get("died", 0)), specs.size(),
 		int(outcomes.get("win", 0)), int(outcomes.get("stopped", 0)), _median(durations),
 		_join_or_dash(enemy_parts), _join_or_dash(dash_parts), _join_or_dash(aim_parts), _kinds_text(all_kinds),
-		" edit=%s" % cond if cond != "" else "", " by_path=%s" % ",".join(path_parts) if not path_parts.is_empty() else ""])
+		" edit=%s" % cond if cond != "" else "", " by_path=%s" % ",".join(path_parts) if not path_parts.is_empty() else "",
+		" t_list=%s" % _t_list(durations) if fp_arg else ""])
 	if not path_runs.is_empty():
 		var col := func(key: String) -> Array: return path_runs.map(func(r: Dictionary) -> int: return int(r[key]))
 		var levels: Array = col.call("level")
@@ -695,6 +740,23 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			_median(col.call("pickups")), _median(col.call("gems")), _median(col.call("kills")),
 			",".join(col.call("kills").map(func(k: int) -> String: return str(k))),
 			_median(refused), refused.max(), _median(col.call("player_shots_refused"))])
+		if fp_arg:
+			for fp_id: String in path_ids:
+				_fp_summary(fp_id, path_runs.filter(func(r: Dictionary) -> bool: return r.id == fp_id))
+	if not arsenal_runs.is_empty():
+		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
+		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
+		var all_gaps: Array = []
+		for r: Dictionary in arsenal_runs:
+			all_gaps.append_array(r.gaps)
+		print("[botrun] arsenal: %s offers median=%.1f per_seed=%s gaps median=%.1f min=%.1f max=%.1f per_seed_mean_gap=%s tails=%s in_band=%d/%d cards_fired>=2 %d/%d" % [
+			only, _median(arsenal_runs.map(func(r: Dictionary) -> int: return int(r.offers))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.offers))),
+			_median(all_gaps), all_gaps.min() if not all_gaps.is_empty() else 0.0,
+			all_gaps.max() if not all_gaps.is_empty() else 0.0,
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return "%.1f" % float(r.mean))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return "%.1f" % float(r.tail))),
+			in_band, arsenal_runs.size(), fired2, arsenal_runs.size()])
 	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
 		var reached := int(ev_stats.reached)
 		var rate := float(ev_stats.died_during) / maxf(1.0, reached)
@@ -706,6 +768,60 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			ev_stats.died_during, reached, roundi(rate * 100.0), "PASS" if rate <= 0.25 else "FAIL",
 			ev_stats.died_before, ev_stats.hits, ",".join(kinds) if not kinds.is_empty() else "-"])
 	return failures
+
+
+## M46: one Arsenal run's offer cadence (PLAN M46, H1): gaps from the `add cards` time
+## (0 if it never came), each offer to the next; the tail is the run's end minus the last
+## offer. ok = >= 3 offers, the mean gap in [35, 60] s and the tail <= 60 s. fired = cards
+## that fired >= 1 player shot (H2).
+static func _arsenal_run(run: Dictionary, duration: float) -> Dictionary:
+	var offers: Array = run.offers
+	var from := maxf(0.0, float(run.cards_at))
+	var gaps: Array = []
+	var last := from
+	for t: float in offers:
+		gaps.append(t - last)
+		last = t
+	var mean := 0.0
+	for g: float in gaps:
+		mean += g
+	mean = mean / gaps.size() if not gaps.is_empty() else 0.0
+	var tail := duration - last
+	var fired := (run.shots as Dictionary).keys().filter(func(k: String) -> bool: return int(run.shots[k]) > 0).size()
+	return {"offers": offers.size(), "gaps": gaps, "mean": mean, "tail": tail, "fired": fired,
+			"ok": offers.size() >= 3 and mean >= 35.0 and mean <= 60.0 and tail <= 60.0}
+
+
+static func _shots_parts(shots: Dictionary) -> Array:
+	var ids: Array = shots.keys()
+	ids.sort()
+	return ids.map(func(k: String) -> String: return "%s:%d" % [k, int(shots[k])])
+
+
+static func _t_list(durations: Array) -> String:
+	var t := durations.duplicate()
+	t.sort()
+	return ",".join(t.map(func(d: float) -> String: return "%.1f" % d))
+
+
+const FP_KEYS := ["fire_share", "menu_s", "picks_per_min", "switches_per_min", "pickups_per_min",
+		"travel_tps", "mean_enemy_dist", "ammo_dry_share"]
+
+
+## --fp (M46): "fire_share:0.996,menu_s:0.071,..." (the 8 values of PLAN v9 1.15).
+static func _fp_text(fp: Dictionary) -> String:
+	return ",".join(FP_KEYS.map(func(k: String) -> String: return "%s:%.3f" % [k, float(fp.get(k, 0.0))]))
+
+
+## --fp (M46): one "fp:" line per path, each of the 8 values as median (min-max) over its runs.
+func _fp_summary(path_id: String, runs: Array) -> void:
+	if runs.is_empty():
+		return
+	var parts: Array[String] = []
+	for key: String in FP_KEYS:
+		var vals: Array = runs.map(func(r: Dictionary) -> float: return float((r.fp as Dictionary).get(key, 0.0)))
+		parts.append("%s median=%.3f (%.3f-%.3f)" % [key, _median(vals), vals.min(), vals.max()])
+	print("[botrun] fp: %s %s n=%d %s" % [only, path_id, runs.size(), " ".join(parts)])
 
 
 ## --loadout (M44): clear, then each weapon at exactly its rank; the first aimed one active.
@@ -1015,8 +1131,16 @@ func _choose_pick(game: Node) -> bool:
 	if panel == null or not panel.call(&"can_choose"):
 		return false
 	var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
-	panel.call(&"choose", root.get_node("RunState").get(&"pick_rng").randi_range(0, n - 1))
+	panel.call(&"choose", pick_card(root.get_node("RunState").get(&"pick_rng"), n, probe_arg))
 	return true
+
+
+## The card the bot takes out of `n`: a pick_rng draw; --probe=first_pick (M46) takes card 0
+## but still consumes this draw. Only this draw is kept: PickOffer.draw's rolls depend on the
+## hand's candidates, so later offers match the default run only while the hands match.
+static func pick_card(rng: RandomNumberGenerator, n: int, probe: String) -> int:
+	var drawn := rng.randi_range(0, n - 1)
+	return 0 if probe == "first_pick" else drawn
 
 
 ## --session-set (M42): each session it names becomes a copy with the field set, in

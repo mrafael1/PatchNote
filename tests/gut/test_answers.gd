@@ -404,12 +404,12 @@ func test_path_cues_need_a_tryout_and_new_things_are_not_built_yet() -> void:
 	s.cues = PackedStringArray(["at 3: path arsenal", "at 4: path survival", "at 5: path off", "picked 1: say x"])
 	s._parsed = false
 	text = "\n".join(CampaignDB.problems(_campaign([s])))
-	assert_string_contains(text, "path arsenal is not built yet (M46)")
+	assert_false("path arsenal" in text, "M46 builds Arsenal")
 	assert_string_contains(text, "path survival is not built yet (M47)")
 	assert_false("path off" in text, "off is never a PathDB id and passes")
 	assert_false("picked" in text)
-	s.path = &"arsenal"
-	assert_string_contains("\n".join(CampaignDB.problems(_campaign([s]))), "path arsenal is not built yet")
+	s.path = &"survival"
+	assert_string_contains("\n".join(CampaignDB.problems(_campaign([s]))), "path survival is not built yet")
 	s.path = &"auto"
 	assert_false("hp_floor" in text, "the floor is built")
 	assert_false("weapons" in text, "weapons are built (M44)")

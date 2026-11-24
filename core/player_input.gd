@@ -11,6 +11,7 @@ var jump_pressed := false       ## true for one physics tick
 var jump_held := false
 var wait_pressed := false       ## true for one physics tick; passes a turn under B2
 var switch_step := 0            ## -1 / +1 for one physics tick: the previous / next weapon (M44)
+var select_slot := -1           ## 0-based aimed slot to make active, for one physics tick (M46)
 
 
 func _init() -> void:

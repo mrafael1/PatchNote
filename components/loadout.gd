@@ -18,6 +18,13 @@ var passives: Array[Weapon] = []
 var active := 0
 var fire_mode: StringName = &"manual_one"   ## PathDef.FIRE_MODES; set by apply_path (M45a)
 var max_slots := 3                          ## no path (D5); paths set their own
+## Quick-draw (M46, Arsenal): set by PathRunner once the `quick_draw` basic is live on a path
+## with quick_draw_mult > 1 (apply_path resets it). A real change of the active card arms it;
+## the next shot that fires spends it (QuickDraw.mult).
+var quick_draw_mult := 1.0
+var switches := 0                           ## real changes of the active card (fp, M46)
+
+var _drawn := false
 
 var _passive_nodes := {}   ## weapon id -> its node on the host
 
@@ -55,8 +62,11 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 	var w := current()
 	if w == null or w.ready_in > 0.0 or dir == Vector2.ZERO:
 		return false
-	if s.fire(w, dir, auto).is_empty():
-		return false
+	var m := QuickDraw.mult(self)
+	if s.fire(w, dir, auto, m).is_empty():
+		return false   # refused at the cap: still armed, nothing logged
+	QuickDraw.spent(self, m)
+	_drawn = false
 	w.ready_in = float(w.value(&"cooldown"))
 	w.shots += 1
 	return true
@@ -127,8 +137,32 @@ func upgrade(id: StringName) -> bool:
 func switch(step: int) -> void:
 	if slots.size() <= 1 or step == 0:
 		return
+	var was := active
 	active = posmod(active + step, slots.size())
+	if active != was:
+		_switched()
 	EventBus.weapon_changed.emit(slots[active].def.id, slots[active].rank)
+
+
+## Keys 1-3 (M46): makes aimed slot `i` (0-based) active. False (nothing happens) out of
+## range or when it is already active, so Stage 1's one pistol never moves.
+func select_slot(i: int) -> bool:
+	if i < 0 or i >= slots.size() or i == active:
+		return false
+	active = i
+	_switched()
+	EventBus.weapon_changed.emit(slots[active].def.id, slots[active].rank)
+	return true
+
+
+## Quick-draw is armed (the next shot gets the bonus once the basic is live).
+func drawn() -> bool:
+	return _drawn
+
+
+func _switched() -> void:
+	switches += 1
+	_drawn = true
 
 
 ## Makes the aimed weapon `id` active (bot, bench, tests).
@@ -147,6 +181,7 @@ func clear() -> void:
 	passives.clear()
 	slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
 	active = 0
+	_drawn = false
 	EventBus.weapon_changed.emit(PISTOL, 1)
 
 
@@ -155,6 +190,7 @@ func clear() -> void:
 ## no-path state (manual_one, 3 slots, the pistol at rank 1).
 func apply_path(def: PathDef) -> void:
 	clear()
+	quick_draw_mult = 1.0
 	fire_mode = def.fire_mode if def != null else &"manual_one"
 	max_slots = def.max_slots if def != null else 3
 	if def == null or def.start.is_empty():

@@ -131,7 +131,7 @@ func _pick(runner: PathRunner, i := 0) -> PickOffer:
 
 func test_the_path_data_is_valid() -> void:
 	assert_eq(PathDB.problems(), [] as Array[String])
-	assert_eq(PathDB.ids(), [&"auto"] as Array[StringName], "M45a builds Auto only")
+	assert_eq(PathDB.ids(), [&"arsenal", &"auto"] as Array[StringName], "Auto (M45a), Arsenal (M46)")
 	var a := _auto()
 	assert_eq(a.fire_mode, &"auto_all")
 	assert_eq(a.growth, &"levelups")
@@ -775,7 +775,7 @@ func test_f2_path_and_f1_line() -> void:
 	assert_true(game.debug.switch_path(&"auto"))
 	assert_not_null(game.path_runner)
 	assert_eq(_loadout().fire_mode, &"auto_all")
-	assert_false(game.debug.switch_path(&"arsenal"), "M46")
+	assert_false(game.debug.switch_path(&"survival"), "M47")
 	assert_string_contains(game.path_runner.state_text(), "path=auto level=")
 	game.debug.add_level()
 	assert_eq(game.path_runner.level(), 2)

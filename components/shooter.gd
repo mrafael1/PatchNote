@@ -55,7 +55,9 @@ func try_fire(dir: Vector2, auto := false) -> Node:
 ## blast and knockback, credited to "weapon:<id>". Traits edit each pellet's params and
 ## attach to it. Returns the pellets spawned (empty at the cap). The Loadout owns the
 ## weapon's cooldown: this never touches _ready_in, and try_fire above is unchanged.
-func fire(weapon: Weapon, dir: Vector2, auto := false) -> Array[Node]:
+## `damage_mult` (M46, Arsenal's quick-draw) goes into each pellet's params before the
+## traits and projectile_fired see them; 1.0 (x * 1.0 is exact) is today's shot.
+func fire(weapon: Weapon, dir: Vector2, auto := false, damage_mult := 1.0) -> Array[Node]:
 	var out: Array[Node] = []
 	if dir == Vector2.ZERO or weapon == null:
 		return out
@@ -75,7 +77,7 @@ func fire(weapon: Weapon, dir: Vector2, auto := false) -> Array[Node]:
 			&"kind": &"player_projectile" if faction == &"player" else &"enemy_projectile",
 			&"faction": faction,
 			&"velocity": aim.rotated(a) * float(weapon.value(&"speed")),
-			&"damage": float(weapon.value(&"damage")),
+			&"damage": float(weapon.value(&"damage")) * damage_mult,
 			&"auto_fired": auto,
 			&"pierce_left": int(weapon.value(&"pierce")),
 			&"bounces_left": int(weapon.value(&"bounces")),
