@@ -31,6 +31,9 @@ var session: SessionDef
 ## session's own; &"off" = forced none. &"" = read the session. Cleared by reset(), so a
 ## new session (and the v6 loop) starts without it.
 var session_path: StringName = &""
+## PLAN v9 1.15 (M45b): shots RunState.spawn refused at their cap this run (telemetry).
+var enemy_shots_refused := 0
+var player_shots_refused := 0
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
@@ -478,6 +481,12 @@ func live_path() -> StringName:
 	return &""
 
 
+## A path session (M45b, PLAN v9 1.4 / 1.9): a live path. Only then do the spatial-hash
+## separation and the split projectile budgets run; Stage 1 and the legacy loop never.
+func path_live() -> bool:
+	return live_path() != &""
+
+
 ## The live path's PathDef, or null.
 func path_def() -> PathDef:
 	var id := live_path()
@@ -516,6 +525,8 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	session = null
 	session_path = &""
 	session_added.clear()
+	enemy_shots_refused = 0
+	player_shots_refused = 0
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
@@ -613,6 +624,11 @@ func spawn(scene: PackedScene, pos: Vector2, params := {}) -> Node:
 	var kind_value: Variant = params.get(&"kind", node.get(&"kind"))
 	var kind: StringName = kind_value if kind_value != null else &""
 	if not _under_cap(kind):
+		# M45b (PLAN v9 1.15): counted in every mode; a counter changes no play.
+		if kind == &"enemy_projectile":
+			enemy_shots_refused += 1
+		elif kind == &"player_projectile":
+			player_shots_refused += 1
 		node.free()
 		return null
 	for key: StringName in params:
@@ -629,6 +645,12 @@ func _under_cap(kind: StringName) -> bool:
 	if kind == &"enemy":
 		return count(&"enemy") + int(_pending.get(&"enemy", 0)) < Tuning.hard_max_enemies
 	if kind == &"player_projectile" or kind == &"enemy_projectile":
+		if path_live():
+			# PLAN v9 1.4 (M45b): path sessions split the budget, so a saturated player
+			# never starves enemy shots (player 140 / enemy 60).
+			var budget := Tuning.player_projectile_budget if kind == &"player_projectile" \
+					else Tuning.enemy_projectile_budget
+			return count(kind) + int(_pending.get(kind, 0)) < budget
 		var n := count(&"player_projectile") + count(&"enemy_projectile")
 		n += int(_pending.get(&"player_projectile", 0)) + int(_pending.get(&"enemy_projectile", 0))
 		return n < Tuning.hard_max_projectiles

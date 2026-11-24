@@ -31,6 +31,9 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var color_role: StringName = &"player_shot"   ## used from M48 (Palette)
 @export var icon: StringName = &""                    ## a shape key; F2 label only in M44
 @export var sound: StringName = &"shoot"
+## A passive's node script (M45b): "" = the orbit shards (M44's); else a script whose node
+## has configure(weapon) and the flags its traits set (nova_pulse.gd, well_weapon.gd).
+@export var node_script := ""
 @export var ranks: Array[Dictionary] = []
 @export_multiline var pitch := ""
 ## One line per rank ("Shotgun II: knockback").
@@ -79,6 +82,10 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: pellets must be >= 1 (passive: the shard count)" % where)
 	if title.strip_edges() == "":
 		out.append("%s: no title" % where)
+	if node_script != "" and not is_passive():
+		out.append("%s: node_script on an aimed weapon" % where)
+	if node_script != "" and not ResourceLoader.exists(node_script):
+		out.append("%s: no node script %s" % [where, node_script])
 	var fields := {}
 	for p: Dictionary in get_property_list():
 		if p.usage & PROPERTY_USAGE_SCRIPT_VARIABLE:

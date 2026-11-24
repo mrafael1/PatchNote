@@ -85,7 +85,8 @@ extends SceneTree
 ##                                no dash, no jump, no fire (Auto still fires by itself). The
 ##                                line gets probe=afk at its end
 ##   (M45a) With a live path the --only line ends with path=<id> level=n picks=n pickups=n
-##   (pickups taken), "deaths:" adds by_path=, and a "paths:" summary follows; the chain line
+##   (pickups taken), "deaths:" adds by_path=, and a "paths:" summary follows (M45b: it ends
+##   with enemy_shots_refused median/max and player_shots_refused median); the chain line
 ##   gets the same fields after card=. Pick panels are chosen with RunState.pick_rng. With a
 ##   path, --loadout= is forced again each time the path starts, then growth is frozen (no
 ##   gems, no level-ups: a fixed loadout for the whole session).
@@ -635,6 +636,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			by_path[pid] = [int(pp[0]) + (1 if died else 0), int(pp[1]) + 1]
 			path_runs.append({"level": int(runner.call(&"level")), "picks": int(runner.get(&"picks")),
 					"pickups": int(runner.get(&"pickups_taken")), "gems": int(runner.call(&"gems")),
+					"enemy_shots_refused": int(run_state.get(&"enemy_shots_refused")),
+					"player_shots_refused": int(run_state.get(&"player_shots_refused")),
 					"kills": int(rec.get("kills", run_state.kills)), "id": pid})
 		if probe_arg != "":
 			landed_text += " probe=%s" % probe_arg
@@ -685,11 +688,13 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	if not path_runs.is_empty():
 		var col := func(key: String) -> Array: return path_runs.map(func(r: Dictionary) -> int: return int(r[key]))
 		var levels: Array = col.call("level")
-		print("[botrun] paths: %s %s levels median=%.1f min=%d max=%d levelups=%s picks median=%.1f pickups median=%.1f gems median=%.1f kills median=%.1f per_seed_kills=%s" % [
+		var refused: Array = col.call("enemy_shots_refused")
+		print("[botrun] paths: %s %s levels median=%.1f min=%d max=%d levelups=%s picks median=%.1f pickups median=%.1f gems median=%.1f kills median=%.1f per_seed_kills=%s enemy_shots_refused median=%.1f max=%d player_shots_refused median=%.1f" % [
 			only, ",".join(path_ids), _median(levels), levels.min(), levels.max(),
 			",".join(levels.map(func(l: int) -> String: return str(l - 1))), _median(col.call("picks")),
 			_median(col.call("pickups")), _median(col.call("gems")), _median(col.call("kills")),
-			",".join(col.call("kills").map(func(k: int) -> String: return str(k)))])
+			",".join(col.call("kills").map(func(k: int) -> String: return str(k))),
+			_median(refused), refused.max(), _median(col.call("player_shots_refused"))])
 	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
 		var reached := int(ev_stats.reached)
 		var rate := float(ev_stats.died_during) / maxf(1.0, reached)

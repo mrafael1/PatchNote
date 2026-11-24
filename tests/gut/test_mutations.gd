@@ -310,6 +310,11 @@ func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
 		for path in files:
 			if path.begins_with(own):
 				continue
+			# M45b: Auto's offer_pool_extra names well, PLAN v9 1.4's weapon id; path data
+			# never touches RunState.apply / MutationDB. Only paths/*.tres: the path code
+			# (path_runner.gd, pick_offer.gd, paths/auto/*.gd) stays linted.
+			if path.begins_with("res://paths/") and path.ends_with(".tres"):
+				continue
 			var text := FileAccess.get_file_as_string(path)
 			if text.contains("\"%s\"" % m.id) or text.contains("mutations/%s" % m.id):
 				# requires/conflicts on another mutation's resource are the allowed form, and

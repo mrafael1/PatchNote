@@ -17,7 +17,7 @@ const OPEN := Vector2(34, 20)
 const TEST_DIR := "user://save_weapons_test/"
 ## The telemetry log while these tests run: a scratch file, never user://playtest/runs.jsonl.
 const TEST_LOG := "user://save_weapons_test/runs.jsonl"
-const IDS: Array[StringName] = [&"laser", &"launcher", &"orbit", &"pistol", &"shotgun"]
+const IDS: Array[StringName] = [&"laser", &"launcher", &"nova", &"orbit", &"pistol", &"shotgun", &"well"]
 ## OPEN sits one tile above the floor: free 14 T right, 12 T left, 4 T up.
 const UP_RIGHT := Vector2(0.9396926, -0.3420201)   ## 20 degrees up
 

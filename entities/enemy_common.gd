@@ -4,7 +4,16 @@ extends RefCounted
 
 
 ## Soft push away from nearby enemies. Enemy bodies do not collide with each other.
+## M45b: a path session reads the spatial hash (SeparationGrid); everything else keeps the
+## O(n^2) loop below, statement for statement.
 static func separation(me: Node2D) -> Vector2:
+	if SeparationGrid.active():
+		return SeparationGrid.push(me)
+	return separation_all(me)
+
+
+## The legacy loop: every enemy against every other (Stage 1, the v6 loop; tests compare).
+static func separation_all(me: Node2D) -> Vector2:
 	var push := Vector2.ZERO
 	var radius := Tuning.enemy_separation_radius
 	for other in me.get_tree().get_nodes_in_group(&"enemy"):

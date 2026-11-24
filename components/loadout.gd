@@ -227,11 +227,21 @@ func _rank_to(w: Weapon, rank: int) -> void:
 	EventBus.weapon_changed.emit(w.def.id, rank)
 
 
-## (Re)builds a passive weapon's node on the host.
+## (Re)builds a passive weapon's node on the host. M45b: a def with a node_script builds
+## that node instead (configure(w), then its traits); "" keeps the orbit shards.
 func _attach(w: Weapon) -> void:
 	_free_node(w.def.id)
 	var host := get_parent()
 	if host == null:
+		return
+	if w.def.node_script != "":
+		var custom: Node = (load(w.def.node_script) as Script).new()
+		custom.call(&"configure", w)
+		custom.name = "Weapon_%s" % w.def.id
+		for t in w.traits:
+			t.passive_ready(w, custom)
+		host.add_child(custom)
+		_passive_nodes[w.def.id] = custom
 		return
 	var node: Node = OrbitWeaponShards.new()
 	node.weapon_id = w.def.id

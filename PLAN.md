@@ -160,7 +160,7 @@ Human times, first play. S-numbers continue Stage 1's (S0–S6). "New" follows R
 
 ### 1.5 The three paths
 - **`PathDef`** (`paths/<id>.tres`, script `paths/path_def.gd`), the take of a `path` change:
-  - `id`, `fire_mode` (`manual_one` / `auto_all` / `manual_ammo`), `growth` (`cards` / `levelups` / `pickups`), `start` (start loadout), `max_slots`, `max_passives` (M45a; Auto 2), `offer_pool_extra` (Auto: `nova`, `well`; empty until M45b), `spawn_rate_mult`, `max_enemies_mult`, `enemy_hp_mult`, `kill_goal_mult`, `boss_hp_mult` (1.10), `widget` (`hand` / `level` / `ammo`), `bot_policy`.
+  - `id`, `fire_mode` (`manual_one` / `auto_all` / `manual_ammo`), `growth` (`cards` / `levelups` / `pickups`), `start` (start loadout), `max_slots`, `max_passives` (M45a; Auto 2), `offer_pool_extra` (Auto: `nova`, `well`, since M45b; 6.6), `spawn_rate_mult`, `max_enemies_mult`, `enemy_hp_mult`, `kill_goal_mult`, `boss_hp_mult` (1.10), `widget` (`hand` / `level` / `ammo`), `bot_policy`.
   - Added at M45a: `basics` (the path's own basics: Auto `levelups`, `crowd`), `level_thresholds` (the growth meter's list, then +20 each), `taste_thresholds` (S7's tryout list: Auto `[6]`, one level-up), `max_picks` (Auto 10, Arsenal 6), `warn_line` (the fallback warning a `path` cue says 1.5 s before the swap; per-cue warnings are an M47 change).
   - Its density numbers are a `WorldRules` overlay (owner `&"path"`, session layer, reverts at the session end).
   - The path is read from the save (`Unlocks.take(&"fork_path")`), or from S7's `path` cue while a taste is live (`RunState.session_path`).
@@ -778,6 +778,10 @@ Weapons exist and are proven invisible on Stage 1: with no path the player holds
     - Reading: the bot never switches and aims at the nearest enemy, so the launcher's slow shells and short reach leave it to die to contact (44-54 contact hits), not to shots. That is the bot's aim, not a verdict on the weapon. The laser at rank 3 and the pistol at rank 3 (seeker) roughly double survival. Not a gate.
   - **R3 S7 stub:** `3i`: `outcome=win t=60.0 ... weapons=pistol:1,shotgun:1`. Mortal `3`: `outcome=win t=60.0`, hits contact 2, projectile 4 (HP floor 1), `weapons=pistol:1,shotgun:1`.
   - Path-only lines: 0 (no path code yet).
+- **Review (3 findings, 3 upheld, all fixed):**
+  - **Well's 12-field cap reset on a rank-up (up to 24 live for 1.5 s)** (two reviewers, the same defect). `MAX_FIELDS` was counted in a per-node `_live`; `Loadout._rank_to` -> `_attach` frees the node and builds one with an empty list while the old fields keep running in `RunState.world`. Fixed: the live list is kept on the world (meta `well_weapon_fields`, pruned of freed / queued fields at each kill), so it survives the rebuild and dies with the world. New test `test_well_cap_holds_across_a_rank_up` (12 live, `set_weapon(&"well", 2)`, a kill: still 12, the new node's `capped` = 1) fails without the fix (13 live) and passes with it. D2's well_weapon count grows by 2 code lines (Auto-only total 135, Auto 317 if counted).
+  - **The 6.6 test breakdown did not add up** (19 listed, 20 in the file; the v6 patch-field test was missing). Fixed: the list now reads well ×7 (with the new rank-up test) and the file has **21** tests.
+  - **Re-run on the fixed tree (`.check/ref_m45b/*_review.log`):** full GUT **769/769** (14158 asserts, 45 scripts, 132 s, no error lines); G1 and G2 **4 runs, 0 failures** each; G3 campaign **16 runs, 0 failures**; check.ps1 -BotRuns **CHECK PASSED** (769/769 inside; every `[botrun]` line equals the pre-review final run apart from wall time, chain `play=225.8`); export.ps1 **EXPORT PASSED** (104.9 MB). G11 is unchanged (not re-captured: the tier-0 capture is the v6 world, which never builds the well weapon, and G1 / G2 show the v6 loop unmoved).
 - Nothing touched the owner's real save or `user://playtest/runs.jsonl`. Every bot run used `--log=user://m44_*/...`. GUT redirected `Telemetry.log_path` to `user://save_weapons_test/runs.jsonl`. The dump, capture and bench ran inert, and check.ps1's real-save snapshot passed.
 
 ---
@@ -863,6 +867,98 @@ Paths exist, and Auto is playable as a taste (S7 stub) and as a draft (S8). Stag
   - **The auto bot went to a gem before an open gate when no enemy was left:** `BotInput._auto_policy` now prefers the gate, then the gem, then the orbit, as its comment says. New `test_the_auto_bot_goes_to_the_gate_before_a_gem` (fails with the old order). No hash moves: Stage 1 and the v6 loop never use the auto policy.
   - **The after_each telemetry assert could never fail:** it now asserts `not FileAccess.file_exists(TEST_LOG)` before the file is removed. Bite: a pick that calls `Telemetry.append` fails it in 6 tests. `_arena()` also awaits a frame after `set_input`, so the replaced HumanInput no longer shows as an orphan.
   - **Reruns on the reviewed tree:** full GUT **748/748** (12483 asserts, 44 scripts, no SCRIPT ERROR / Parse Error / ERROR / resources-in-use lines); v6 compare 4 runs, 0 failures; gauntlet compare 4 runs, 0 failures; check.ps1 -BotRuns **CHECK PASSED** (748/748 inside, chain `play=225.8` unchanged, `bot_s7_stub` `weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=40`); export.ps1 **EXPORT PASSED** (PatchNotes.exe 104.9 MB).
+
+---
+
+### 6.6 As built (M45b): Auto at scale
+Auto holds its crowd. Path sessions get spatial-hash separation and split projectile budgets (player 140 / enemy 60), and `nova` and `well` exist at ranks 1-3. Stage 1 and the legacy loop keep the O(n²) separation and the combined cap of 200, statement for statement. Both v6 hashes, the m43.3 campaign hash, S4 vs m42.2 and every Stage 1 `WorldRules` field are unchanged. `BUILD = "M45b"`.
+- **The one predicate:** `RunState.path_live()` = `live_path() != &""` (D1). It is true in the S8 draft from frame 0, in the S7 stub once its `path auto` swap lands (measured: game time 14.52 s, the 13 s cue plus the 1.5 s warning), with F2 PATH and in the bench. The real three-version S7 (not built) is covered by construction: it has no path before its `path` cue.
+- **Spatial hash** (`entities/separation_grid.gd`, `SeparationGrid`, static, shared engine work):
+  - Cells are `Tuning.enemy_separation_radius` (36 px), keyed by `floor(pos / cell)`.
+  - It is rebuilt once per (physics frame, `RunState.world` reference) from the `enemy` group, in group order. `active()` clears it when no path is live.
+  - `push()` reads the 3×3 cells with the legacy math on live positions (untyped iteration, `is_instance_valid` first).
+  - `EnemyCommon.separation()` calls it only when active. The old loop body moved unchanged into `EnemyCommon.separation_all()`.
+  - No RNG, no instance ids (D11). The grid push equals the legacy push within 1e-4 on 4 layouts, including coincident pairs, cell borders, beyond-radius pairs and a layout straddling x = 0 / y = 0.
+- **Split budgets** (`RunState._under_cap`, `Tuning.player_projectile_budget = 140`, `enemy_projectile_budget = 60`): a path session counts each kind's own live + pending against its own budget. Otherwise the combined branch is unchanged.
+- **Refusal counters:** `RunState.enemy_shots_refused` / `player_shots_refused`, counted in every mode (a counter changes no play; D9) and zeroed by `reset()`.
+  - They appear in the campaign line (`CampaignDB.telemetry_record`; additive, `CAMPAIGN_SCHEMA` stays 4) and in the run line (`Telemetry.build_record`; additive, `SCHEMA` stays 3).
+  - The bot's `paths:` summary ends with `enemy_shots_refused median=.. max=.. player_shots_refused median=..`. The per-seed `--only` line is unchanged (check.ps1's anchored regex). `run_log`, F1, `state_text()` and the debug overlay are untouched (out of scope).
+- **`well_field.gd`** (v6 file, the D15 pattern as orbit at M44): `life` / `radius` / `pull` are vars defaulting to the consts, and `_after_pull(delta)` is a no-op hook. The legacy `well` patch is unchanged (G1/G2 after this step: 0 failures; test `test_the_v6_well_patch_field_is_unchanged`).
+- **Nova and well** (`weapons/`, shared weapon data and code, no `# path:` tag; D2 below):
+  - `WeaponDef.node_script` (D3): a passive's node script, "" = the orbit shards. `problems()` checks that it exists and is on a passive. `Loadout._attach` builds that node with `configure(w)`, then the traits' `passive_ready`; the orbit branch is verbatim.
+  - **`nova`** (`nova.tres`, `nova_pulse.gd`): every 3 s it fires an `Explosion.blast` at 1.5 T, damage 3 (D4), kind `blast`, credited `weapon:nova`, knockback 0, never pushing the player. Its own timer runs on the physics delta.
+    - Rank 2 `shove`: survivors within the radius get `Mover.knockback` of `SHOVE_IMPULSE` **610**. Calibrated in GUT: a chaser moves 46.7 px ≈ 1 T. The map's starting guess of 840 moved it 91 px: knockback distance grows faster than linearly.
+    - Rank 3 `dash_nova`: `player_dashed` fires it now and restarts the 3 s timer, and the dash trigger then waits 3 s (D5).
+    - Cards: "Nova: a blast around you every 3 s." / "Nova II: it shoves survivors away." / "Nova III: a dash sets it off early." Pitch: "Every few seconds, you go off. Politely."
+    - Its look is the shared explosion feedback (burst, `shake(3.0)`, the look-gated flash, the sound): no new drawing (D12). **Feel risk:** a camera shake every 3 s (the owner can judge; muting needs a flag on `blast`, not done).
+    - A rank-up rebuilds the node (`_rank_to` → `_attach`), so the 3 s timer and the dash wait restart then (accepted; orbit rebuilds the same way).
+  - **`well`** (`well.tres`, `well_weapon.gd`, `well_weapon_field.gd` extends the v6 field): each player-faction kill (the gems' filter) leaves a field for 1.5 s (radius 2.6 T, pull 230; D6).
+    - Rank 2 `gem_magnet` drags gems to the centre.
+    - Rank 3 `teeth` deals 0.5 damage every 0.5 s (kind `burn`, `weapon:well`): 3 bites in a field's life, 1 a second. A bitten enemy shows its white hit flash.
+    - Cards: "Well: kills leave a pull field." / "Well II: fields pull gems too." / "Well III: fields bite (1 dmg/s)."
+    - A bomber's fuse blast (faction `enemy`) leaves no field. A bomber the player killed blasts as the player (`enemy_bomber.gd` `_death_faction`), so its blast kills **do** leave fields, just as they drop gems.
+    - **At most 12 live fields (R6's fallback, taken; below).**
+  - Trait ids are `shove`, `dash_nova`, `gem_magnet` and `teeth`. The 1.4 roster keeps the player-facing names ("magnet", "teeth"). Only the id differs, because `magnet` is a v6 mutation id.
+- **Offered on Auto:** `paths/auto.tres` sets `offer_pool_extra = [nova, well]`. The mutation-id lint now skips **only `res://paths/*.tres`** (path data never touches `RunState.apply` / `MutationDB`), so `path_runner.gd`, `pick_offer.gd` and `paths/auto/*.gd` stay linted.
+  - No session announces them yet: S9 and S11's `[nova]` / `[well]` says come at M48 / M51 (D10). Until then they are reached through F2 WEAPONS (it lists `WeaponDB.all()`), `--loadout=`, the bench and tests. The pool rule holds: never offered before a tagged say, and never as a third passive (`max_passives` 2).
+- **Bench** (`tools/bench.gd`, tool code):
+  - `--auto[=<enemies>]` (default 57, the S8 final-wave cap = "Auto at its enemy cap"; D7) and `--passives=<id,id>` (default `nova,well`).
+  - Setup: `session_path = auto`, the runner frozen then begun, pistol / shotgun / laser / launcher at 3 plus the passives at 3.
+  - Each tick it tops up enemies to N, gems to 60, and marked synthetic shots to `clamp(116 − live weapon shots, 0, 100)`, so the real weapons keep firing.
+  - One `[bench] auto` line with `weapon_shots=` / `synthetic=` per-frame averages, `fields=avg/max`, `kills`, `game_t` and both refusal counters.
+  - `--weapons=all:<r>` now picks `orbit` by id as the rider (well would otherwise have become "the last passive").
+- **Tests:** the new `tests/gut/test_auto_scale.gd` has **21** tests: G6 and its control, the combined cap, 140/60, the one-frame 16-shot burst, shotgun r3 with every slot, grid = legacy, path-only builds, nova ×3, well ×7 (including the 12-field cap, the cap across a rank-up and the v6 patch field unchanged), the pool, telemetry, and a 15 s replay.
+  - `test_weapons.gd`'s `IDS` gains nova and well.
+  - `test_mutations.gd`'s lint skips `paths/*.tres`.
+- **Deviations:**
+  - **D2 (named deviation, owner question):** nova and well are built as shared weapon code in `weapons/` (no `# path:auto` tag), so `path_lines.gd` still says **auto=182**. Counted as Auto-only, their 7 scripts add **133** lines (nova_pulse 61, well_weapon 31, well_weapon_field 29, 4 traits × 3), which puts Auto at **315 > 250**. 1.5's ~150 for Auto never included them. **Question for the owner:** "nova/well counted as Auto-only puts Auto at 315 lines (> 250): accept them as shared weapons, raise the budget, or trim?" The grid and the budgets are engine work either way.
+  - **R6 fallback taken, partly (D8):**
+    - The first `--auto` run with nova + well measured **fps=1, physics avg 140.71 / p95 242.56 / max 267.18 ms**. The cause was a runaway: the bench's synthetic shots kill ~280 enemies a second, each kill's hit stop slows game time (`game_t` 2.8 s over 720 ticks at 30 enemies), and teeth kills leave more fields: **1852 live fields on average, 3374 at most**.
+    - The fallback's third step, **well's live fields capped at 12** (`well_weapon.gd` `MAX_FIELDS`; a kill over the cap leaves none; the live list sits on `RunState.world` (meta `well_weapon_fields`), so a rank-up's rebuilt node still counts the old fields; tests `test_well_fields_stop_at_12_live`, `test_well_cap_holds_across_a_rank_up`), fixes it alone.
+    - The enemy-cap and HP steps were **not** applied. The diagnosis points at the fields, and lower HP would only add kills. If they were ever needed, "HP ×0.8" would read as a multiplier on Auto's overlay (`enemy_hp_mult` 0.7 → 0.56), not as setting it to 0.8.
+    - In real play the cap is rarely reached: S8 runs ~1.6 kills/s, about 2-3 live fields.
+  - **G3's bite does not bite** (reported, not hidden): with `SeparationGrid.active()` forced true everywhere, G3 gave **16 runs, 0 failures**. Stage 1's crowds are thin, and the grid sums the same neighbours: with 2 neighbours the order cannot matter (a+b = b+a), so only ≥ 3 in-radius neighbours can differ in the last bit. The same bite on the denser v6 loop fails, so the hashes do catch it there: **G1 4 runs, 4 failures** (diverging at 91-119 s) and **G2 4 runs, 2 failures**. Reverted, not committed. The path-only predicate itself is pinned by `test_the_spatial_hash_runs_only_in_path_sessions` (builds unchanged in the legacy loop, in s1_06 and in the stub before its swap; > 0 in the draft and after the swap).
+  - The S7 stub becomes a path session at game time 14.52 s (13 s cue + 1.5 s warning). The test asserts game time ≥ 13 s, not a frame count, because GUT's `wait_physics_frames(1)` advances 2 ticks here.
+  - Not built (out of scope): rank-4 evolutions (M50.1), S9 / S11 content and their tagged says (M48 / M51), looks (the bench runs tier 0), any F1 / F2 change, any check.ps1 bench step. **The sniper and the boss ring are re-tested against the split budgets at M49 / M50** (PLAN 5 "Budgets"). This row names the v6 shooter, and G6 uses it.
+- **Gates (all from `.check/ref_m45b/`):**
+  - **G1** v6 compare: **4 runs, 0 failures**, after Steps 2-3, after Step 4 and on the final tree.
+  - **G2** gauntlet compare: **4 runs, 0 failures**, at the same three points.
+  - **G3** campaign vs `ref_m43.3`: **16 runs, 0 failures** (after Steps 2-3 and final).
+  - **G4** S4 vs `ref_m42.2`: **4 runs, 0 failures** (after Steps 2-3 and final).
+  - **G5:** `test_stage_1_rules_equal_the_m43_3_fixture_field_by_field` is green (429 asserts).
+  - **G6 (hard):** `test_a_v6_shooter_still_fires_with_auto_saturated` is green. On Auto with 4 aimed weapons r3 + nova r3 + well r3, 70 held chasers and 140 frozen player shots topped up every tick, the v6 shooter's shot spawns within 3 s. The player count read at the frame it fired was **[140]**, `enemy_shots_refused` **0**, and `player_shots_refused` > 0 (the real weapons were refused: saturated). The control `test_without_a_path_the_combined_cap_starves_the_shooter` (no path, 200 frozen shots) is green: no enemy shot gets in and `enemy_shots_refused` > 0.
+  - **G7:** the full GUT suite is **768/768** (748 + 20; 14661 asserts, 45 scripts, 161 s), with no SCRIPT ERROR / Parse Error / ERROR / resources-in-use lines.
+  - **G8:** check.ps1 -BotRuns gave **CHECK PASSED** twice: 767/767 inside on the tree before the field cap, and **768/768** inside (14451 asserts) on the final tree.
+    - Every pre-existing `[botrun]` line equals M45a's apart from wall time, with the chain at `play=225.8`.
+    - The S7 stub line moved only in `pickups`. Before (M45a): `... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=40`. After: `... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=32`. It is still `outcome=win t=60.0`, matches check.ps1's regex, and `level=` holds at 2.
+    - The real-save snapshot passed.
+  - **G9:** export.ps1 gave **EXPORT PASSED** (PatchNotes.exe 104.9 MB), both before the cap and on the final tree.
+  - **G10 (windowed, dev machine, RX 7900 XTX, Compatibility, vsync off):** `--auto` (57 enemies, 4 aimed r3 + nova r3 + well r3, 60 gems), with the 12-field cap, gave:
+    - run 1: **1170 fps**, physics avg 4.65 / p95 5.91 / max 5.91 ms (`weapon_shots=7.3 synthetic=96.8`, fields 11.2 avg / 12 max, 345 kills, 0 / 0 refused);
+    - run 2: **955 fps**, 4.69 / 6.72 / 6.72 ms.
+    - Before the cap: **fps=1** (above).
+    - The player side ran ~104 shots, not 140: the synthetic ceiling is 100, and the real weapons average ~7 live shots.
+  - **G11 (windowed) tier-0 compare (M45a skipped it):** vs `.check/ref_m44/tier0_*`:
+    - seed 2 **1 px** (max delta 232);
+    - seeds 3 and 4 **0 px**;
+    - seeds 1 / 5: 110 / 38 px (known particle noise).
+    - **Seed 2 fails the 0 px gate against the M44 baseline, and M45a is the cause:** a capture on an `m45a` worktree reproduces the same pixel. M45b vs M45a is **0 px on seeds 2-4**, so M45b moved no pixel.
+    - The pixel is (685, 484), M44 `fff280` (the player-shot colour, at the edge of a large shape) → `171921` (background). Not re-baselined; left for the owner / M48.
+    - **Decision (2026-11-24, at commit):** accepted as a 1 px edge change (the v6 hashes are identical, so no position moved); the M45b capture `.check/ref_m45b/tier0_*` is the tier-0 baseline from now on (M48 compares against it).
+- **Reported:**
+  - **R1 bench:** before the grid (M45a separation, `--passives=orbit`): 1214 fps, 4.61 / 6.09 / 6.09 ms.
+    - `--auto=100` (headroom, with the cap): **806 fps**, 6.93 / 8.48 / 8.48 ms.
+    - `--auto --passives=orbit,nova`: 1218 fps, 3.34 / 3.83 / 4.04 ms.
+    - `--weapons=all:3` (orbit rider): laser 1322, launcher 1435, pistol 1418, shotgun 1418; overall **1398 fps**, 6.40 / 7.83 / 7.97 ms.
+    - Base (75 enemies / 100 shots): 1460 fps, 4.91 / 7.00 / 7.00 ms.
+  - **R2:** S8 draft, invincible, 180 s, seeds 1i-16i: **10 level-ups on every seed** (as M45a). Kills median **295** (M45a 294.5), pickups median **278.5** (262-291; M45a 279.5), gems 124, `enemy_shots_refused` **0** on every seed, `player_shots_refused` 0.
+  - **R3:**
+    - Mortal S8, 16 seeds: `lose=16/16`, median_t **132.5 s** (M45a 132.5), hits projectile 128, contact 6, explosion 5, charge 1, kills median 196.
+    - With `--loadout=pistol:3,shotgun:3,nova:3,well:3` (frozen, no growth): **6 win / 10 lose**, median_t **151.1 s**, hits projectile 67, contact 2, explosion 2, kills median 229.5, refusals 0.
+  - **R4:** `path_lines.gd` reports `auto=182` of 250 (D2 above: 315 if nova / well counted).
+- Nothing touched the owner's real save or `user://playtest/runs.jsonl`.
+  - Bot runs used `--log=user://m45b_r2|r3|r3p/...`, and GUT redirected `Telemetry.log_path` to `user://save_auto_scale_test/runs.jsonl` (asserted never written).
+  - Benches and captures ran with `--inert-save`, and check.ps1's real-save snapshot passed.
 
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**

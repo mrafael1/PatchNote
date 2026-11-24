@@ -575,6 +575,9 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"game_version": SaveGame.version().label(),
 		"bot": bool(run_record.get("bot", false)),
 		"invincible": RunState.invincible,
+		# PLAN v9 1.15 (M45b, additive: the schema stays 4): shots refused at their cap.
+		"enemy_shots_refused": RunState.enemy_shots_refused,
+		"player_shots_refused": RunState.player_shots_refused,
 	}
 
 

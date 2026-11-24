@@ -104,6 +104,9 @@ static func build_record(outcome: StringName, extra := {}) -> Dictionary:
 		"genre_seconds": genre_seconds(),
 		"genre_hits": genre_hits(),
 		"genre_hits_by_kind": genre_hits_by_kind(),
+		# M45b (additive, SCHEMA stays): shots RunState.spawn refused at their cap.
+		"enemy_shots_refused": RunState.enemy_shots_refused,
+		"player_shots_refused": RunState.player_shots_refused,
 	}
 	record.merge(extra)
 	return record

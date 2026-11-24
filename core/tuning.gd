@@ -139,6 +139,10 @@ var projectile_knockback := 240.0
 # --- Hard caps (enforced by RunState.spawn) ---
 var hard_max_enemies := 150
 var hard_max_projectiles := 200
+# PLAN v9 1.4 (M45b): path sessions only split it (their sum is hard_max_projectiles); Stage 1
+# and the legacy loop keep the combined cap above.
+var player_projectile_budget := 140
+var enemy_projectile_budget := 60
 var max_split_generation := 1   # enemies at this generation never split again
 var hard_max_pickups := 60       # PLAN v9 1.6 (M45a): pickups' own cap (gems merge first)
 
