@@ -157,7 +157,7 @@ func test_the_spawner_sends_bombers_only_when_unlocked_and_never_on_the_turn_gri
 # Tuning.bomber_death_fuse, then blasts at Tuning.bomber_campaign_blast_radius.
 
 const PROJECTILE := preload("res://entities/projectile.tscn")
-const WALKER := preload("res://entities/enemy_walker.gd")
+const BOMBER_SCRIPT := preload("res://entities/enemy_bomber.gd")
 
 
 func _in_session(id: StringName = &"s1_05_wrong") -> void:
@@ -187,11 +187,11 @@ func _player_hits() -> int:
 
 func test_in_a_session_the_blast_is_bigger_and_the_fuse_still_lights_inside_it() -> void:
 	_in_session()
-	assert_eq(WALKER.blast_radius(), Tuning.bomber_campaign_blast_radius)
+	assert_eq(BOMBER_SCRIPT.blast_radius(), Tuning.bomber_campaign_blast_radius)
 	assert_gt(Tuning.bomber_campaign_blast_radius, Tuning.bomber_blast_radius, "a bit bigger (G13)")
 	assert_lt(Tuning.bomber_trigger_range, Tuning.bomber_campaign_blast_radius + Explosion.BODY_MARGIN)
 	RunState.session = null
-	assert_eq(WALKER.blast_radius(), Tuning.bomber_blast_radius, "the v6 loop keeps its radius")
+	assert_eq(BOMBER_SCRIPT.blast_radius(), Tuning.bomber_blast_radius, "the v6 loop keeps its radius")
 
 
 func test_in_a_session_a_shot_bomber_blinks_then_blows_at_the_bigger_radius() -> void:

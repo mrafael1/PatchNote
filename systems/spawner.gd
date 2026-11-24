@@ -4,13 +4,8 @@ extends Node
 ## a phase multiplier the run loop will use for the final wave. Enemies appear at
 ## arena markers that are off-screen and away from the player.
 
-const SCENES := {
-	&"chaser": preload("res://entities/enemy_chaser.tscn"),
-	&"shooter": preload("res://entities/enemy_shooter.tscn"),
-	&"tank": preload("res://entities/enemy_tank.tscn"),
-	&"bomber": preload("res://entities/enemy_bomber.tscn"),
-	&"lancer": preload("res://entities/enemy_lancer.tscn"),
-}
+## Base scenes by id (EnemyDB.BASES). Spawner.SCENES stays the name the genre and tests read.
+static var SCENES: Dictionary = EnemyDB.base_scenes()
 const VIEW_HALF := Vector2(640, 360)
 
 var arena: Arena

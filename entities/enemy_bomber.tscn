@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://entities/enemy_walker.gd" id="1"]
+[ext_resource type="Script" path="res://entities/enemy_bomber.gd" id="1"]
 [ext_resource type="Script" path="res://components/mover.gd" id="2"]
 [ext_resource type="Script" path="res://components/health.gd" id="3"]
 [ext_resource type="Script" path="res://entities/rect_visual.gd" id="4"]

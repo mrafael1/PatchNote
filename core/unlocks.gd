@@ -7,8 +7,8 @@ extends RefCounted
 ## enemy and the tier 1 `punchy` look, today's feel. The Director and the spawner read
 ## this from M28 on (start content gating).
 
-## Every enemy archetype the spawner knows (a change may unlock one of these).
-const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber", &"lancer"]
+## Every base enemy (EnemyDB.BASES; an alias kept so ChangeDB, the legacy loop and test_save read it).
+const ARCHETYPES: Array[StringName] = EnemyDB.BASES
 const FULL_LOOK := {"tier": 1, "take": "punchy"}
 ## The game's basics (PLAN v5 4.8): the first builds miss them and the first dev
 ## sessions ship them. Without movement the player can only aim and shoot; without

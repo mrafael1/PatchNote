@@ -215,7 +215,7 @@ func problems() -> Array[String]:
 		if String(e).begins_with("fork:"):
 			if ChangeDB.get_fork(StringName(String(e).trim_prefix("fork:"))) == null:
 				out.append("%s: no fork %s" % [where, e])
-		elif not e in Unlocks.ARCHETYPES:
+		elif not EnemyDB.has(e):
 			out.append("%s: unknown enemy %s" % [where, e])
 	if not enemies.is_empty() and not &"enemies" in basics:
 		out.append("%s: enemies listed without the enemies basic" % where)
@@ -346,7 +346,7 @@ func _field_problems(where: String) -> Array[String]:
 	if hud != &"" and fork_of(hud) == &"":
 		out.append("%s: hud must be a fork (fork:<id>)" % where)
 	for k: Variant in spawn_weights:
-		if not StringName(String(k)) in Unlocks.ARCHETYPES:
+		if not EnemyDB.has(StringName(String(k))):
 			out.append("%s: spawn_weights: unknown enemy %s" % [where, k])
 		elif not (spawn_weights[k] is float or spawn_weights[k] is int) or float(spawn_weights[k]) <= 0.0:
 			out.append("%s: spawn_weights: %s must be > 0" % [where, k])

@@ -41,7 +41,6 @@ const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event",
 		&"drop", &"look", &"boss"]
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
-const ARCHETYPES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber", &"lancer"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
 ## Parsed and validated, but nothing runs them yet: CampaignDB.problems() refuses each in
 ## the campaign's data ("not built yet"). Each later milestone shrinks these lists.
@@ -134,7 +133,7 @@ static func parse(p_source: String) -> Cue:
 			c.line = Line.parse(body.substr(3))
 			c.problem = c.line.problem
 		&"spawn":
-			if words.size() < 2 or not (StringName(words[1]) in ARCHETYPES
+			if words.size() < 2 or not (EnemyDB.has(StringName(words[1]))
 					or (words[1].begins_with("fork:") and words[1].length() > 5)):
 				c.problem = "cue '%s': spawn what?" % p_source
 			else:
