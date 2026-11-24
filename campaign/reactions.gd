@@ -274,6 +274,9 @@ func _happened(d: ReactionDef, t: float, enemies: int) -> bool:
 			return _edge(d, t - _camp_since >= ReactionDef.CAMP_SECONDS)
 		&"not_shooting":
 			var can_shoot := not bool(player.get(&"shooting_locked"))
+			# M45a (PLAN 5: "never on Auto"): Auto fires by itself, silent with no enemy in reach.
+			var lo := Component.find(player, Loadout) as Loadout
+			can_shoot = can_shoot and not (lo != null and lo.fire_mode == &"auto_all")
 			return _edge(d, can_shoot and enemies > 0 and t - _last_shot_at >= ReactionDef.IDLE_GUN_SECONDS)
 		&"no_hit_for":
 			return _edge(d, t - _last_hit_at >= n)
@@ -356,8 +359,14 @@ func _progress() -> float:
 		SessionDef.SURVIVE:
 			return maxf(0.0, genre.session_progress()) / 100.0
 		SessionDef.KILLS:
-			return float(RunState.kills) / maxf(1.0, session.goal_value)
+			return float(RunState.kills) / maxf(1.0, _kill_goal())
 	return 0.0
+
+
+## The kills goal the run plays (M45a: a path's kill_goal_mult scales it in the genre).
+func _kill_goal() -> float:
+	var loop: Variant = genre.get(&"run_loop") if genre != null else null
+	return float(loop.goal_value) if loop != null else session.goal_value
 
 
 func _survive_left() -> float:

@@ -8,7 +8,17 @@ extends PlayerInput
 const LANE_TILES := 16
 
 var keep_distance := 220.0
+## PLAN v9 4 (M45a): the live path's bot policy (PathDef.bot_policy, read each tick; "" =
+## today's code byte for byte) and a degenerate probe (--probe=afk: no move, no dash, no
+## jump, no fire; Auto still fires by itself).
+var policy: StringName = &""
+var probe: StringName = &""
 var _tick := 0
+
+## Auto's kiting: the sectors around the bot and how far it looks.
+const SECTORS := 8
+const CROWD_REACH := 6.0 * 48.0
+const GEM_CLEAR := 3.0 * 48.0
 
 
 func _physics_process(_delta: float) -> void:
@@ -18,6 +28,16 @@ func _physics_process(_delta: float) -> void:
 	wait_pressed = false
 	if RunState.rules.turn_based:
 		_turn_policy()
+		return
+	var path := RunState.path_def()
+	policy = path.bot_policy if path != null else &""
+	if probe == &"afk":
+		move = Vector2.ZERO
+		fire = false
+		jump_held = false
+		return
+	if policy == &"auto":
+		_auto_policy()
 		return
 	var here := origin()
 	var nearest: Node2D = null
@@ -50,6 +70,91 @@ func _physics_process(_delta: float) -> void:
 	jump_pressed = _tick % 90 == 0
 	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12
+
+
+## Auto (PLAN v9 4, M45a): never holds fire (Auto fires by itself; today's bot always held
+## it, which would never test auto-fire). With an enemy within keep_distance it kites away
+## from the densest of 8 sectors within 6 T; else, with no enemy within 3 T, it walks to the
+## nearest gem; else today's orbit. The aim still follows the nearest enemy (dash aim), the
+## exit gate still wins. No RNG.
+func _auto_policy() -> void:
+	fire = false
+	var here := origin()
+	var nearest: Node2D = null
+	var best := INF
+	for e in get_tree().get_nodes_in_group(&"enemy") + get_tree().get_nodes_in_group(&"threat"):
+		var n := e as Node2D
+		if n == null or n.is_queued_for_deletion():
+			continue
+		var d := here.distance_squared_to(n.global_position)
+		if d < best:
+			best = d
+			nearest = n
+	var gate := get_tree().get_first_node_in_group(ExitGate.GROUP) as ExitGate
+	var gem := _nearest_gem(here)
+	if nearest == null:
+		# The open gate wins over a gem here too (review M45a).
+		if gate:
+			move = gate.direction_from(here)
+		elif gem != null:
+			move = (gem.global_position - here).normalized()
+		else:
+			move = Vector2.RIGHT.rotated(_tick * 0.01)
+		return
+	var to_enemy := nearest.global_position - here
+	aim_dir = to_enemy.normalized()
+	if to_enemy.length() < keep_distance:
+		move = -_densest_dir(here, aim_dir).rotated(0.6)
+	elif gem != null and to_enemy.length() > GEM_CLEAR:
+		move = (gem.global_position - here).normalized()
+	else:
+		move = aim_dir.rotated(1.2) * 0.6
+	if gate:
+		move = gate.direction_from(here)
+	jump_pressed = _tick % 90 == 0
+	dash_pressed = _tick % 150 == 75
+	jump_held = _tick % 90 < 12
+
+
+## The direction of the most crowded of SECTORS slices within CROWD_REACH (each enemy
+## weighs 1 / its distance); `fallback` when none is near.
+func _densest_dir(here: Vector2, fallback: Vector2) -> Vector2:
+	var weights: Array[float] = []
+	weights.resize(SECTORS)
+	weights.fill(0.0)
+	var any := false
+	for e in get_tree().get_nodes_in_group(&"enemy"):
+		var n := e as Node2D
+		if n == null or n.is_queued_for_deletion():
+			continue
+		var v := n.global_position - here
+		var d := v.length()
+		if d > CROWD_REACH:
+			continue
+		var s := int(fposmod(v.angle(), TAU) / (TAU / SECTORS)) % SECTORS
+		weights[s] += 1.0 / maxf(d, 24.0)
+		any = true
+	if not any:
+		return fallback
+	var top := 0
+	for i in SECTORS:
+		if weights[i] > weights[top]:
+			top = i
+	return Vector2.RIGHT.rotated((top + 0.5) * TAU / SECTORS)
+
+
+func _nearest_gem(here: Vector2) -> Node2D:
+	var out: Node2D = null
+	var best := INF
+	for g in get_tree().get_nodes_in_group(&"gem"):
+		var n := g as Node2D
+		if n == null or n.is_queued_for_deletion():
+			continue
+		var d := here.distance_squared_to(n.global_position)
+		if d < best:
+			best = d
+			out = n
+	return out
 
 
 ## B2 (PLAN v3 3b.7): one action per turn, chosen from TurnClock.danger when the clock

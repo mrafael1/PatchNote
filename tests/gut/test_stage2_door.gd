@@ -316,6 +316,8 @@ func test_a_dev_jump_still_plays_the_s7_stub() -> void:
 			[2, SessionDef.SURVIVE, 60.0, 1, true, true, &"minor", &""])
 	assert_eq(s.basics, CampaignDB.get_session(&"s1_06_playground").basics, "Stage 1's build")
 	assert_eq(CampaignDB.index_of(s.id), CampaignDB.size() - 1, "the last session")
+	assert_true(s.cue_list().any(func(c: Cue) -> bool: return c.action == &"path" and c.target == &"auto"),
+			"M45a: the stub is an Auto taste")
 	for pair: Array in [[&"s2_01_tryout", DebriefScreen.LAST], [&"s1_06_playground", DebriefScreen.NEXT]]:
 		var d := DebriefScreen.new()
 		add_child_autofree(d)

@@ -28,10 +28,17 @@ signal turn_started(number: int)   ## B2: the player's action is fixed (TurnCloc
 signal turn_ended(number: int)     ## B2: the turn's time is over; hits resolve on tiles
 signal explosion(pos: Vector2, radius: float)   ## presentation hook; carries no damage
 signal weapon_changed(id: StringName, rank: int)   ## PLAN v9 1.6 (M44): given, ranked up, switched to
+## PLAN v9 1.6 (M45a): a pickup was taken (kind gem / weapon / ammo / heal / battery; id: the
+## weapon, or &""); an in-run pick was offered (a PickOffer) and made (the card's id); Auto
+## reached level n.
+signal pickup_taken(kind: StringName, id: StringName)
+signal pick_offered(offer: RefCounted)
+signal pick_made(id: StringName)
+signal level_up(n: int)
 signal patch_applied(mutation: Resource)
 signal patch_reverted(mutation: Resource)
 signal big_swapped(old: Resource, new: Resource, dropped: Array)   ## old may be null
-signal ai_patch_added(mutation: Resource, owner_id: StringName)     ## &"stage" or &"boss"
+signal ai_patch_added(mutation: Resource, owner_id: StringName)     ## &"stage", &"boss", &"edit" or &"path"
 signal ai_patch_removed(mutation: Resource, reason: StringName)     ## &"rollback", &"expired", &"dropped", &"console" (F2)
 signal rules_changed(rules: Resource)
 signal milestone_reached(id: int)

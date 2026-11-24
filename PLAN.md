@@ -114,7 +114,7 @@ Human times, first play. S-numbers continue Stage 1's (S0–S6). "New" follows R
 - `spawn_weights: Dictionary` (archetype → weight; empty = today's `Tuning` chances, so Stage 1's numbers do not move).
 - `rules.hp_floor` (new `WorldRules` int, default 0, under the reversibility invariant): `Health` reads it when it applies damage and never drops below it. Default 0 is a no-op (in the v6 hash compares). S7 has health (it inherits Stage 1's basics) and uses 1 ("Can't lose today. It's a tryout.").
 - **Goals:** `GOALS` adds `stages` (won when the set's last part clears) and `boss` (won when the boss's HP reaches 0; no time limit). A kills goal is multiplied by the path's **`kill_goal_mult`** (Auto **×2.0**, others ×1.0; one number, 1.5), so Auto's crowds don't end it in a minute.
-- **Basics** (`Unlocks.CAMPAIGN_BASICS`) add `cards` (Arsenal hand + card meter), `levelups` (Auto gems + LV bar), `pickups` (Survival drops + crates), `kill_heal` (Survival) and `hud` (the styled HUD). They follow M39.2's rules: always on outside a session, added live by `add` cues, and a session lists what it has. `problems()`: a path basic under another path's condition is a problem.
+- **Basics** (`Unlocks.CAMPAIGN_BASICS`) add `cards` (Arsenal hand + card meter), `levelups` (Auto gems + LV bar), `crowd` (Auto's crowd overlay, its second path basic; M45a), `pickups` (Survival drops + crates), `kill_heal` (Survival) and `hud` (the styled HUD). They follow M39.2's rules: always on outside a session, added live by `add` cues, and a session lists what it has. `problems()`: a path basic under another path's condition is a problem. As built (M45a): each `PathDef.basics` names its own basics; outside a tryout or the owner's own path, a session may not list one, and an `add` cue of one needs a positive `answer:path_<owner>` part and no other `answer:path_` part. The carry rule skips path basics.
 - **The stage card** (`ui/stage_card.gd`, titles in **`CampaignDef.stage_titles`**, a new field; `campaign_def.gd` is 7 lines today; `CampaignDB.problems()` checks a title for every stage a session names): when a session's `stage` is higher than the last one played, a 3 s card plays before its intro. It is not a session and writes no telemetry line. Skippable after 0.5 s.
 
 ### 1.3 Cues (additions to `campaign/cue.gd`, v8 1.5 / 6.6)
@@ -160,7 +160,8 @@ Human times, first play. S-numbers continue Stage 1's (S0–S6). "New" follows R
 
 ### 1.5 The three paths
 - **`PathDef`** (`paths/<id>.tres`, script `paths/path_def.gd`), the take of a `path` change:
-  - `id`, `fire_mode` (`manual_one` / `auto_all` / `manual_ammo`), `growth` (`cards` / `levelups` / `pickups`), `start` (start loadout), `max_slots`, `offer_pool_extra` (Auto: `nova`, `well`), `spawn_rate_mult`, `max_enemies_mult`, `enemy_hp_mult`, `kill_goal_mult`, `boss_hp_mult` (1.10), `widget` (`hand` / `level` / `ammo`), `bot_policy`.
+  - `id`, `fire_mode` (`manual_one` / `auto_all` / `manual_ammo`), `growth` (`cards` / `levelups` / `pickups`), `start` (start loadout), `max_slots`, `max_passives` (M45a; Auto 2), `offer_pool_extra` (Auto: `nova`, `well`; empty until M45b), `spawn_rate_mult`, `max_enemies_mult`, `enemy_hp_mult`, `kill_goal_mult`, `boss_hp_mult` (1.10), `widget` (`hand` / `level` / `ammo`), `bot_policy`.
+  - Added at M45a: `basics` (the path's own basics: Auto `levelups`, `crowd`), `level_thresholds` (the growth meter's list, then +20 each), `taste_thresholds` (S7's tryout list: Auto `[6]`, one level-up), `max_picks` (Auto 10, Arsenal 6), `warn_line` (the fallback warning a `path` cue says 1.5 s before the swap; per-cue warnings are an M47 change).
   - Its density numbers are a `WorldRules` overlay (owner `&"path"`, session layer, reverts at the session end).
   - The path is read from the save (`Unlocks.take(&"fork_path")`), or from S7's `path` cue while a taste is live (`RunState.session_path`).
 - **Shared by all three:** movement, the dash (3 styles × 2 aims, M42.1/M42.2; on Auto with `dash_aim = aim` the aim is still the mouse or stick, even though nothing is fired with it), health, the enemies, the rule book, the events, the look, the layout, the HUD, the boss.
@@ -359,7 +360,7 @@ Line syntax is v8 6.1's: `"[condition] [expression]: text"`, conditions one word
 - cues:
   - `"at 2: path arsenal"` (warning "Version one. Your guns are cards."; lands at 3.5) · `"at 5: say happy: {key:weapon_prev} and {key:weapon_next} to switch cards. Kill some, I'll deal you a new one."` · `"picked 1: say proud: See? Better gun, same card."`
   - `"at 46: say proud: Okay. Saving that one."` · `"at 48: path survival"` (warning "Version two. No cards. Guns are lying around.") · `"at 52: drop shotgun"` · `"at 54: say happy: Walk over a gun to take it. Ammo runs out, so keep looking."` · `"at 68: say thinking: And every few kills patch you up. Kills are food."`
-  - `"at 94: say proud: Saving that too."` · `"at 96: path auto"` (warning "Version three. Hands off the trigger.") · `"at 100: say surprised: It shoots for you. You just move."` · `"at 104: say happy: And more enemies. Lots more. You'll need them."` (the crowd overlay) · `"at 110: say happy: Grab the gems. You'll level up."` · `"at 126: say panic: That's a lot of them. That's the point!"`
+  - `"at 94: say proud: Saving that too."` · `"at 96: path auto"` (warning "Version three. Hands off the trigger.") · `"at 100: say surprised: It shoots for you. You just move."` · `"at 104: say happy: And more enemies. Lots more. You'll need them."` (the crowd overlay; M45a: + `"at 104: add crowd"`) · `"at 110: say happy: Grab the gems. You'll level up."` · `"at 126: say panic: That's a lot of them. That's the point!"`
   - `"at 143: path off"` · `"at 144: say thinking: Okay. Three games. I can only build one."`
 - The Arsenal taste's card meter is 10 kills. The Auto taste forces a first level at 6 gems. **The Auto taste has no passives** (pistol + shotgun only), so it doesn't look like the strongest path just because it came last.
 - debrief: `"thinking: So. Three versions of the same game."` · `"hit_lots worried: You took a beating in there. Prototypes, sorry."` · then `fork_path`. After the pick: the take line, then `"happy: The other two go in a drawer. I never throw anything away."`
@@ -369,7 +370,7 @@ Line syntax is v8 6.1's: `"[condition] [expression]: text"`, conditions one word
 - intro: `"answer:path_arsenal happy: Cards. Today it's you and one card: the pistol."` · `"answer:path_auto happy: Auto. Don't touch the trigger. I mean it."` · `"answer:path_survival happy: Scavenger. You get a pistol. The rest is out there."` · `"thinking: Two minutes. I'll build it properly this time."`
 - cues (S7 showed a taste of each growth piece; S8 **rebuilds** it with a visible difference and remembers S7):
   - `"answer:path_arsenal at 10: add cards"` + `"answer:path_arsenal at 10: say happy: Remember the cards? Now they're real. Rank pips, a meter. Fifteen kills, a new card."` · `"answer:path_arsenal at 20: say thinking: Secret: the first shot after a switch hits twice as hard. Switch a lot."` (quick-draw)
-  - `"answer:path_auto at 10: add levelups"` + `"answer:path_auto at 10: say happy: Remember the gems? Now they count. Real levels, a real bar."` · `"answer:path_auto at 14: say worried: And I made the crowd bigger again. Sorry. You need it."` (the ×1.6 / ×1.5 crowd overlay lands here, not at 0 s)
+  - `"answer:path_auto at 10: add levelups"` + `"answer:path_auto at 10: say happy: Remember the gems? Now they count. Real levels, a real bar."` · `"answer:path_auto at 14: say worried: And I made the crowd bigger again. Sorry. You need it."` (the ×1.6 / ×1.5 crowd overlay lands here, not at 0 s; M45a: + `"answer:path_auto at 14: add crowd"`)
   - `"answer:path_survival at 10: add pickups"` + `"answer:path_survival at 10: say happy: Remember the guns on the floor? Now they come in crates. Two now, one every twenty seconds."` (the 2 start crates land at 10 s) · `"answer:path_survival at 22: say thinking: Walk over another gun to swap. Yours drops at your feet."` · `"answer:path_survival at 36: say happy: Run dry and you get the pistol back. It never runs out."` (the sidearm) · `"answer:path_survival kills 5: add kill_heal"` + `"answer:path_survival kills 5: say proud: And kills heal you. Like I promised."`
   - `"at 30: give shotgun"` + `"at 30: say happy: The shotgun's in. Close range, big mess."` (the shotgun joins the pool here, 1.2)
   - `"at 50: spawn splitter 2"` + `"at 50: say surprised: New enemy. It's two enemies. Sort of."` (scripted; the `enemy_seen splitter` reaction covers later sightings only)
@@ -448,7 +449,7 @@ Every new rule or mechanic, with the scripted cue and line that adds it live, or
 | Arsenal card meter + picks | S7 (10 kills), S8 10 s (15, ×1.4) | S7 `at 5` "Kill some, I'll deal you a new one." · S8 `at 10` "Fifteen kills, a new card." |
 | Quick-draw (×2 first shot after a switch) | S8 20 s | S8 `at 20` "the first shot after a switch hits twice as hard." |
 | Auto auto-fire, fire button off | S7 96 s | S7 `at 100` "It shoots for you. You just move." |
-| Auto crowd overlay (×1.6 spawns, ×1.5 cap, ×0.7 HP) | S7 104 s (taste), S8 14 s | S7 `at 104` "And more enemies." · S8 `at 14` "I made the crowd bigger again." |
+| Auto crowd overlay (×1.6 spawns, ×1.5 cap, ×0.7 HP) | S7 104 s (taste), S8 14 s | S7 `at 104` "And more enemies." · S8 `at 14` "I made the crowd bigger again." (M45a: + `add crowd`, the path basic that lands it) |
 | Auto ×2 kill goal | S9 (the only kills goal) | S9 intro "Eighty kills for you." |
 | Gems, LV bar, level-ups | S7 110 s, S8 10 s | S7 `at 110` · S8 `at 10` "Remember the gems?" |
 | `nova`, `well` | S9 35 s, S11 part 1 30 s | tagged `say` cues (pool rule) |
@@ -780,6 +781,88 @@ Weapons exist and are proven invisible on Stage 1: with no path the player holds
 - Nothing touched the owner's real save or `user://playtest/runs.jsonl`. Every bot run used `--log=user://m44_*/...`. GUT redirected `Telemetry.log_path` to `user://save_weapons_test/runs.jsonl`. The dump, capture and bench ran inert, and check.ps1's real-save snapshot passed.
 
 ---
+
+### 6.5 As built (M45a): path plumbing + the Auto taste
+Paths exist, and Auto is playable as a taste (S7 stub) and as a draft (S8). Stage 1 and the legacy loop do not move: no PathRunner, no pick panel, no listener and no node is added to a session without a path or a tryout (D11). Both v6 hashes, the m43.3 campaign hash and every Stage 1 `WorldRules` field are unchanged. `BUILD = "M45a"`.
+- **References first (`.check/ref_m45a/`):** the "before" S7 stub lines on the M44 tree (`before_s7_3i.log`, `before_s7_3.log`: `outcome=win t=60.0 ... weapons=pistol:1,shotgun:1`). G3 compares to `ref_m43.3`, G4 to `ref_m42.2`. No new recording.
+- **Data (shared, not path-only):**
+  - `paths/path_def.gd` (`PathDef`, 1.5's fields plus `max_passives`, `basics`, `level_thresholds`, `taste_thresholds`, `max_picks`, `warn_line`). `threshold(level, tryout)` reads the taste list in a tryout (-1 past it: the meter stops quietly) or the level list, then +20 a level. `problems(file_id)`.
+  - `paths/path_db.gd` (`PathDB`, static, the RuleDB pattern; `owner_of_basic()`), scanning `res://paths/*.tres`.
+  - `paths/auto.tres`: `auto_all`, `levelups`, start `[pistol]`, 4 slots, 2 passives, `offer_pool_extra = []` (D3), ×1.6 / ×1.5 / ×0.7, kills ×2.0, boss ×1.3, widget `level`, bot policy `auto`, basics `[levelups, crowd]`, levels 3, 8, 15, 24, 36, 50, 66, 84 (+20), taste `[6]` (D5), 10 picks, warn line "worried: New version. Hands off the trigger." Only Auto exists (D4).
+- **Runtime:**
+  - `RunState.session_path` (S7's cue and F2; `reset()` clears it), `live_path()` (`&"off"` = none) and `path_def()`. `Weapon._no_path()` reads `live_path()`, the one shared-path change.
+  - Pickups get their own cap (`Tuning.hard_max_pickups = 60`) and `pending_count(kind)`. New EventBus signals: `pickup_taken`, `pick_offered`, `pick_made`, `level_up`. Pause reason `&"pick"`.
+  - **The crowd overlay** (`PathOverlay`, a session-layer `Mutation`, id `path_auto_crowd`, owner `&"path"`) lands with the new campaign basic **`crowd`** (D2), Auto's second path basic. It stays until the next scene's `RunState.reset()`: expiring it at the run's end would bump the build and log under the debrief.
+  - **Auto fire:** `Loadout.apply_path(def)` resets the loadout to the path's mode, slots and start weapons at exactly rank 1. `Loadout.auto_tick()` fires each aimed slot off its cooldown at `AutoFire.target_for` (the nearest visible enemy within 12 T; a blast weapon aims at the densest group). The player calls it instead of the fire button on `auto_all`. `player._auto_target` is untouched (D9).
+  - **Pickup** (`entities/pickup.gd/.tscn`, shared): gems join the `gem` group and never expire. Gems are pulled from 3 T and fly at 600 px/s; other kinds are pulled from 0.6 T, live 14 s and blink for their last 3 s. A pickup is taken within 0.5 T, and only by a living player (D10).
+  - **Auto's gems** (`paths/auto/gems.gd`) drop on player kills only (tank and bomber 3, the rest 1). At the cap, the oldest gem merges into its nearest gem. This draws nothing (lowest serial, nearest by distance), so the merge needs no `loot_rng`. When every gem is still entering the tree in that frame, the newest gem takes the value, so no gem's worth is lost.
+  - **The level meter** (`paths/auto/level_meter.gd`) stops at 10 picks with "thinking: That's enough levels for one test." (D6). A tryout meter stops quietly after one level. The widget (`paths/auto/level_widget.gd`) shows `LV n`, the held weapons and a bar, under the corner text (`hud.set_path_widget`).
+  - **`PickOffer`** draws up to 3 cards from `pick_rng` out of the live pool ∩ (session weapons + `offer_pool_extra`). It uses the session-local `Taste` raw weights, ×1.4 on upgrades (D7). A `give` cue forces card 1. Ranks stop at `Loadout.MAX_RANK` 3 (and passives at `max_passives`, aimed weapons at `max_slots`), and the filler is "+1 HP (this session)".
+  - **`PickPanel`** is its own CanvasLayer (layer 72), **not a PromptPanel subclass** (deviation from 0.4 / 1.5's wording; PromptPanel is untouched, so G1/G2 cannot move through it). It pauses through `&"pick"`, uses keys `choose_1..3` with `{key:choose_n}` labels, and has the 0.4 s real-time input delay. `dismiss()` always drops the pause reason.
+  - **`PathRunner`** (`paths/path_runner.gd`, shared) handles the following:
+    - Start or swap. A `path` cue says the target's `warn_line` at priority 3, then swaps 1.5 s later on the physics tick clock. A swap clears player shots and pickups, keeps enemies and plays one `Transition.glitch(0.6)` pulse, or a 0.4 s fade under reduce flashing (D12).
+    - The growth and the crowd, each as its basic arrives.
+    - **The live pool:** the start weapons, then each `give` or `say [tag]` cue. The pool is kept on the runner across swaps, not on SessionRunner (deviation from the map).
+    - The picks. A panel never opens over a rule edit's warning, an event, a pending swap, another pause or the end of the run. A live timed edit does not hold picks, so this is not `RuleBook.busy()`.
+    - The mascot's word after a pick (priority 1, muted with `--mute-ai`; D8).
+    - `stop()` on `run_ended`. Nothing is saved.
+  - `SessionRunner` handles `path` cues and a `give` under a levelups path: the weapon is offered first at the next level-up, and no slot is filled. Its context gains `level` and `picks`, which drive the `level N` and `picked N` whens.
+  - `TopdownGenre` multiplies a **kills** goal by `kill_goal_mult`; survive goals never scale. `Reactions` reads the run loop's goal for the kills progress (`_kill_goal()`). `_survive_left` still reads `session.goal_value`, because `--lift` sets the run loop's value and check.ps1's `bot_edits` uses `--lift=30`. `not_shooting` is silent on `auto_all`.
+  - The F2 debug overlay gains a PATH row: off / auto / arsenal (M46, disabled) / survival (M47, disabled), plus "+1 level". F1 gains `path=<id> level=n picks=n pickups=n`.
+- **Data checks:**
+  - `Cue.UNBUILT_*` lose `path`, `give`'s `[tag]`, `level` and `picked`. A plain `path` that is not in PathDB is refused as "path arsenal is not built yet (M46)" or "path survival is not built yet (M47)". `path off` passes.
+  - A `[tag]` must be in the session's weapons or a path's `offer_pool_extra`.
+  - Path basics follow 1.2's rule as built.
+  - The carry rule (CampaignDB) skips path basics.
+  - New campaign basics: `levelups` and `crowd`.
+- **Content:**
+  - **The S7 stub** (`s2_01_tryout`) is an Auto taste. Its cues:
+    - `at 13: path auto`
+    - `at 16` "It shoots for you."
+    - `at 20: add crowd` + "And more enemies."
+    - `at 24: give shotgun` + "I put a shotgun in your next level-up."
+    - `at 28: add levelups` + "Grab the gems."
+    - `picked 1` "See? Level up."
+    - `at 47` "That's a lot of them."
+
+    **Deviation:** the map's `at 10` path cue would land inside the 11.76 s intro (`Reactions.speak_seconds`, which the dash-aim spacing test uses), so every cue moved after it.
+  - **The S8 draft** (`campaign/drafts/s8_draft.tres`, D1) is outside `campaign.tres`. It plays path `auto`, survives 120 s, has `hp_floor 0` and uses the S6 basics. Its cues: `at 10: add levelups`, `at 14: add crowd`, `at 30: give shotgun`, each with its line. M47 turns it into `s2_02_day_one`.
+- **Bot and tools:**
+  - **BotInput** reads `PathDef.bot_policy` every tick; `""` is today's code, byte for byte. The `auto` policy never holds fire. It kites away from the densest of 8 sectors within 6 T when an enemy is within `keep_distance`, else walks to the nearest gem when no enemy is within 3 T, else orbits; an open exit gate always wins, also with no enemy left (gate, then gem, then orbit; review fix). `--probe=afk` gives no move, no dash, no jump and no fire.
+  - **`bot_runs.gd`** gains `--draft=<id>` (inserted at `cooking_index()`) and `--probe=afk`. Picks are chosen from `RunState.pick_rng`. With a path, `--loadout=` is forced after each path start and growth freezes (D13). The `--only` line ends with `path= level= picks= pickups=` (only when a path was live), `deaths:` gains `by_path=`, and a `paths:` summary line follows. The chain line gets the same fields after `card=`.
+  - **`check.ps1`'s `bot_s7_stub`** now expects `weapons=pistol:\d(,shotgun:\d)? path=auto level=2 picks=1 pickups=\d+`. There is no `bot_s8_draft` (D14).
+  - **`tools/path_lines.gd`** prints `[path_lines] arsenal=0 auto=N survival=0 budget=250` and exits 1 over budget.
+- **Tests:**
+  - New `tests/gut/test_paths.gd` (39 tests at build, 41 after the review), including G6 and G7 by name.
+  - `test_answers` takes M45a's unbuilt texts and the `[tag]` problem.
+  - `test_weapons`: the give at 24 with its say; the M44 switch line is now inline data.
+  - `test_stage2_door`: the stub carries `path auto`.
+  - `test_dash_aim`: the spacing tests include `path` cues.
+  - The mutation-id lint needs no `paths/` skip while `offer_pool_extra = []`. **M45b must skip `res://paths/`** as it skips `weapons/`.
+- **Known changes for later:** `warn_line` is the fallback warning; per-cue warnings come with S7 (M47). `camping` is kept on every path (D16).
+- **Numbers:**
+  - **G1:** v6, 4 runs, 0 failures. **G2:** gauntlet, 4/0. **G3:** campaign vs m43.3, 16/0. **G4:** S4 vs m42.2, 4/0. All four were run after the player/main.gd steps and again on the final tree.
+  - **G5:** `test_stage_1_rules_equal_the_m43_3_fixture_field_by_field` is green. The stub before its path cue equals S6's entry except `hp_floor` (test_paths).
+  - **G6:** `test_ten_picks_leave_the_stack_build_and_save_alone` is green.
+  - **G7:** `test_no_pick_carries_a_weapon_before_its_cue` is green (stub and draft).
+  - **G8** (S8 draft, 180 s, invincible, seeds 1i-16i): **10 level-ups on every seed** (gate 6-10). There are 10 picks per seed. Over the 16 runs, pickups have a median of 279.5 (262-291), kills 294.5 (284-298) and gems 124 (review fix: the first figures, 278 and 293, were medians of the four shard medians). The meter saturates (the 10-pick stop) well before 180 s.
+  - **G9** (mortal, 16 seeds): default `lose=16/16`, median_t **132.5 s**, hits contact 7, explosion 5, projectile 127, charge 1. Afk `lose=16/16`, median_t **28.1 s**, hits projectile 80. That is 0.21× the default, so **PASS** on both clauses.
+  - **G10:** the full GUT suite is **746/746** (707 + 39) standalone and **746/746** inside check.ps1, with no SCRIPT ERROR, Parse Error or ERROR lines. A first check run failed on one "5 resources still in use at exit" line. The cause was a test lambda that captured its own LevelMeter (a RefCounted cycle). It was fixed in the test; the runtime meter's callables are bound to the PathRunner node.
+  - **G11:** check.ps1 -BotRuns gave **CHECK PASSED** on that rerun. Every pre-existing `[botrun]` line is unchanged (invincible chain `play=225.8`), and the reworked `bot_s7_stub` passed: `outcome=win t=60.0 ... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=40`. The real-save snapshot also passed. export.ps1 gave **EXPORT PASSED** (PatchNotes.exe 104.9 MB).
+  - **Proof the gates bite:**
+    - With `Weapon._no_path()` forced to `false`, G3 gave **16 runs, 0 failures**, so it does **not** bite there. The no-path pistol reads `Tuning.shoot_cooldown` 0.18 and `projectile_speed` 900, which equal `pistol.tres`'s rank-1 values. The fire paths also agree, so the flip is invisible by construction (M44 proved the same gate with the knockback sentinel).
+    - A second bite on M45a's own code, with every kills goal doubled without a path, gave **16 runs, 12 failures**: S3, S5 and S6, but not S4's level goal. Both bites were reverted and not committed.
+- **Reported:**
+  - **R1:** mortal S8 draft, as in G9's default runs. Mortal S7 stub `3`: `win t=60.0 ... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=41`, hits projectile 3, kills 60.
+  - **R2:** `auto=182` of 250.
+  - **R3:** stub `3i`: `win t=60.0 ... weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=40`, kills 58. M44's line printed no kills, so there is no comparison.
+- **Review (7 findings, 7 upheld, all fixed; 3 of them are one G6 issue; each new or changed test fails with its fix reverted, checked):**
+  - **G6's patch-notes assert was vacuous** (3 findings): `game.get(&"patch_notes")` read a member Main does not have, so it compared null with null. `test_ten_picks_leave_the_stack_build_and_save_alone` now checks the real notes sources: the session's `notes`, `DebriefScreen.notes_text(session)` and the count of patch kinds in `RunState.run_log` (apply, revert, ai_apply, ai_remove, edit_landed, basic_added, big_swap), before and after the 10 picks. Bite: a pick that logs `apply` fails it (11 vs 1).
+  - **The `level N` / `picked N` test never touched the runner:** the Cue-only checks are now `test_level_and_picked_cues_parse`, and `test_a_level_cue_and_a_picked_cue_read_the_runner` plays the stub on Auto with levelups, injects `level 2: say ...`, fills the meter, picks, and asserts that both the injected cue and the stub's own `picked 1` cue fired and their lines were said. Bites: `"picks": 0` in SessionRunner's ctx fails the picked half; a misspelt `"level"` key fails the level half.
+  - **G8 medians:** were medians of the shard medians; now the true 16-run medians (pickups 279.5, kills 294.5), above.
+  - **The auto bot went to a gem before an open gate when no enemy was left:** `BotInput._auto_policy` now prefers the gate, then the gem, then the orbit, as its comment says. New `test_the_auto_bot_goes_to_the_gate_before_a_gem` (fails with the old order). No hash moves: Stage 1 and the v6 loop never use the auto policy.
+  - **The after_each telemetry assert could never fail:** it now asserts `not FileAccess.file_exists(TEST_LOG)` before the file is removed. Bite: a pick that calls `Telemetry.append` fails it in 6 tests. `_arena()` also awaits a frame after `set_input`, so the replaced HumanInput no longer shows as an orphan.
+  - **Reruns on the reviewed tree:** full GUT **748/748** (12483 asserts, 44 scripts, no SCRIPT ERROR / Parse Error / ERROR / resources-in-use lines); v6 compare 4 runs, 0 failures; gauntlet compare 4 runs, 0 failures; check.ps1 -BotRuns **CHECK PASSED** (748/748 inside, chain `play=225.8` unchanged, `bot_s7_stub` `weapons=pistol:1,shotgun:1 path=auto level=2 picks=1 pickups=40`); export.ps1 **EXPORT PASSED** (PatchNotes.exe 104.9 MB).
 
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**

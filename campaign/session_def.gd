@@ -19,7 +19,7 @@ const STAGES := &"stages"     ## won when the stage set's last part clears (M50)
 const BOSS := &"boss"         ## won when the boss's HP reaches 0 (M49)
 const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN, STAGES, BOSS]
 const FORK_ENEMY := &"fork:fork_enemy"
-## The path ids a `path` field may name (PLAN v9 1.5; PathDef arrives in M45a).
+## The path ids a `path` field may name (PLAN v9 1.5; PathDB has Auto from M45a).
 const PATHS: Array[StringName] = [&"arsenal", &"auto", &"survival"]
 const STAGE_SETS_DIR := "res://levels/stages/"
 
@@ -226,6 +226,44 @@ func _weapon_problems(where: String) -> Array[String]:
 			out.append("%s: cue '%s': unknown weapon %s" % [where, c.source, c.target])
 		elif not c.target in weapons:
 			out.append("%s: cue '%s': give %s: not in the session's weapons" % [where, c.source, c.target])
+	# M45a (the pool rule): a [tag] names a weapon the session lists or a path's extra.
+	for c in cue_list():
+		if c.problem != "" or c.tag == &"" or c.tag in weapons:
+			continue
+		if not PathDB.all().any(func(p: PathDef) -> bool: return c.tag in p.offer_pool_extra):
+			out.append("%s: cue '%s': [%s] is not in the session's weapons or a path's offer_pool_extra"
+					% [where, c.source, c.tag])
+	return out
+
+
+## M45a (PLAN v9 1.2, deferred from M43): a path's own basic (PathDef.basics: Auto's
+## levelups and crowd) belongs to that path. Outside a tryout, in a session whose path is
+## not its owner (a "fork:fork_path" session too), an `add` of it needs a positive
+## answer:path_<owner> in its condition, and another path's answer is the same problem; the
+## session's own `basics` may list it only when its path is the owner.
+func _path_basic_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	var own := path if fork_of(path) == &"" else &""
+	for b in basics:
+		var owner := PathDB.owner_of_basic(b)
+		if owner != &"" and not tryout and own != owner:
+			out.append("%s: basics list %s, %s's basic; it needs path %s" % [where, b, owner, owner])
+	for c in cue_list():
+		if c.problem != "" or c.action != &"add":
+			continue
+		var owner := PathDB.owner_of_basic(c.target)
+		if owner == &"" or tryout or own == owner:
+			continue
+		var want := "answer:path_%s" % owner
+		var has_want := false
+		var other := false
+		for part in c.cond.split("&", false):   # "!answer:..." parts are negative: neither
+			if part == want:
+				has_want = true
+			elif part.begins_with("answer:path_"):
+				other = true
+		if not has_want or other:
+			out.append("%s: cue '%s': %s is %s's basic; it needs %s" % [where, c.source, c.target, owner, want])
 	return out
 
 
@@ -271,6 +309,7 @@ func problems() -> Array[String]:
 		if ChangeDB.get_change(c) == null:
 			out.append("%s: ships unknown change %s" % [where, c])
 	out.append_array(_weapon_problems(where))
+	out.append_array(_path_basic_problems(where))
 	for k in cooking:
 		if k.strip_edges() == "":
 			out.append("%s: an empty cooking line" % where)

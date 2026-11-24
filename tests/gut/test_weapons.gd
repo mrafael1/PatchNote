@@ -745,10 +745,8 @@ func test_the_switch_line_names_the_keys_on_the_players_layout() -> void:
 	var azerty := func(physical: Key) -> Key:
 		return {KEY_W: KEY_Z, KEY_A: KEY_Q, KEY_Q: KEY_A, KEY_Z: KEY_W}.get(physical, physical)
 	var qwerty := func(physical: Key) -> Key: return physical
-	var s := CampaignDB.get_session(&"s2_01_tryout")
-	var says := s.cue_list().filter(func(c: Cue) -> bool: return c.action == &"say" and c.line.text.contains("switch"))
-	assert_eq(says.size(), 1)
-	var line: Line = says[0].line
+	# M45a: the stub is an Auto taste now (no switch line); M44's line, as data.
+	var line := Line.parse("happy: I built you a shotgun. {key:weapon_prev} and {key:weapon_next} to switch.")
 	assert_eq(line.problem, "")
 	assert_eq(SessionRunner.with_keys(line, azerty).text, "I built you a shotgun. A and E to switch.")
 	assert_eq(SessionRunner.with_keys(line, qwerty).text, "I built you a shotgun. Q and E to switch.")

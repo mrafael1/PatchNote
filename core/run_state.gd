@@ -20,13 +20,17 @@ var rules: WorldRules
 var stack: Array[Mutation] = []
 var big: Mutation             ## the big slot (PLAN v3 1.2); null = base gameplay
 var ai: Array[Mutation] = []  ## the AI layer (PLAN v4 1.2): live AI-tier patches, in add order
-var ai_owner := {}            ## AI patch id -> &"stage" or &"boss"
+var ai_owner := {}            ## AI patch id -> &"stage", &"boss", &"edit" (RuleBook) or &"path" (M45a)
 var patch_state := {}
 
 var genre: StringName         ## the run's genre (PLAN v5 1.1); set by reset(), never during a run
 ## The campaign session this run plays (PLAN v8 1.2); null = the v6 run loop. The
 ## shell sets it after reset(), before the genre builds.
 var session: SessionDef
+## PLAN v9 1.5 (M45a): the path S7's `path` cue (or F2, or a test) made live, overriding the
+## session's own; &"off" = forced none. &"" = read the session. Cleared by reset(), so a
+## new session (and the v6 loop) starts without it.
+var session_path: StringName = &""
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
@@ -463,6 +467,23 @@ func add_basic(id: StringName) -> void:
 	EventBus.basic_added.emit(id)
 
 
+## The path live now (PLAN v9 1.5, M45a): session_path when set (&"off" reads as none), even
+## with no session (F2 in the v6 loop); else the session's own (a "fork:" resolved from the
+## save); else &"" (Stage 1, the legacy loop: today's gun).
+func live_path() -> StringName:
+	if session_path != &"":
+		return &"" if session_path == &"off" else session_path
+	if session != null:
+		return session.resolve(&"path")
+	return &""
+
+
+## The live path's PathDef, or null.
+func path_def() -> PathDef:
+	var id := live_path()
+	return PathDB.get_def(id) if id != &"" else null
+
+
 func start_grace(seconds: float) -> void:
 	_grace_until = maxf(_grace_until, game_time + seconds)
 
@@ -493,6 +514,7 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	invincible = false
 	run_seed = new_seed
 	session = null
+	session_path = &""
 	session_added.clear()
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
@@ -565,7 +587,7 @@ func count(kind: StringName) -> int:
 
 
 ## Every entity calls this from _ready. Kinds: player, enemy, player_projectile,
-## enemy_projectile.
+## enemy_projectile, pickup (PLAN v9 1.6, M45a).
 func register_entity(entity: Node, kind: StringName) -> void:
 	entity.add_to_group(&"entities")
 	entity.add_to_group(kind)
@@ -610,12 +632,21 @@ func _under_cap(kind: StringName) -> bool:
 		var n := count(&"player_projectile") + count(&"enemy_projectile")
 		n += int(_pending.get(&"player_projectile", 0)) + int(_pending.get(&"enemy_projectile", 0))
 		return n < Tuning.hard_max_projectiles
+	if kind == &"pickup":
+		# PLAN v9 1.6: pickups have their own cap (Auto's gems merge before they reach it).
+		return count(&"pickup") + pending_count(&"pickup") < Tuning.hard_max_pickups
 	return true
+
+
+## Spawns of `kind` requested and not in the tree yet.
+func pending_count(kind: StringName) -> int:
+	return int(_pending.get(kind, 0))
 
 
 # --- Pause -----------------------------------------------------------------
 
 ## Reasons: &"prompt", &"history", &"transition", &"report", &"stage_card" (PLAN v9 2),
+## &"pick" (PickPanel, M45a),
 ## and &"turn" (B2: the
 ## world waits for the player's next action). The tree is paused
 ## while any reason is active.

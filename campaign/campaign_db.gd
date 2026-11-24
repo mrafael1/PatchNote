@@ -125,7 +125,10 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 		if s == null or next == null:
 			continue
 		for cue in s.cue_list():
-			if cue.action == &"add" and cue.problem == "" and not cue.target in next.basics:
+			# M45a: a path's own basic (PathDef.basics) is per path and per session: each
+			# session adds it again, so it does not carry.
+			if cue.action == &"add" and cue.problem == "" and not cue.target in next.basics \
+					and PathDB.owner_of_basic(cue.target) == &"":
 				out.append("campaign: %s adds %s but %s does not have it" % [s.id, cue.target, next.id])
 	if c == campaign:
 		for e in RuleDB.all():
@@ -191,8 +194,11 @@ static func _unbuilt_problems(s: SessionDef) -> Array[String]:
 	for cue in s.cue_list():
 		if cue.problem == "" and cue.action == &"give" and cue.rank > Loadout.MAX_RANK:
 			out.append("%s: cue '%s': rank %d is not built yet (M50.1)" % [where, cue.source, cue.rank])
-	if s.path != &"":
-		out.append("%s: path is not built yet (M45a)" % where)
+	# M45a: a path runs when PathDB has it (Auto); a fork:fork_path session fails
+	# problems() already (no fork until M47).
+	var path_id := s.resolve(&"path") if SessionDef.fork_of(s.path) == &"" else &""
+	if path_id != &"" and not PathDB.has(path_id):
+		out.append("%s: path %s is not built yet" % [where, path_id])
 	if s.stages != &"" or s.goal == SessionDef.STAGES:
 		out.append("%s: stages are not built yet (M50)" % where)
 	if s.hud != &"":

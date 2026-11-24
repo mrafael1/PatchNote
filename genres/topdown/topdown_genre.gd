@@ -144,7 +144,13 @@ func begin_run() -> void:
 	var session := RunState.session
 	if session != null:
 		# PLAN v8 1.2: the session's goal; the AI hands things over itself, no prompts.
-		run_loop.set_goal(session.goal, session.goal_value, session.time_limit)
+		# M45a (PLAN v9 1.2): a kills goal is multiplied by the session's path's
+		# kill_goal_mult (Auto x2); survive goals never scale; a tryout swap never rescales.
+		var goal_value := session.goal_value
+		var path := RunState.path_def()
+		if session.goal == SessionDef.KILLS and path != null:
+			goal_value = roundf(goal_value * path.kill_goal_mult)
+		run_loop.set_goal(session.goal, goal_value, session.time_limit)
 		shell.director.enabled = false
 	run_loop.begin()
 	var missing := Unlocks.missing_basics()

@@ -19,8 +19,10 @@ const BASICS: Array[StringName] = [&"movement", &"enemies", &"level"]
 ## that hit (`hits`) (owner, M39.2: "nothing by default", the AI adds each piece), and the
 ## version stamp (`version`, S5, M42). Outside a session these are always on (the v6 loop
 ## never ships them).
+## PLAN v9 1.2 (M45a): + `levelups` (Auto's gems, LV bar and level-ups) and `crowd` (Auto's
+## crowd overlay), Auto's path basics (PathDef.basics): nothing reads them without a live path.
 const CAMPAIGN_BASICS: Array[StringName] = [&"movement", &"shooting", &"dash", &"enemies", &"level",
-		&"health", &"hits", &"version"]
+		&"health", &"hits", &"version", &"levelups", &"crowd"]
 
 
 ## Patches that may be offered: the starters plus what shipped changes unlock, never

@@ -77,6 +77,18 @@ extends SceneTree
 ##                                the pistol). Each --only line then ends with
 ##                                weapons=<id:rank,...> (the loadout at the end), as it does
 ##                                for a session that lists weapons
+##   --draft=<id or res path>     with --only (M45a): loads campaign/drafts/<id>.tres and puts
+##                                it in this process's session list at cooking_index() (before
+##                                the first cooking session, or current_index() would clamp
+##                                past it), so --only=<id> plays the draft (the S8-draft: Auto)
+##   --probe=afk                  with --only (PLAN v9 4, M45a): a degenerate strategy: no move,
+##                                no dash, no jump, no fire (Auto still fires by itself). The
+##                                line gets probe=afk at its end
+##   (M45a) With a live path the --only line ends with path=<id> level=n picks=n pickups=n
+##   (pickups taken), "deaths:" adds by_path=, and a "paths:" summary follows; the chain line
+##   gets the same fields after card=. Pick panels are chosen with RunState.pick_rng. With a
+##   path, --loadout= is forced again each time the path starts, then growth is frozen (no
+##   gems, no level-ups: a fixed loadout for the whole session).
 ##   --answer=<fork>=<change>     with --campaign (PLAN v9 1.1, M43; repeatable): answers
 ##                                that fork with that option. With --only it ships before
 ##                                the session (before the seed answers its enemy fork); in
@@ -141,6 +153,8 @@ var dash_aim_arg := ""                       ## --dash-aim (M42.2): "" = by the 
 var answers := {}
 ## --loadout (M44): [[id, rank], ...]
 var loadout_arg: Array = []
+var draft_arg := ""                          ## --draft (M45a)
+var probe_arg := ""                          ## --probe (M45a): "" or afk
 
 
 func _initialize() -> void:
@@ -228,6 +242,14 @@ func _run() -> void:
 					quit(1)
 					return
 				loadout_arg.append([wid, wrank])
+		elif arg.begins_with("--draft="):
+			draft_arg = arg.trim_prefix("--draft=")
+		elif arg.begins_with("--probe="):
+			probe_arg = arg.trim_prefix("--probe=")
+			if probe_arg != "afk":
+				print("[botrun] FAILED: bad %s (--probe=afk)" % arg)
+				quit(1)
+				return
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=")
 			var fork_id := StringName(pair.get_slice("=", 0))
@@ -251,6 +273,9 @@ func _run() -> void:
 	var telemetry: GDScript = load("res://systems/telemetry.gd")
 	telemetry.log_path = LOG
 	if not _set_up_save():
+		quit(1)
+		return
+	if draft_arg != "" and not _insert_draft():
 		quit(1)
 		return
 	if not session_set.is_empty() and not _apply_session_set():
@@ -464,6 +489,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	var by_dash := {}        ## dash style -> [deaths, runs] (M42.1)
 	var by_aim := {}         ## aim or move -> [deaths, runs] (M42.2)
 	var all_kinds := {}      ## whole-run unblocked hits by kind
+	var by_path := {}        ## live path -> [deaths, runs] (M45a)
+	var path_runs: Array = []   ## {level, picks, pickups, gems, kills, id} per run with a path (M45a)
 	var bus: Node = root.get_node("EventBus")
 	var dash_count := {"uses": 0, "misses": 0, "fizzles": 0}
 	bus.player_dashed.connect(func() -> void: dash_count.uses = int(dash_count.uses) + 1)
@@ -490,6 +517,8 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		_skip_card(game)
 		run_state.invincible = invincible
 		game.player.set_bot(true)
+		if probe_arg != "":
+			game.player.input.set(&"probe", StringName(probe_arg))
 		dash_count.uses = 0
 		dash_count.misses = 0
 		dash_count.fizzles = 0
@@ -509,10 +538,19 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			game.session_runner.drop_cues(&"event")
 		var event_cue_at := _event_cue_at(game.session_runner)
 		var opened := false
+		var runner: Node = game.get(&"path_runner")
+		var forced_starts := 0
 		for frame in MAX_FRAMES:
 			if game.debrief.is_open():
 				opened = true
 				break
+			# M45a: --loadout= again after each path start (apply_path resets the loadout),
+			# then no growth; an open pick panel is chosen from pick_rng.
+			if runner != null and not loadout_arg.is_empty() and int(runner.get(&"starts")) != forced_starts:
+				forced_starts = int(runner.get(&"starts"))
+				_force_loadout(loadout)
+				runner.call(&"freeze")
+			_choose_pick(game)
 			if dash_arg == "none":
 				game.player.dash_locked = true   # a cue's apply_basics would unlock it
 			var t0: float = run_state.game_time
@@ -588,6 +626,18 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		var listed: Array = run_state.session.weapons if run_state.session != null else []
 		if loadout != null and is_instance_valid(loadout) and (not loadout_arg.is_empty() or not listed.is_empty()):
 			landed_text += " weapons=%s" % loadout.summary()
+		# M45a: at the very end, only when a path was live (every older assert holds).
+		var path_text := _path_text(runner)
+		landed_text += path_text
+		if path_text != "":
+			var pid := String(runner.get(&"path_id"))
+			var pp: Array = by_path.get(pid, [0, 0])
+			by_path[pid] = [int(pp[0]) + (1 if died else 0), int(pp[1]) + 1]
+			path_runs.append({"level": int(runner.call(&"level")), "picks": int(runner.get(&"picks")),
+					"pickups": int(runner.get(&"pickups_taken")), "gems": int(runner.call(&"gems")),
+					"kills": int(rec.get("kills", run_state.kills)), "id": pid})
+		if probe_arg != "":
+			landed_text += " probe=%s" % probe_arg
 		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
@@ -622,11 +672,24 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 	aim_ids.sort()
 	for d: String in aim_ids:
 		aim_parts.append("%s:%d/%d" % [d, by_aim[d][0], by_aim[d][1]])
-	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s by_aim=%s hits=%s%s" % [
+	var path_parts: Array = []
+	var path_ids: Array = by_path.keys()
+	path_ids.sort()
+	for d: String in path_ids:
+		path_parts.append("%s:%d/%d" % [d, by_path[d][0], by_path[d][1]])
+	print("[botrun] deaths: %s lose=%d/%d win=%d stopped=%d median_t=%.1f by_enemy=%s by_dash=%s by_aim=%s hits=%s%s%s" % [
 		only, int(outcomes.get("lose", 0)) + int(outcomes.get("died", 0)), specs.size(),
 		int(outcomes.get("win", 0)), int(outcomes.get("stopped", 0)), _median(durations),
 		_join_or_dash(enemy_parts), _join_or_dash(dash_parts), _join_or_dash(aim_parts), _kinds_text(all_kinds),
-		" edit=%s" % cond if cond != "" else ""])
+		" edit=%s" % cond if cond != "" else "", " by_path=%s" % ",".join(path_parts) if not path_parts.is_empty() else ""])
+	if not path_runs.is_empty():
+		var col := func(key: String) -> Array: return path_runs.map(func(r: Dictionary) -> int: return int(r[key]))
+		var levels: Array = col.call("level")
+		print("[botrun] paths: %s %s levels median=%.1f min=%d max=%d levelups=%s picks median=%.1f pickups median=%.1f gems median=%.1f kills median=%.1f per_seed_kills=%s" % [
+			only, ",".join(path_ids), _median(levels), levels.min(), levels.max(),
+			",".join(levels.map(func(l: int) -> String: return str(l - 1))), _median(col.call("picks")),
+			_median(col.call("pickups")), _median(col.call("gems")), _median(col.call("kills")),
+			",".join(col.call("kills").map(func(k: int) -> String: return str(k)))])
 	if int(ev_stats.reached) + int(ev_stats.died_before) > 0:
 		var reached := int(ev_stats.reached)
 		var rate := float(ev_stats.died_during) / maxf(1.0, reached)
@@ -819,6 +882,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			if game.debrief.is_open():
 				opened = true
 				break
+			_choose_pick(game)   # M45a: an in-run pick panel, from pick_rng
 			await physics_frame
 		played += 1
 		step += 1
@@ -865,6 +929,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 		line += " version=%s->%s" % [version_before, load("res://core/save_game.gd").call(&"version").label()]
 		if card_stage > 0:
 			line += " card=%d" % card_stage   # PLAN v9 2: last, so the Stage 1 lines stay byte-identical
+		line += _path_text(game.get(&"path_runner"))   # M45a: after card=, only with a live path
 		print(line)
 		if last:
 			break
@@ -905,6 +970,48 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 	print("[botrun] save: %s version=%s campaign=%s shipped=%s" % [save_arg if save_arg != "" else "in memory",
 			save.call(&"version").label(), JSON.stringify(state.campaign), JSON.stringify(state.shipped)])
 	return failures
+
+
+## --draft (M45a): the draft session joins this process's list at cooking_index(), before
+## the first cooking session, so a jump to it is not clamped back to the cooking one.
+func _insert_draft() -> bool:
+	if not campaign or only == &"":
+		print("[botrun] FAILED: --draft needs --campaign --only=<id>")
+		return false
+	var path := draft_arg if draft_arg.begins_with("res://") else "res://campaign/drafts/%s.tres" % draft_arg
+	var d: Resource = load(path) if ResourceLoader.exists(path) else null
+	if d == null or d.get(&"id") == null:
+		print("[botrun] FAILED: no draft session at %s" % path)
+		return false
+	var db: Node = root.get_node("CampaignDB")
+	var problems: Array = d.call(&"problems")
+	if not problems.is_empty():
+		print("[botrun] FAILED: draft %s: %s" % [path, "; ".join(problems)])
+		return false
+	var at: int = db.call(&"cooking_index")
+	(db.get(&"campaign").get(&"sessions") as Array).insert(at, d)
+	print("[botrun] draft %s inserted at %d" % [d.get(&"id"), at])
+	return true
+
+
+## The PathRunner's line fields (M45a): " path=<id> level=n picks=n pickups=n", or "" when
+## no path was live.
+static func _path_text(runner: Node) -> String:
+	if runner == null or int(runner.get(&"starts")) == 0:
+		return ""
+	var id := String(runner.get(&"path_id"))
+	return " path=%s level=%d picks=%d pickups=%d" % [id if id != "" else "off", int(runner.call(&"level")),
+			int(runner.get(&"picks")), int(runner.get(&"pickups_taken"))]
+
+
+## An open pick panel gets a card from RunState.pick_rng (PLAN v9 4). True if it chose.
+func _choose_pick(game: Node) -> bool:
+	var panel: Node = game.get(&"pick_panel")
+	if panel == null or not panel.call(&"can_choose"):
+		return false
+	var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
+	panel.call(&"choose", root.get_node("RunState").get(&"pick_rng").randi_range(0, n - 1))
+	return true
 
 
 ## --session-set (M42): each session it names becomes a copy with the field set, in

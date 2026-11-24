@@ -150,6 +150,21 @@ func goal_shown() -> String:
 	return _goal.text
 
 
+## PLAN v9 1.5 (M45a): the live path's widget (Auto's LV bar) under the corner text; null
+## takes it away. Nothing else in the HUD changes.
+var path_widget: Control
+
+
+func set_path_widget(widget: Control) -> void:
+	if is_instance_valid(path_widget) and path_widget != widget:
+		path_widget.queue_free()
+	path_widget = widget
+	if widget != null and widget.get_parent() != self:
+		if widget.get_parent() != null:
+			widget.get_parent().remove_child(widget)
+		add_child(widget)
+
+
 func banner_shown() -> bool:
 	return _banner.visible
 

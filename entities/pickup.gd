@@ -1,0 +1,84 @@
+class_name Pickup
+extends Node2D
+## Something on the floor the player takes by walking over it (PLAN v9 1.6, M45a): Auto's
+## gems now; Survival's weapons, ammo, heal and battery reuse it (M47). Registered as the
+## RunState kind `pickup` (its own cap, Tuning.hard_max_pickups). Gems never expire and fly
+## to the player within 3 T; the others live 14 s, blink for their last 3 s and are pulled
+## only from 0.6 T. Only the player takes one (no physics layers: a distance check).
+
+signal taken(pickup: Pickup)
+
+const KINDS: Array[StringName] = [&"gem", &"weapon", &"ammo", &"heal", &"battery"]
+const GEM_GROUP := &"gem"
+const GEM_COLOR := Color(0.45, 0.95, 1.0)
+const OTHER_COLOR := Color(1.0, 0.85, 0.35)
+
+var kind: StringName = &"pickup"
+var pickup_kind: StringName = &"gem"
+var value := 1                    ## a gem's worth (Auto's level meter)
+var weapon_id: StringName = &""   ## a weapon pickup's weapon (M47)
+var serial := 0                   ## spawn order (the gem merge takes the oldest; no instance ids)
+var age := 0.0
+
+var _player: Node2D
+
+
+func _ready() -> void:
+	if is_gem():
+		add_to_group(GEM_GROUP)
+	RunState.register_entity(self, kind)
+	queue_redraw()
+
+
+func is_gem() -> bool:
+	return pickup_kind == &"gem"
+
+
+func pull_radius() -> float:
+	return Tuning.pickup_pull_gem if is_gem() else Tuning.pickup_pull_other
+
+
+func _physics_process(delta: float) -> void:
+	age += delta
+	if not is_gem():
+		if age >= Tuning.pickup_lifetime:
+			queue_free()
+			return
+		var left := Tuning.pickup_lifetime - age
+		modulate.a = 0.3 if left <= Tuning.pickup_blink and fmod(age * 8.0, 2.0) < 1.0 else 1.0
+	var p := _find_player()
+	if p == null:
+		return
+	var d := global_position.distance_to(p.global_position)
+	if d > Tuning.pickup_take_radius and d <= pull_radius():
+		global_position = global_position.move_toward(p.global_position, Tuning.pickup_fly_speed * delta)
+		d = global_position.distance_to(p.global_position)
+	if d <= Tuning.pickup_take_radius:
+		take()
+
+
+## The player takes it: the signals, then it is gone.
+func take() -> void:
+	if is_queued_for_deletion():
+		return
+	taken.emit(self)
+	EventBus.pickup_taken.emit(pickup_kind, weapon_id)
+	queue_free()
+
+
+func _find_player() -> Node2D:
+	if not is_instance_valid(_player):
+		_player = get_tree().get_first_node_in_group(&"player") as Node2D
+	if _player == null:
+		return null
+	var health: Variant = _player.get(&"health")
+	if health is Health and (health as Health).dead:
+		return null
+	return _player
+
+
+func _draw() -> void:
+	var r := 7.0 if is_gem() else 10.0
+	var c := GEM_COLOR if is_gem() else OTHER_COLOR
+	draw_colored_polygon(PackedVector2Array([Vector2(0, -r), Vector2(r * 0.7, 0), Vector2(0, r),
+			Vector2(-r * 0.7, 0)]), c)

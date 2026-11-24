@@ -57,6 +57,24 @@ func _ready() -> void:
 	clear_button.text = "clear (pistol only)"
 	clear_button.pressed.connect(clear_weapons)
 	box.add_child(clear_button)
+	# PATH (M45a): switch the live path now, no warning (debug only; the v6 loop too).
+	var path_heading := Label.new()
+	path_heading.text = "PATH (switch live, debug only)"
+	box.add_child(path_heading)
+	var path_row := HBoxContainer.new()
+	box.add_child(path_row)
+	for pair: Array in [[&"off", ""], [&"auto", ""], [&"arsenal", "M46"], [&"survival", "M47"]]:
+		var pb := Button.new()
+		pb.focus_mode = Control.FOCUS_NONE
+		pb.text = String(pair[0]) if pair[1] == "" else "%s (%s)" % [pair[0], pair[1]]
+		pb.disabled = pair[1] != ""
+		pb.pressed.connect(switch_path.bind(pair[0]))
+		path_row.add_child(pb)
+	var level_button := Button.new()
+	level_button.focus_mode = Control.FOCUS_NONE
+	level_button.text = "+1 level"
+	level_button.pressed.connect(add_level)
+	path_row.add_child(level_button)
 	# Rule edits (PLAN v8 1.4): through the rule book, warning included.
 	var edits_heading := Label.new()
 	edits_heading.text = "RULE EDITS (campaign session: click to request with its warning / take back)"
@@ -127,6 +145,24 @@ func give_weapon(id: StringName) -> bool:
 	var ok := lo != null and lo.give(id)
 	_refresh_weapons()
 	return ok
+
+
+## F2's PATH row (M45a): the path runner (made if missing) swaps now, no warning.
+func switch_path(id: StringName) -> bool:
+	if game == null or not game.has_method(&"ensure_path_runner"):
+		return false
+	if id != &"off" and not PathDB.has(id):
+		return false
+	game.ensure_path_runner().swap_now(id)
+	_refresh_weapons()
+	return true
+
+
+## F2's "+1 level": the live meter jumps to its next level (a pick follows).
+func add_level() -> void:
+	var runner: PathRunner = game.get(&"path_runner") if game else null
+	if runner != null:
+		runner.force_level()
 
 
 func clear_weapons() -> void:
@@ -335,6 +371,8 @@ func _build_text() -> String:
 	if lo != null:
 		var w := lo.current()
 		lines.append("weapon=%s:%d loadout=%s" % [w.def.id if w else &"-", w.rank if w else 0, lo.summary()])
+	var runner: PathRunner = game.get(&"path_runner") if game else null
+	lines.append(runner.state_text() if runner != null else "path=- level=- picks=0 pickups=0")
 	lines.append("kills by source: %s" % [RunState.kills_by_source])
 	lines.append("F1 info  F2 console  F3 invincible  F4 wave  F5 restart  F6 prompt  F7 bot  F9 dev session  Shift+F9 ship next")
 	return "\n".join(lines)

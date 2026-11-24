@@ -382,14 +382,15 @@ func test_dash_conditions_join_with_and() -> void:
 ## priority 3, cuts a line and drops it). The mascot holds each line for its typing plus
 ## its read time (Reactions.speak_seconds), one after another, so every intro, for every
 ## face, dash style and direction, must be over before the first cue that speaks over
-## it (an edit's warning or an event), with a margin for frames.
+## it (an edit's warning or an event; M45a: a `path` cue's warning too, PLAN 5 Lines), with a
+## margin for frames.
 func test_every_intro_ends_before_its_first_edit_or_event() -> void:
 	const MARGIN := 0.25
 	var checked := 0
 	for s in CampaignDB.campaign.sessions:
 		var first := INF
 		for c in s.cue_list():
-			if c.when == &"at" and c.action in [&"edit", &"event"]:
+			if c.when == &"at" and c.action in [&"edit", &"event", &"path"]:
 				first = minf(first, c.value)
 		if first == INF:
 			continue
@@ -427,7 +428,7 @@ func test_every_timed_line_ends_before_the_next_edit_or_event() -> void:
 				continue
 			var next := INF
 			for c in cues:
-				if c.when == &"at" and c.action in [&"edit", &"event"] and c.value >= say.value:
+				if c.when == &"at" and c.action in [&"edit", &"event", &"path"] and c.value >= say.value:
 					next = minf(next, c.value)
 			if next == INF:
 				continue

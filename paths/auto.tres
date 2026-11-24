@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="PathDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://paths/path_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"auto"
+fire_mode = &"auto_all"
+growth = &"levelups"
+start = Array[StringName]([&"pistol"])
+max_slots = 4
+max_passives = 2
+offer_pool_extra = Array[StringName]([])
+spawn_rate_mult = 1.6
+max_enemies_mult = 1.5
+enemy_hp_mult = 0.7
+kill_goal_mult = 2.0
+boss_hp_mult = 1.3
+widget = &"level"
+bot_policy = &"auto"
+basics = Array[StringName]([&"levelups", &"crowd"])
+level_thresholds = PackedInt32Array(3, 8, 15, 24, 36, 50, 66, 84)
+taste_thresholds = PackedInt32Array(6)
+max_picks = 10
+warn_line = "worried: New version. Hands off the trigger."

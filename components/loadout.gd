@@ -16,7 +16,7 @@ const OrbitWeaponShards := preload("res://weapons/orbit_weapon_shards.gd")
 var slots: Array[Weapon] = []      ## aimed
 var passives: Array[Weapon] = []
 var active := 0
-var fire_mode: StringName = &"manual_one"   ## the only mode in M44 (paths add more, M45a)
+var fire_mode: StringName = &"manual_one"   ## PathDef.FIRE_MODES; set by apply_path (M45a)
 var max_slots := 3                          ## no path (D5); paths set their own
 
 var _passive_nodes := {}   ## weapon id -> its node on the host
@@ -148,6 +148,46 @@ func clear() -> void:
 	slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
 	active = 0
 	EventBus.weapon_changed.emit(PISTOL, 1)
+
+
+## A path starts (M45a, PathRunner): back to nothing, the path's fire mode and slots, then its
+## start weapons at exactly rank 1 (never give(), which ranks a held pistol up). null: the
+## no-path state (manual_one, 3 slots, the pistol at rank 1).
+func apply_path(def: PathDef) -> void:
+	clear()
+	fire_mode = def.fire_mode if def != null else &"manual_one"
+	max_slots = def.max_slots if def != null else 3
+	if def == null or def.start.is_empty():
+		return
+	slots.clear()
+	for id in def.start:
+		set_weapon(id, 1)
+	if slots.is_empty():
+		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
+	active = 0
+
+
+## Auto (fire_mode auto_all, M45a): every aimed weapon off its cooldown fires on its own at
+## its target (AutoFire), through Shooter.fire, with try_fire's bookkeeping. Returns the
+## weapons that fired this tick.
+func auto_tick() -> int:
+	var host := get_parent() as Node2D
+	var s := shooter()
+	if host == null or s == null:
+		return 0
+	var fired := 0
+	for w in slots:
+		if w.ready_in > 0.0:
+			continue
+		var target := AutoFire.target_for(host, w)
+		if target == null:
+			continue
+		if s.fire(w, target.global_position - host.global_position, true).is_empty():
+			continue
+		w.ready_in = float(w.value(&"cooldown"))
+		w.shots += 1
+		fired += 1
+	return fired
 
 
 ## "pistol:1,shotgun:2" (slot order, then passives).

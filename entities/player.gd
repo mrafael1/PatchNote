@@ -103,6 +103,10 @@ func _physics_process(_delta: float) -> void:
 			dasher.use(_facing, input.aim_dir)
 	if shooting_locked:
 		return
+	if loadout.fire_mode == &"auto_all":
+		# Auto (PLAN v9 1.5, M45a): every weapon fires on its own; the fire button does nothing.
+		loadout.auto_tick()
+		return
 	if input.switch_step != 0:
 		loadout.switch(input.switch_step)
 	if input.fire:

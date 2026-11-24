@@ -140,6 +140,15 @@ var projectile_knockback := 240.0
 var hard_max_enemies := 150
 var hard_max_projectiles := 200
 var max_split_generation := 1   # enemies at this generation never split again
+var hard_max_pickups := 60       # PLAN v9 1.6 (M45a): pickups' own cap (gems merge first)
+
+# --- Pickups (PLAN v9 1.6, M45a) ---
+var pickup_pull_gem := 3.0 * TILE      # gems fly to the player from this close
+var pickup_pull_other := 0.6 * TILE    # other pickups only from this close
+var pickup_fly_speed := 600.0          # px/s while pulled
+var pickup_take_radius := 0.5 * TILE   # the player takes it within this
+var pickup_lifetime := 14.0            # seconds (gems never expire)
+var pickup_blink := 3.0                # blinks for its last seconds
 
 # --- Transition ---
 var wall_bounce_kick := 240.0       # rule edit wall_bounce (PLAN v8 1.4): px/s pushed off the wall

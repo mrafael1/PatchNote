@@ -25,6 +25,9 @@ var genre: Genre
 var hits := 0
 var rule_book: RuleBook   ## set by main.gd: where "edit" cues go
 var event_player: EventPlayer   ## set by main.gd: where "event" cues go
+## Set by main.gd (M45a) in a session with a path or a tryout: where "path" cues go, the
+## live pool (give / tagged say) and the level / picks the whens read. Null in Stage 1.
+var path_runner: PathRunner
 var touched := false   ## something tried to hurt the player before `health` (cue "touch")
 ## --mute-ai (PLAN v8 4): nothing is said; cues that act still fire. The fun-before-
 ## meta check.
@@ -99,7 +102,9 @@ func _physics_process(_delta: float) -> void:
 		return
 	var ctx := {"clock": genre.session_clock(), "kills": RunState.kills,
 			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched,
-			"hp": _player_hp()}
+			"hp": _player_hp(),
+			"level": path_runner.level() if path_runner != null else -1,
+			"picks": path_runner.picks if path_runner != null else 0}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
@@ -149,8 +154,13 @@ func _fire(cue: Cue, index: int) -> void:
 	RunState.log_event(&"cue", {"index": index, "action": String(cue.action)})
 	match cue.action:
 		&"say":
+			if cue.tag != &"" and path_runner != null:
+				path_runner.announce(cue.tag)   # M45a, the pool rule: said, so it may be offered
 			if cue.line.passes(CampaignDB.line_context(session)):
 				say(cue.line)
+		&"path":
+			if path_runner == null or not path_runner.request_swap(cue.target):
+				push_warning("Session %s: path %s refused" % [session.id, cue.target])
 		&"spawn":
 			var archetype := _resolve_archetype(cue.archetype)
 			if archetype == &"":
@@ -168,7 +178,10 @@ func _fire(cue: Cue, index: int) -> void:
 			else:
 				event_player.play(cue.target, &"cue")   # false: seen (skipped) or busy
 		&"give":
-			# M44: with no path, a free slot (or a rank up). Paths redefine it (M45a-M47).
+			# M44: with no path, a free slot (or a rank up). M45a: the weapon joins the live
+			# pool, and under Auto the next level-up offers it first instead (no slot filled).
+			if path_runner != null and path_runner.give(cue.target):
+				return
 			var loadout: Loadout = null
 			if genre != null and is_instance_valid(genre.player):
 				loadout = Component.find(genre.player, Loadout) as Loadout

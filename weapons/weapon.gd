@@ -49,5 +49,7 @@ func label() -> String:
 	return "%s %s" % [def.title, ["I", "II", "III", "IV"][clampi(rank, 1, 4) - 1]]
 
 
+## No live path (M45a: RunState.live_path(), which reads S7's / F2's session_path first):
+## Stage 1 and the legacy loop, where the pistol is today's gun.
 static func _no_path() -> bool:
-	return RunState.session == null or RunState.session.path == &""
+	return RunState.live_path() == &""

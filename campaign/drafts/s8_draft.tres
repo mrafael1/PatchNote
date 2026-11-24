@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s8_draft"
+stage = 2
+title = "Day one (draft, Auto)"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits", &"version"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
+spawn_rate = 1.3
+spawn_cap = 1.3
+path = &"auto"
+hp_floor = 0
+goal = &"survive"
+goal_value = 120.0
+face = true
+intro = PackedStringArray("happy: Auto. Don't touch the trigger. I mean it.", "thinking: Two minutes. I'll build it properly this time.")
+weapons = Array[StringName]([&"pistol", &"shotgun"])
+cues = PackedStringArray("at 10: add levelups", "at 10: say happy: Remember the gems? Now they count. Real levels, a real bar.", "at 14: add crowd", "at 14: say worried: And I made the crowd bigger again. Sorry. You need it.", "at 30: give shotgun", "at 30: say happy: The shotgun's in. Close range, big mess.")
+debrief = PackedStringArray("won happy: Day one. It works!", "died guilty: Day one bugs. Want another go, or should I just patch it?")
+bump = &"patch"
+notes = PackedStringArray("Day one (draft)")

@@ -47,10 +47,14 @@ const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
 ## Parsed and validated, but nothing runs them yet: CampaignDB.problems() refuses each in
 ## the campaign's data ("not built yet"). Each later milestone shrinks these lists.
-## M44: give runs (SessionRunner -> Loadout.give).
-const UNBUILT_ACTIONS: Array[StringName] = [&"path", &"drop", &"look", &"boss"]
-const UNBUILT_WHENS: Array[StringName] = [&"room", &"boss_hp", &"level", &"picked"]
-const UNBUILT_TAG := true   ## a "[tag]" cue: the pool rule that reads it comes with offers (M45a)
+## M44: give runs (SessionRunner -> Loadout.give). M45a: path (PathRunner; Arsenal and
+## Survival still refused, unbuilt()), the whens level and picked, and [tag] (the pool rule).
+const UNBUILT_ACTIONS: Array[StringName] = [&"drop", &"look", &"boss"]
+const UNBUILT_WHENS: Array[StringName] = [&"room", &"boss_hp"]
+const UNBUILT_TAG := false   ## M45a: a "[tag]" say cue adds its weapon to the live pool
+## The `path` targets whose PathDef is not built yet (M46 Arsenal, M47 Survival). An explicit
+## list: `off` is never a PathDB id and must pass.
+const UNBUILT_PATHS := {&"arsenal": "M46", &"survival": "M47"}
 
 var when: StringName = &""
 var value := 0.0
@@ -205,6 +209,8 @@ static func parse(p_source: String) -> Cue:
 func unbuilt() -> String:
 	if action in UNBUILT_ACTIONS:
 		return "%s is not built yet" % action
+	if action == &"path" and UNBUILT_PATHS.has(target):
+		return "path %s is not built yet (%s)" % [target, UNBUILT_PATHS[target]]
 	if when in UNBUILT_WHENS:
 		return "%s is not built yet" % when
 	if UNBUILT_TAG and tag != &"":
@@ -239,7 +245,8 @@ func due(ctx: Dictionary) -> bool:
 		&"hp":
 			var hp := float(ctx.get("hp", -1.0))
 			return hp > 0.0 and hp <= value
-		# PLAN v9 1.3: nothing supplies these keys in M43, so they are never due yet.
+		# PLAN v9 1.3: room / boss_hp keys come later (M49, M50); level and picks come from the
+		# PathRunner (M45a; -1 / 0 without one).
 		&"room":
 			return int(ctx.get("room", -1)) == int(value) and float(ctx.get("room_clock", -1.0)) >= maxf(at_seconds, 0.0)
 		&"boss_hp":

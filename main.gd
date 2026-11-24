@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M44"
+const BUILD := "M45a"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -28,6 +28,10 @@ var event_player: EventPlayer   ## scripted events (PLAN v8 1.5); null in the ru
 var debug: DebugOverlay        ## F1-F9 tools (tests reach F2 through it)
 var debrief: DebriefScreen          ## after a campaign session (PLAN v8 1.2)
 var stage_card: StageCard   ## before a new stage's first session (PLAN v9 2); null otherwise
+## The live path and its pick panel (PLAN v9 1.5, M45a): only in a session with a path or a
+## tryout, or once F2's PATH asks (ensure_path_runner). Null in Stage 1 and the v6 loop.
+var path_runner: PathRunner
+var pick_panel: PickPanel
 var sound: Sound
 
 ## Read-only forwarders to the genre's nodes, so tests and tools keep working. They
@@ -188,9 +192,33 @@ func _ready() -> void:
 	debug.game = self
 	add_child(debug)
 
+	if RunState.session != null and (RunState.live_path() != &"" or RunState.session.tryout):
+		ensure_path_runner().begin()
+
 	EventBus.player_died.connect(_on_player_died)
 	EventBus.run_ended.connect(_on_run_ended)
 	EventBus.run_started.emit(run_seed)
+
+
+## The PathRunner and its PickPanel, made on first use (a path or tryout session at boot,
+## F2's PATH in any scene, the v6 loop included).
+func ensure_path_runner() -> PathRunner:
+	if path_runner != null:
+		return path_runner
+	pick_panel = PickPanel.new()
+	pick_panel.name = "PickPanel"
+	add_child(pick_panel)
+	path_runner = PathRunner.new()
+	path_runner.name = "PathRunner"
+	path_runner.game = self
+	path_runner.panel = pick_panel
+	path_runner.muted = session_runner != null and session_runner.muted
+	add_child(path_runner)
+	if session_runner != null:
+		session_runner.path_runner = path_runner
+	if genre != null and genre.is_over():
+		path_runner.stop()
+	return path_runner
 
 
 ## Debug wave (F-key, screenshots): the genre's own, if it has one.
@@ -313,6 +341,8 @@ func _on_player_died() -> void:
 
 
 func _on_run_ended(outcome: StringName) -> void:
+	if path_runner != null:
+		path_runner.stop()   # M45a: the pick panel closes with its pause reason
 	if RunState.session != null:
 		# A campaign session logs one line when the player picks the way on (_end_session).
 		prompt_panel.dismiss()

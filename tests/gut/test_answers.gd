@@ -394,11 +394,23 @@ func test_path_cues_need_a_tryout_and_new_things_are_not_built_yet() -> void:
 	s.path = &"auto"
 	s.hp_floor = 1
 	var text := "\n".join(CampaignDB.problems(_campaign([s])))
-	for expected in ["cue 'at 3: path auto': path is not built yet", "[tag] is not built yet",
-			"level is not built yet", "room is not built yet", "checkpoint is not built yet",
-			"stages are not built yet", "path is not built yet (M45a)",
-			"spawn_weights are not built yet"]:
+	for expected in ["room is not built yet", "checkpoint is not built yet",
+			"stages are not built yet", "spawn_weights are not built yet",
+			"[laser] is not in the session's weapons or a path's offer_pool_extra"]:
 		assert_string_contains(text, expected)
+	# M45a: path auto, [tag], level and picked are built.
+	for gone in ["path is not built yet", "[tag] is not built yet", "level is not built yet", "path auto"]:
+		assert_false(gone in text, gone)
+	s.cues = PackedStringArray(["at 3: path arsenal", "at 4: path survival", "at 5: path off", "picked 1: say x"])
+	s._parsed = false
+	text = "\n".join(CampaignDB.problems(_campaign([s])))
+	assert_string_contains(text, "path arsenal is not built yet (M46)")
+	assert_string_contains(text, "path survival is not built yet (M47)")
+	assert_false("path off" in text, "off is never a PathDB id and passes")
+	assert_false("picked" in text)
+	s.path = &"arsenal"
+	assert_string_contains("\n".join(CampaignDB.problems(_campaign([s]))), "path arsenal is not built yet")
+	s.path = &"auto"
 	assert_false("hp_floor" in text, "the floor is built")
 	assert_false("weapons" in text, "weapons are built (M44)")
 	s.goal = SessionDef.BOSS
