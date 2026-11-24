@@ -204,11 +204,11 @@ if ($BotRuns) {
     if (([regex]::Matches($edits.Text, '\[botrun\] summary: s1_04_level x1, .* 0 failures')).Count -ne 6) { $failures += 'bot_edits: a forced edit run failed' }
     if (([regex]::Matches($edits.Text, 'edit=edit_\w+ landed=edit_\w+@13\.5')).Count -ne 6) { $failures += 'bot_edits: a forced edit did not land at 13.5 s' }
     # PLAN v8 M41: wrong_variable plays every step in S5 (invincible seed) and the session is still won.
-    # M43.2 (G13b): a 25-kill goal, the event at 20 s, 2.5 s longer per direction (19 s).
+    # M43.3 (owner): a 20-kill goal, the event at 20 s, 2.5 s longer per direction (19 s).
     $ev = Invoke-Godot 'bot_event' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s1_05_wrong 3i'
     Test-Errors 'bot_event' $ev
     Select-String -Path $ev.Log -Pattern '^\[botrun\] events:' | ForEach-Object { Write-Host "    $($_.Line)" }
-    if ($ev.Text -notmatch 'outcome=win t=67\.0 enemy=\w+ event=wrong_variable@20\.0-39\.0 steps=6/6') { $failures += 'bot_event: wrong_variable did not play fully' }
+    if ($ev.Text -notmatch 'outcome=win t=61\.8 enemy=\w+ event=wrong_variable@20\.0-39\.0 steps=6/6') { $failures += 'bot_event: wrong_variable did not play fully' }
     if ($ev.Text -notmatch '\[botrun\] summary: s1_05_wrong x1, .* 0 failures') { $failures += 'bot_event: run failed' }
     # M43.2 (G13b): S6's slow-mo lands with the flip (a quiet cue at the same kill count:
     # 1-3 ticks after it, within the printed 0.1 s), replacing M42's "hp 2" cue.

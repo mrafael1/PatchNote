@@ -262,10 +262,10 @@ func test_s3_is_ten_kills() -> void:
 	assert_eq(s.problems(), [] as Array[String])
 
 
-## M43.2 (G13b): S5 is a 25-kill goal; nothing it says counts seconds any more.
+## M43.2 (G13b): S5 is a 20-kill goal; nothing it says counts seconds any more.
 func test_s5_lines_fit_a_kill_goal() -> void:
 	var s := CampaignDB.get_session(&"s1_05_wrong")
-	assert_eq([s.goal, s.goal_value, s.time_limit], [SessionDef.KILLS, 25.0, 150.0])
+	assert_eq([s.goal, s.goal_value, s.time_limit], [SessionDef.KILLS, 20.0, 150.0])
 	var texts: Array[String] = []
 	for l in s.intro_lines() + s.debrief_lines():
 		texts.append(l.text)

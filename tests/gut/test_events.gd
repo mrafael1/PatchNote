@@ -101,8 +101,8 @@ func test_the_event_line_condition() -> void:
 
 func test_s5_is_the_wrong_variable_session() -> void:
 	var s := CampaignDB.get_session(&"s1_05_wrong")
-	assert_eq([s.goal, s.goal_value, s.time_limit, s.bump, s.fork], [SessionDef.KILLS, 25.0, 150.0, &"minor", &""],
-			"M43.2 (G13b): a 25-kill goal")
+	assert_eq([s.goal, s.goal_value, s.time_limit, s.bump, s.fork], [SessionDef.KILLS, 20.0, 150.0, &"minor", &""],
+			"M43.2 (G13b): a 20-kill goal")
 	assert_true(&"fork:fork_enemy" in s.enemies)
 	var cues := s.cue_list()
 	var events := cues.filter(func(c: Cue) -> bool: return c.action == &"event")
@@ -410,12 +410,12 @@ func test_once_per_save_then_skipped_and_the_session_still_completes() -> void:
 	assert_true(RunState.ai.is_empty())
 	assert_eq(again.event_player.said, [] as Array[String])
 	assert_eq(again.event_player.played_ids(), [] as Array[String])
-	RunState.kills = 25   # M43.2: a kills goal
+	RunState.kills = 20   # M43.2: a kills goal
 	await wait_physics_frames(10)
 	assert_eq(again.run_loop.outcome, &"win", "the session plays on and is won")
 
 
-## M43.2 (G13b): S5 is a 25-kill goal, so the goal can be reached while the event plays.
+## M43.2 (G13b): S5 is a 20-kill goal, so the goal can be reached while the event plays.
 ## No goal ends during an event (from its start, warning included, to its end): the win
 ## waits for the clear, then lands on the next tick.
 func _kills_during_event(at_step: int) -> Main:
@@ -423,13 +423,13 @@ func _kills_during_event(at_step: int) -> Main:
 	await _to_event(game)
 	while int(game.event_player.played[0].steps_done) < at_step:
 		await wait_physics_frames(1)
-	RunState.kills = 25
+	RunState.kills = 20
 	await wait_physics_frames(2)
 	assert_eq(game.run_loop.phase, RunLoop.PLAY, "step %d: the goal waits for the event" % at_step)
 	assert_true(game.run_loop.goal_held())
-	assert_eq(game.run_loop.goal_text(), "Kills 25/25")
-	RunState.kills = 26
-	assert_eq(game.run_loop.goal_text(), "Kills 25/25", "the shown kills stop at the goal")
+	assert_eq(game.run_loop.goal_text(), "Kills 20/20")
+	RunState.kills = 21
+	assert_eq(game.run_loop.goal_text(), "Kills 20/20", "the shown kills stop at the goal")
 	for i in EVENT_FRAMES:
 		if game.run_loop.phase != RunLoop.PLAY:
 			break
@@ -459,7 +459,7 @@ func test_a_held_goal_never_ends_and_a_released_one_does() -> void:
 	var game := await _event_game()
 	game.session_runner.drop_cues(&"event")
 	game.run_loop.hold_goal(&"test", true)
-	RunState.kills = 25
+	RunState.kills = 20
 	await wait_physics_frames(3)
 	assert_eq(game.run_loop.phase, RunLoop.PLAY)
 	game.run_loop.goal_clock = 200.0   # past the time limit too

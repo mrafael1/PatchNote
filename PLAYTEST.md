@@ -5,7 +5,7 @@ One page. The player reads **Before** and **Controls** only. The observer keeps 
 ## G13b changes (M43.2, from your S3-S7 notes of 2026-11-24)
 - **S3:** 10 kills (was 15).
 - **S4:** unchanged.
-- **S5:** 25 kills (was 90 s; 2.5 min at most, "Time's up" after that). The gravity mix-up comes at ~20 s, right after the AI's version line, and each direction lasts 2.5 s longer (~17.5 s in all, the counter and the spawns paused). The session cannot end in the middle of it: reach 25 during the mix-up and the counter waits at 25/25 until gravity is fixed.
+- **S5:** 20 kills (was 90 s; 25 in M43.2; 2.5 min at most, "Time's up" after that). The gravity mix-up comes at ~20 s, right after the AI's version line, and each direction lasts 2.5 s longer (~17.5 s in all, the counter and the spawns paused). The session cannot end in the middle of it: reach 20 during the mix-up and the counter waits at 20/20 until gravity is fixed.
 - **S6:** 40 kills (was 60). Explosive shots at ~11 s, big enemies at ~14 kills, then at ~27 kills the AI says your controls flip and that it will slow time down: the flip and slow-mo land together (10 s), and arrows around you show where each key goes now for the first few seconds (with reduce flashing on they stay still and only fade).
 - **S7:** no longer playable. After S6 the Stage 2 card shows the AI cooking the next version (a few progress lines, a bar that never quite fills), then "To be continued"; a key goes back to the title. The real three-game tryout comes in a later build.
 - **Your save** goes straight to that screen: nothing replays. It already reads v0.8.0 from the old S7 stub; the real S7 keeps that number. A new chain now ends Stage 1 at v0.7.0 and shows "Building v0.8.0".
@@ -39,7 +39,7 @@ One page. The player reads **Before** and **Controls** only. The observer keeps 
 - **S2:** things appear, no damage until ~11 s, then the overrun. A death is expected (Next, not Retry).
 - **S3:** shots pass through until ~9.5 s, 10 kills, then the mascot pick, then the dash pick (classic / grappling hook / teleport), then where it goes (where you aim / where you move).
 - **S4:** the AI's body, walls and the dash you picked (its line says how and where it goes), 30 s; bouncy walls ~13.5–23.5 s; then the enemy pick.
-- **S5:** the picked enemy arrives at ~6 s; the version stamp appears at ~15 s (the AI says so); 25 kills (2.5 min at most). At 20 s the "speed" warning becomes gravity left / up / down (6.5 / 5.5 / 5.5 s, clock and spawns paused; the session cannot end during it), then +1 HP as an apology. A bomber you shoot blinks and explodes too (bigger blast); the AI says so the first time.
+- **S5:** the picked enemy arrives at ~6 s; the version stamp appears at ~15 s (the AI says so); 20 kills (2.5 min at most). At 20 s the "speed" warning becomes gravity left / up / down (6.5 / 5.5 / 5.5 s, clock and spawns paused; the session cannot end during it), then +1 HP as an apology. A bomber you shoot blinks and explodes too (bigger blast); the AI says so the first time.
 - **S6:** explosive shots at ~11 s, big enemies at 14 kills, inverted controls and slow-mo together at 27 kills (one warning for both, arrows around the player for ~3.5 s); a bomber you shoot blinks and explodes too (bigger blast); 40 kills (or 4 min), then Next session: the Stage 2 card with the AI cooking, "To be continued" and the title screen.
 
 ## Observer: write down during the session
