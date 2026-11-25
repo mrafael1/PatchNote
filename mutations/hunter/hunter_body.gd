@@ -10,7 +10,7 @@ const HALF := 20.0
 const STUN_HITS := 6   # M33 parity: 8 cost the bot 17% of its run (applied from the start)
 const STUN_TIME := 4.0
 const CONTACT_DAMAGE := 1.0
-const COLOR := Color(0.75, 0.1, 0.25)
+const COLOR := Palette.HUNTER_BODY
 
 var kind: StringName = &"hunter"
 var half_width := HALF
@@ -39,7 +39,7 @@ func _init() -> void:
 	visual = RectVisual.new()
 	visual.name = "Visual"
 	visual.size = Vector2(HALF, HALF) * 2.0
-	visual.color = COLOR
+	visual.color = Palette.color(&"hunter_body")
 	add_child(visual)
 	mover = Mover.new()
 	mover.speed = SPEED

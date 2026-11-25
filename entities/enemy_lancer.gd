@@ -13,7 +13,7 @@ var charges := 0                ## lancer: charges started (tests)
 var _lance_left := 0.0
 var _lance_dir := Vector2.ZERO
 var _lance_hit := {}            ## nodes hit this charge
-var _lance_line: Line2D
+var _lance_line: LanceLine
 
 
 ## The line a lancer telegraphs or charges along (tests): unit vector, zero when walking.
@@ -39,7 +39,7 @@ func _attack_step(delta: float, to_player: Vector2, distance: float) -> bool:
 			_lance_left -= delta
 			var u := clampf(1.0 - _lance_left / maxf(Tuning.lancer_windup, 0.001), 0.0, 1.0)
 			visual.telegraph = u
-			_lance_line.default_color = Color(1.0, 0.3, 0.9, 0.25 + 0.55 * u)
+			_lance_line.strength = u
 			if _lance_left <= 0.0:
 				lance = Lance.CHARGE
 				charges += 1
@@ -66,13 +66,13 @@ func _attack_step(delta: float, to_player: Vector2, distance: float) -> bool:
 
 func _show_line(on: bool) -> void:
 	if _lance_line == null:
-		_lance_line = Line2D.new()
+		_lance_line = LanceLine.new()
 		_lance_line.width = 8.0
 		_lance_line.z_index = -1
 		add_child(_lance_line)
 	_lance_line.visible = on
 	_lance_line.points = PackedVector2Array([Vector2.ZERO, _lance_dir * Tuning.lancer_charge_distance])
-	_lance_line.default_color = Color(1.0, 0.3, 0.9, 0.25)
+	_lance_line.strength = 0.0
 
 
 ## Everyone within reach of the charging lancer takes its hit, once per charge.

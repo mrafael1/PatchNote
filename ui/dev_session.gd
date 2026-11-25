@@ -21,7 +21,7 @@ const ROW_STILL := Vector2(192, 108)
 const CARD_GAP := 24
 const SIDE_MARGIN := 24
 const REWORK_CARD_WIDTH := 240
-const REWORK_TINT := Color(0.55, 0.85, 1.0)
+const REWORK_TINT := Palette.REWORK
 
 var session: DevSession
 
@@ -55,7 +55,7 @@ func _ready() -> void:
 	add_child(_root)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.03, 0.05, 0.98)
+	dim.color = Color(Palette.SCRIM, 0.98)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 
@@ -76,7 +76,7 @@ func _ready() -> void:
 	_line.custom_minimum_size = Vector2(900, 0)
 	_line.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_line.add_theme_font_size_override(&"font_size", 22)
-	_line.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	_line.add_theme_color_override(&"font_color", Palette.ACCENT)
 	column.add_child(_line)
 
 	_question = Label.new()
@@ -122,6 +122,8 @@ func is_open() -> bool:
 
 
 func open(p_session: DevSession) -> void:
+	Skins.dress_button(_list_button)   # M48a: the look's UI panel (no look: nothing)
+	Skins.dress_button(_play)
 	session = p_session
 	_title.text = "DEV SESSION  ·  %s" % session.version_before.label()
 	_line.text = "AI: " + session.opening
@@ -221,8 +223,8 @@ func _add_card(i: int, width: float) -> void:
 	b.pressed.connect(pick.bind(i))
 	var box: VBoxContainer = b.get_child(0)
 	if card.agenda:
-		b.self_modulate = Color(1.0, 0.75, 0.55)
-		box.add_child(_label(DevSession.AGENDA_LABEL.to_upper(), 15, Color(1.0, 0.75, 0.55)))
+		b.self_modulate = Palette.AGENDA
+		box.add_child(_label(DevSession.AGENDA_LABEL.to_upper(), 15, Palette.AGENDA))
 	var take: MockupTake = card.take
 	if take:
 		var still := _still(take.image, _still_size)
@@ -243,12 +245,13 @@ func _add_rework_card() -> void:
 	var b := _card_button(session.fork != null and session.fork.mockup)
 	b.custom_minimum_size.x = REWORK_CARD_WIDTH
 	b.self_modulate = REWORK_TINT
-	var outline := StyleBoxFlat.new()
-	outline.bg_color = Color(0.06, 0.1, 0.14)
-	outline.border_color = REWORK_TINT
-	outline.set_border_width_all(3)
-	outline.set_corner_radius_all(6)
-	b.add_theme_stylebox_override(&"normal", outline)
+	if Skins.current == null:   # M48a (review): with a look, its panel in every state (tinted)
+		var outline := StyleBoxFlat.new()
+		outline.bg_color = Palette.REWORK_BACK
+		outline.border_color = REWORK_TINT
+		outline.set_border_width_all(3)
+		outline.set_corner_radius_all(6)
+		b.add_theme_stylebox_override(&"normal", outline)
 	b.pressed.connect(open_rework)
 	var box: VBoxContainer = b.get_child(0)
 	box.add_child(_label("[4]  %s" % DevSession.REWORK_TITLE, 22, REWORK_TINT))
@@ -269,6 +272,7 @@ func _card_button(tall: bool) -> Button:
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(box)
+	Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
 	return b
 
 

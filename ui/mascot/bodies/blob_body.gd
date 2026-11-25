@@ -3,8 +3,8 @@ extends MascotBody
 ## the expressions (its pose squashes harder than the others'); point_at stretches a
 ## pseudopod toward the target.
 
-const FILL := Color(0.38, 0.88, 0.7)
-const EDGE := Color(0.1, 0.42, 0.34)
+const FILL := Palette.BLOB_FILL
+const EDGE := Palette.BLOB_EDGE
 const R := 40.0
 const CENTRE := Vector2(0, 6)
 const POINTS := 48
@@ -50,14 +50,14 @@ func _paint() -> void:
 	var shadow := PackedVector2Array()
 	for v in pts:
 		shadow.append(v + Vector2(4, 5))
-	draw_colored_polygon(shadow, col(Color(0, 0, 0, 0.3)))
+	draw_colored_polygon(shadow, col(Color(Palette.SHADOW, 0.3)))
 	draw_colored_polygon(pts, col(FILL))
 	pts.append(pts[0])
 	draw_polyline(pts, col(EDGE), 3.5, true)
 	_ellipse(CENTRE + Vector2(-17, -20), Vector2(9, 5.5), col(Color(1, 1, 1, 0.55)))
 	if expression in [&"happy", &"proud"] or (talking and expression == &"idle"):
-		_ellipse(CENTRE + Vector2(-25, 10), Vector2(6, 3.5), col(Color(1.0, 0.5, 0.6, 0.6)))
-		_ellipse(CENTRE + Vector2(25, 10), Vector2(6, 3.5), col(Color(1.0, 0.5, 0.6, 0.6)))
+		_ellipse(CENTRE + Vector2(-25, 10), Vector2(6, 3.5), col(Palette.BLOB_CHEEK))
+		_ellipse(CENTRE + Vector2(25, 10), Vector2(6, 3.5), col(Palette.BLOB_CHEEK))
 	draw_eye(CENTRE + Vector2(-15, -6), 10.0, -1.0, FILL)
 	draw_eye(CENTRE + Vector2(15, -6), 10.0, 1.0, FILL)
 	draw_mouth(CENTRE + Vector2(0, 14), 22.0)

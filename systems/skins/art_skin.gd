@@ -15,6 +15,8 @@ const LETTERS := ".KPSHAEW"
 const BODY_SCALE := 2
 const TILE_SCALE := 3
 const IDLE_HZ := 5.0   ## a 2-frame idle flips 5 times a second (real time)
+const UI_SCALE := 3    ## M48a: the UI panel's 9-slice is drawn at 3x, its margins 2 cells
+const UI_MARGIN_CELLS := 2
 
 ## Today's flat-shape width of each id (world px): drawn at BODY_SCALE at this width.
 const NATIVE := {
@@ -34,6 +36,10 @@ var _size := {}       ## id -> Vector2 (1 px per cell; tiles: pre-scaled)
 var _palette := {}
 var _tiles: Array[StringName] = []
 var _wall_rim := {}   ## the art's WALL_RIM (outline, lit), {} without one
+var _roles := {}      ## M48a: role -> Color, the art's ROLES (Palette.color reads it)
+var _ramps := {}      ## M48a: id -> the ramp's main colour P (effects take a body's colour)
+var _panels := {}     ## M48a: lit (bool) -> StyleBoxTexture, built on first use
+var _particle: CanvasTexture   ## M48a: the neutral particle sprite, built on first use
 
 
 ## Bakes every sprite and tile of an art script (its constants PALETTE, SPRITES, TILES).
@@ -43,6 +49,12 @@ static func bake(art: Script, p_name: StringName) -> ArtSkin:
 	var c := art.get_script_constant_map()
 	s._palette = c.get("PALETTE", {})
 	s._wall_rim = c.get("WALL_RIM", {})
+	var roles: Dictionary = c.get("ROLES", {})
+	for r: String in roles:
+		if Color.html_is_valid(String(roles[r])):
+			s._roles[StringName(r)] = Color.html(String(roles[r]))
+		else:
+			s.problems.append("role %s: bad colour %s" % [r, roles[r]])
 	var sprites: Dictionary = c.get("SPRITES", {})
 	var tiles: Dictionary = c.get("TILES", {})
 	for id: String in sprites:
@@ -55,6 +67,80 @@ static func bake(art: Script, p_name: StringName) -> ArtSkin:
 
 func has(id: StringName) -> bool:
 	return _tex.has(id)
+
+
+## M48a: this look's colour for a Palette role, or null (Palette then uses tier 0).
+func role(r: StringName) -> Variant:
+	return _roles.get(r)
+
+
+func roles() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for r: StringName in _roles:
+		out.append(r)
+	return out
+
+
+## M48a: an id's main colour (its ramp's P), so a death puff or a pop matches the sprite;
+## `fallback` for an id without one.
+func main_color(id: StringName, fallback: Color) -> Color:
+	return _ramps.get(id, fallback)
+
+
+## M48a: the particle sprite (feedback.burst's texture), null without one. CPUParticles2D
+## multiplies it by the burst's colour, so this is the `particle` grid made neutral (review):
+## each pixel's luminance over its ramp P's, as grey (P white, S and K darker), and the hue is
+## the burst's role colour alone (a cyan dash burst stays cyan). The art grid is unchanged.
+func particle_texture() -> Texture2D:
+	if _particle == null and has(&"particle"):
+		_particle = _canvas(particle_image())
+	return _particle
+
+
+## The neutral particle image particle_texture() shows (null without a `particle` grid).
+func particle_image() -> Image:
+	return neutral(image(&"particle"), _ramps.get(&"particle", Color.WHITE)) if has(&"particle") else null
+
+
+## `src` as grey: each pixel's luminance over `ref`'s (clamped to 1), alpha kept.
+static func neutral(src: Image, ref: Color) -> Image:
+	var img := src.duplicate() as Image
+	var l0 := maxf(ref.get_luminance(), 0.001)
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var v := clampf(c.get_luminance() / l0, 0.0, 1.0)
+			img.set_pixel(x, y, Color(v, v, v, c.a))
+	return img
+
+
+## M48a: the UI panel, a 9-slice of the `ui_panel` (or `ui_panel_lit`) grid pre-scaled to
+## UI_SCALE so its margins draw 1:1 (crisp under any filter) and its plain centre tiles.
+## Shared and cached: a caller that changes it (modulate) takes a duplicate().
+func ui_panel(lit := false) -> StyleBoxTexture:
+	if _panels.has(lit):
+		return _panels[lit]
+	var id := &"ui_panel_lit" if lit and has(&"ui_panel_lit") else &"ui_panel"
+	var src := image(id)
+	if src == null:
+		return null
+	var img := src.duplicate() as Image
+	img.resize(img.get_width() * UI_SCALE, img.get_height() * UI_SCALE, Image.INTERPOLATE_NEAREST)
+	var box := StyleBoxTexture.new()
+	box.texture = ImageTexture.create_from_image(img)
+	var m := float(UI_MARGIN_CELLS * UI_SCALE)
+	box.texture_margin_left = m
+	box.texture_margin_top = m
+	box.texture_margin_right = m
+	box.texture_margin_bottom = m
+	box.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	box.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+	box.content_margin_left = m + 6.0
+	box.content_margin_right = m + 6.0
+	box.content_margin_top = m + 4.0
+	box.content_margin_bottom = m + 4.0
+	_panels[lit] = box
+	return box
 
 
 func ids() -> Array[StringName]:
@@ -145,6 +231,10 @@ func digest() -> String:
 		for img: Image in _images[id]:
 			ctx.update(var_to_bytes(img.get_size()))
 			ctx.update(img.get_data())
+	var rk := _roles.keys()
+	rk.sort()
+	for r: StringName in rk:   # M48a: the roles are part of the look
+		ctx.update(("%s=%s" % [r, (_roles[r] as Color).to_html()]).to_utf8_buffer())
 	return ctx.finish().hex_encode()
 
 
@@ -161,6 +251,8 @@ func _draw_from(table: Dictionary, ci: CanvasItem, id: StringName, at: Vector2, 
 
 func _bake_id(id: StringName, entry: Dictionary, pre_scale: int) -> void:
 	var ramp: Dictionary = entry.get("ramp", {})
+	if ramp.has("P") and Color.html_is_valid(String(ramp["P"])):
+		_ramps[id] = Color.html(String(ramp["P"]))
 	var images: Array[Image] = []
 	for g in _grids_of(entry):
 		var img := _grid_image(id, g, ramp)

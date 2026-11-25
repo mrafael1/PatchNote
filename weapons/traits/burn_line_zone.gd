@@ -8,7 +8,7 @@ const LIFE := 1.0
 const TICK := 0.5
 const DAMAGE := 1.0
 const MARGIN := 4.0
-const COLOR := Color(1.0, 0.45, 0.2)
+const COLOR := Palette.BURN
 
 var points := PackedVector2Array()
 var source: StringName = &""
@@ -58,4 +58,4 @@ func _draw() -> void:
 		return
 	var age := RunState.game_time - _born if _born >= 0.0 else 0.0
 	var a := clampf(1.0 - age / LIFE, 0.0, 1.0)
-	draw_polyline(points, Color(COLOR, 0.55 * a), 5.0)
+	draw_polyline(points, Color(Palette.color(&"burn"), 0.55 * a), 5.0)

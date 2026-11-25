@@ -34,7 +34,7 @@ func _ready() -> void:
 	add_child(_root)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.02, 0.03, 0.96)
+	dim.color = Color(Palette.SCRIM_TEAL, 0.96)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 
@@ -64,7 +64,7 @@ func _ready() -> void:
 	mono.font_names = PackedStringArray(["Consolas", "DejaVu Sans Mono", "Courier New", "monospace"])
 	_body.add_theme_font_override(&"font", mono)
 	_body.add_theme_font_size_override(&"font_size", 17)
-	_body.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	_body.add_theme_color_override(&"font_color", Palette.ACCENT)
 	scroll.add_child(_body)
 
 	_ai = Label.new()
@@ -109,7 +109,7 @@ func open(outcome: StringName, record: Dictionary) -> void:
 	var lines := _text.split("\n")
 	_title.text = lines[0]
 	_title.add_theme_color_override(&"font_color",
-			Color(0.55, 1.0, 0.65) if outcome == &"win" else Color(1.0, 0.45, 0.4))
+			Palette.ACCENT if outcome == &"win" else Palette.LOSE)
 	_ai.text = lines[lines.size() - 1]
 	_body.text = "\n".join(lines.slice(1, lines.size() - 1)).strip_edges()
 	_build_ratings(record)
@@ -280,8 +280,8 @@ func rate(id: StringName, value: int) -> void:
 	if _rate_buttons.has(id):
 		var pair: Array = _rate_buttons[id]
 		var value_now: int = ratings.get(id, 0)
-		_style_choice(pair[0] as Button, value_now == 1, Color(0.45, 1.0, 0.55))
-		_style_choice(pair[1] as Button, value_now == -1, Color(1.0, 0.45, 0.4))
+		_style_choice(pair[0] as Button, value_now == 1, Palette.KEEP)
+		_style_choice(pair[1] as Button, value_now == -1, Palette.LOSE)
 
 
 func _style_choice(b: Button, on: bool, color: Color) -> void:

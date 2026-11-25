@@ -11,7 +11,7 @@ signal reached
 const GROUP := &"exit_gate"
 const RADIUS := 1.0          ## tiles: the player within this of its centre reaches it
 const ARROW_FROM := 72.0     ## px from the player, the arrow that points to the gate
-const COLOR := Color(0.35, 1.0, 0.6)
+const COLOR := Palette.GATE
 
 var player: Node2D
 var _arena: Arena
@@ -39,6 +39,7 @@ func setup(p_arena: Arena, p_player: Node2D) -> Vector2:
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	add_to_group(Skins.SKINNED)   # M48a: the look's live swap redraws it
 	z_index = 5
 
 
@@ -101,7 +102,7 @@ func _draw() -> void:
 	var tip := to_local(player.global_position + dir * (ARROW_FROM + 14.0))
 	var base := to_local(player.global_position + dir * ARROW_FROM)
 	var side := dir.orthogonal() * 9.0
-	draw_colored_polygon(PackedVector2Array([tip, base + side, base - side]), Color(COLOR, 0.85))
+	draw_colored_polygon(PackedVector2Array([tip, base + side, base - side]), Color(Palette.color(&"gate"), 0.85))
 
 
 # --- The distance field ----------------------------------------------------------

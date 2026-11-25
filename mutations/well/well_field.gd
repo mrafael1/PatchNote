@@ -8,7 +8,7 @@ extends Node2D
 const LIFE := 1.0
 const RADIUS := 2.6 * Tuning.TILE
 const PULL := 230.0         ## px/s of drag at the edge, up to 1.5 times that near the centre
-const COLOR := Color(0.6, 0.45, 1.0)
+const COLOR := Palette.WELL_FIELD
 
 var life := LIFE
 var radius := RADIUS
@@ -47,5 +47,5 @@ func _draw() -> void:
 	var u := clampf(_age / life, 0.0, 1.0)
 	for k in 3:
 		var r := radius * fposmod(1.0 - u * 1.5 - k / 3.0, 1.0)
-		draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, Color(COLOR, 0.5 * (1.0 - u)), 2.0)
-	draw_circle(Vector2.ZERO, 6.0, Color(COLOR, 1.0 - u))
+		draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, Color(Palette.color(&"well_field"), 0.5 * (1.0 - u)), 2.0)
+	draw_circle(Vector2.ZERO, 6.0, Color(Palette.color(&"well_field"), 1.0 - u))

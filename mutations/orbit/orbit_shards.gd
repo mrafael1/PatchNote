@@ -11,7 +11,7 @@ const SHARD_HALF := 7.0
 const DAMAGE := 1.0
 const COOLDOWN := 0.4
 const KNOCKBACK := 160.0
-const COLOR := Color(0.55, 0.95, 1.0)
+const COLOR := Palette.ORBIT_SHARD
 
 ## M44: the orbit weapon (weapons/orbit_weapon_shards.gd) sets these; the patch keeps
 ## the constants.
@@ -28,7 +28,7 @@ func _ready() -> void:
 	for i in shard_count:
 		var shard := RectVisual.new()
 		shard.size = Vector2(SHARD_HALF, SHARD_HALF) * 2.0
-		shard.color = COLOR
+		shard.color = Palette.color(&"orbit_shard")
 		add_child(shard)
 		_shards.append(shard)
 

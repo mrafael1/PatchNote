@@ -12,11 +12,11 @@ const COLS := 66
 const ROWS := 22
 const DEFAULT := "res://levels/arenas/arena_0.tres"
 
-const COLOR_BACKGROUND := Color(0.09, 0.1, 0.13)
-const COLOR_GRID := Color(1, 1, 1, 0.035)
-const COLOR_BLOCK := Color(0.42, 0.45, 0.52)
-const COLOR_STANDABLE := Color(0.95, 0.97, 1.0)
-const COLOR_DEPTH := Color(0.0, 0.0, 0.0, 0.5)
+const COLOR_BACKGROUND := Palette.BG
+const COLOR_GRID := Palette.GRID
+const COLOR_BLOCK := Palette.WALL
+const COLOR_STANDABLE := Palette.STANDABLE
+const COLOR_DEPTH := Palette.DEPTH
 const STRIP := 5.0
 
 var def: ArenaDef                      ## the layout this arena was built from
@@ -57,6 +57,7 @@ func _add_block(col: float, row: float, w: float, h: float, t: float) -> void:
 func _ready() -> void:
 	z_index = -10
 	EventBus.rules_changed.connect(func(_r: Resource) -> void: queue_redraw())
+	add_to_group(Skins.SKINNED)   # M48a: redrawn on rules_changed and on a look swap only
 	var body := StaticBody2D.new()
 	body.name = "Blocks"
 	body.collision_layer = Tuning.LAYER_WORLD

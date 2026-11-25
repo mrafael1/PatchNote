@@ -24,8 +24,8 @@ func _ready() -> void:
 	_info = Label.new()
 	_info.position = Vector2(10, 8)
 	_info.add_theme_font_size_override(&"font_size", 13)
-	_info.add_theme_color_override(&"font_color", Color(0.75, 1.0, 0.8))
-	_info.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_info.add_theme_color_override(&"font_color", Palette.DEBUG_TEXT)
+	_info.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_info.add_theme_constant_override(&"outline_size", 4)
 	_info.visible = false   # F1 shows it; it would sit on top of the prompt and build log
 	add_child(_info)
@@ -75,6 +75,18 @@ func _ready() -> void:
 	level_button.text = "+1 level/card"
 	level_button.pressed.connect(add_level)
 	path_row.add_child(level_button)
+	# LOOK (M48a, PLAN 1.7): the art the world wears, live (F10 toggles Pixel too).
+	var look_heading := Label.new()
+	look_heading.text = "LOOK (live; F10 toggles pixel)"
+	box.add_child(look_heading)
+	var look_row := HBoxContainer.new()
+	box.add_child(look_row)
+	for look: StringName in Skins.LOOKS:
+		var lb := Button.new()
+		lb.focus_mode = Control.FOCUS_NONE
+		lb.text = String(look)
+		lb.pressed.connect(func() -> void: Skins.use_named(look, get_tree().root))
+		look_row.add_child(lb)
 	# Rule edits (PLAN v8 1.4): through the rule book, warning included.
 	var edits_heading := Label.new()
 	edits_heading.text = "RULE EDITS (campaign session: click to request with its warning / take back)"

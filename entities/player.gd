@@ -43,7 +43,7 @@ func _ready() -> void:
 	# Shadow left on the ground while the body is up on the height axis.
 	_shadow = RectVisual.new()
 	_shadow.size = _visual.size
-	_shadow.color = Color(0, 0, 0, 0.4)
+	_shadow.color = Color(Palette.SHADOW, 0.4)
 	_shadow.visible = false
 	_shadow.show_behind_parent = true
 	add_child(_shadow)

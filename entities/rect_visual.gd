@@ -15,7 +15,7 @@ extends Node2D
 
 const FLASH_TIME := 0.09
 const TELEGRAPH_GROW := 0.35     ## a full telegraph draws the body this much bigger
-const RIM := Color(1.0, 0.15, 0.1)
+const RIM := Palette.DANGER
 const RIM_WIDTH := 3.0
 const BAR_HEIGHT := 4.0
 const BAR_GAP := 5.0
@@ -46,6 +46,10 @@ var skin_id: StringName = &""
 var _skin_id: StringName = &""
 var _skin_version := -1
 var _skin_frame := -1
+
+
+func _enter_tree() -> void:
+	add_to_group(Skins.SKINNED)   # M48a: the look's live swap redraws it
 
 
 ## Brief white flash, used as hit feedback.
@@ -173,6 +177,6 @@ func _draw_hp_bar() -> void:
 	var width := maxf(size.x, 20.0)
 	draw_set_transform(Vector2.ZERO, -r)
 	var back := Rect2(Vector2(-width / 2.0, half_h + BAR_GAP), Vector2(width, BAR_HEIGHT))
-	draw_rect(back, Color(0, 0, 0, 0.6))
+	draw_rect(back, Color(Palette.SHADOW, 0.6))
 	draw_rect(Rect2(back.position, Vector2(width * hp_shown, BAR_HEIGHT)), Color.WHITE)
 	draw_set_transform(Vector2.ZERO)

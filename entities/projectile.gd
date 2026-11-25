@@ -7,8 +7,8 @@ extends Node2D
 ## An enemy shot on B2's grid (TurnClock.on_grid) has no motion, contact or lifetime
 ## of its own until it leaves the grid.
 
-const COLOR_PLAYER := Color(1.0, 0.95, 0.5)
-const COLOR_ENEMY := Color(1.0, 0.55, 0.2)
+const COLOR_PLAYER := Palette.PLAYER_SHOT
+const COLOR_ENEMY := Palette.ENEMY_SHOT
 const MAX_CONTACTS_PER_TICK := 4
 const TRAIL_SECONDS := 0.035   ## a trail is as long as this much of the flight
 const TRAIL_MAX := 34.0
@@ -55,7 +55,7 @@ func _draw() -> void:
 		return
 	var length := minf(velocity.length() * TRAIL_SECONDS, TRAIL_MAX) * _trail_scale
 	draw_polyline_colors(PackedVector2Array([Vector2(-length, 0), Vector2.ZERO]),
-			PackedColorArray([Color(COLOR_PLAYER, 0.0), Color(COLOR_PLAYER, 0.6)]), 4.0 * _trail_scale, true)
+			PackedColorArray([Color(Palette.color(&"player_shot"), 0.0), Color(Palette.color(&"player_shot"), 0.6)]), 4.0 * _trail_scale, true)
 
 
 func _physics_process(delta: float) -> void:

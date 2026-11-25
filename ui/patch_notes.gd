@@ -23,7 +23,7 @@ func _ready() -> void:
 	add_child(_root)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.03, 0.05, 0.98)
+	dim.color = Color(Palette.SCRIM, 0.98)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 
@@ -43,7 +43,7 @@ func _ready() -> void:
 
 	_title = Label.new()
 	_title.add_theme_font_size_override(&"font_size", 40)
-	_title.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	_title.add_theme_color_override(&"font_color", Palette.ACCENT)
 	column.add_child(_title)
 
 	_body = Label.new()

@@ -8,6 +8,8 @@ Where the game is going, in phases. Each phase becomes a builder plan (`PLAN.md`
 
 **Never in scope:** real generative AI at runtime. The AI developer is authored (lines, reactions and rule edits are written by us), so it can feel like a developer without API keys, per-player costs or unpredictable edits. RTS or squad control. The platformer, the card dungeon crawler, the tactical deckbuilder (v7) and a 5th genre are **cut** (owner, 2026-11-23). There are two genres.
 
+**Revised 2026-11-25 (owner's Stage 2 & 3 plan doc; marked "2026-11-25" where it lands):** the RPG is discovered by accident inside the Stage 2 boss fight, the final boss is the source of the game's bugs, one look (warm pixel) and one Stage 2 boss are built first, and path depth matters. `PLAN.md` v9.2 section 0.6 has the details.
+
 **Working name:** none for now. "Patch Notes" stays in code and banners.
 
 ---
@@ -94,7 +96,9 @@ Each genre has **3 paths that share one foundation** (owner), so development sta
 | **Timing** | Mario & Luigi- and Clair Obscur-inspired: dodge, block and parry in real time during enemy turns |
 
 - **The RPG path is a free choice and is not shaped by the shooter path** (owner: a 1:1 mapping is "a wrong concept"). Shared across both genres: the look, the AI, and its memory of you.
-- No genre switching during play. Combining and switching genres is a future feature (owner).
+- **The kit translates between genres (2026-11-25):** a shooter weapon or upgrade has a turn-based equivalent (a shotgun becomes a multi-hit ability, the dash a dodge). This is a translation of what you carry, not a mapping of paths.
+- **One scripted genre switch (2026-11-25):** the Stage 2 boss fight turns into a turn-based fight at 50% HP. Apart from scripted moments like this one, there is no genre switching during play: Stage 3 is RPG only, and free combining and switching stays a future feature (owner).
+- **Path depth (2026-11-25):** each path grows a signature piece (Arsenal: weapon fusion; Auto: spell evolutions; Survival: a tactical holster and ammo budget) on the shared foundation.
 
 ### 1.8 The look: 3 art paths, cheap by design
 The look is picked early and then grows in tiers inside the chosen path (juice → palette and shaders → richer assets → music and UI).
@@ -103,6 +107,7 @@ The look is picked early and then grows in tiers inside the chosen path (juice �
   2. **Dark / neon:** a black background, glowing outlines and bloom. The darker option, and the closest to today's squares.
   3. **Paper / sketch:** wobbly hand-drawn lines on a paper texture. Totally different, and needs almost no assets.
 - The mascot and the UI follow the look.
+- **2026-11-25:** the looks are code-drawn art (no image files). **Warm pixel art is built first and alone**; the others are undecided ("we'll try everything": neon pixel, cartoon cutout, minimal, splat), and the look pick comes back when a second look exists. The look arrives as a scripted transformation: one enemy first, then the rest during play, with visual bugs the AI fixes.
 
 ### 1.9 Rules for us
 1. **Fun before meta:** every session is fun to play with no AI involvement. The AI is the main force, but the base has to stand on its own.
@@ -121,12 +126,14 @@ A first cut, to rewrite while building. **First version: ~2 h 30, about 22 sessi
 | Stage | First version | Full | What happens | Big forks | Events |
 |---|---|---|---|---|---|
 | **1. The prototype** | ~20 min, ~6 sessions of 1–4 min | ~30 min | Nothing, then movement, shooting, enemies, a level. The AI is wordless, then learns to talk and the mascot appears. | **the mascot** (when the AI gets a face), the look (end of stage), an enemy type | the AI changes the wrong thing (gravity sideways) |
-| **2. The shooter** | ~45 min, ~6 sessions + boss | ~1 h 30 | The shooter becomes a game: its path, more enemies, level design, the first boss. | **shooter path** (first session), level layout, HUD style, shooter boss | gravity through the screen |
-| **3. The RPG** | ~45 min, ~6 sessions + boss | ~1 h 30 | The AI is bored: "what if we tried turns?" A new prototype from nothing, faster this time, then a real RPG. | **RPG path**, RPG enemies, RPG boss | rule edits inside turns (a turn order that cheats, an enemy that refuses to act) |
+| **2. The shooter** | ~45 min, ~6 sessions + boss | ~1 h 30 | The shooter becomes a game: its path and its depth, the look, more enemies, level design, the first boss. **2026-11-25:** one boss first (more, and the boss pick, later), tuned per path. | **shooter path** (first session), level layout, HUD style | gravity through the screen; **the switch:** at 50% HP the boss fight turns turn-based, and the AI did not do it |
+| **3. The RPG** | ~45 min, ~6 sessions + boss | ~1 h 30 | **2026-11-25:** the AI is fascinated by what happened to the boss fight and investigates it. It builds the turn-based game on what exists (characters, enemies, art, rooms), so it goes faster, then into a real RPG. RPG only: the shooter is kept in mind by the converted kit and the mascot's lines, and returns in Stage 4. | **RPG path**, RPG enemies, RPG boss | rule edits inside turns (a turn order that cheats, an enemy that refuses to act) |
 | **4. Overload** | ~15 min, ~2 sessions | ~45 min | The AI tries to have everything: features pile up until the game literally breaks. | after the crash: "what do we keep?" | UI overload, flicker, **the fake crash** |
 | **5. Release** | ~25 min, ~2 sessions + final boss | ~45 min | The AI rebuilds and polishes for 1.0. The final boss, release, credits, the endgame unlocks. | the final boss's form | the AI's last edits in the boss fight |
 
 **Final boss (owner liked it, 2026-11-23):** a two-phase fight in **your** shooter path, then **your** RPG path. **Its parts come from your shelf:** the answers you didn't pick come back as the boss's weapons and attacks ("you didn't want the shotgun? it did."). This gives the shelf a story job and makes each final boss different.
+
+**The final boss is the source of the bugs (owner, 2026-11-25).** The Stage 2 switch is its first visible act; Stage 4's overload and crash are it winning. The AI's own early mistakes (gravity sideways, gravity through the screen) stay the AI's. Since the Stage 2 boss now uses "shooter, then RPG" first, the final fight has to go further (to design in Phase 8: the genre changing several times, or mid-turn).
 
 ---
 
@@ -175,8 +182,8 @@ Core prototype (v2), big patches (v3), the AI layer (v4, M14), foundations: vers
 - **Must answer:** do the three paths feel like three games? Do the three looks feel worth choosing?
 
 ### Phase 7 — Stage 3: the RPG
-- The RPG foundation (party, turns, abilities, enemies), then the Classic, Cards and Timing paths; the RPG boss; rule edits inside turns.
-- **Must answer:** is the RPG fun on its own? Does the "new prototype from nothing" land as a story beat?
+- The RPG foundation (party, turns, abilities, enemies), grown from the Stage 2 boss's turn slice (`genres/rpg/`), then the Classic, Cards and Timing paths; the RPG boss; rule edits inside turns. A reverse switch into the shooter at the RPG boss is an idea to test (owner's doc).
+- **Must answer:** is the RPG fun on its own? Does the investigation of the switch carry the stage? Is the shooter missed in a way that makes Stage 4 land?
 
 ### Phase 8 — Stages 4–5, the final boss and the endgame
 - Overload, the fake crash, "what do we keep", release and the 1.0 moment, the final boss built from the shelf, credits.

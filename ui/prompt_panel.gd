@@ -25,7 +25,7 @@ func _ready() -> void:
 	add_child(_root)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.02, 0.03, 0.78)
+	dim.color = Color(Palette.SCRIM_TEAL, 0.78)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 
@@ -38,7 +38,7 @@ func _ready() -> void:
 	_line = Label.new()
 	_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_line.add_theme_font_size_override(&"font_size", 26)
-	_line.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	_line.add_theme_color_override(&"font_color", Palette.ACCENT)
 	column.add_child(_line)
 
 	_cards = HBoxContainer.new()
@@ -75,7 +75,7 @@ func _open(p_offer: Offer) -> void:
 		b.text = card_text(offer, i)
 		if offer.agenda.has(m):
 			# The AI's own pick, against the player's taste: labelled and tinted.
-			b.self_modulate = Color(1.0, 0.75, 0.55)
+			b.self_modulate = Palette.AGENDA
 		b.disabled = true
 		b.pressed.connect(choose.bind(i))
 		_cards.add_child(b)

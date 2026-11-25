@@ -14,7 +14,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_label = Label.new()
 	_label.add_theme_font_size_override(&"font_size", 17)
-	_label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_label.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_label.add_theme_constant_override(&"outline_size", 5)
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_label)

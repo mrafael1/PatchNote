@@ -52,7 +52,7 @@ func _ready() -> void:
 	add_child(_glitch)
 
 	_band = ColorRect.new()
-	_band.color = Color(0.0, 0.03, 0.02, 0.72)
+	_band.color = Palette.BAND
 	_band.set_anchors_and_offsets_preset(Control.PRESET_HCENTER_WIDE)
 	_band.offset_top = -70
 	_band.offset_bottom = 70
@@ -94,8 +94,8 @@ func _ready() -> void:
 func _make_label(font_size: int) -> Label:
 	var label := Label.new()
 	label.add_theme_font_size_override(&"font_size", font_size)
-	label.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
-	label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	label.add_theme_color_override(&"font_color", Palette.ACCENT)
+	label.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	label.add_theme_constant_override(&"outline_size", 6)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return label

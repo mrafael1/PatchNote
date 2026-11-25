@@ -67,7 +67,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var bg := ColorRect.new()
-	bg.color = Color(0.03, 0.05, 0.06)
+	bg.color = Palette.TITLE_BG
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
@@ -83,7 +83,7 @@ func _ready() -> void:
 	title.text = "PATCH NOTES"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override(&"font_size", 44)
-	title.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	title.add_theme_color_override(&"font_color", Palette.ACCENT)
 	column.add_child(title)
 	var sub := Label.new()
 	sub.text = "prototype build %s" % Main.BUILD

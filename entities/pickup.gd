@@ -13,9 +13,9 @@ signal taken(pickup: Pickup)
 
 const KINDS: Array[StringName] = [&"gem", &"weapon", &"ammo", &"heal", &"battery"]
 const GEM_GROUP := &"gem"
-const GEM_COLOR := Color(0.45, 0.95, 1.0)
-const OTHER_COLOR := Color(1.0, 0.85, 0.35)
-const CRATE_COLOR := Color(0.75, 0.55, 0.3)
+const GEM_COLOR := Palette.GEM
+const OTHER_COLOR := Palette.PICKUP
+const CRATE_COLOR := Palette.CRATE
 const UNTOUCHABLE_FOR := 0.5
 
 var kind: StringName = &"pickup"
@@ -37,6 +37,7 @@ func _ready() -> void:
 	if is_gem():
 		add_to_group(GEM_GROUP)
 	RunState.register_entity(self, kind)
+	add_to_group(Skins.SKINNED)   # the look's live swap (presentation only)
 	queue_redraw()
 
 
@@ -108,10 +109,13 @@ func _draw() -> void:
 	if Skins.current != null and Skins.current.has(_skin_id()):
 		var id := _skin_id()
 		Skins.current.draw(self, id, Vector2.ZERO, ArtSkin.BODY_SCALE, Skins.current.idle_frame(id, RunState.real_time()))
+		if pickup_kind == &"weapon" and not crate and weapon_id != &"" and WeaponDB.has(weapon_id):
+			# M48a: which weapon it is, the same picture as its shots and its card.
+			WeaponGlyph.draw(self, WeaponDB.get_weapon(weapon_id).icon, Vector2(0, -20), 16.0, Color.WHITE)
 		return
 	if crate:
 		draw_rect(Rect2(-11, -11, 22, 22), CRATE_COLOR)
-		draw_rect(Rect2(-11, -11, 22, 22), Color.BLACK, false, 2.0)
+		draw_rect(Rect2(-11, -11, 22, 22), Palette.OUTLINE, false, 2.0)
 		return
 	var r := 7.0 if is_gem() else 10.0
 	var c := GEM_COLOR if is_gem() else OTHER_COLOR

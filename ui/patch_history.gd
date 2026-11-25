@@ -33,7 +33,7 @@ func _ready() -> void:
 	add_child(_root)
 
 	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.02, 0.03, 0.82)
+	dim.color = Color(Palette.SCRIM_TEAL, 0.82)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 
@@ -53,7 +53,7 @@ func _ready() -> void:
 	left.add_child(_heading("BUILD LOG"))
 	_log = Label.new()
 	_log.add_theme_font_size_override(&"font_size", 18)
-	_log.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	_log.add_theme_color_override(&"font_color", Palette.ACCENT)
 	left.add_child(_log)
 
 	var right := VBoxContainer.new()
@@ -222,7 +222,7 @@ static func big_entry(m: Mutation) -> Control:
 	var label := Label.new()
 	label.text = "MAJOR  %s: %s  (permanent)" % [m.genre_label, m.title]
 	label.add_theme_font_size_override(&"font_size", 18)
-	label.add_theme_color_override(&"font_color", Color(1.0, 0.8, 0.45))
+	label.add_theme_color_override(&"font_color", Palette.LOCK)
 	row.add_child(label)
 	return row
 

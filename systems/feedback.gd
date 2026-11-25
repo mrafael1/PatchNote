@@ -11,11 +11,11 @@ extends Node
 
 const PUFF_COUNT := 12
 const MAX_LIVE_EFFECTS := 80   ## beyond this, new bursts are skipped (a horde of bounces)
-const DUST := Color(0.75, 0.78, 0.85)
-const HIT := Color(1.0, 0.35, 0.35)
+const DUST := Palette.DUST
+const HIT := Palette.HIT
 const KILL_STOP_SHARE := 0.35   ## a kill's hit stop, as a share of the preset's
-const MUZZLE := Color(1.0, 0.95, 0.7)
-const DASH := Color(0.4, 0.9, 1.0)   ## the dash burst's colour (the hook, the teleport)
+const MUZZLE := Palette.MUZZLE
+const DASH := Palette.DASH   ## the dash burst's colour (the hook, the teleport)
 
 var camera: CameraRig
 var effects_parent: Node
@@ -59,7 +59,7 @@ func _on_entity_damaged(target: Node, _info: RefCounted) -> void:
 
 func _on_enemy_killed(enemy: Node, _info: RefCounted) -> void:
 	var visual := enemy.get_node_or_null("Visual") as RectVisual
-	var color := visual.color if visual else Color.WHITE
+	var color := _body_color(visual)
 	var pos := (enemy as Node2D).global_position
 	puff(pos, color)
 	kill_pop(pos, color)
@@ -74,12 +74,12 @@ func _on_player_hit(_info: RefCounted) -> void:
 	hit_stop(Look.preset.hit_stop)
 	var player := _player()
 	if player:
-		burst(player.global_position, HIT, 10, 120.0, 260.0, 0.35, 5.0)
+		burst(player.global_position, Palette.color(&"hit"), 10, 120.0, 260.0, 0.35, 5.0)
 
 
 func _on_hit_wall(projectile: Node, pos: Vector2, normal: Vector2) -> void:
 	var visual := projectile.get_node_or_null("Visual") as RectVisual if is_instance_valid(projectile) else null
-	var color := visual.color if visual else Color.WHITE
+	var color := _body_color(visual)
 	burst(pos, color, 5, 60.0, 180.0, 0.18, 3.0, normal, 70.0)
 
 
@@ -87,7 +87,7 @@ func _on_player_landed(pos: Vector2, impact_speed: float) -> void:
 	var rules := RunState.rules
 	var up := -rules.gravity_dir.normalized() if rules.gravity_enabled else Vector2.UP
 	var amount := int(clampf(impact_speed / 60.0, 6.0, 16.0))
-	burst(pos - up * 16.0, DUST, amount, 50.0, 160.0, 0.35, 4.0, up, 80.0, 0.3)
+	burst(pos - up * 16.0, Palette.color(&"dust"), amount, 50.0, 160.0, 0.35, 4.0, up, 80.0, 0.3)
 	if camera and impact_speed > 700.0:
 		camera.shake(4.0)
 
@@ -95,16 +95,16 @@ func _on_player_landed(pos: Vector2, impact_speed: float) -> void:
 func _on_player_dashed() -> void:
 	var player := _player()
 	if player:
-		burst(player.global_position, Color(0.4, 0.9, 1.0, 0.8), 10, 20.0, 90.0, 0.3, 6.0)
+		burst(player.global_position, Color(Palette.color(&"dash"), 0.8), 10, 20.0, 90.0, 0.3, 6.0)
 
 
 ## The hook (M42.1): a line from the player to the anchor for the pull, a burst there.
 func _on_player_hooked(anchor: Vector2) -> void:
-	burst(anchor, DASH, 6, 20.0, 90.0, 0.25, 4.0)
+	burst(anchor, Palette.color(&"dash"), 6, 20.0, 90.0, 0.25, 4.0)
 	var player := _player()
 	if player == null or not is_instance_valid(effects_parent):
 		return
-	var line := _dash_line(2.0, Color(DASH, 0.9))
+	var line := _dash_line(2.0, Color(Palette.color(&"dash"), 0.9))
 	var follow := func(u: float) -> void:
 		if is_instance_valid(player) and is_instance_valid(line):
 			line.points = PackedVector2Array([player.global_position, anchor])
@@ -118,7 +118,7 @@ func _on_player_hooked(anchor: Vector2) -> void:
 func _on_player_hook_missed(from: Vector2, to: Vector2) -> void:
 	if not is_instance_valid(effects_parent):
 		return
-	var line := _dash_line(2.0, Color(DASH, 0.7))
+	var line := _dash_line(2.0, Color(Palette.color(&"dash"), 0.7))
 	var fly := func(u: float) -> void:
 		if is_instance_valid(line):
 			line.points = PackedVector2Array([from, from.lerp(to, 1.0 - absf(1.0 - 2.0 * u))])
@@ -129,19 +129,19 @@ func _on_player_hook_missed(from: Vector2, to: Vector2) -> void:
 
 ## A blink: a fading ghost where the player was, the dash burst at both ends, a faint line.
 func _on_player_teleported(from: Vector2, to: Vector2) -> void:
-	burst(from, Color(DASH, 0.8), 8, 20.0, 90.0, 0.25, 5.0)
-	burst(to, Color(DASH, 0.8), 8, 20.0, 90.0, 0.25, 5.0)
+	burst(from, Color(Palette.color(&"dash"), 0.8), 8, 20.0, 90.0, 0.25, 5.0)
+	burst(to, Color(Palette.color(&"dash"), 0.8), 8, 20.0, 90.0, 0.25, 5.0)
 	if not is_instance_valid(effects_parent):
 		return
 	var ghost := RectVisual.new()
 	ghost.size = Vector2(34, 34)
-	ghost.color = Color(DASH, 0.5)
+	ghost.color = Color(Palette.color(&"dash"), 0.5)
 	ghost.position = from
 	effects_parent.add_child(ghost)
 	var gt := ghost.create_tween()
 	gt.tween_property(ghost, "modulate:a", 0.0, 0.25)
 	gt.tween_callback(ghost.queue_free)
-	var line := _dash_line(1.0, Color(DASH, 0.25))
+	var line := _dash_line(1.0, Color(Palette.color(&"dash"), 0.25))
 	line.points = PackedVector2Array([from, to])
 	var lt := line.create_tween()
 	lt.tween_property(line, "modulate:a", 0.0, 0.25)
@@ -152,7 +152,7 @@ func _on_player_teleported(from: Vector2, to: Vector2) -> void:
 func _on_player_dash_fizzled() -> void:
 	var player := _player()
 	if player:
-		burst(player.global_position, DUST, 5, 10.0, 50.0, 0.2, 3.0)
+		burst(player.global_position, Palette.color(&"dust"), 5, 10.0, 50.0, 0.2, 3.0)
 
 
 func _dash_line(width: float, color: Color) -> Line2D:
@@ -165,7 +165,7 @@ func _dash_line(width: float, color: Color) -> Line2D:
 
 
 func _on_explosion(pos: Vector2, radius: float) -> void:
-	burst(pos, Color(1.0, 0.75, 0.3), int(clampf(radius / 6.0, 8.0, 20.0)), radius * 1.5, radius * 3.5, 0.3, 4.0)
+	burst(pos, Palette.color(&"spark"), int(clampf(radius / 6.0, 8.0, 20.0)), radius * 1.5, radius * 3.5, 0.3, 4.0)
 	if camera:
 		camera.shake(3.0)
 	if screen and Look.preset.screen_flash:
@@ -183,7 +183,7 @@ func _on_projectile_fired(projectile: Node) -> void:
 	var velocity: Variant = projectile.get(&"velocity")
 	if not projectile is Node2D or not velocity is Vector2:
 		return   # a test's stand-in shot: no direction to flash along
-	burst((projectile as Node2D).global_position, MUZZLE, 4, 80.0, 200.0, 0.08, 5.0,
+	burst((projectile as Node2D).global_position, Palette.color(&"muzzle"), 4, 80.0, 200.0, 0.08, 5.0,
 			(velocity as Vector2).normalized(), 25.0)
 
 
@@ -236,6 +236,14 @@ func burst(pos: Vector2, color: Color, amount: int, speed_min: float, speed_max:
 	p.scale_amount_min = size * 0.6
 	p.scale_amount_max = size * 1.3
 	p.color = color
+	var skin := Skins.current
+	if skin != null and skin.particle_texture() != null:
+		# A look's particle sprite (PLAN 1.7): square pixels at a whole scale (one size per
+		# burst, so they stay crisp), about today's on-screen size. Tier 0: untouched.
+		var s := maxf(1.0, roundf(size / 3.0))
+		p.texture = skin.particle_texture()
+		p.scale_amount_min = s
+		p.scale_amount_max = s
 	var fade := Gradient.new()
 	fade.set_color(0, Color.WHITE)
 	fade.set_color(1, Color(1, 1, 1, 0))
@@ -248,6 +256,15 @@ func burst(pos: Vector2, color: Color, amount: int, speed_min: float, speed_max:
 	p.finished.connect(_on_effect_finished.bind(p))
 	effects_parent.add_child(p)
 	p.emitting = true
+
+
+## A body's colour for its puff, pop and sparks: the RectVisual's own (tier 0), or with a
+## look the main colour of the sprite it wears.
+func _body_color(visual: RectVisual) -> Color:
+	var color := visual.color if visual else Color.WHITE
+	if visual != null and Skins.current != null:
+		color = Skins.current.main_color(Skins.id_for(visual), color)
+	return color
 
 
 func live_effects() -> int:

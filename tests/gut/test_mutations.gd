@@ -304,8 +304,11 @@ func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
 	# weapons/ off RunState.apply / add_ai / MutationDB instead.
 	# The Pixel preview (PLAN 1.7): res://systems/skins/ is skipped too: its sprite ids
 	# hunter and elite are 1.7's visual ids (art only, never RunState.apply / MutationDB).
+	# M48a: res://systems/palette.gd likewise: `elite` is one of 1.7's 14 colour roles
+	# (presentation only; test_pixel_skin keeps it off gameplay and gameplay off it).
 	var files := _source_files("res://", ["res://addons/", "res://tests/", "res://tools/",
 			"res://.godot/", "res://.check/", "res://weapons/", "res://systems/skins/"])
+	files.erase("res://systems/palette.gd")
 	assert_gt(files.size(), 30)
 	for m in MutationDB.all:
 		var own := "res://mutations/%s/" % m.id

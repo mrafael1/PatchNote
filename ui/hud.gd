@@ -14,7 +14,7 @@ const INCOMING := "Next patch incoming"
 const PULSE_SPEED := 6.0
 const GAUGE_SIZE := Vector2(260, 10)
 const GAUGE_BACK := Color(1, 1, 1, 0.15)
-const GAUGE_FILL := Color(0.55, 1.0, 0.7)
+const GAUGE_FILL := Palette.GAUGE
 
 var _label: Label
 var _banner: Label
@@ -52,7 +52,7 @@ func _ready() -> void:
 	_label.position += Vector2(-14, 8)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_label.add_theme_font_size_override(&"font_size", 20)
-	_label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_label.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_label.add_theme_constant_override(&"outline_size", 5)
 	add_child(_label)
 	_banner = Label.new()
@@ -62,8 +62,8 @@ func _ready() -> void:
 	_banner.position.y += 64   # under the gauge
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.add_theme_font_size_override(&"font_size", 28)
-	_banner.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.7))
-	_banner.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_banner.add_theme_color_override(&"font_color", Palette.GAUGE)
+	_banner.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_banner.add_theme_constant_override(&"outline_size", 6)
 	_banner.visible = false
 	add_child(_banner)
@@ -74,7 +74,7 @@ func _ready() -> void:
 	_goal.position.y += 10
 	_goal.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_goal.add_theme_font_size_override(&"font_size", 24)
-	_goal.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_goal.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_goal.add_theme_constant_override(&"outline_size", 5)
 	_goal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_goal)
@@ -102,7 +102,7 @@ func _build_gauge() -> void:
 	_gauge_label = Label.new()
 	_gauge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_gauge_label.add_theme_font_size_override(&"font_size", 15)
-	_gauge_label.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_gauge_label.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_gauge_label.add_theme_constant_override(&"outline_size", 4)
 	_gauge.add_child(_gauge_label)
 	var back := ColorRect.new()

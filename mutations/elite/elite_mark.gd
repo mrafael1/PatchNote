@@ -4,7 +4,7 @@ extends Component
 ## full shield_max); on leaving (a revert) it takes the shield back off and remembers
 ## what was left. Draws the shield as a ring, one segment per hit left.
 
-const COLOR := Color(1.0, 0.85, 0.3)
+const COLOR := Palette.ELITE
 const IS_ELITE := &"elite_marked"      ## meta on the enemy: bool, decided once
 const LEFT := &"elite_shield_left"     ## meta on the enemy: hits left at a revert
 
@@ -19,6 +19,7 @@ func _ready() -> void:
 	_ring = Node2D.new()
 	_ring.draw.connect(_draw_ring)
 	_ring.z_index = 1
+	_ring.add_to_group(Skins.SKINNED)   # M48a: the look's live swap redraws it
 	add_child(_ring)
 
 
@@ -71,6 +72,6 @@ func _draw_ring_skin(left: int, r: float) -> bool:
 	var y := -cells * s * 0.5 - pip - 3.0
 	for i in left:
 		var x := (i - (left - 1) * 0.5) * (pip + 3.0) - pip * 0.5
-		_ring.draw_rect(Rect2(x - 1.0, y - 1.0, pip + 2.0, pip + 2.0), Color(0.12, 0.08, 0.14))
-		_ring.draw_rect(Rect2(x, y, pip, pip), COLOR)
+		_ring.draw_rect(Rect2(x - 1.0, y - 1.0, pip + 2.0, pip + 2.0), Palette.color(&"pip_back"))
+		_ring.draw_rect(Rect2(x, y, pip, pip), Palette.color(&"elite"))
 	return true

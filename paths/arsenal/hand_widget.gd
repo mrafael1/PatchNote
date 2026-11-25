@@ -22,10 +22,10 @@ const BAR := Vector2(110, 6)
 const METER_GAP := 10.0
 const RAISE_TIME := 0.12
 const JOIN_TIME := 0.25
-const DIM := Color(0.75, 0.75, 0.8)
-const LIT := Color(1.0, 0.95, 0.5)
-const FACE := Color(0.1, 0.11, 0.16, 0.94)
-const BAR_FILL := Color(1.0, 0.85, 0.35)
+const DIM := Palette.UI_DIM
+const LIT := Palette.CARD_LIT
+const FACE := Palette.UI_PANEL
+const BAR_FILL := Palette.CARD_BAR
 
 var meter: RefCounted        ## paths/arsenal/card_meter.gd
 var loadout: Loadout
@@ -36,10 +36,13 @@ var manual := false
 var _lift: Array[float] = []
 var _join: Array[float] = []
 var _ids: Array[StringName] = []
+var _panels := {}            ## M48a: lit -> this widget's copy of the look's UI panel
+var _panel_version := -1
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_to_group(Skins.SKINNED)   # M48a: the look's live swap redraws it
 	EventBus.weapon_changed.connect(_on_weapon_changed)
 	_sync()
 	for i in _lift.size():
@@ -188,13 +191,20 @@ func _draw() -> void:
 		r.position -= position
 		var edge := LIT if lit else DIM
 		var a := 1.0 - joining(i)
-		var fill := FACE.lerp(Color(0.5, 0.5, 0.6, 0.94), join_flash(i))
-		var box := StyleBoxFlat.new()
-		box.bg_color = Color(fill, fill.a * a)
-		box.border_color = Color(edge, a * (1.0 if lit else 0.8))
-		box.set_border_width_all(3 if lit else 2)
-		box.set_corner_radius_all(6)
-		draw_style_box(box, r)
+		var fill := FACE.lerp(Palette.CARD_FLASH, join_flash(i))
+		var panel := _skin_panel(lit)
+		if panel != null:
+			# M48a: the look's UI panel (Pixel: the 9-slice, gold-rimmed when equipped);
+			# a joining card fades in, a dimmed one is greyed.
+			panel.modulate_color = panel_modulate(lit, a, join_flash(i))
+			draw_style_box(panel, r)
+		else:
+			var box := StyleBoxFlat.new()
+			box.bg_color = Color(fill, fill.a * a)
+			box.border_color = Color(edge, a * (1.0 if lit else 0.8))
+			box.set_border_width_all(3 if lit else 2)
+			box.set_corner_radius_all(6)
+			draw_style_box(box, r)
 		var ink := Color(edge, a * (1.0 if lit else 0.8))
 		var badge := Rect2(r.position + Vector2(5, 5), Vector2(20, 20))
 		draw_rect(badge, Color(edge, 0.25 * a))
@@ -222,6 +232,26 @@ func _draw() -> void:
 	var bar_at := Rect2(m.position + Vector2(0, m.size.y - BAR.y), BAR)
 	draw_rect(bar_at, Color(1, 1, 1, 0.15))
 	draw_rect(Rect2(bar_at.position, Vector2(BAR.x * clampf(bar(), 0.0, 1.0), BAR.y)), BAR_FILL)
+
+
+## M48a: a card's pixel panel tint: white (equipped) or UI_DIM, faded in by `a`, brightened
+## by the join flash (`flash`, join_flash(): 0 under reduce flashing) as tier 0's fill is.
+static func panel_modulate(lit: bool, a: float, flash: float) -> Color:
+	var base := Color.WHITE if lit else Palette.UI_DIM
+	return Color(base * (1.0 + flash), a)
+
+
+## M48a: this widget's own copy of the look's UI panel (it sets the copy's modulate per
+## card); null with no look.
+func _skin_panel(lit: bool) -> StyleBoxTexture:
+	if Skins.current == null or Skins.current.ui_panel(lit) == null:
+		return null
+	if _panel_version != Skins.version:
+		_panel_version = Skins.version
+		_panels.clear()
+	if not _panels.has(lit):
+		_panels[lit] = Skins.current.ui_panel(lit).duplicate()
+	return _panels[lit]
 
 
 ## "●●○": rank filled of Loadout.MAX_RANK.

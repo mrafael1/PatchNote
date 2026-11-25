@@ -5,11 +5,11 @@ extends Node2D
 ## enemy shot enters next turn, a mark on a resting tank, the player's tile and the aim
 ## line. Reads only TurnClock (danger, intents). Presentation only.
 
-const COLOR := Color(1.0, 0.8, 0.45, 0.8)
-const COLOR_DANGER := Color(1.0, 0.2, 0.2, 0.3)
-const COLOR_AIM := Color(1.0, 0.35, 0.3, 0.9)
-const COLOR_SHOT := Color(1.0, 0.6, 0.25, 0.95)
-const COLOR_REST := Color(0.65, 0.8, 1.0, 0.9)
+const COLOR := Palette.TURN_PATH
+const COLOR_DANGER := Palette.TURN_DANGER
+const COLOR_AIM := Palette.TURN_AIM
+const COLOR_SHOT := Palette.TURN_SHOT
+const COLOR_REST := Palette.TURN_REST
 const GRACE_DIM := 0.35        ## danger alpha multiplier while grace is on
 const AIM_TILES := 5
 

@@ -27,6 +27,8 @@ const TYPE_CPS := 45.0
 const LINE_FONT := 24
 const LINE_MAX_W := 620.0
 const BIG := 3.0           ## the mascot's scale here (the corner's is 1.12)
+const PREVIEW := 1.1       ## a mascot card's preview body: its scale and centre in the card
+const PREVIEW_AT := Vector2(93, 65)
 
 const LINES := &"lines"
 const FORK := &"fork"
@@ -43,6 +45,7 @@ var picked: Change:
 		return picks.front() if not picks.is_empty() else null
 var moved_on := false           ## Move on was pressed (the fork, if any, comes after)
 var big_body: MascotBody
+var _big_view: PixelBodyView   ## M48a: big_body's pixel body style, null with no look
 ## The seed the next scene plays; -1 = random. Tools set it for a repeatable chain.
 var next_seed := -1
 var input_delay := INPUT_DELAY  ## tests set 0
@@ -77,7 +80,7 @@ func _ready() -> void:
 	_root.visible = false
 	add_child(_root)
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.03, 0.05, 0.94)
+	dim.color = Color(Palette.SCRIM, 0.94)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 	var row := HBoxContainer.new()
@@ -111,7 +114,7 @@ func _ready() -> void:
 	column.add_child(_cards)
 	_notes = Label.new()
 	_notes.add_theme_font_size_override(&"font_size", 20)
-	_notes.add_theme_color_override(&"font_color", Color(0.55, 1.0, 0.65))
+	_notes.add_theme_color_override(&"font_color", Palette.ACCENT)
 	column.add_child(_notes)
 	_buttons = HBoxContainer.new()
 	_buttons.add_theme_constant_override(&"separation", 16)
@@ -121,6 +124,35 @@ func _ready() -> void:
 	_hint.add_theme_font_size_override(&"font_size", 14)
 	_hint.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.3))
 	column.add_child(_hint)
+	Skins.hub.skin_changed.connect(_on_skin_changed)
+
+
+func _exit_tree() -> void:
+	if Skins.hub.skin_changed.is_connected(_on_skin_changed):
+		Skins.hub.skin_changed.disconnect(_on_skin_changed)
+
+
+## M48a (review): a live look swap (F10 works while the debrief is open) re-dresses the
+## whole screen: the big body in the new body style (keeping what it was doing), the cards
+## (a mascot card's preview too) and the buttons.
+func _on_skin_changed(_skin: ArtSkin) -> void:
+	if big_body != null:
+		var old := big_body
+		_set_body(old.id)
+		Mascot.carry_state(old, big_body)
+	for b in _buttons.get_children():
+		if b is Button and not b.is_queued_for_deletion():
+			Skins.redress_button(b)
+	if phase == FORK and fork() != null:
+		var focused := -1
+		for i in _cards.get_child_count():
+			if (_cards.get_child(i) as Control).has_focus():
+				focused = i
+		var at := _cards_msec   # the swap does not restart the cards' input delay
+		_show_cards(fork())
+		_cards_msec = at
+		if focused >= 0 and focused < _cards.get_child_count():
+			(_cards.get_child(focused) as Button).grab_focus.call_deferred()
 
 
 ## Outcome names a debrief reads (Line conditions) from the run loop's.
@@ -170,15 +202,25 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 func _set_body(body_id: StringName) -> void:
 	if big_body != null:
 		big_body.queue_free()
+	if _big_view != null:
+		_big_view.queue_free()
+		_big_view = null
 	big_body = MascotBody.make(body_id)
 	big_body.gentle = SaveGame.reduce_flashing()
+	if Skins.current != null:   # M48a: the look's body style (Pixel: 3x nearest)
+		_big_view = PixelBodyView.wrap(big_body, BIG)
+		_stage.add_child(_big_view)
+		_place_body()
+		return
 	big_body.scale = Vector2.ONE * BIG
 	_stage.add_child(big_body)
 	_place_body()
 
 
 func _place_body() -> void:
-	if big_body != null:
+	if _big_view != null:
+		_big_view.position = Vector2(_stage.size.x * 0.5, _stage.size.y * 0.45)
+	elif big_body != null:
 		big_body.position = Vector2(_stage.size.x * 0.5, _stage.size.y * 0.45)
 
 
@@ -236,7 +278,7 @@ func _next_line() -> void:
 	_typing.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_typing.custom_minimum_size.x = Mascot.bubble_width(_line.text, LINE_FONT, LINE_MAX_W)
 	_typing.add_theme_font_size_override(&"font_size", LINE_FONT)
-	_typing.add_theme_color_override(&"font_color", MascotBody.INK)
+	_typing.add_theme_color_override(&"font_color", Palette.MASCOT_INK)
 	_typing.visible_characters = 0
 	bubble.add_child(_typing)
 	_body.add_child(bubble)
@@ -344,10 +386,15 @@ func _card(c: Change, index: int) -> Button:
 		box.add_child(holder)
 		var preview := MascotBody.make(c.take.id)
 		preview.gentle = SaveGame.reduce_flashing()
-		preview.scale = Vector2.ONE * 1.1
-		preview.position = Vector2(93, 65)
 		preview.t = 0.4 * index   # out of step with each other
-		holder.add_child(preview)
+		if Skins.current != null:   # M48a (review): the preview wears the look's body style too
+			var view := PixelBodyView.wrap(preview, PREVIEW)
+			view.position = PREVIEW_AT
+			holder.add_child(view)
+		else:
+			preview.scale = Vector2.ONE * PREVIEW
+			preview.position = PREVIEW_AT
+			holder.add_child(preview)
 		b.mouse_entered.connect(func() -> void: preview.set_expression(&"happy"))
 		b.mouse_exited.connect(func() -> void: preview.set_expression(&"idle"))
 		b.focus_entered.connect(func() -> void: preview.set_expression(&"happy"))
@@ -375,6 +422,7 @@ func _card(c: Change, index: int) -> Button:
 	b.pressed.connect(func() -> void:
 		if cards_ready():
 			pick(index))
+	Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
 	return b
 
 
@@ -464,6 +512,7 @@ func _add_button(label: String, action: Callable) -> void:
 	b.custom_minimum_size = Vector2(220, 52)
 	b.add_theme_font_size_override(&"font_size", 22)
 	b.pressed.connect(action)
+	Skins.dress_button(b)
 	_buttons.add_child(b)
 
 

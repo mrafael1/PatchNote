@@ -6,7 +6,7 @@ extends Control
 ## Presentation only.
 
 const VIGNETTE_TIME := 0.3
-const VIGNETTE := Color(0.9, 0.05, 0.05)
+const VIGNETTE := Palette.VIGNETTE
 const VIGNETTE_ALPHA := 0.55
 const VIGNETTE_DEPTH := 0.14   ## share of the shorter screen side
 const FLASH_TIME := 0.08
@@ -65,8 +65,8 @@ func _draw() -> void:
 		return
 	var a := VIGNETTE_ALPHA * _vignette_left / VIGNETTE_TIME
 	var d := minf(s.x, s.y) * VIGNETTE_DEPTH
-	var outer := Color(VIGNETTE, a)
-	var inner := Color(VIGNETTE, 0.0)
+	var outer := Color(Palette.color(&"vignette"), a)
+	var inner := Color(Palette.color(&"vignette"), 0.0)
 	# Four bands, opaque at the screen edge and clear inside.
 	_band([Vector2.ZERO, Vector2(s.x, 0), Vector2(s.x - d, d), Vector2(d, d)], outer, inner)
 	_band([Vector2(0, s.y), Vector2(s.x, s.y), Vector2(s.x - d, s.y - d), Vector2(d, s.y - d)], outer, inner)

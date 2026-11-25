@@ -13,7 +13,7 @@ const FADE_TICKS := 30          ## the last 0.5 s fade out
 const PULSE_HZ := 1.5
 const RADIUS := 48.0
 const ARROW := 14.0
-const COLOR := Color(1.0, 0.85, 0.3)
+const COLOR := Palette.HINT
 const ACTIONS: Array[StringName] = [&"move_up", &"move_down", &"move_left", &"move_right"]
 const DIRS: Array[Vector2] = [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]
 

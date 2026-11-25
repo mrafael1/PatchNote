@@ -21,9 +21,9 @@ const SCRIPTS := {
 	&"caret": "res://ui/mascot/bodies/caret_body.gd",
 }
 
-const INK := Color(0.08, 0.09, 0.13)
-const EYE_WHITE := Color(0.98, 0.98, 1.0)
-const SWEAT := Color(0.55, 0.8, 1.0)
+const INK := Palette.MASCOT_INK
+const EYE_WHITE := Palette.MASCOT_EYE
+const SWEAT := Palette.MASCOT_SWEAT
 
 var id: StringName = &""
 var expression: StringName = &"idle"
@@ -118,10 +118,10 @@ func _draw() -> void:
 	var p := posed()
 	if glitching() and not gentle:
 		var k := 3.0 + 2.0 * sin(t * 40.0)
-		_tint = Color(1.0, 0.25, 0.35, 0.55)
+		_tint = Palette.GLITCH_RED
 		draw_set_transform(p["offset"] + Vector2(k, 0), p["angle"], p["scale"])
 		_paint()
-		_tint = Color(0.25, 1.0, 1.0, 0.55)
+		_tint = Palette.GLITCH_CYAN
 		draw_set_transform(p["offset"] - Vector2(k, 0), p["angle"], p["scale"])
 		_paint()
 	_tint = Color.WHITE
@@ -339,7 +339,7 @@ func draw_mouth(c: Vector2, w: float) -> void:
 				var a := PI * float(i) / 10.0
 				pts.append(c + Vector2(cos(a) * w * 0.5, sin(a) * w * 0.42))
 			draw_colored_polygon(pts, col(INK))
-			draw_circle(c + Vector2(0, w * 0.26), w * 0.16, col(Color(1.0, 0.45, 0.5)))
+			draw_circle(c + Vector2(0, w * 0.26), w * 0.16, col(Palette.MASCOT_BLUSH))
 		&"proud":
 			draw_polyline(PackedVector2Array([c + Vector2(-w * 0.4, 0), c + Vector2(w * 0.15, w * 0.08), c + Vector2(w * 0.45, -w * 0.15)]), col(INK), lw, true)
 		&"worried":

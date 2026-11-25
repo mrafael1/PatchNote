@@ -32,7 +32,7 @@ func _ready() -> void:
 	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_back)
 	_fill = ColorRect.new()
-	_fill.color = Color(0.45, 0.95, 1.0)
+	_fill.color = Palette.GEM
 	_fill.size = Vector2(0, BAR.y)
 	_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_back.add_child(_fill)
@@ -42,7 +42,7 @@ func _ready() -> void:
 func _make_label(font_size: int) -> Label:
 	var l := Label.new()
 	l.add_theme_font_size_override(&"font_size", font_size)
-	l.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	l.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	l.add_theme_constant_override(&"outline_size", 5)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(l)

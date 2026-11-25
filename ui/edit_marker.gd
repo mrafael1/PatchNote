@@ -8,7 +8,7 @@ extends CanvasLayer
 const INSET := 56.0
 const RADIUS := 26.0
 const TOP_FREE := 190.0   ## below the HUD line and the mascot's corner
-const COLOR := Color(1.0, 0.82, 0.3)
+const COLOR := Palette.MARKER
 
 var target: StringName = &""
 var gentle := false
@@ -75,7 +75,7 @@ func _process(_delta: float) -> void:
 
 func _draw_icon() -> void:
 	var c := _icon.size * 0.5
-	_icon.draw_circle(c, RADIUS, Color(0, 0, 0, 0.55))
+	_icon.draw_circle(c, RADIUS, Color(Palette.SHADOW, 0.55))
 	_icon.draw_arc(c, RADIUS, 0.0, TAU, 40, COLOR, 3.0, true)
 	draw_target(_icon, c, target, COLOR)
 
@@ -91,8 +91,8 @@ static func draw_target(ci: CanvasItem, c: Vector2, p_target: StringName, color:
 					ci.draw_rect(Rect2(c.x - 11.0 + shift + col * 11.0, y, 9.0, 4.5), color)
 		&"enemies":   # a square with two eyes
 			ci.draw_rect(Rect2(c - Vector2(9, 9), Vector2(18, 18)), color)
-			ci.draw_rect(Rect2(c + Vector2(-5, -3), Vector2(3, 3)), Color.BLACK)
-			ci.draw_rect(Rect2(c + Vector2(2, -3), Vector2(3, 3)), Color.BLACK)
+			ci.draw_rect(Rect2(c + Vector2(-5, -3), Vector2(3, 3)), Palette.OUTLINE)
+			ci.draw_rect(Rect2(c + Vector2(2, -3), Vector2(3, 3)), Palette.OUTLINE)
 		&"player":   # the player's square and its barrel
 			ci.draw_rect(Rect2(c - Vector2(7, 7), Vector2(14, 14)), color, false, 2.5)
 			ci.draw_line(c, c + Vector2(12, 0), color, 2.5)

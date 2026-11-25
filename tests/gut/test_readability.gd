@@ -14,7 +14,7 @@ const TIER_0 := {"tier": 0, "take": ""}
 ## the scene and overlay that set or show it (PLAN v5 1.7).
 const LOOK_READERS: Array[String] = ["res://systems/look.gd", "res://systems/feedback.gd",
 		"res://systems/camera_rig.gd", "res://entities/projectile.gd", "res://main.gd",
-		"res://ui/debug_overlay.gd"]
+		"res://ui/debug_overlay.gd", "res://systems/palette.gd", "res://systems/skins/skins.gd"]
 
 var game: Main
 var player: CharacterBody2D

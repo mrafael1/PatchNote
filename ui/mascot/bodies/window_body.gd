@@ -3,10 +3,10 @@ extends MascotBody
 ## two eyes and a mouth in its body. Surprise maximises it for a moment (the pose's pop);
 ## panic turns the bar red and "Not Responding"; point_at grows an arrow from its side.
 
-const BODY := Color(0.92, 0.94, 0.97)
-const BAR := Color(0.24, 0.45, 0.95)
-const BAR_PANIC := Color(0.86, 0.26, 0.28)
-const BAR_GUILTY := Color(0.5, 0.53, 0.6)
+const BODY := Palette.WINDOW_BODY
+const BAR := Palette.WINDOW_BAR
+const BAR_PANIC := Palette.WINDOW_PANIC
+const BAR_GUILTY := Palette.WINDOW_GUILTY
 const HALF := Vector2(46, 38)
 const BAR_H := 18.0
 
@@ -25,7 +25,7 @@ func outline() -> PackedVector2Array:
 
 func _paint() -> void:
 	var box := Rect2(-HALF, HALF * 2.0)
-	draw_rect(Rect2(box.position + Vector2(4, 5), box.size), col(Color(0, 0, 0, 0.3)))
+	draw_rect(Rect2(box.position + Vector2(4, 5), box.size), col(Color(Palette.SHADOW, 0.3)))
 	draw_rect(box, col(BODY))
 	var bar_color := BAR
 	if expression == &"panic":

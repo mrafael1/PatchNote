@@ -28,6 +28,8 @@ var body_id: StringName = MascotBody.DEFAULT
 var shown: Array[String] = []
 
 var _corner: Control
+## M48a: the `pixel` body style (PixelBodyView) while a look is on; null draws the body as is.
+var _pixel_view: PixelBodyView
 var _bubble: PanelContainer
 var _label: Label
 var _queue: Array[Dictionary] = []   ## {line: Line, priority: int}, highest priority first
@@ -64,12 +66,41 @@ func _ready() -> void:
 	_label.add_theme_color_override(&"font_color", MascotBody.INK)
 	_bubble.add_child(_label)
 	_rebuild_body()
+	Skins.hub.skin_changed.connect(_on_skin_changed)
+
+
+func _exit_tree() -> void:
+	if Skins.hub.skin_changed.is_connected(_on_skin_changed):
+		Skins.hub.skin_changed.disconnect(_on_skin_changed)
+
+
+## M48a: a look swap rebuilds the body in the new look's body style, keeping what it was
+## doing (expression, talking, a pointing lean, a glitch).
+func _on_skin_changed(_skin: ArtSkin) -> void:
+	var old := body
+	_rebuild_body()
+	carry_state(old, body)
+
+
+## M48a: copies a body's live state onto its rebuilt twin (a look swap): the expression and
+## its clock, talking, the point_at lean and the glitch. Reads MascotBody's own fields: M47.2's
+## body code stays as it is.
+static func carry_state(from: MascotBody, to: MascotBody) -> void:
+	if from == null or to == null:
+		return
+	to.set_expression(from.expression)
+	to.t = from.t
+	to.expr_t = from.expr_t
+	to.talking = from.talking
+	to._glitch_left = from._glitch_left
+	to._point_dir = from._point_dir
+	to._point_left = from._point_left
 
 
 ## The bubble's look, shared with the debrief.
 static func bubble_style() -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(0.97, 0.97, 1.0, 0.96)
+	box.bg_color = Palette.BUBBLE
 	box.border_color = MascotBody.INK
 	box.set_border_width_all(2)
 	box.set_corner_radius_all(12)
@@ -97,8 +128,18 @@ func setup(p_face: bool, p_body_id: StringName) -> void:
 func _rebuild_body() -> void:
 	if body != null:
 		body.queue_free()
+	if _pixel_view != null:
+		_pixel_view.queue_free()
+		_pixel_view = null
 	body = MascotBody.make(body_id if face else MascotBody.CARET)
 	body.gentle = SaveGame.reduce_flashing()
+	if Skins.current != null:
+		# M48a: the look's body style (Pixel: the body rendered small, shown at 3x nearest).
+		body.top_limit = corner_top_limit()
+		_pixel_view = PixelBodyView.wrap(body, SIZE / 100.0)
+		_pixel_view.position = Vector2(SIZE, SIZE) * 0.5
+		_corner.add_child(_pixel_view)
+		return
 	body.position = Vector2(SIZE, SIZE) * 0.5
 	body.scale = Vector2.ONE * (SIZE / 100.0)
 	body.top_limit = corner_top_limit()
@@ -170,7 +211,10 @@ func show_expression(e: StringName) -> void:
 ## Points the body at a spot on the screen for `seconds` (a rule edit's warning).
 func point_at_screen(screen_pos: Vector2, seconds := 1.5) -> void:
 	if body != null and _corner != null:
-		body.point_at(screen_pos - _corner.global_position, seconds)
+		var at := screen_pos - _corner.global_position
+		if _pixel_view != null:
+			at = _pixel_view.to_body_parent(at)   # the body sits in the pixel view's viewport
+		body.point_at(at, seconds)
 
 
 func is_speaking() -> bool:

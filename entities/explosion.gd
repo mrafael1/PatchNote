@@ -9,7 +9,7 @@ extends Node2D
 ## damage. Knockback goes to every enemy in range and, if push_player, to the player.
 
 const LIFE := 0.25
-const COLOR := Color(1.0, 0.7, 0.25)
+const COLOR := Palette.BLAST
 const BODY_MARGIN := 12.0   # enemies are counted from their edge, not their centre
 
 var radius := 60.0

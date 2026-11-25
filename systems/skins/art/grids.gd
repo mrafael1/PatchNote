@@ -18,6 +18,21 @@ const PALETTE := {
 	"white": "#fff8ec",
 }
 
+## M48a: Palette's roles in this look (systems/palette.gd; a role not named here keeps its
+## tier-0 colour: the menus, the dev chat and the mascot bodies). Every value is taken
+## from the sprites' own ramps above or below, so effects match the bodies they come from.
+const ROLES := {
+	"bg": "#3a2a4f", "grid": "#45325e", "wall": "#5c3452", "player": "#3ff2d2",
+	"player_shot": "#8ff8ff", "enemy": "#f2402e", "enemy_shot": "#ff5a30", "elite": "#ffd84a",
+	"pickup": "#ffc83a", "blast": "#ff8a1c", "ui_text": "#fff8ec", "ui_panel": "#2a1e38f0",
+	"accent": "#3ff2d2", "danger": "#f2402e",
+	"standable": "#ffe08a", "depth": "#14081c80", "gem": "#2ee87a", "crate": "#d9883e",
+	"gate": "#5cff9e", "hunter_body": "#c4183a", "orbit_shard": "#c8fcff",
+	"well_field": "#b84ee0", "burn": "#ff8a1c", "lancer_line": "#e63fc4", "dust": "#c8a8b8",
+	"hit": "#ff3a64", "muzzle": "#fff2a0", "dash": "#3ff2d2", "spark": "#ffc23a",
+	"pip_back": "#1e1424", "vignette": "#c4183a",
+}
+
 const SPRITES := {
 	"player": {
 		"grid": [
@@ -857,6 +872,35 @@ const SPRITES := {
 			"....KKKK",
 		],
 		"ramp": {"P": "#3ff2d2", "S": "#1a98a8", "H": "#d4fff4", "A": "#ffffff"},
+	},
+	# M48a: the UI panel (ArtSkin.ui_panel): an 8x8 9-slice, 2-cell margins, drawn at 3x
+	# (nearest), a dusk-plum face with a lit top-left bevel; _lit is the focused / equipped
+	# card, a gold rim. Pixel's cards, the dev chat, the debrief and Arsenal's hand wear it.
+	"ui_panel": {
+		"grid": [
+			".KKKKKK.",
+			"KHHHHHHK",
+			"KHPPPPSK",
+			"KHPPPPSK",
+			"KHPPPPSK",
+			"KHPPPPSK",
+			"KSSSSSSK",
+			".KKKKKK.",
+		],
+		"ramp": {"P": "#2a1e38f0", "S": "#1a1226f0", "H": "#4e3866f0", "A": "#ffd84a"},
+	},
+	"ui_panel_lit": {
+		"grid": [
+			".AAAAAA.",
+			"AHHHHHHA",
+			"AHPPPPSA",
+			"AHPPPPSA",
+			"AHPPPPSA",
+			"AHPPPPSA",
+			"ASSSSSSA",
+			".AAAAAA.",
+		],
+		"ramp": {"P": "#3a2850f4", "S": "#c08418", "H": "#fff7c0", "A": "#ffd84a"},
 	},
 }
 

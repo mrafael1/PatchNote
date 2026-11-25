@@ -3,7 +3,7 @@ extends MascotBody
 ## text caret. It stays lit while it types; panic blinks it fast, surprise makes it
 ## jump, thinking adds three dots.
 
-const COLOR := Color(0.55, 1.0, 0.65)
+const COLOR := Palette.ACCENT
 const SIZE := Vector2(16, 30)
 
 

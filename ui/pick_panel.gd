@@ -33,7 +33,7 @@ func _ready() -> void:
 	_root.visible = false
 	add_child(_root)
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.06, 0.55)
+	dim.color = Color(Palette.SCRIM_PICK, 0.55)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
 	var column := VBoxContainer.new()
@@ -44,8 +44,8 @@ func _ready() -> void:
 	_line = Label.new()
 	_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_line.add_theme_font_size_override(&"font_size", 28)
-	_line.add_theme_color_override(&"font_color", Color(0.45, 0.95, 1.0))
-	_line.add_theme_color_override(&"font_outline_color", Color.BLACK)
+	_line.add_theme_color_override(&"font_color", Palette.INFO)
+	_line.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_line.add_theme_constant_override(&"outline_size", 6)
 	column.add_child(_line)
 	_cards = HBoxContainer.new()
@@ -80,6 +80,7 @@ func open(p_offer: PickOffer) -> bool:
 		b.text = card_text(p_offer, i)
 		b.disabled = true
 		b.pressed.connect(choose.bind(i))
+		Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
 		_cards.add_child(b)
 		_buttons.append(b)
 	_locked_for = input_delay

@@ -741,6 +741,25 @@ func test_the_flow_offers_rework_as_a_fourth_card_and_back() -> void:
 	assert_string_contains(flow.notes.text(), "Tank → Bomber")
 
 
+## M48a review: with a look on, the Rework card wears the look's panel in every state (tinted
+## by its colour), not the flat outline at rest and the pixel panel on hover.
+func test_the_rework_card_wears_one_style_with_a_look() -> void:
+	var was := Skins.current
+	var skin := Skins.pixel()
+	Skins.use(skin)
+	var s := _two_answered()
+	var flow := DevSessionFlow.new()
+	add_child_autofree(flow)
+	flow.start(s)
+	await wait_seconds(Tuning.prompt_input_delay + 0.1)
+	assert_true(flow.screen.has_rework_card())
+	var b := flow.screen.card_button(s.cards.size())
+	assert_eq(b.get_theme_stylebox(&"normal"), skin.ui_panel(false), "at rest: the look's panel")
+	assert_eq(b.get_theme_stylebox(&"hover"), skin.ui_panel(true))
+	assert_eq(b.self_modulate, DevSessionScreen.REWORK_TINT, "tinted as its own")
+	Skins.use(was)
+
+
 func test_the_flow_of_a_rework_only_session_opens_on_the_list_with_keep() -> void:
 	_live(7)
 	for f: String in FORKS:

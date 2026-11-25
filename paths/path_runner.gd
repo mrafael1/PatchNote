@@ -705,7 +705,7 @@ func _wipe() -> void:
 	_fade = CanvasLayer.new()
 	_fade.layer = 79
 	var rect := ColorRect.new()
-	rect.color = Color(0, 0, 0, 0.6)
+	rect.color = Color(Palette.SHADOW, 0.6)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_fade.add_child(rect)

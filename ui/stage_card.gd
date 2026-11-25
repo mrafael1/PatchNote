@@ -101,7 +101,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	gentle = SaveGame.reduce_flashing()
 	var back := ColorRect.new()
-	back.color = Color.BLACK
+	back.color = Palette.CURTAIN
 	back.set_anchors_preset(Control.PRESET_FULL_RECT)
 	back.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(back)
@@ -113,7 +113,7 @@ func _ready() -> void:
 	box.offset_bottom = 10.0
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(box)
-	_stage_label = _label("Stage %d" % stage, 28, Color(0.75, 0.75, 0.8))
+	_stage_label = _label("Stage %d" % stage, 28, Palette.UI_DIM)
 	box.add_child(_stage_label)
 	_title_label = _label(title, 56, Color.WHITE)
 	_title_label.visible_characters = 0
@@ -153,9 +153,9 @@ func _build_cooking() -> void:
 	var head := HBoxContainer.new()
 	head.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(head)
-	_building_label = _label("Building %s" % building if building != "" else "Building", 22, Color(0.85, 0.85, 0.9))
+	_building_label = _label("Building %s" % building if building != "" else "Building", 22, Palette.UI_SOFT)
 	head.add_child(_building_label)
-	_spinner = _label(spinner_text(), 22, Color(1.0, 0.85, 0.3))
+	_spinner = _label(spinner_text(), 22, Palette.SPINNER)
 	_spinner.custom_minimum_size = Vector2(36.0, 0.0)
 	head.add_child(_spinner)
 	_bar = ProgressBar.new()
@@ -186,8 +186,8 @@ func _build_beat() -> void:
 	var head := HBoxContainer.new()
 	head.alignment = BoxContainer.ALIGNMENT_CENTER
 	_beat_box.add_child(head)
-	head.add_child(_label("Building %s" % building if building != "" else "Building", 22, Color(0.85, 0.85, 0.9)))
-	_beat_spinner = _label(spinner_text(), 22, Color(1.0, 0.85, 0.3))
+	head.add_child(_label("Building %s" % building if building != "" else "Building", 22, Palette.UI_SOFT))
+	_beat_spinner = _label(spinner_text(), 22, Palette.SPINNER)
 	_beat_spinner.custom_minimum_size = Vector2(36.0, 0.0)
 	head.add_child(_beat_spinner)
 	_beat_bar = ProgressBar.new()
@@ -208,7 +208,7 @@ func beat_bar() -> float:
 func _beat() -> void:
 	var due := clampi(floori((elapsed - BEAT_FIRST) / BEAT_EVERY) + 1, 0, beat_lines.size())
 	while beat_shown < due:
-		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Color(0.7, 0.9, 0.7)))
+		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Palette.BEAT_TEXT))
 		beat_shown += 1
 	_beat_bar.value = float(beat_shown) / float(beat_lines.size())
 	_beat_spinner.text = spinner_text()
@@ -221,7 +221,7 @@ func _end_beat() -> void:
 	if beat_done:
 		return
 	while beat_shown < beat_lines.size():
-		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Color(0.7, 0.9, 0.7)))
+		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Palette.BEAT_TEXT))
 		beat_shown += 1
 	_beat_bar.value = 1.0
 	beat_done = true
@@ -273,7 +273,7 @@ func _cook() -> void:
 		return
 	var due := clampi(floori((elapsed - LINES_FROM) / LINE_EVERY) + 1, 0, cooking_lines.size())
 	while shown_lines < due:
-		_lines_box.add_child(_label(cooking_lines[shown_lines], 18, Color(0.7, 0.9, 0.7)))
+		_lines_box.add_child(_label(cooking_lines[shown_lines], 18, Palette.BEAT_TEXT))
 		shown_lines += 1
 	_bar.value = BAR_MAX * float(shown_lines) / float(cooking_lines.size())
 	_spinner.text = spinner_text()
@@ -296,7 +296,7 @@ func _end() -> void:
 		return
 	_title_label.visible_characters = -1
 	while shown_lines < cooking_lines.size():
-		_lines_box.add_child(_label(cooking_lines[shown_lines], 18, Color(0.7, 0.9, 0.7)))
+		_lines_box.add_child(_label(cooking_lines[shown_lines], 18, Palette.BEAT_TEXT))
 		shown_lines += 1
 	ended = true
 	_bar.value = BAR_MAX

@@ -2,8 +2,8 @@ extends MascotBody
 ## The cursor (PLAN v8 1.3): a mouse pointer with two dot eyes and a blinking caret for a
 ## mouth. Tilt and bounce carry the expressions; point_at flies it toward the target.
 
-const FILL := Color(0.96, 0.97, 1.0)
-const CARET_COLOR := Color(0.2, 0.75, 1.0)
+const FILL := Palette.CURSOR_FILL
+const CARET_COLOR := Palette.CURSOR_CARET
 ## The classic pointer, tip at (0, 0), in a 50 x 80 box.
 const ARROW := [Vector2(0, 0), Vector2(0, 76), Vector2(19, 60), Vector2(31, 86),
 		Vector2(44, 80), Vector2(32, 55), Vector2(60, 55)]
@@ -41,7 +41,7 @@ func _paint() -> void:
 	var shadow := PackedVector2Array()
 	for v in pts:
 		shadow.append(v + Vector2(4, 5))
-	draw_colored_polygon(shadow, col(Color(0, 0, 0, 0.3)))
+	draw_colored_polygon(shadow, col(Color(Palette.SHADOW, 0.3)))
 	draw_colored_polygon(pts, col(FILL))
 	pts.append(pts[0])
 	draw_polyline(pts, col(INK), 3.5, true)
