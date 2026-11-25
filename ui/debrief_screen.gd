@@ -62,6 +62,9 @@ const AGAIN := "again"
 const MOVE_ON_ROW := "move on (I'll take this one)"
 const BOX := Vector2(230, 210)   ## a raw fork preview box
 const SECTIONS: Array[String] = ["Added", "Changed", "Fixed"]
+## M47.5b (PLAN v9.3 2.5, D2): a death's countdown before "again" fires by itself.
+const COUNTDOWN_S := 3
+const COUNTDOWN_LINE := "restarting in"
 
 var session: SessionDef
 var outcome: StringName = &""   ## won, died or stopped
@@ -115,6 +118,14 @@ var _boxes: CenterContainer     ## the fork's raw preview boxes over the frozen 
 var _boxes_row: HBoxContainer
 var _auto_wait := false
 var _auto_msec := 0
+## M47.5b: the host (the death countdown asks it whether anyone played since the last
+## restart), the countdown's row and its clock, and when this beat opened (telemetry).
+var host: GameHost
+var opened_usec := 0
+var _count_wait := false
+var _count_label: Label
+var _count_msec := 0
+var _count_shown := 0
 
 
 var events: Array = []   ## the events played this attempt (open())
@@ -313,6 +324,9 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 	_apply_style()
 	_chosen = false
 	_auto_wait = false
+	_count_wait = false
+	_count_label = null
+	opened_usec = Time.get_ticks_usec()
 	if view != TERMINAL:
 		_set_body(body_for(session))
 	_pending = lines.duplicate()
@@ -612,6 +626,7 @@ func finish_lines() -> void:
 func _process(delta: float) -> void:
 	if view == TERMINAL and is_open() and phase == DONE:
 		_auto_step()
+		_count_step()
 	if not is_open() or phase != LINES or _line == null:
 		return
 	_line_t += delta
@@ -917,6 +932,10 @@ func _finish() -> void:
 func _terminal_way_on() -> void:
 	if outcome == &"died" and not death_expected() and not moved_on:
 		terminal.ask([AGAIN, MOVE_ON_ROW] as Array[String])
+		# M47.5b: once the choices are up, "restarting in 3 . 2 . 1", then again by itself
+		# (a live host, and only when someone played since the last restart).
+		_count_wait = countdown_due()
+		_count_msec = Time.get_ticks_msec()
 		return
 	var v := CampaignDB.version_after(session).label()
 	terminal.think()
@@ -939,6 +958,50 @@ func _auto_step() -> void:
 		var options := choices()
 		if not options.is_empty():
 			choose(options[0])
+
+
+## M47.5b: the death countdown runs (auto_way_on, and the host saw a gameplay input since
+## its last swap: a player who walked away stops at `you> _`).
+func countdown_due() -> bool:
+	return auto_way_on and (host == null or host.played)
+
+
+## The countdown starts when the died lines and the choices are typed, a row of its own;
+## a number a second; at the end, again (RETRY).
+func _count_step() -> void:
+	if not _count_wait or _chosen:
+		return
+	if _count_label == null:
+		if terminal.is_busy():
+			_count_msec = Time.get_ticks_msec()
+			return
+		_count_shown = 0
+		_count_label = terminal.sys_now(countdown_text(0))
+		_count_msec = Time.get_ticks_msec()
+		return
+	var whole := mini(int((Time.get_ticks_msec() - _count_msec) / 1000), COUNTDOWN_S)
+	if whole != _count_shown:
+		_count_shown = whole
+		if is_instance_valid(_count_label):
+			_count_label.text = countdown_text(whole)
+			terminal.touch()
+	if whole >= COUNTDOWN_S and can_choose():
+		_count_wait = false
+		if RETRY in choices():
+			choose(RETRY)
+
+
+## "restarting in 3", "restarting in 3 . 2", "restarting in 3 . 2 . 1".
+static func countdown_text(step: int) -> String:
+	var parts: Array[String] = []
+	for i in mini(step, COUNTDOWN_S - 1) + 1:
+		parts.append(str(COUNTDOWN_S - i))
+	return COUNTDOWN_LINE + " " + " . ".join(parts)
+
+
+## Real seconds since this beat opened (telemetry's beat_real_s).
+func beat_real_s() -> float:
+	return snappedf((Time.get_ticks_usec() - opened_usec) / 1000000.0, 0.01) if opened_usec > 0 else 0.0
 
 
 ## A click on a terminal choice row: the fork's option or the way on, by order.
@@ -1024,6 +1087,7 @@ func choose(label: String) -> bool:
 		if _chosen:
 			return false   # M47.5a: one way on per open (a second key, the auto way on)
 		_auto_wait = false
+		_count_wait = false   # M47.5b: a key (1 or 2) stops the countdown
 		terminal.finish()
 		if terminal.has_prompt():
 			terminal.answer(str(choices().find(label) + 1))
@@ -1067,6 +1131,7 @@ func close() -> void:
 	_root.visible = false
 	_open = false
 	_auto_wait = false
+	_count_wait = false
 	_hide_boxes()
 	RunState.set_pause(&"debrief", false)
 

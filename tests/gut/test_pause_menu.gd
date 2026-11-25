@@ -149,10 +149,13 @@ func test_stage_1_gets_the_raw_line_and_stage_2_the_full_menu() -> void:
 	assert_true(g.pause_menu.raw)
 	assert_true(g.pause_menu._raw_label.visible)
 	assert_false(g.pause_menu._panel.visible)
-	assert_eq(g.pause_menu._raw_label.text, "PAUSED   [Escape] resume   [Q] quit to start")
+	# M47.5b (listed deviation): before the front door Q quits the game, and F, -/+, L are here.
+	assert_eq(g.pause_menu._raw_label.text,
+			"PAUSED   [Escape] resume   [Q] quit game   [F] fullscreen   [-/+] volume   [L] less flashing")
 	g.pause_menu.close()
 	assert_eq(PauseMenu.raw_line(func(k: int) -> int: return KEY_A if k == KEY_Q else k),
-			"PAUSED   [Escape] resume   [A] quit to start", "AZERTY prints A for the Q spot")
+			"PAUSED   [Escape] resume   [A] quit game   [F] fullscreen   [-/+] volume   [L] less flashing",
+			"AZERTY prints A for the Q spot")
 	assert_true(PauseMenu.raw_for(null), "the v6 loop is raw")
 
 

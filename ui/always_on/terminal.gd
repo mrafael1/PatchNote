@@ -35,6 +35,10 @@ const CUT := " —"
 
 ## &"raw" now; M48.5's polished panel plugs in here.
 var style: StringName = &"raw"
+## M47.5b (PLAN v9.3 2.9, D15): &"raw" or &"pixel" (S9's `ui` reveal on: colours only; the
+## font, the layout and the frame stay raw until M48.5).
+var palette_name: StringName = &"raw"
+var colors := raw_colors()
 var speaker := "ai"           ## the prompt's name: "ai" until the body pick, then the body's
 var has_face := false         ## false while the AI is a caret: no expression tag
 var session_index := 0        ## CampaignDB.current_index(): the clock's 3 min per session
@@ -68,15 +72,7 @@ func _ready() -> void:
 	name = "Terminal" if name == "" else name
 	_start_usec = Time.get_ticks_usec()
 	_last_usec = _start_usec
-	var box := StyleBoxFlat.new()
-	box.bg_color = Palette.TERM_BG
-	box.border_color = Palette.TERM_RULE
-	box.border_width_left = 1
-	box.content_margin_left = 14
-	box.content_margin_right = 10
-	box.content_margin_top = 10
-	box.content_margin_bottom = 10
-	add_theme_stylebox_override(&"panel", box)
+	_style_back()
 	clip_contents = true
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override(&"separation", 8)
@@ -99,7 +95,92 @@ func _ready() -> void:
 	_scroll.add_child(_list)
 	set_font_size(_font_size)
 	set_version("")
-	_title.add_theme_color_override(&"font_color", Palette.TERM_DIM)
+	_tint(_title, &"dim")
+	Skins.hub.skin_changed.connect(_on_skin_changed)
+
+
+func _exit_tree() -> void:
+	if Skins.hub.skin_changed.is_connected(_on_skin_changed):
+		Skins.hub.skin_changed.disconnect(_on_skin_changed)
+
+
+# --- Colours (M47.5b: S9's `ui` reveal recolours the terminal) -------------------------------
+
+## The raw terminal's tokens (Palette's tier-0 TERM_* constants).
+static func raw_colors() -> Dictionary:
+	return {&"bg": Palette.TERM_BG, &"rule": Palette.TERM_RULE, &"text": Palette.TERM_TEXT,
+			&"dim": Palette.TERM_DIM, &"cmd": Palette.TERM_CMD, &"note": Palette.TERM_NOTE,
+			&"choice": Palette.TERM_CHOICE, &"you": Palette.TERM_YOU, &"err": Palette.TERM_ERR}
+
+
+## The same tokens in the Pixel look: its own roles where it has one (ui_text, accent,
+## pickup, danger), else colours from its sprites' ramps (outline, wall, the cursor's shade).
+static func pixel_colors() -> Dictionary:
+	var out := {&"bg": Color("#1e1424"), &"rule": Color("#5c3452"), &"text": Color("#fff8ec"),
+			&"dim": Color("#a08cc8"), &"cmd": Color("#3ff2d2"), &"note": Color("#ddd0ee"),
+			&"choice": Color("#ffc83a"), &"you": Color("#fff8ec"), &"err": Color("#f2402e")}
+	var skin := Skins.current
+	if skin != null:
+		for pair: Array in [[&"text", &"ui_text"], [&"you", &"ui_text"], [&"cmd", &"accent"],
+				[&"choice", &"pickup"], [&"err", &"danger"]]:
+			var c: Variant = skin.role(pair[1])
+			if c is Color:
+				out[pair[0]] = c
+	return out
+
+
+## Raw, or the Pixel colours once the look's `ui` group is on (the pause menu's rule).
+## Every row already shown takes the new colours too.
+func dress() -> void:
+	var want: StringName = &"pixel" if Skins.is_on(&"ui_panel") else &"raw"
+	if want == palette_name:
+		return
+	palette_name = want
+	colors = pixel_colors() if want == &"pixel" else raw_colors()
+	_style_back()
+	if _title != null:
+		_tint(_title, &"dim")
+	if _list == null:
+		return
+	for row in _list.get_children():
+		if row is Label:
+			_retint(row as Label)
+		else:
+			for l in row.get_children():
+				if l is Label:
+					_retint(l as Label)
+
+
+func _on_skin_changed(_skin: ArtSkin) -> void:
+	dress()
+
+
+func col(tone: StringName) -> Color:
+	return colors.get(tone, Palette.TERM_TEXT)
+
+
+func _style_back() -> void:
+	var box := StyleBoxFlat.new()
+	box.bg_color = col(&"bg")
+	box.border_color = col(&"rule")
+	box.border_width_left = 1
+	box.content_margin_left = 14
+	box.content_margin_right = 10
+	box.content_margin_top = 10
+	box.content_margin_bottom = 10
+	add_theme_stylebox_override(&"panel", box)
+
+
+## A label's colour by token (kept as meta, so dress() can recolour it).
+func _tint(l: Label, tone: StringName, alpha := 1.0) -> void:
+	l.set_meta(&"tone", tone)
+	l.set_meta(&"alpha", alpha)
+	l.add_theme_color_override(&"font_color", Color(col(tone), alpha))
+
+
+func _retint(l: Label) -> void:
+	if l.has_meta(&"tone"):
+		_tint(l, l.get_meta(&"tone"), float(l.get_meta(&"alpha", 1.0)))
 
 
 ## The font size (GameHost: 16 x clamp(k, 1, 2)).
@@ -195,7 +276,7 @@ func say_row(text: String, expression: StringName = &"idle", priority := 2) -> L
 		var head := clock_text() + " " + speaker + "@patchnotes"
 		if expr != &"":
 			head += " (%s)" % expr
-		_label_row(Row.HEAD, head, Palette.TERM_DIM)
+		_label_row(Row.HEAD, head, &"dim")
 	_last_head = {"speaker": speaker, "expression": expr, "usec": now}
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override(&"separation", 0)
@@ -203,7 +284,7 @@ func say_row(text: String, expression: StringName = &"idle", priority := 2) -> L
 	var marker := Label.new()
 	marker.name = "Marker"
 	marker.text = MARKER + " "
-	marker.add_theme_color_override(&"font_color", Color(Palette.TERM_CMD, 0.0))
+	_tint(marker, &"cmd", 0.0)
 	row.add_child(marker)
 	var l := Label.new()
 	l.name = "Text"
@@ -213,14 +294,14 @@ func say_row(text: String, expression: StringName = &"idle", priority := 2) -> L
 	if priority < SessionRunner.PRIORITY:
 		l.clip_text = true
 		l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		l.add_theme_color_override(&"font_color", Palette.TERM_DIM)
+		_tint(l, &"dim")
 	else:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.add_theme_color_override(&"font_color", Palette.TERM_TEXT)
+		_tint(l, &"text")
 		# The newest cue line carries the gutter marker until the next one.
 		if _cue_marker != null and is_instance_valid(_cue_marker):
-			_cue_marker.add_theme_color_override(&"font_color", Color(Palette.TERM_CMD, 0.0))
-		marker.add_theme_color_override(&"font_color", Palette.TERM_CMD)
+			_tint(_cue_marker, &"cmd", 0.0)
+		_tint(marker, &"cmd")
 		_cue_marker = marker
 	l.visible_characters = 0
 	row.add_child(l)
@@ -265,6 +346,14 @@ static func note_text(section: String, item: String) -> String:
 
 func sys(text: String) -> void:
 	queue({"kind": Row.SYS, "text": text})
+
+
+## M47.5b: a dim row shown now (after the queue), its label handed back to be rewritten (the
+## death countdown's "restarting in 3 . 2 . 1").
+func sys_now(text: String) -> Label:
+	_flush_queue()
+	_last_head = {}
+	return _label_row(Row.SYS, text, &"dim")
 
 
 ## "<speaker> is thinking ⠋ . . ." for `seconds` (THINK_S; THINK_S_INSTANT at instant text).
@@ -338,11 +427,11 @@ func row_count() -> int:
 
 # --- Inside ----------------------------------------------------------------------------------
 
-func _label_row(kind: Row, text: String, color: Color) -> Label:
+func _label_row(kind: Row, text: String, tone: StringName) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_color_override(&"font_color", color)
+	_tint(l, tone)
 	l.set_meta(&"kind", kind)
 	_add(l)
 	return l
@@ -369,15 +458,15 @@ func _show(item: Dictionary) -> void:
 		_last_head = {}   # a header is shared only by rows that follow it
 	match kind:
 		Row.CMD:
-			var c := _label_row(kind, item.text, Palette.TERM_CMD)
+			var c := _label_row(kind, item.text, &"cmd")
 			if item.get("open", false):
 				_open_cmd = c
 		Row.NOTE:
-			_label_row(kind, item.text, Palette.TERM_NOTE)
+			_label_row(kind, item.text, &"note")
 		Row.SYS:
-			_label_row(kind, item.text, Palette.TERM_DIM)
+			_label_row(kind, item.text, &"dim")
 		Row.CHOICE:
-			var l := _label_row(kind, item.text, Palette.TERM_CHOICE)
+			var l := _label_row(kind, item.text, &"choice")
 			l.mouse_filter = Control.MOUSE_FILTER_STOP
 			l.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			var index: int = item.index
@@ -387,10 +476,10 @@ func _show(item: Dictionary) -> void:
 					chosen.emit(index))
 		Row.YOU:
 			_close_you()
-			_you = _label_row(kind, "you> _", Palette.TERM_YOU)
+			_you = _label_row(kind, "you> _", &"you")
 		Row.THINK:
 			_think_text = item.text
-			_think = _label_row(kind, _think_text + " " + spinner_frames()[0] + " . . .", Palette.TERM_DIM)
+			_think = _label_row(kind, _think_text + " " + spinner_frames()[0] + " . . .", &"dim")
 
 
 func _end_think() -> void:

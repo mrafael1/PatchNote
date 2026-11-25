@@ -23,6 +23,9 @@ const POINTS: Array[StringName] = [&"player", &"nearest_enemy", &"walls", &"cent
 @export var point_at: StringName = &"centre"
 ## Flashes or shakes: with reduce_flashing on, the edit plays its gentle variant.
 @export var photosensitive := false
+## M47.5b (PLAN v9.3 2.9): what the always-on terminal prints when it lands ("$ <cmd_text> ...
+## ok"); "" = "patch <title>". Player-facing, never the id.
+@export var cmd_text := ""
 
 
 ## Always AI-tier: it lives in RunState.ai, never in the stack.

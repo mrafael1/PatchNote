@@ -61,18 +61,34 @@ const REPLAY_FORK := &"fork_path"
 var _after_question: Callable
 ## M47.4 (PLAN 1.16): the title screen when the front door is open, else null (the raw column).
 var title: TitleScreen
+## M47.5b: `-- --new-game` starts the campaign over at boot (the save's settings kept).
+const NEW_GAME_ARG := "--new-game"
+## M47.5b review: the flag resets once per process (the first boot), never again when a
+## session, a replay or the campaign's end changes scene back to this screen. Tests set it.
+static var new_game_pending := NEW_GAME_ARG in OS.get_cmdline_user_args()
 
 
 func _ready() -> void:
 	if uses_real_save():
 		SaveGame.use_snapshot(SaveGame.DEFAULT_PATH)
 		Settings.apply()   # M47.3: the real save's volumes and window
+	# M47.5b (PLAN v9.3, 0.7): the real boot (this screen is the current scene, never a tool's
+	# or a test's add_child copy) goes straight into the always-on host before the front door.
+	var boot := is_boot_scene()
+	if boot and new_game_pending and not SaveGame.read_only:
+		new_game_pending = false   # M47.5b review: once per process, not on every return to the title
+		reset_campaign()   # D12: New game before the front door is this flag only
 	var front_door := not legacy_loop and CampaignDB.front_door_open()   # M47.4 (PLAN 1.16)
+	var shell := boot and not front_door and not SaveGame.read_only
 	print("[boot] Patch Notes %s, start screen, game %s, %s, %s%s" % [Main.BUILD, SaveGame.version().label(),
-			"real save" if uses_real_save() else "inert save", Main.answers_text(), ", title" if front_door else ""])
+			"real save" if uses_real_save() else "inert save", Main.answers_text(),
+			", title" if front_door else (", always on" if shell else "")])
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	if front_door:
 		_build_title()
+		return
+	if shell:
+		_enter_shell.call_deferred()
 		return
 
 	var bg := ColorRect.new()
@@ -398,6 +414,44 @@ func _start_campaign() -> void:
 	CampaignDB.active = true
 	Main.next_seed = parse_seed(seed_field.text if seed_field != null else (title.seed_text() if title != null else ""))
 	get_tree().change_scene_to_file(continue_target())
+
+
+## M47.5b: this screen is the one Godot booted (or changed scene to), not the legacy loop's,
+## and not a copy a tool or a test added under root (they get the raw column).
+func is_boot_scene() -> bool:
+	return not legacy_loop and (test_boot or (is_inside_tree() and get_tree().current_scene == self))
+
+
+## Tests: an add_child'ed screen behaves as the booted one.
+static var test_boot := false
+
+
+## M47.5b (PLAN v9.3, 2.7): what the raw column's build and Continue did, with no screen:
+## the replay ends, the save goes live, then the host (or the cooking screen). The host asks
+## the installer's first-run question in its terminal unless it was asked or --autostart.
+func _enter_shell() -> void:
+	SaveGame.end_replay()
+	_go_live()
+	GameHost.first_run_prompt = first_run_due()
+	CampaignDB.active = true
+	Main.next_seed = -1
+	if enter_hook.is_valid():
+		enter_hook.call(continue_target())
+		return
+	get_tree().change_scene_to_file(continue_target())
+
+
+## The installer's question is for a first run: never asked, no --autostart, and (M47.5b
+## review) no campaign progress yet, so a save made before the question (or one whose
+## `asked` was lost) never gets it mid-campaign.
+static func first_run_due() -> bool:
+	if bool(SaveGame.setting("asked")) or "--autostart" in OS.get_cmdline_user_args():
+		return false
+	return (SaveGame.campaign().get("done", []) as Array).is_empty()
+
+
+## Tests: called with the scene _enter_shell would change to, instead of changing to it.
+static var enter_hook := Callable()
 
 
 ## Where the campaign goes on (M43.2): the game, or the cooking screen once nothing

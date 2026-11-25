@@ -15,3 +15,4 @@ warn_seconds = 1.5
 duration = 8.0
 point_at = &"centre"
 photosensitive = false
+cmd_text = "set time_scale 0.6"

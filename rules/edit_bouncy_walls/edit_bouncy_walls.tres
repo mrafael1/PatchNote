@@ -15,3 +15,4 @@ warn_seconds = 1.5
 duration = 20.0
 point_at = &"walls"
 photosensitive = false
+cmd_text = "set walls.bounce on"

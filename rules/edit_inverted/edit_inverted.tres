@@ -15,3 +15,4 @@ warn_seconds = 1.5
 duration = 10.0
 point_at = &"player"
 photosensitive = false
+cmd_text = "set input.invert on"

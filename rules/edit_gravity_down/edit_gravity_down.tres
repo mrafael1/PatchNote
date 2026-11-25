@@ -15,3 +15,4 @@ warn_seconds = 1.5
 duration = 0.0
 point_at = &"centre"
 photosensitive = true
+cmd_text = "set gravity down"

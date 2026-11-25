@@ -18,7 +18,8 @@ const OWNER := "res://tests/gut/save_m43_owner_shape.json"
 const S4 := &"s1_04_level"
 const S7 := &"s2_01_tryout"
 const S8 := &"s2_02_day_one"
-const DOOR_LINES: Array[String] = ["Before I build three shooters, the front door needs work.",
+## M47.5b (listed deviation, PLAN v9.3 3.2): line 1 names the door the always-on player never saw.
+const DOOR_LINES: Array[String] = ["Before I build three shooters, this game needs a front door.",
 		"Options. Real ones. They even save.", "And {key:pause} finally does something."]
 const HandWidget := preload("res://paths/arsenal/hand_widget.gd")
 const VIEWS: Array[Vector2] = [Vector2(1280, 720), Vector2(1600, 720), Vector2(1280, 960), Vector2(1706, 720)]
@@ -565,7 +566,7 @@ func test_s7_opens_the_polished_chat() -> void:
 	assert_eq(d.style, DebriefScreen.POLISHED)
 	assert_ne(d._window.get_theme_stylebox(&"panel").get_class(), "StyleBoxEmpty", "framed")
 	assert_eq(d.bar_text(), "patchnotes · dev chat · v0.8.0")
-	assert_eq(d.said[0], "Like the new chat? I redecorated.")
+	assert_eq(d.said[0], "So. Three versions of the same game.", "M47.5b: the redecorated line is cut (listed deviation)")
 	assert_not_null(d._body.find_child("Avatar", true, false), "the avatar on the first bubble")
 	assert_eq((d._body.find_child("Speaker", true, false) as Label).text, DebriefScreen.speaker_name(DebriefScreen.body_for(d.session)))
 	assert_ne(d._dots.text, "", "typing dots while it types")

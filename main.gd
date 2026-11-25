@@ -5,7 +5,9 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M47.5a"
+const BUILD := "M47.5b"
+## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
+const QUIT_GAME := "quit"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -179,6 +181,11 @@ func _ready() -> void:
 			debrief.terminal = host.terminal
 			debrief.corner = mascot
 			debrief.auto_way_on = host.auto_way_on()
+			debrief.host = host
+			# M47.5b (PLAN v9.3 2.9, D16): the AI's edits, events and skin cues as `$` rows.
+			rule_book.edit_landed.connect(_on_edit_row)
+			event_player.event_started.connect(_on_event_row)
+			session_runner.skin_cued.connect(_on_skin_row)
 		add_child(debrief)
 		debrief.next_requested.connect(func() -> void: _end_session(&"next"))
 		debrief.move_on_requested.connect(func() -> void: _end_session(&"move_on"))
@@ -407,9 +414,9 @@ func _end_session(choice: StringName) -> void:
 	if s == null or not debrief.is_open():
 		return
 	if is_live_game():
-		Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
+		Telemetry.append(_flow(CampaignDB.telemetry_record(s, genre.run_record(), debrief.outcome,
 				session_runner.hits, choice, BUILD, debrief.picked, reactions.fired_ids(), rule_book.landed,
-				event_player.played_ids(), debrief.more_picks(), path_runner))
+				event_player.played_ids(), debrief.more_picks(), path_runner), debrief.beat_real_s()))
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:
@@ -437,7 +444,43 @@ func _leave_to(path: String) -> void:
 	if leave_hook.is_valid():
 		leave_hook.call(path)
 		return
+	if path == QUIT_GAME:
+		get_tree().quit()
+		return
 	get_tree().change_scene_to_file(path)
+
+
+## M47.5b (PLAN v9.3 2.9, D16): a landed edit's row: its cmd_text, else "patch <title>".
+## Quiet edits (no warning of their own) and an event's edits print nothing (the event's own
+## row, if any, said what the AI typed); never a raw id.
+func _on_edit_row(edit: RuleEdit) -> void:
+	if host == null or rule_book == null or not rule_book.last_warned or rule_book.last_by == &"event":
+		return
+	host.terminal.cmd(edit_row_text(edit), "ok")
+
+
+static func edit_row_text(edit: RuleEdit) -> String:
+	return edit.cmd_text if edit.cmd_text != "" else "patch %s" % edit.title.to_lower()
+
+
+func _on_event_row(id: StringName) -> void:
+	var ev := EventDB.get_event(id)
+	if host != null and ev != null and ev.cmd_text != "":
+		host.terminal.cmd(ev.cmd_text, "ok")
+
+
+func _on_skin_row(target: StringName) -> void:
+	if host != null and target != &"bug":
+		host.terminal.cmd("skin reveal %s" % target, "ok")
+
+
+## M47.5b (PLAN v9.3 2.8): a hosted live line says so and how long its beat took (real
+## seconds from the debrief opening; 0 for the pause menu's lines). Same line, same moment.
+func _flow(rec: Dictionary, beat_s: float) -> Dictionary:
+	if host != null:
+		rec["flow"] = "always_on"
+		rec["beat_real_s"] = beat_s
+	return rec
 
 
 ## M47.3 (PLAN 1.16): the pause menu's Restart session: the debrief's Retry from the middle
@@ -481,17 +524,26 @@ func menu_quit() -> void:
 	RunState.clear_pauses()
 	if not is_live_game():
 		return
-	get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)
+	_leave_to(quit_target(s))
+
+
+## M47.5b (PLAN v9.3 2.7, D11): before the front door a campaign session's Q quits the game
+## (the boot goes straight back into the host, there is no start screen); from the door on,
+## and in the v6 loop, Quit goes to the title / start screen as before.
+static func quit_target(s: SessionDef) -> String:
+	if s != null and not CampaignDB.front_door_open():
+		return QUIT_GAME
+	return StartScreen.TITLE_SCENE
 
 
 func _menu_telemetry(s: SessionDef, choice: StringName) -> void:
 	if not is_live_game() and not menu_telemetry_always:
 		return
-	Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), &"quit",
+	Telemetry.append(_flow(CampaignDB.telemetry_record(s, genre.run_record(), &"quit",
 			session_runner.hits if session_runner != null else 0, choice, BUILD, null,
 			reactions.fired_ids() if reactions != null else ([] as Array[String]),
 			rule_book.landed if rule_book != null else [],
-			event_player.played_ids() if event_player != null else [], [], path_runner))
+			event_player.played_ids() if event_player != null else [], [], path_runner), 0.0))
 
 
 ## True when this scene is the game being played, not a copy instanced by a test.

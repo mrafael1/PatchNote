@@ -8,7 +8,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 
 ## s2_01_tryout: Three games
 ### Door beat (on the stage card, before the cook beat)
-- (thinking) Before I build three shooters, the front door needs work.
+- (thinking) Before I build three shooters, this game needs a front door.
 - (proud) Options. Real ones. They even save.
 - (happy) And {key:pause} finally does something.
 ### Cook beat (on the stage card)
@@ -36,7 +36,6 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - at 128: (panic) That's a lot of them. That's the point!
 - at 145: (thinking) Okay. Three games. I can only build one.
 ### Debrief
-- (happy) Like the new chat? I redecorated.
 - (thinking) So. Three versions of the same game.
 - hit_lots (worried) You took a beating in there. Prototypes, sorry.
 - (thinking) I can only build one of them properly.

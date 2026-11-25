@@ -1,5 +1,5 @@
 extends GutTest
-## M47.5a (PLAN v9.3, 0.7): always on, part 1. The host (the game in a 1280x720-rect
+## M47.5a (PLAN v9.3, 0.7): always on, part 1 (part 2, M47.5b: the story flow, at the end). The host (the game in a 1280x720-rect
 ## SubViewport beside the terminal, PAUSABLE inside ALWAYS), the terminal's rows, the
 ## debrief's terminal view (same API and labels, one way on per open), the hot-reload swap and
 ## the ready moment. Hosts here are tool hosts (never live): no window change, no auto way on.
@@ -28,6 +28,11 @@ var _prev_scene: Node
 
 func after_each() -> void:
 	Input.action_release(&"move_right")
+	StartScreen.save_live = true   # M47.5b: _start_screen() turned it off
+	StartScreen.test_boot = false
+	StartScreen.enter_hook = Callable()
+	StartScreen.new_game_pending = false
+	GameHost.first_run_prompt = false
 	Main.leave_hook = Callable()
 	if _live_host != null and is_instance_valid(_live_host):
 		get_tree().current_scene = _prev_scene
@@ -576,3 +581,415 @@ func _motion(at: Vector2) -> void:
 	e.global_position = e.position
 	Input.parse_input_event(e)
 	Input.flush_buffered_events()
+
+
+# --- M47.5b: the story flow (part 2) -----------------------------------------------------------
+
+func _cleanup_5b() -> void:
+	StartScreen.save_live = true
+	StartScreen.test_boot = false
+	StartScreen.enter_hook = Callable()
+	GameHost.first_run_prompt = false
+	Settings.set_value("vol_master", 1.0)
+	Settings.set_value("window_mode", 0)
+	SaveGame.set_setting("asked", false)
+
+
+## A start screen on the inert save: save_live false first (the real save must never go live
+## or be read in a test; _cleanup_5b puts it back).
+func _start_screen() -> StartScreen:
+	StartScreen.save_live = false
+	var s: StartScreen = load("res://ui/start_screen.tscn").instantiate()
+	add_child_autofree(s)
+	return s
+
+
+func test_boot_routing_host_before_the_door_title_after_raw_for_copies() -> void:
+	SaveGame.go_inert()
+	var copy := _start_screen()
+	assert_false(copy.is_boot_scene(), "an add_child'ed copy (tools, tests) is not the boot")
+	assert_not_null(copy.continue_button, "it gets the raw column, as before")
+	assert_null(copy.title)
+	# The booted screen before the front door builds nothing and enters the host.
+	var went: Array[String] = []
+	StartScreen.test_boot = true
+	StartScreen.enter_hook = func(path: String) -> void: went.append(path)
+	var boot := _start_screen()
+	assert_eq(boot.get_child_count(), 0, "no screen at all")
+	assert_null(boot.continue_button)
+	await wait_process_frames(1)
+	assert_eq(went, [StartScreen.GAME_SCENE] as Array[String], "straight into the host")
+	assert_true(CampaignDB.active)
+	assert_eq(Main.next_seed, -1)
+	assert_true(GameHost.first_run_prompt, "never asked: the installer asks in the terminal")
+	# Asked once: no prompt.
+	SaveGame.set_setting("asked", true)
+	went.clear()
+	var again := _start_screen()
+	await wait_process_frames(1)
+	assert_eq(went.size(), 1)
+	assert_false(GameHost.first_run_prompt, "asked before: no prompt")
+	assert_eq(again.get_child_count(), 0)
+	# From the door on, the boot opens on the title (M47.4 routing).
+	assert_true(CampaignDB.jump_to(S8))
+	assert_true(CampaignDB.front_door_open())
+	went.clear()
+	var titled := _start_screen()
+	await wait_process_frames(1)
+	assert_not_null(titled.title, "the title")
+	assert_eq(went, [] as Array[String], "no shell entry")
+	# The legacy loop is never shelled.
+	StartScreen.legacy_loop = true
+	assert_false(_start_screen().is_boot_scene())
+	StartScreen.legacy_loop = false
+	_cleanup_5b()
+
+
+func test_enter_shell_ends_a_replay_and_goes_where_continue_goes() -> void:
+	var went: Array[String] = []
+	StartScreen.enter_hook = func(path: String) -> void: went.append(path)
+	var s := _start_screen()   # its own _ready (the raw column) ends a replay: begin one after it
+	SaveGame.begin_replay(&"fork_path", &"path_auto")
+	assert_true(SaveGame.in_replay(), "a replay is on before _enter_shell")
+	s._enter_shell()
+	assert_false(SaveGame.in_replay(), "the replay ended")
+	assert_eq(went, [StartScreen.continue_target()] as Array[String])
+	_cleanup_5b()
+
+
+func test_the_installer_asks_once_before_s0_and_its_answer_is_saved() -> void:
+	var h := await _hosted(S0)
+	SaveGame.set_setting("asked", false)
+	h.ask_first_run()
+	h.terminal.finish()
+	var rows := h.terminal.rows()
+	assert_true(rows.has(GameHost.FIRST_RUN_LINE), "the installer's line, not the AI's")
+	assert_true(rows.has("[1] no") and rows.has("[2] yes"))
+	var asked_rows := rows.slice(rows.find(GameHost.FIRST_RUN_LINE))
+	assert_false(asked_rows.any(func(r: String) -> bool: return r.contains("@patchnotes")), "the AI does not speak")
+	assert_true(RunState.is_paused_for(GameHost.HANDOFF), "S0 waits before its first frame")
+	var t0 := RunState.game_time
+	await wait_process_frames(5)
+	assert_eq(RunState.game_time, t0)
+	_key(&"choose_2")
+	await wait_process_frames(2)
+	assert_false(h.asking_first_run)
+	assert_true(SaveGame.reduce_flashing(), "2 = yes")
+	assert_true(bool(SaveGame.setting("asked")))
+	assert_true(h.terminal.rows().has("you> 2"))
+	assert_false(RunState.is_paused_for(GameHost.HANDOFF), "S0 starts")
+	assert_true(h.game.can_process())
+	_key(&"choose_1")
+	await wait_process_frames(1)
+	assert_true(SaveGame.reduce_flashing(), "asked once: a later 1 changes nothing")
+	_cleanup_5b()
+
+
+func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
+	var c := GameHost.layout_for(Vector2(1920, 1080), true)
+	assert_almost_eq(float(c.k), 1.5, 0.0001)
+	assert_eq(c.game, Rect2(0, 0, 1920, 1080))
+	var b := GameHost.layout_for(Vector2(1760, 720), true)
+	assert_eq(b.game, Rect2(240, 0, 1280, 720), "centred, k from the window")
+	CampaignDB.active = true
+	assert_true(CampaignDB.jump_to(S7))
+	var g: Main = load("res://main.tscn").instantiate()
+	var h := GameHost.host_for_tools(g)
+	add_child_autofree(h)
+	assert_true(g.stage_card.is_open())
+	assert_true(h.chapter, "chapter mode")
+	assert_false(h.terminal.visible, "the terminal hides")
+	h.terminal.finish()
+	assert_false(h.terminal.rows().has("$ run %s" % S7), "the session rows wait for the card")
+	h.hold()
+	g.stage_card.skip()
+	await wait_process_frames(2)
+	assert_false(h.chapter)
+	assert_true(h.terminal.visible)
+	h.terminal.finish()
+	var rows := h.terminal.rows()
+	var chapter_row := "--- chapter 2 · %s ---" % CampaignDB.campaign.stage_titles[2]
+	assert_true(rows.has(chapter_row), "the chapter's row")
+	var at := rows.find(chapter_row)
+	assert_gt(rows.find("$ run %s" % S7), at, "then the session's rows")
+	assert_eq(rows.back(), "you> _", "then the ready moment")
+	assert_true(h.held)
+	h.skip_handoff()
+
+
+func _died(h: GameHost) -> DebriefScreen:
+	var d := h.game.debrief
+	d.input_delay = 0.0
+	d.auto_way_on = true
+	h.game._on_report_ready(&"lose")
+	d.finish_lines()
+	h.terminal.finish()
+	return d
+
+
+func test_the_death_countdown_starts_after_the_lines_and_restarts_once() -> void:
+	var h := await _hosted(S4)
+	h.played = true
+	var d := _died(h)
+	var retries := []
+	d.retry_requested.connect(func() -> void: retries.append(true))
+	var before := SaveGame.attempts(S4)
+	await wait_process_frames(2)
+	assert_true(h.terminal.rows().has("restarting in 3"), "after the died lines and the choices")
+	assert_eq(h.terminal.rows().find("restarting in 3"), h.terminal.rows().size() - 1)
+	d._count_msec -= 1100
+	await wait_process_frames(2)
+	assert_true(h.terminal.rows().has("restarting in 3 . 2"))
+	d._count_msec -= 2100
+	await wait_process_frames(2)
+	assert_true(h.terminal.rows().has("restarting in 3 . 2 . 1"))
+	assert_eq(retries.size(), 1, "again by itself")
+	assert_eq(SaveGame.attempts(S4), before + 1, "one attempt")
+	assert_true(h.terminal.rows().has("you> 1"))
+	d._count_msec -= 5000
+	await wait_process_frames(2)
+	assert_eq(retries.size(), 1, "never twice")
+	d.close()
+
+
+func test_no_countdown_without_input_and_2_moves_on() -> void:
+	var h := await _hosted(S4)
+	h.played = false
+	var d := _died(h)
+	var retries := []
+	d.retry_requested.connect(func() -> void: retries.append(true))
+	await wait_process_frames(2)
+	assert_false(d.countdown_due(), "nobody played since the last restart")
+	d._count_msec -= 5000
+	await wait_process_frames(2)
+	assert_eq(retries.size(), 0, "it waits at you> _")
+	assert_false(h.terminal.rows().any(func(r: String) -> bool: return r.begins_with(DebriefScreen.COUNTDOWN_LINE)))
+	d.close()
+	h.played = true
+	var d2 := _died(h)
+	var moved := []
+	d2.move_on_requested.connect(func() -> void: moved.append(true))
+	await wait_process_frames(2)
+	_key(&"choose_2")
+	await wait_process_frames(1)
+	d2.finish_lines()
+	d2._count_msec -= 5000
+	await wait_process_frames(2)
+	assert_eq(retries.size(), 0, "2 stopped the countdown")
+	assert_true(d2.moved_on)
+	d2.close()
+
+
+func test_one_telemetry_line_per_attempt_with_flow_and_beat_seconds() -> void:
+	var h := await _hosted_live(S4)
+	h.played = true
+	var g := h.game
+	var d := _died(h)
+	await wait_process_frames(2)
+	d._count_msec -= 3200
+	await wait_process_frames(3)
+	var lines := FileAccess.get_file_as_string(TEST_LOG).strip_edges().split("\n")
+	assert_eq(lines.size(), 1, "one line for the attempt")
+	var rec: Dictionary = JSON.parse_string(lines[0])
+	assert_eq(rec.choice, "retry", "the same choice value")
+	assert_eq(rec.flow, "always_on")
+	assert_true(float(rec.beat_real_s) >= 0.0)
+	var plain := CampaignDB.telemetry_record(RunState.session, {}, &"died", 0, &"retry", Main.BUILD)
+	var keys: Array = rec.keys().filter(func(k: String) -> bool: return k != "flow" and k != "beat_real_s")
+	keys.sort()
+	var want: Array = plain.keys()
+	want.sort()
+	assert_eq(keys, want, "the same keys as an unhosted line, plus flow and beat_real_s")
+	await wait_process_frames(30)
+	assert_true(h.swaps >= 1, "the restart swapped a new attempt in")
+	assert_false(is_instance_valid(g))
+	h.skip_handoff()
+
+
+func test_quit_before_the_door_quits_the_game_and_the_raw_keys_save() -> void:
+	var h := await _hosted(S4)
+	var g := h.game
+	assert_eq(Main.quit_target(RunState.session), Main.QUIT_GAME)
+	assert_eq(PauseMenu.quit_label(RunState.session), PauseMenu.QUIT_GAME)
+	assert_eq(Main.quit_target(null), StartScreen.TITLE_SCENE, "the v6 loop: quit to start")
+	assert_true(g.pause_menu.open())
+	assert_true(g.pause_menu._raw_label.text.contains("[Q] quit game"))
+	assert_eq(g.pause_menu._raw_status.text, "fullscreen off · volume 100% · less flashing off")
+	for code: Key in [KEY_L, KEY_MINUS, KEY_MINUS]:
+		var e := InputEventKey.new()
+		e.physical_keycode = code
+		e.keycode = code
+		e.pressed = true
+		assert_true(g.pause_menu.raw_option(e))
+	assert_true(SaveGame.reduce_flashing(), "L: less flashing")
+	assert_almost_eq(float(Settings.get_value("vol_master")), 0.8, 0.001, "- twice")
+	assert_eq(g.pause_menu._raw_status.text, "fullscreen off · volume 80% · less flashing on")
+	var f := InputEventKey.new()
+	f.physical_keycode = KEY_F
+	f.pressed = true
+	assert_true(g.pause_menu.raw_option(f))
+	assert_eq(int(Settings.get_value("window_mode")), 1, "F: fullscreen (stored)")
+	g.pause_menu.close()
+	assert_true(CampaignDB.jump_to(S8))
+	assert_eq(Main.quit_target(CampaignDB.get_session(S8)), StartScreen.TITLE_SCENE, "from the door on: the title")
+	_cleanup_5b()
+
+
+func test_edit_event_and_skin_rows_are_player_facing_and_quiet_edits_silent() -> void:
+	var h := await _hosted(S4)
+	var g := h.game
+	assert_true(g.rule_book.edit_landed.is_connected(g._on_edit_row))
+	assert_true(g.event_player.event_started.is_connected(g._on_event_row))
+	assert_true(g.session_runner.skin_cued.is_connected(g._on_skin_row))
+	var walls := RuleDB.get_edit(&"edit_bouncy_walls")
+	assert_true(g.rule_book.request(walls.id, &"cue", 2.0))
+	for i in 200:
+		if g.rule_book.is_live(walls.id):
+			break
+		await wait_physics_frames(1)
+	assert_true(g.rule_book.is_live(walls.id))
+	h.terminal.finish()
+	assert_true(h.terminal.rows().has("$ %s ... ok" % walls.cmd_text), "the edit's own command")
+	var n := h.terminal.row_count()
+	g.rule_book.last_warned = false
+	g._on_edit_row(walls)
+	g.rule_book.last_warned = true
+	g.rule_book.last_by = &"event"
+	g._on_edit_row(walls)
+	h.terminal.finish()
+	assert_eq(h.terminal.row_count(), n, "a quiet edit and an event's edit print nothing")
+	var plain := walls.duplicate() as RuleEdit
+	plain.cmd_text = ""
+	assert_eq(Main.edit_row_text(plain), "patch bouncy walls", "no cmd_text: the title")
+	g._on_event_row(&"wrong_variable")
+	g._on_skin_row(&"ui")
+	g._on_skin_row(&"bug")
+	h.terminal.finish()
+	var rows := h.terminal.rows()
+	assert_true(rows.has("$ set gravity_scale 0.9 ... ok"), "the slider the AI thinks it moves")
+	assert_true(rows.has("$ skin reveal ui ... ok"))
+	assert_false(rows.any(func(r: String) -> bool: return r.contains("bug")), "a bug cue prints nothing")
+	for r: String in rows:
+		assert_false(r.contains("edit_") or r.contains("wrong_variable"), "no raw id: %s" % r)
+
+
+func test_the_terminal_takes_the_pixel_colours_at_the_ui_reveal() -> void:
+	var was := Skins.current
+	var t := _terminal()
+	t.say_row("hello", &"happy")
+	t.cmd("build v0.9.0", "ok")
+	t.finish()
+	assert_eq(t.palette_name, &"raw")
+	Skins.use(Skins.pixel())
+	Skins.reset_reveal(true)   # S9: manual reveal, nothing on yet
+	t.dress()
+	assert_eq(t.palette_name, &"raw", "before the ui reveal the terminal is raw")
+	Skins.reveal(&"ui")
+	assert_eq(t.palette_name, &"pixel", "the reveal recolours it at once")
+	var cmd_row: Label = t._list.get_child(t._list.get_child_count() - 1)
+	assert_eq(cmd_row.get_theme_color(&"font_color"), t.col(&"cmd"))
+	assert_ne(t.col(&"bg"), Palette.TERM_BG)
+	assert_eq((t.get_theme_stylebox(&"panel") as StyleBoxFlat).bg_color, t.col(&"bg"), "the back too")
+	assert_eq(t.font_size(), TerminalPanel.BASE_FONT, "colours only")
+	Skins.use(was)
+	t.dress()
+	assert_eq(t.palette_name, &"raw")
+
+
+# --- M47.5b review ---------------------------------------------------------------------------
+
+func test_new_game_resets_once_per_process_not_on_every_return_to_the_title() -> void:
+	SaveGame.go_inert()
+	StartScreen.test_boot = true
+	StartScreen.enter_hook = func(_path: String) -> void: pass
+	StartScreen.new_game_pending = true   # as `-- --new-game` sets it
+	SaveGame.set_campaign_position(3, S3)
+	_start_screen()
+	await wait_process_frames(1)
+	assert_eq(int(SaveGame.campaign().index), 0, "the first boot starts over")
+	assert_false(StartScreen.new_game_pending, "the flag is used up")
+	# Progress made in this process, then a session quits / a replay ends back to the title.
+	SaveGame.set_campaign_position(3, S3)
+	_start_screen()
+	await wait_process_frames(1)
+	assert_eq(int(SaveGame.campaign().index), 3, "a second boot-scene screen keeps the progress")
+	assert_eq(String(SaveGame.campaign().next), String(S3))
+	_cleanup_5b()
+
+
+func test_the_installer_is_for_a_first_run_only_not_a_save_with_progress() -> void:
+	SaveGame.go_inert()
+	SaveGame.set_setting("asked", false)
+	assert_true(StartScreen.first_run_due(), "a fresh save, never asked")
+	(SaveGame.campaign().done as Array).append(String(S0))
+	assert_false(StartScreen.first_run_due(), "a campaign under way (asked lost or never stored): no prompt mid-campaign")
+	var went: Array[String] = []
+	StartScreen.test_boot = true
+	StartScreen.enter_hook = func(path: String) -> void: went.append(path)
+	_start_screen()
+	await wait_process_frames(1)
+	assert_eq(went.size(), 1)
+	assert_false(GameHost.first_run_prompt)
+	_cleanup_5b()
+
+
+func test_the_installer_answer_points_at_the_raw_pause_keys_not_options() -> void:
+	var line := GameHost.first_run_answer_line(false)
+	assert_eq(line, "reduce flashing off ([Escape] then [L] to change)")
+	assert_false(line.contains("Options"), "no Options screen before the front door")
+	assert_eq(GameHost.first_run_answer_line(true), "reduce flashing on ([Escape] then [L] to change)")
+	var h := await _hosted(S0)
+	SaveGame.set_setting("asked", false)
+	h.ask_first_run()
+	h.answer_first_run(false)
+	h.terminal.finish()
+	assert_true(h.terminal.rows().has(GameHost.first_run_answer_line(false)))
+	_cleanup_5b()
+
+
+func _vol_key(physical: Key, keycode: Key, unicode: int) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = physical
+	e.keycode = keycode
+	e.unicode = unicode
+	e.pressed = true
+	return e
+
+
+func test_the_raw_volume_keys_read_the_typed_character_on_azerty() -> void:
+	# AZERTY: "-" is on the 6 key; the US "-" position types ")"; "=" / "+" share a key.
+	assert_eq(PauseMenu.volume_step(_vol_key(KEY_6, KEY_MINUS, 45)), -1, "AZERTY's -")
+	assert_eq(PauseMenu.volume_step(_vol_key(KEY_EQUAL, KEY_EQUAL, 61)), 1, "AZERTY's =")
+	assert_eq(PauseMenu.volume_step(_vol_key(KEY_EQUAL, KEY_PLUS, 43)), 1, "+ (shifted)")
+	assert_eq(PauseMenu.volume_step(_vol_key(KEY_MINUS, KEY_MINUS, 45)), -1, "US -")
+	assert_eq(PauseMenu.volume_step(_vol_key(KEY_KP_ADD, KEY_KP_ADD, 43)), 1, "keypad +")
+	assert_eq(PauseMenu.volume_step(_vol_key(KEY_6, KEY_6, 54)), 0, "US 6 is not a volume key")
+	var h := await _hosted(S4)
+	var g := h.game
+	assert_true(g.pause_menu.open())
+	assert_true(g.pause_menu.raw_option(_vol_key(KEY_6, KEY_MINUS, 45)))
+	assert_almost_eq(float(Settings.get_value("vol_master")), 0.9, 0.001, "AZERTY - lowers the volume")
+	assert_true(g.pause_menu.raw_option(_vol_key(KEY_EQUAL, KEY_EQUAL, 61)))
+	assert_almost_eq(float(Settings.get_value("vol_master")), 1.0, 0.001)
+	g.pause_menu.close()
+	_cleanup_5b()
+
+
+func test_q_in_a_live_hosted_session_before_the_door_quits_the_game_with_one_abandon_line() -> void:
+	var h := await _hosted_live(S4)
+	var g := h.game
+	var went: Array[String] = []
+	Main.leave_hook = func(path: String) -> void: went.append(path)
+	assert_true(g.pause_menu.open())
+	await wait_process_frames(1)
+	_press_key(KEY_Q)
+	await wait_process_frames(2)
+	assert_eq(went, [Main.QUIT_GAME] as Array[String], "Q quits the app (not change_scene to 'quit')")
+	assert_false(g.pause_menu.is_open())
+	var lines := FileAccess.get_file_as_string(TEST_LOG).strip_edges().split("\n")
+	assert_eq(lines.size(), 1, "one abandon line")
+	var rec: Dictionary = JSON.parse_string(lines[0])
+	assert_eq(rec.choice, "abandon")
+	assert_eq(rec.flow, "always_on")
+	assert_false(RunState.is_paused_for(GameHost.HANDOFF))
+	_cleanup_5b()

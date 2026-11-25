@@ -15,3 +15,4 @@ warn_seconds = 1.5
 duration = 20.0
 point_at = &"nearest_enemy"
 photosensitive = false
+cmd_text = "set enemy.scale 1.8"

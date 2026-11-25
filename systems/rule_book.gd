@@ -13,6 +13,10 @@ extends Node
 ## edits on the same frames.
 
 signal edit_landed(edit: RuleEdit)
+## M47.5b: how the edit edit_landed just announced came (presentation only: the terminal's
+## row): with its own warning (false: a quiet cue or an event's silent edit) and by whom.
+var last_warned := true
+var last_by: StringName = &""
 signal edit_ended(edit: RuleEdit, reason: StringName)
 
 var game: Node                    ## main.gd: genre, player, arena
@@ -227,6 +231,8 @@ func _land(p: Dictionary) -> void:
 	_live[e.id] = {"edit": e, "end_tick": end_tick, "warned_frames": Engine.get_physics_frames() - int(p.asked_frame)}
 	landed.append({"id": String(e.id), "at": snappedf(RunState.game_time, 0.01), "by": String(p.by)})
 	RunState.log_event(&"edit_landed", {"id": String(e.id), "by": String(p.by)})
+	last_warned = bool(p.get("warned", true))
+	last_by = StringName(p.by)
 	edit_landed.emit(e)
 	_add_hint(e)
 

@@ -10,6 +10,9 @@ extends Resource
 @export var title := ""                 ## F2's label
 @export var once_per_save := true       ## seen once, then a cue for it does nothing
 @export var photosensitive := false     ## flashes: a gentle variant with reduce_flashing
+## M47.5b (PLAN v9.3 2.9): what the always-on terminal prints when it starts (the command the
+## AI thinks it types); "" = nothing.
+@export var cmd_text := ""
 @export var steps := 1                  ## how many ctx.step(n) a full play reaches (bot, F1, tests)
 ## The event's lines by key, in Line syntax: the owner edits their tone here, not in the
 ## script. Said live, so none may have a condition.

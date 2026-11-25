@@ -13,6 +13,8 @@ signal line_said(line: Line)
 ## time, so Reactions estimates "being spoken" from here, not from line_said, which
 ## waits on the wall clock (PLAN v8 M39 review).
 signal line_queued(line: Line)
+## M47.5b (PLAN v9.3 2.9): a `skin` cue fired (the always-on terminal's "$ skin reveal <group>").
+signal skin_cued(target: StringName)
 
 const READ_BASE := 1.2
 ## The script's lines (intro and cues) speak at this priority: reactions below 3 never
@@ -250,6 +252,7 @@ func _fire(cue: Cue, index: int) -> void:
 ## are instant. `skin enemies` arms the per-spawn reveal and draws in the enemies already
 ## on screen (tree order).
 func _fire_skin(cue: Cue) -> void:
+	skin_cued.emit(cue.target)
 	if cue.target == &"bug":
 		Skins.glitch(cue.bug, cue.seconds)
 		return

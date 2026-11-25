@@ -33,6 +33,11 @@ const GLITCH_SHADER := preload("res://systems/glitch.gdshader")
 
 ## False in bot runs (tools/bot_runs.gd): the debrief never chooses by itself there.
 static var auto_beats := true
+## M47.5b (PLAN v9.3, 2.7): StartScreen's boot sets it when the first-launch question was never
+## asked (and no --autostart): the next host asks it in the terminal before S0's first frame.
+static var first_run_prompt := false
+const FIRST_RUN_LINE := "patchnotes first run: reduce flashing and screen shake?"
+const FIRST_RUN_OPTIONS: Array[String] = ["no", "yes"]
 
 var game: Main
 var view: SubViewportContainer
@@ -53,10 +58,22 @@ var _prev_size := PROJECT_BASE
 var _reload_row := ""         ## the hot-reload / restart command waiting for its "ok"
 var _swap_queued := false
 var _view_size_override := Vector2i.ZERO
+## M47.5b: a stage card is open (chapter mode: the terminal hides, the game fills the window).
+var chapter := false
+## M47.5b: a gameplay input since the last swap (the death countdown restarts only then).
+var played := false
+var asking_first_run := false   ## the installer's question waits for 1 / 2
+var _chapter_rows := false      ## the session's rows wait (for the card to close, or the installer's answer)
 
 
 ## The layout for a window of `window` pixels: {k, game: Rect2, terminal: Rect2, font: int}.
-static func layout_for(window: Vector2) -> Dictionary:
+## M47.5b, chapter mode: the game alone, 16:9, centred (k from the whole window), no terminal.
+static func layout_for(window: Vector2, p_chapter := false) -> Dictionary:
+	if p_chapter:
+		var kc := maxf(0.05, minf(window.y / GAME_SIZE.y, window.x / GAME_SIZE.x))
+		var gc := (GAME_SIZE * kc).round()
+		return {"k": kc, "game": Rect2(((window - gc) * 0.5).round(), gc), "terminal": Rect2(Vector2(window.x, 0), Vector2.ZERO),
+				"font": roundi(TerminalPanel.BASE_FONT * clampf(kc, 1.0, 2.0))}
 	var k := maxf(0.05, minf(window.y / GAME_SIZE.y, (window.x - TERMINAL_MIN) / GAME_SIZE.x))
 	var gs := (GAME_SIZE * k).round()
 	var game_rect := Rect2(Vector2(0, roundf((window.y - gs.y) * 0.5)), gs)
@@ -126,7 +143,12 @@ func _ready() -> void:
 		_pending = null
 		_attach(g)
 	elif not tools:
+		if first_run_prompt:   # the installer first: the session's rows wait for the answer
+			first_run_prompt = false
+			asking_first_run = true
 		_attach(load(GAME_SCENE).instantiate() as Main)
+	if asking_first_run:
+		ask_first_run()
 
 
 func _exit_tree() -> void:
@@ -173,7 +195,7 @@ func relayout(window := Vector2.ZERO) -> void:
 		return
 	if window == Vector2.ZERO:
 		window = get_viewport().get_visible_rect().size
-	layout = layout_for(window)
+	layout = layout_for(window, chapter)
 	var g: Rect2 = layout.game
 	# The viewport first: with stretch off, the container's minimum size is the viewport's, so
 	# shrinking the window (1080p back to the base) would keep the old, larger column.
@@ -186,7 +208,7 @@ func relayout(window := Vector2.ZERO) -> void:
 	var t: Rect2 = layout.terminal
 	terminal.position = t.position
 	terminal.size = t.size
-	terminal.visible = t.size.x >= 1.0
+	terminal.visible = t.size.x >= 1.0 and not chapter
 	if terminal.font_size() != int(layout.font):
 		terminal.set_font_size(int(layout.font))
 
@@ -203,7 +225,45 @@ func _attach(g: Main) -> void:
 	g.process_mode = Node.PROCESS_MODE_PAUSABLE   # before add_child: never inherit ALWAYS
 	viewport.add_child(g)
 	game = g
+	played = false
+	terminal.dress()   # M47.5b: the look's ui group (S9's reveal on) recolours the terminal
+	if g.stage_card != null and g.stage_card.is_open():
+		_enter_chapter(g.stage_card)
+		return
+	if asking_first_run:
+		_chapter_rows = true
+		return
 	_session_rows()
+
+
+# --- Chapters (M47.5b, PLAN v9.3 2.6): the only full-screen pauses ----------------------------
+
+## A new stage's card is up: the terminal hides and the game fills the window, centred on
+## black; the card itself is unchanged (door -> cook beat -> card). The hot-reload's "ok"
+## prints now, the session's rows once the card closes.
+func _enter_chapter(card: StageCard) -> void:
+	chapter = true
+	_chapter_rows = true
+	if _reload_row != "":
+		terminal.close_cmd("ok")
+		_reload_row = ""
+	card.closed.connect(_exit_chapter.bind(card), CONNECT_ONE_SHOT)
+	relayout()
+
+
+func _exit_chapter(_card: StageCard) -> void:
+	if not chapter:
+		return
+	chapter = false
+	relayout()
+	var s := RunState.session
+	if s != null:
+		terminal.sys("--- chapter %d · %s ---" % [s.stage, CampaignDB.campaign.stage_titles[s.stage]])
+	if _chapter_rows:
+		_chapter_rows = false
+		_session_rows()
+	if held:
+		terminal.prompt()
 
 
 ## The terminal's rows for a session that just started: the speaker, the version, then
@@ -290,21 +350,79 @@ func _swap() -> void:
 func hold() -> void:
 	held = true
 	RunState.set_pause(HANDOFF, true)
-	terminal.prompt()
+	if not chapter:   # a chapter's prompt comes after its card
+		terminal.prompt()
 
 
 func skip_handoff() -> void:
+	if asking_first_run:
+		answer_first_run(false)
 	if held:
 		_release()
 
 
 func _release() -> void:
 	held = false
+	played = true
 	RunState.set_pause(HANDOFF, false)
 	terminal.answer("play")
 
 
+# --- The installer's first-run question (M47.5b, PLAN v9.3 2.7, D13) -------------------------
+
+## Before S0's first frame, under the handoff: the installer (not the AI) asks once. The host
+## reads 1 / 2 (no debrief is open); a click on a choice row answers too.
+func ask_first_run() -> void:
+	asking_first_run = true
+	RunState.set_pause(HANDOFF, true)
+	terminal.sys(FIRST_RUN_LINE)
+	terminal.ask(FIRST_RUN_OPTIONS)
+	if not terminal.chosen.is_connected(_on_first_run_row):
+		terminal.chosen.connect(_on_first_run_row)
+
+
+func _on_first_run_row(index: int) -> void:
+	if asking_first_run:
+		answer_first_run(index == 1)
+
+
+## "reduce flashing off ([Esc] then [L] to change)": M47.5b review, the raw pause's own keys
+## (by layout), since no Options screen exists before the front door.
+static func first_run_answer_line(reduce: bool, to_label := Callable()) -> String:
+	return "reduce flashing %s ([%s] then [%s] to change)" % ["on" if reduce else "off",
+			InputSetup.expand_keys("{key:pause}", to_label), PauseMenu._key_name(KEY_L, to_label)]
+
+
+## The answer goes to the save (reduce_flashing, asked), then S0 starts.
+func answer_first_run(reduce: bool) -> void:
+	if not asking_first_run:
+		return
+	asking_first_run = false
+	SaveGame.set_setting("reduce_flashing", reduce)
+	SaveGame.set_setting("asked", true)
+	terminal.answer("2" if reduce else "1")
+	terminal.sys(first_run_answer_line(reduce))
+	if terminal.chosen.is_connected(_on_first_run_row):
+		terminal.chosen.disconnect(_on_first_run_row)
+	if _chapter_rows and not chapter:
+		_chapter_rows = false
+		_session_rows()
+	if not held:
+		RunState.set_pause(HANDOFF, false)
+
+
 func _process(_delta: float) -> void:
+	if asking_first_run:
+		if Input.is_action_just_pressed(&"choose_1"):
+			answer_first_run(false)
+		elif Input.is_action_just_pressed(&"choose_2"):
+			answer_first_run(true)
+		return
+	if not played:
+		for a in READY_ACTIONS:
+			if Input.is_action_just_pressed(a):
+				played = true
+				break
 	if not held:
 		return
 	if game != null and game.stage_card != null and game.stage_card.is_open():

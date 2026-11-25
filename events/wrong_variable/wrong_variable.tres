@@ -9,6 +9,7 @@ title = "Wrong variable"
 once_per_save = true
 photosensitive = true
 steps = 6
+cmd_text = "set gravity_scale 0.9"
 lines = Dictionary[StringName, String]({
 &"not_speed": "surprised: That's… not speed.",
 &"wrong_one": "panic: Wrong one! Hold on—",

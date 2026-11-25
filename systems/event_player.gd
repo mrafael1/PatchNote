@@ -17,6 +17,8 @@ extends Node
 ## the event wins on the first tick after it. A death still ends the session at once.
 
 signal ticked
+## M47.5b (PLAN v9.3 2.9): an event started (the always-on terminal prints its cmd_text).
+signal event_started(id: StringName)
 
 var game: Node
 var mascot: Mascot
@@ -81,6 +83,7 @@ func play(id: StringName, by := &"cue", force := false) -> bool:
 	_ctx = ctx
 	played.append(ctx.record)
 	RunState.log_event(&"event_started", {"id": String(id), "by": String(by)})
+	event_started.emit(id)
 	if reactions != null:
 		reactions.hold(&"event", true)
 	if game != null and game.genre != null:

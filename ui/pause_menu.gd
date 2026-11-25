@@ -11,9 +11,16 @@ extends CanvasLayer
 ## Quit to title, in the Pixel UI panel once the look's `ui` group is on, neutral before.
 ## Raw (Stage 1 and the v6 loop): one grey monospace line, "PAUSED   [Esc] resume   [Q]
 ## quit to start" (Q by position: AZERTY prints A; the pad's Y quits too).
+## M47.5b (PLAN v9.3 2.7, D11): before the front door the raw line also sets the window,
+## the volume and less flashing (saved at once), and Q quits the game (there is no start
+## screen before the door): "PAUSED   [Esc] resume   [Q] quit game   [F] fullscreen
+## [-/+] volume   [L] less flashing", with the values on a second line.
 
 const LAYER := 98
-const RAW_LINE := "PAUSED   [{key:pause}] resume   [%s] quit to start"
+const RAW_LINE := "PAUSED   [{key:pause}] resume   [%s] %s   [%s] fullscreen   [-/+] volume   [%s] less flashing"
+const QUIT_GAME := "quit game"
+const QUIT_START := "quit to start"
+const VOLUME_STEP := 0.1
 const CONFIRM_LINE := "Restart this session?\nCounts as a try."
 const FADE := 0.12
 
@@ -31,6 +38,7 @@ var _panel: PanelContainer
 var _menu: VBoxContainer
 var _confirm: VBoxContainer
 var _raw_label: Label
+var _raw_status: Label   ## M47.5b: "fullscreen off · volume 100% · less flashing off"
 var _buttons: Array[Button] = []
 var _confirm_buttons: Array[Button] = []
 var _open := false
@@ -63,7 +71,18 @@ func _ready() -> void:
 	_raw_label.add_theme_font_override(&"font", mono)
 	_raw_label.add_theme_font_size_override(&"font_size", 20)
 	_raw_label.add_theme_color_override(&"font_color", Palette.UI_DIM)
-	center.add_child(_raw_label)
+	var raw_box := VBoxContainer.new()
+	raw_box.name = "RawBox"
+	raw_box.add_theme_constant_override(&"separation", 10)
+	center.add_child(raw_box)
+	raw_box.add_child(_raw_label)
+	_raw_status = Label.new()
+	_raw_status.name = "RawStatus"
+	_raw_status.add_theme_font_override(&"font", mono)
+	_raw_status.add_theme_font_size_override(&"font_size", 16)
+	_raw_status.add_theme_color_override(&"font_color", Color(Palette.UI_DIM, 0.7))
+	_raw_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	raw_box.add_child(_raw_status)
 
 	_panel = PanelContainer.new()
 	_panel.name = "PausePanel"
@@ -225,9 +244,11 @@ func open() -> bool:
 	RunState.set_pause(RunState.MENU, true)
 	_freeze(true)
 	_raw_label.visible = raw
+	_raw_status.visible = raw
 	_panel.visible = not raw
 	_scrim.color = Color(Palette.SCRIM, 0.55 if raw else 0.72)
-	_raw_label.text = raw_line()
+	_raw_label.text = raw_line(Callable(), quit_label(RunState.session))
+	_raw_status.text = raw_status()
 	_menu.visible = true
 	_confirm.visible = false
 	options.visible = false
@@ -270,11 +291,61 @@ func close() -> void:
 	resumed.emit()
 
 
-static func raw_line(to_label := Callable()) -> String:
-	var q: Key = InputSetup.layout_label(KEY_Q) if not to_label.is_valid() else to_label.call(KEY_Q)
-	if q == KEY_NONE:
-		q = KEY_Q
-	return InputSetup.expand_keys(RAW_LINE % OS.get_keycode_string(q), to_label)
+static func raw_line(to_label := Callable(), quit := QUIT_GAME) -> String:
+	return InputSetup.expand_keys(RAW_LINE % [_key_name(KEY_Q, to_label), quit, _key_name(KEY_F, to_label),
+			_key_name(KEY_L, to_label)], to_label)
+
+
+## A key by its position (AZERTY's Q spot prints A).
+static func _key_name(physical: Key, to_label: Callable) -> String:
+	var k: Key = InputSetup.layout_label(physical) if not to_label.is_valid() else to_label.call(physical)
+	if k == KEY_NONE:
+		k = physical
+	return OS.get_keycode_string(k)
+
+
+## M47.5b: what Q says: "quit game" in a campaign session before the front door (it quits
+## the app), "quit to start" in the v6 loop and from the door on.
+static func quit_label(session: SessionDef) -> String:
+	return QUIT_GAME if Main.quit_target(session) == Main.QUIT_GAME else QUIT_START
+
+
+## "fullscreen off · volume 100% · less flashing off".
+static func raw_status() -> String:
+	return "fullscreen %s · volume %d%% · less flashing %s" % ["on" if int(Settings.get_value("window_mode")) == 1 else "off",
+			roundi(float(Settings.get_value("vol_master")) * 100.0), "on" if SaveGame.reduce_flashing() else "off"]
+
+
+## M47.5b (D11): the raw line's own keys, by position. F: fullscreen on / off; - / +: the
+## master volume by VOLUME_STEP; L: less flashing. Each is written to the save at once.
+## True when the event was one of them.
+func raw_option(event: InputEvent) -> bool:
+	var k := event as InputEventKey
+	if k == null or not k.pressed or k.echo:
+		return false
+	match k.physical_keycode:
+		KEY_F:
+			Settings.set_value("window_mode", 0 if int(Settings.get_value("window_mode")) == 1 else 1)
+		KEY_L:
+			Settings.set_value("reduce_flashing", not SaveGame.reduce_flashing())
+		_:
+			var step := volume_step(k)
+			if step == 0:
+				return false
+			Settings.set_value("vol_master", clampf(float(Settings.get_value("vol_master")) + step * VOLUME_STEP, 0.0, 1.0))
+	Settings.commit()
+	_raw_status.text = raw_status()
+	return true
+
+
+## -1 / +1 / 0: the volume keys. M47.5b review: by the character typed ("-", "+", "=", so
+## AZERTY's "-" on the 6 key works) or the keypad, and by the US position as before.
+static func volume_step(k: InputEventKey) -> int:
+	if k.unicode == 45 or k.keycode == KEY_MINUS or k.physical_keycode in [KEY_MINUS, KEY_KP_SUBTRACT]:
+		return -1
+	if k.unicode in [43, 61] or k.keycode in [KEY_PLUS, KEY_EQUAL] or k.physical_keycode in [KEY_EQUAL, KEY_KP_ADD]:
+		return 1
+	return 0
 
 
 ## Everything the menu holds while it is open (and lets go on close).
@@ -369,6 +440,8 @@ func _input(event: InputEvent) -> void:
 			close()
 		elif _raw_quit(event):
 			quit()
+		else:
+			raw_option(event)
 		get_viewport().set_input_as_handled()
 		return
 	if options.visible:
