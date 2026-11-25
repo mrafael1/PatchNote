@@ -29,6 +29,12 @@ extends SceneTree
 ## are chosen as bot_runs' _choose_pick does (pick_card on pick_rng), and the hash adds the
 ## live path, Loadout.summary(), the pick log and the pickups (count and positions);
 ## Stage 1 hashes are unchanged (G3/G4 refs stay valid).
+##
+## M47.3 (PLAN 1.16, pause determinism): --menu=<at>:<hold>[,<at>:<hold>...] opens the pause
+## menu at unpaused tick `at` (or `pick`: the first moment a pick panel is open, before it
+## is chosen), holds it `hold` physics frames, then closes it. A refused open (can_open())
+## is tried again next tick. Each seed's line ends "menus=<opened>/<wanted>"; a menu that
+## never opened is a failure. The hash must equal the run without --menu.
 
 var seconds := 120
 var out_path := ""
@@ -38,6 +44,9 @@ var seconds_set := false
 var session_ids: Array[StringName] = []
 var frames_every := 0                ## --frames (M47): 0 = once per second
 var answers := {}                    ## --answer (M47): fork id -> change id
+var menus: Array = []                ## --menu (M47.3): [at tick (-1 = pick), hold frames]
+var _menu_done: Array[bool] = []
+var _menu_opened := 0
 const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong",
 		&"s1_06_playground"]
 const CAMPAIGN_SECONDS := 300
@@ -68,6 +77,11 @@ func _run() -> void:
 			frames_every = int(arg.trim_prefix("--frames="))
 		elif arg.begins_with("--look=") or arg == "--skins=off":
 			pass   # read by main at boot (Skins.read_args: the Pixel preview / M48b's off switch, visual only)
+		elif arg.begins_with("--menu="):
+			for entry in arg.trim_prefix("--menu=").split(",", false):
+				var at_hold := entry.split(":")
+				if at_hold.size() == 2:
+					menus.append([-1 if at_hold[0] == "pick" else int(at_hold[0]), int(at_hold[1])])
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=").split("=")
 			if pair.size() == 2:
@@ -106,8 +120,11 @@ func _run() -> void:
 			print("[runhash] seed=%d FAILED: no game" % seeds[i])
 			quit(1)
 			return
+		_menus_reset()
 		var hashes := await _play(game, seeds[i])
 		lines.append(JSON.stringify({"seed": seeds[i], "hashes": hashes}))
+		if _menus_missing(str(seeds[i])):
+			failures += 1
 		if compare_path != "":
 			var want: Array = expected.get(seeds[i], [])
 			var diverged := -1
@@ -152,13 +169,17 @@ func _play(game: Node, run_seed: int) -> Array[String]:
 	rng.seed = run_seed
 	var hashes: Array[String] = []
 	var next_second := 1.0
+	var ticks := 0
 	while hashes.size() < seconds and not game.report.is_open():
+		await _menu_step(game, ticks)
 		if game.prompt_panel.can_choose():
 			game.prompt_panel.choose(rng.randi_range(0, game.prompt_panel.offer.cards.size() - 1))
 		if run_state.game_time >= next_second:
 			next_second += 1.0
 			hashes.append(_hash(game, run_state))
 		await physics_frame
+		if not paused:
+			ticks += 1
 	return hashes
 
 
@@ -230,8 +251,11 @@ func _run_campaign(seeds: Array[int]) -> void:
 				print("[runhash] session=%s seed=%d FAILED: the game runs another session" % [id, run_seed])
 				quit(1)
 				return
+			_menus_reset()
 			var hashes := await _play_session(game, run_state)
 			runs += 1
+			if _menus_missing("session=%s seed=%d" % [id, run_seed]):
+				failures += 1
 			lines.append(JSON.stringify({"session": String(id), "seed": run_seed, "hashes": hashes}))
 			var tag := "session=%s seed=%d" % [id, run_seed]
 			if compare_path != "":
@@ -329,12 +353,16 @@ func _play_session(game: Node, run_state: Node) -> Array[String]:
 	var hashes: Array[String] = []
 	var next_second := 1.0
 	var frames := 0
+	var ticks := 0
 	while hashes.size() < seconds and not game.debrief.is_open() and frames < seconds * 60 * 4:
+		await _menu_step(game, ticks)
 		if run_state.game_time >= next_second:
 			next_second += 1.0
 			hashes.append(_hash(game, run_state))
 		await physics_frame
 		frames += 1
+		if not paused:
+			ticks += 1
 	return hashes
 
 
@@ -347,6 +375,7 @@ func _play_session_frames(game: Node, run_state: Node) -> Array[String]:
 	var path_session := _path_session(run_state)
 	var bot: GDScript = load("res://tools/bot_runs.gd")
 	while run_state.game_time < seconds and not game.debrief.is_open() and frames < seconds * 60 * 4:
+		await _menu_step(game, ticks)
 		if path_session:
 			var panel: Node = game.get(&"pick_panel")
 			if panel != null and panel.call(&"can_choose"):
@@ -363,3 +392,53 @@ func _play_session_frames(game: Node, run_state: Node) -> Array[String]:
 				h = (h + "|" + _path_hash(game, run_state)).md5_text()
 			hashes.append(h)
 	return hashes
+
+
+# --- M47.3: the pause menu in a replay ---------------------------------------------------
+
+func _menus_reset() -> void:
+	_menu_done.clear()
+	for m in menus:
+		_menu_done.append(false)
+	_menu_opened = 0
+
+
+## Prints "menus=<opened>/<wanted>"; true when one never opened.
+func _menus_missing(tag: String) -> bool:
+	if menus.is_empty():
+		return false
+	print("[runhash] %s menus=%d/%d" % [tag, _menu_opened, menus.size()])
+	return _menu_opened < menus.size()
+
+
+## Called at the top of a play loop, inside physics_frame (before any node's physics): opens
+## the first due menu, holds it `hold` frames, closes it. One menu per call.
+func _menu_step(game: Node, ticks: int) -> void:
+	if menus.is_empty():
+		return
+	var pm: Node = game.get(&"pause_menu")
+	if pm == null:
+		return
+	for i in menus.size():
+		if _menu_done[i]:
+			continue
+		var at: int = menus[i][0]
+		var due := false
+		if at < 0:
+			var panel: Node = game.get(&"pick_panel")
+			due = panel != null and bool(panel.call(&"is_open"))
+		else:
+			due = ticks >= at
+		if not due:
+			continue
+		if not pm.call(&"can_open"):
+			return   # refused (a transition, a turn...): next tick
+		pm.call(&"open")
+		_menu_done[i] = true
+		_menu_opened += 1
+		if at >= 0 and ticks > at:
+			print("[runhash] menu due at tick %d opened at tick %d" % [at, ticks])
+		for f in int(menus[i][1]):
+			await physics_frame
+		pm.call(&"close")
+		return

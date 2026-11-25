@@ -67,11 +67,28 @@ func _ready() -> void:
 	_bubble.add_child(_label)
 	_rebuild_body()
 	Skins.hub.skin_changed.connect(_on_skin_changed)
+	Settings.hub.changed.connect(_on_setting_changed)
 
 
 func _exit_tree() -> void:
 	if Skins.hub.skin_changed.is_connected(_on_skin_changed):
 		Skins.hub.skin_changed.disconnect(_on_skin_changed)
+	if Settings.hub.changed.is_connected(_on_setting_changed):
+		Settings.hub.changed.disconnect(_on_setting_changed)
+
+
+## M47.3 (PLAN 1.16): the body re-reads reduce flashing when it changes (the options).
+func _on_setting_changed(key: String) -> void:
+	if key == "reduce_flashing" and body != null:
+		body.gentle = SaveGame.reduce_flashing()
+
+
+## M47.3: the pause menu freezes the typing and the line's clock (the body keeps idling).
+var _held := false
+
+
+func hold(on: bool) -> void:
+	_held = on
 
 
 ## M48a: a look swap rebuilds the body in the new look's body style, keeping what it was
@@ -180,6 +197,9 @@ static func bubble_rect(text: String, view: Vector2) -> Rect2:
 func say(line: Line, priority := 2, cut := false) -> void:
 	if line == null:
 		return
+	# M47.3: "Mascot chatter" off keeps the script's lines and drops the reactions below it.
+	if priority < SessionRunner.PRIORITY and not Settings.chatter():
+		return
 	if _current != null and ((cut and priority >= _current_priority)
 			or (priority > _current_priority and _shown_for >= MIN_SHOWN)):
 		_end_line()
@@ -244,6 +264,8 @@ func silence() -> void:
 func _process(delta: float) -> void:
 	if body != null:
 		body.top_limit = corner_top_limit()
+	if _held:
+		return
 	step(delta)
 
 
@@ -261,7 +283,9 @@ func step(delta: float) -> void:
 		return
 	var total := _current.text.length()
 	if _chars < total:
-		_chars = minf(total, _chars + TYPE_CPS * delta)
+		# M47.3: the text speed setting (45 by default; 0 = the whole line at once).
+		var cps := Settings.type_cps()
+		_chars = total if cps <= 0.0 else minf(total, _chars + cps * delta)
 		_label.visible_characters = int(_chars)
 		if _chars >= total:
 			body.say_end()

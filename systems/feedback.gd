@@ -208,8 +208,33 @@ func hit_stop(seconds: float) -> void:
 			or RunState.rules.turn_based or _player_dead():
 		return
 	RunState.set_time_factor(&"hit_stop", 0.0)
-	get_tree().create_timer(seconds, true, false, true).timeout.connect(
-			RunState.clear_time_factor.bind(&"hit_stop"))
+	_arm_stop(seconds)
+
+
+## M47.3 (PLAN 1.16): the hit stop's clear runs on a real-time timer that keeps going while
+## the tree is paused; the pause menu holds it (on: the time left is kept and the timer
+## dropped; off: a new timer for that time), so a menu never changes how long a stop lasts.
+var _stop_timer: SceneTreeTimer
+var _stop_clear := RunState.clear_time_factor.bind(&"hit_stop")
+var _held_left := -1.0
+
+
+func _arm_stop(seconds: float) -> void:
+	_stop_timer = get_tree().create_timer(seconds, true, false, true)
+	_stop_timer.timeout.connect(_stop_clear)
+
+
+func hold(on: bool) -> void:
+	if on:
+		if _stop_timer != null and _stop_timer.timeout.is_connected(_stop_clear):
+			_held_left = maxf(_stop_timer.time_left, 0.0)
+			_stop_timer.timeout.disconnect(_stop_clear)
+		_stop_timer = null
+	elif _held_left >= 0.0:
+		var left := _held_left
+		_held_left = -1.0
+		if is_inside_tree() and RunState.has_time_factor(&"hit_stop"):
+			_arm_stop(left)
 
 
 func puff(pos: Vector2, color: Color) -> void:

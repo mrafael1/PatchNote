@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M48b"
+const BUILD := "M47.3"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -33,6 +33,9 @@ var stage_card: StageCard   ## before a new stage's first session (PLAN v9 2); n
 var path_runner: PathRunner
 var pick_panel: PickPanel
 var sound: Sound
+var pause_menu: PauseMenu   ## M47.3 (PLAN 1.16): Esc / Start, when PauseMenu.allowed()
+## M47.3: tests set it to log the menu's telemetry line from a game that is not the scene.
+var menu_telemetry_always := false
 
 ## Read-only forwarders to the genre's nodes, so tests and tools keep working. They
 ## name shared systems, never a genre; a genre without one of them leaves it null.
@@ -195,6 +198,11 @@ func _ready() -> void:
 	debug = DebugOverlay.new()
 	debug.game = self
 	add_child(debug)
+
+	pause_menu = PauseMenu.new()
+	pause_menu.name = "PauseMenu"
+	pause_menu.game = self
+	add_child(pause_menu)
 
 	if RunState.session != null and (RunState.live_path() != &"" or RunState.session.tryout):
 		ensure_path_runner().begin()
@@ -401,6 +409,44 @@ func _end_session(choice: StringName) -> void:
 		next_seed = debrief.next_seed
 		next_genre = RunState.genre
 		get_tree().reload_current_scene()
+
+
+## M47.3 (PLAN 1.16): the pause menu's Restart session: the debrief's Retry from the middle
+## of a session (one `menu_retry` telemetry line, one attempt), then a reload.
+func menu_restart() -> void:
+	var s := RunState.session
+	if s != null:
+		_menu_telemetry(s, &"menu_retry")
+		CampaignDB.retry(s)
+	RunState.clear_pauses()
+	if get_tree().current_scene != self:
+		return   # a test's copy: counted, nothing reloads
+	next_seed = -1
+	next_genre = RunState.genre
+	get_tree().reload_current_scene()
+
+
+## M47.3: Quit to title (raw: quit to start). A session logs one `abandon` line; the save
+## is untouched (Continue replays the session); the v6 loop logs nothing (its telemetry is
+## per finished run). StartScreen's campaign build ends a replay as today.
+func menu_quit() -> void:
+	var s := RunState.session
+	if s != null:
+		_menu_telemetry(s, &"abandon")
+	RunState.clear_pauses()
+	if get_tree().current_scene != self:
+		return
+	get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)
+
+
+func _menu_telemetry(s: SessionDef, choice: StringName) -> void:
+	if not is_live_game() and not menu_telemetry_always:
+		return
+	Telemetry.append(CampaignDB.telemetry_record(s, genre.run_record(), &"quit",
+			session_runner.hits if session_runner != null else 0, choice, BUILD, null,
+			reactions.fired_ids() if reactions != null else ([] as Array[String]),
+			rule_book.landed if rule_book != null else [],
+			event_player.played_ids() if event_player != null else [], [], path_runner))
 
 
 ## True when this scene is the game being played, not a copy instanced by a test.

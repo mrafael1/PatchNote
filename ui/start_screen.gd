@@ -62,6 +62,7 @@ var _after_question: Callable
 func _ready() -> void:
 	if uses_real_save():
 		SaveGame.use_snapshot(SaveGame.DEFAULT_PATH)
+		Settings.apply()   # M47.3: the real save's volumes and window
 	print("[boot] Patch Notes %s, start screen, game %s, %s, %s" % [Main.BUILD, SaveGame.version().label(),
 			"real save" if uses_real_save() else "inert save", Main.answers_text()])
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -120,7 +121,7 @@ func _ready() -> void:
 	volume.min_value = 0.0
 	volume.max_value = 1.0
 	volume.step = 0.05
-	volume.value = db_to_linear(AudioServer.get_bus_volume_db(0))
+	volume.value = float(Settings.get_value("vol_master"))
 	volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	volume.value_changed.connect(set_volume)
 	column.add_child(_row("Volume", volume))
@@ -204,7 +205,7 @@ func _build_campaign(column: VBoxContainer) -> void:
 	volume.min_value = 0.0
 	volume.max_value = 1.0
 	volume.step = 0.05
-	volume.value = db_to_linear(AudioServer.get_bus_volume_db(0))
+	volume.value = float(Settings.get_value("vol_master"))
 	volume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	volume.value_changed.connect(set_volume)
 	column.add_child(_row("Volume", volume))
@@ -449,6 +450,7 @@ func press_reset() -> void:
 func _go_live() -> void:
 	if uses_real_save() and not SaveGame.persist:
 		SaveGame.go_live()
+		Settings.apply()
 
 
 ## Start: the pending dev session first, if the (now live) save has one; else the game.
@@ -478,10 +480,16 @@ func _start_game() -> void:
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
+## M47.3 (PLAN 1.16): stored as Settings' window_mode (1 / 0), so it survives a restart.
 func set_fullscreen(on: bool) -> void:
+	_go_live()
+	Settings.set_value("window_mode", 1 if on else 0)
+	Settings.commit()
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if on else DisplayServer.WINDOW_MODE_WINDOWED)
 
 
+## M47.3 (PLAN 1.16): the raw screen's slider is Settings' vol_master (Master bus).
 func set_volume(linear: float) -> void:
-	AudioServer.set_bus_volume_db(0, linear_to_db(linear))
-	AudioServer.set_bus_mute(0, linear <= 0.0)
+	_go_live()
+	Settings.set_value("vol_master", clampf(linear, 0.0, 1.0))
+	Settings.commit()

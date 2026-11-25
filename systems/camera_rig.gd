@@ -16,9 +16,10 @@ var _lead := Vector2.ZERO
 
 
 ## Presentation only: jolt the view by up to `pixels`, fading out quickly.
-## Halved with the "reduce flashing" setting (PLAN v8 1.9).
+## Halved with the "reduce flashing" setting (PLAN v8 1.9). M47.3: times the shake setting
+## (0-1, capped at 0.5 under reduce flashing; the defaults give today's 1 / 0.5).
 func shake(pixels: float) -> void:
-	var scale := Look.preset.shake_scale * (0.5 if SaveGame.reduce_flashing() else 1.0)
+	var scale := Look.preset.shake_scale * Settings.shake_mult()
 	_shake = maxf(_shake, pixels * scale)
 
 

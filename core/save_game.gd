@@ -499,6 +499,8 @@ static func parse(parsed: Variant) -> Variant:
 			if not out.settings[k] is bool:
 				return null
 			settings[k] = out.settings[k]
+	# M47.3 (PLAN 1.16): the Settings keys, sparse; a wrong one reads as its default.
+	settings.merge(Settings.parse(out.settings))
 	out.settings = settings
 	return out
 

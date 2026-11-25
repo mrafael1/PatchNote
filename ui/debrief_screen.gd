@@ -284,7 +284,7 @@ func _next_line() -> void:
 	_body.add_child(bubble)
 	big_body.set_expression(_line.expression)
 	big_body.say_start()
-	_hint.visible = true
+	_hint.visible = Settings.key_hints()   # M47.3: the key hints setting
 
 
 func _typed() -> bool:
@@ -323,12 +323,14 @@ func _process(delta: float) -> void:
 	if not is_open() or phase != LINES or _line == null:
 		return
 	_line_t += delta
+	# M47.3 (PLAN 1.16): the text speed setting (TYPE_CPS by default; 0 = instant).
+	var cps := Settings.type_cps()
 	if not _typed():
-		_chars = minf(_line.text.length(), _chars + TYPE_CPS * delta)
+		_chars = _line.text.length() if cps <= 0.0 else minf(_line.text.length(), _chars + cps * delta)
 		_typing.visible_characters = int(_chars)
 		if _typed():
 			big_body.say_end()
-	elif _line_t >= _line.text.length() / TYPE_CPS + SessionRunner.read_seconds(_line.text):
+	elif _line_t >= (0.0 if cps <= 0.0 else _line.text.length() / cps) + SessionRunner.read_seconds(_line.text):
 		_next_line()
 
 
@@ -599,30 +601,31 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		advance()
 		return
-	var key := event as InputEventKey
-	if key == null or not key.pressed or key.echo:
+	# M47.3 (PLAN 1.16): actions, not raw keycodes: choose_N is bound by physical position
+	# (1 / 2 work on AZERTY), ui_accept is Enter, keypad Enter, Space and the pad's A.
+	if event.is_echo() or not event.is_pressed():
 		return
 	match phase:
 		LINES:
-			if key.keycode in [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER]:
+			if event.is_action_pressed(&"ui_accept"):
 				get_viewport().set_input_as_handled()
 				advance()
 		FORK:
-			var i := key.keycode - KEY_1
-			if i >= 0 and i < 3:
-				get_viewport().set_input_as_handled()
-				if cards_ready():
-					pick(i)
+			for i in 3:
+				if event.is_action_pressed(StringName("choose_%d" % (i + 1))):
+					get_viewport().set_input_as_handled()
+					if cards_ready():
+						pick(i)
+					return
 		DONE:
 			if not can_choose():
 				return
 			var options := choices()
 			var choice := -1
-			match key.keycode:
-				KEY_1, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE:
-					choice = 0
-				KEY_2:
-					choice = 1
+			if event.is_action_pressed(&"choose_1") or event.is_action_pressed(&"ui_accept"):
+				choice = 0
+			elif event.is_action_pressed(&"choose_2"):
+				choice = 1
 			if choice >= 0 and choice < options.size():
 				get_viewport().set_input_as_handled()
 				choose(options[choice])

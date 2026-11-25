@@ -26,12 +26,14 @@ var _rng := RandomNumberGenerator.new()
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rng.seed = 1
+	AudioBuses.ensure()
 	_build_all()
 	for key: StringName in streams:
 		var p := AudioStreamPlayer.new()
 		p.stream = streams[key]
 		p.max_polyphony = MAX_VOICES
 		p.volume_db = -6.0
+		p.bus = AudioBuses.bus_for(key)   # M47.3 (PLAN 1.16): SFX / UI / Voice
 		add_child(p)
 		_players[key] = p
 	EventBus.projectile_fired.connect(_on_projectile_fired)

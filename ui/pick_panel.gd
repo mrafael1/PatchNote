@@ -77,7 +77,7 @@ func open(p_offer: PickOffer) -> bool:
 		b.custom_minimum_size = Vector2(300, 150)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.add_theme_font_size_override(&"font_size", 18)
-		b.text = card_text(p_offer, i)
+		b.text = card_text(p_offer, i, Callable(), Settings.key_hints())
 		b.disabled = true
 		b.pressed.connect(choose.bind(i))
 		Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
@@ -91,8 +91,10 @@ func open(p_offer: PickOffer) -> bool:
 
 
 ## Card i's text: its key on the player's layout ({key:choose_n}, never a literal number),
-## then the card's line.
-static func card_text(p_offer: PickOffer, i: int, to_label := Callable()) -> String:
+## then the card's line. M47.3: `hints` false (the key_hints setting off) drops the key.
+static func card_text(p_offer: PickOffer, i: int, to_label := Callable(), hints := true) -> String:
+	if not hints:
+		return p_offer.cards[i].text
 	var key := InputSetup.expand_keys("{key:choose_%d}" % (i + 1), to_label)
 	return "[%s]  %s" % [key, p_offer.cards[i].text]
 
@@ -100,13 +102,15 @@ static func card_text(p_offer: PickOffer, i: int, to_label := Callable()) -> Str
 func _process(delta: float) -> void:
 	if not _root.visible or _locked_for <= 0.0:
 		return
+	if RunState.is_paused_for(RunState.MENU):   # M47.3: the pause menu holds the lock
+		return
 	_locked_for -= delta / maxf(Engine.time_scale, 0.001)   # real time
 	if _locked_for <= 0.0:
 		_unlock()
 
 
 func can_choose() -> bool:
-	return _root.visible and _locked_for <= 0.0
+	return _root.visible and _locked_for <= 0.0 and not RunState.is_paused_for(RunState.MENU)
 
 
 ## Closes without a pick, for good (the session ended); the pause reason goes with it.

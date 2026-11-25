@@ -46,6 +46,9 @@ var _held: StringName = &""
 
 
 func _physics_process(_delta: float) -> void:
+	# M47.3 (PLAN 1.16): the pause menu is invisible to the policy (no tick, nothing moves).
+	if RunState.is_paused_for(RunState.MENU):
+		return
 	_tick += 1
 	dash_pressed = false
 	jump_pressed = false

@@ -108,6 +108,20 @@ func _process(_delta: float) -> void:
 	line_said.emit(line)
 
 
+## M47.3 (PLAN 1.16): the pause menu holds the speech queue's wall clock. On: the moment is
+## kept; off: the next line's slot moves on by the time the menu was open.
+var _held_at := -1
+
+
+func hold_speech(on: bool) -> void:
+	if on:
+		if _held_at < 0:
+			_held_at = Time.get_ticks_msec()
+	elif _held_at >= 0:
+		_free_at_msec += Time.get_ticks_msec() - _held_at
+		_held_at = -1
+
+
 func _physics_process(_delta: float) -> void:
 	if genre == null or genre.is_over():
 		return

@@ -65,9 +65,24 @@ func menu_open() -> void:
 
 
 func menu_close() -> void:
+	_held = false
 	if _menu_from >= 0:
 		menu_ms += maxi(0, _now() - _menu_from)
 		_menu_from = -1
+
+
+## M47.3 (PLAN 1.16): the pause menu over a pick panel. On: the pick's time so far is
+## counted and the clock stops; off: it starts again. menu_s never counts the pause menu.
+var _held := false
+
+
+func hold(on: bool) -> void:
+	if on and _menu_from >= 0:
+		menu_close()
+		_held = true
+	elif not on and _held:
+		_held = false
+		menu_open()
 
 
 ## The 8 values of 1.15. `picks`, `switches`, `pickups`: counts over the sampled time.

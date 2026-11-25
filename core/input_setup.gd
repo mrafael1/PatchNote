@@ -55,6 +55,29 @@ func _init() -> void:
 	_bind(&"debug_session", [_key(KEY_F9)])   # Shift+F9 ships without the screen
 
 
+## M47.3 (PLAN 1.16): the settings reach the engine at boot (buses, volumes; the window
+## only outside tools and --fixed-fps). Deferred: the later autoloads (GenreDB, which a
+## new save reads) are not in the tree yet. StartScreen applies again once the real save
+## is read.
+func _ready() -> void:
+	_apply_settings.call_deferred()
+
+
+func _apply_settings() -> void:
+	Settings.apply()
+
+
+## M47.3: "Mute when unfocused" mutes Master while the window has no focus.
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_APPLICATION_FOCUS_OUT and what != NOTIFICATION_APPLICATION_FOCUS_IN:
+		return
+	var i := AudioServer.get_bus_index(&"Master")
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and bool(Settings.get_value("mute_unfocused")):
+		AudioServer.set_bus_mute(i, true)
+	else:
+		AudioServer.set_bus_mute(i, float(Settings.get_value("vol_master")) <= 0.0)
+
+
 ## The first keyboard key bound to `action` ("" if none), as printed on the player's
 ## keyboard. Keys are bound by physical position (_key), so the label is the letter at that
 ## spot on the player's layout (Z, not W, on AZERTY; A, not Q, for weapon_prev). `to_label`

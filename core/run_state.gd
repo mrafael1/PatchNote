@@ -14,6 +14,7 @@ extends Node
 const BASE_RULES_PATH := "res://core/base_rules.tres"
 const MIN_TIME_SCALE := 0.05
 const HIT_STOP := &"hit_stop"   ## the look's time factor (PLAN v5 1.7); not a slow-motion cue
+const MENU := &"menu"           ## the pause menu's pause reason (M47.3)
 
 var base_rules: WorldRules
 var rules: WorldRules
@@ -44,6 +45,8 @@ var pick_rng := RandomNumberGenerator.new()
 
 var game_time := 0.0          ## unpaused, time-scaled seconds since the run started
 var real_frames := 0          ## physics frames since the run started, pauses included (telemetry)
+## M47.3 (PLAN 1.16): the frames the pause menu was open (real_time() leaves them out).
+var menu_frames := 0
 var build_number := 1         ## monotonic: every apply or revert is a new build
 var run_log: Array[Dictionary] = []
 var kills := 0
@@ -69,6 +72,8 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	real_frames += 1
+	if _pause_reasons.has(MENU):
+		menu_frames += 1
 	if not get_tree().paused:
 		game_time += delta
 	_update_time_scale()
@@ -520,6 +525,7 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	build_number = 1
 	game_time = 0.0
 	real_frames = 0
+	menu_frames = 0
 	invincible = false
 	run_seed = new_seed
 	session = null
@@ -541,9 +547,11 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 
 
 ## Seconds of play the player sat through, pauses included: physics frames at the
-## project tick rate. Under B1 and B2 this runs ahead of game_time.
+## project tick rate. Under B1 and B2 this runs ahead of game_time. M47.3: the pause
+## menu's frames are left out (telemetry's real_duration, and the presentation clocks
+## stop under the menu).
 func real_time() -> float:
-	return real_frames / float(Engine.physics_ticks_per_second)
+	return (real_frames - menu_frames) / float(Engine.physics_ticks_per_second)
 
 
 func version_label() -> String:
@@ -668,7 +676,7 @@ func pending_count(kind: StringName) -> int:
 # --- Pause -----------------------------------------------------------------
 
 ## Reasons: &"prompt", &"history", &"transition", &"report", &"stage_card" (PLAN v9 2),
-## &"pick" (PickPanel, M45a),
+## &"pick" (PickPanel, M45a), &"menu" (PauseMenu, M47.3),
 ## and &"turn" (B2: the
 ## world waits for the player's next action). The tree is paused
 ## while any reason is active.
@@ -682,6 +690,16 @@ func set_pause(reason: StringName, on: bool) -> void:
 
 func is_paused_for(reason: StringName) -> bool:
 	return _pause_reasons.has(reason)
+
+
+## M47.3 (PLAN 1.16): leaving a session from the pause menu. Every pause reason and every
+## time factor goes (a hit stop held by the menu must not leave the title at 0.05), the
+## tree runs again and the time scale is rewritten now.
+func clear_pauses() -> void:
+	_pause_reasons.clear()
+	_time_factors.clear()
+	get_tree().paused = false
+	_update_time_scale()
 
 
 ## True if anything other than `reason` pauses the tree (a panel, a transition...).
