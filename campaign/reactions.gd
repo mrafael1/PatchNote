@@ -386,7 +386,8 @@ func _kill_goal() -> float:
 	return float(loop.goal_value) if loop != null else session.goal_value
 
 
+## M47.2: against the goal the run plays (goal_by_path: S8 Survival 90 s), as _kill_goal().
 func _survive_left() -> float:
 	if session == null or genre == null or session.goal != SessionDef.SURVIVE:
 		return -1.0
-	return session.goal_value - genre.session_clock()
+	return _kill_goal() - genre.session_clock()

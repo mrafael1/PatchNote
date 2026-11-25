@@ -33,6 +33,18 @@ func _outline() -> PackedVector2Array:
 	return pts
 
 
+## M47.2: the body, its shadow and the sweat drop by the right eye.
+func outline() -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for v in _outline():
+		pts.append(v)
+		pts.append(v + Vector2(4, 5))
+	var sweat := CENTRE + Vector2(15, -6) + Vector2(16, -6)
+	for c in [Vector2(-5, -9), Vector2(5, -9), Vector2(-5, 13), Vector2(5, 13)]:
+		pts.append(sweat + c)
+	return pts
+
+
 func _paint() -> void:
 	var pts := _outline()
 	var shadow := PackedVector2Array()

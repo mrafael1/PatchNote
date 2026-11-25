@@ -146,8 +146,9 @@ func begin_run() -> void:
 		# PLAN v8 1.2: the session's goal; the AI hands things over itself, no prompts.
 		# M45a (PLAN v9 1.2): a kills goal is multiplied by the session's path's
 		# kill_goal_mult (Auto x2); survive goals never scale; a tryout swap never rescales.
-		var goal_value := session.goal_value
+		# M47.2: goal_by_path (S8 Survival 90 s) picks the value for the live path.
 		var path := RunState.path_def()
+		var goal_value := session.goal_for(path.id if path != null else &"")
 		if session.goal == SessionDef.KILLS and path != null:
 			goal_value = roundf(goal_value * path.kill_goal_mult)
 		run_loop.set_goal(session.goal, goal_value, session.time_limit)

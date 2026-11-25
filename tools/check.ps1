@@ -242,12 +242,14 @@ if ($BotRuns) {
     Select-String -Path $s7stub.Log -Pattern '^\[botrun\] session=s7_auto_stub' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($s7stub.Text -notmatch '(?m)outcome=win .* weapons=pistol:\d(,shotgun:\d)? path=auto level=2 picks=1 pickups=\d+ swaps=auto@14\.5 leftovers=0\r?$') { $failures += 'bot_s7_auto_stub: not won, or no Auto taste (path=auto level=2 picks=1)' }
     if ($s7stub.Text -notmatch '\[botrun\] summary: s7_auto_stub x1, .* 0 failures') { $failures += 'bot_s7_auto_stub: run failed' }
-    # M47: S8 on each path wins (invincible) on its own path.
+    # M47: S8 on each path wins (invincible) on its own path. M47.2 (owner G14a): Survival
+    # survives 90 s (goal_by_path), Arsenal and Auto 120 s.
     foreach ($p in @('arsenal', 'auto', 'survival')) {
         $s8 = Invoke-Godot "bot_s8_$p" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_02_day_one --answer=fork_path=path_$p --save=user://m47_check/s8_$p.json --log=user://m47_check/s8_$p.jsonl 3i"
         Test-Errors "bot_s8_$p" $s8
         Select-String -Path $s8.Log -Pattern '^\[botrun\] session=s2_02_day_one' | ForEach-Object { Write-Host "    $($_.Line)" }
-        if ($s8.Text -notmatch "outcome=win t=120\.0 .*path=$p ") { $failures += "bot_s8_${p}: not won on $p" }
+        $t = if ($p -eq 'survival') { '90\.0' } else { '120\.0' }
+        if ($s8.Text -notmatch "outcome=win t=$t .*path=$p ") { $failures += "bot_s8_${p}: not won on $p in $t s" }
         if ($s8.Text -notmatch '\[botrun\] summary: s2_02_day_one x1, .* 0 failures') { $failures += "bot_s8_${p}: run failed" }
     }
 }

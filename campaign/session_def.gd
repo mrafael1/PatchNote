@@ -65,6 +65,10 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var goal: StringName = SURVIVE
 @export var goal_value := 60.0
 @export var time_limit := 0.0
+## M47.2 (owner G14a): path id -> the goal_value on that path ({} = goal_value on every
+## path; S8 Survival survives 90 s). Not on a tryout (a swap never rescales) or a
+## pathless session; a kills goal is still multiplied by the path's kill_goal_mult.
+@export var goal_by_path: Dictionary[StringName, float] = {}
 
 @export_group("The AI")
 ## The mascot has a body (false before fork_mascot is answered).
@@ -107,6 +111,12 @@ var _parsed := false
 ## The campaign shows this session cooking instead of playing it (M43.2).
 func is_cooking() -> bool:
 	return not cooking.is_empty()
+
+
+## M47.2: the goal value this session plays on path `path_id` (goal_by_path, else
+## goal_value; &"" = no path).
+func goal_for(path_id: StringName) -> float:
+	return float(goal_by_path.get(path_id, goal_value))
 
 
 func intro_lines() -> Array[Line]:
@@ -280,6 +290,48 @@ func _path_basic_problems(where: String) -> Array[String]:
 	return out
 
 
+## M47.2: goal_by_path names known paths with values > 0, only on a session with a path
+## that is not a tryout. And (survive and stop goals) no `at s` cue that can run on path
+## p comes after that path's end: s >= goal_for(p) on survive (it would never fire),
+## s > goal_for(p) + Tuning.smoke_stop_read on stop (a stop session runs on that long).
+func _goal_by_path_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	for k: Variant in goal_by_path:
+		if typeof(k) != TYPE_STRING_NAME or not StringName(k) in PATHS:
+			out.append("%s: goal_by_path: unknown path %s (%s)" % [where, k, PATHS])
+		elif float(goal_by_path[k]) <= 0.0:
+			out.append("%s: goal_by_path: %s must be > 0" % [where, k])
+	if not goal_by_path.is_empty() and path == &"":
+		out.append("%s: goal_by_path needs a path" % where)
+	if not goal_by_path.is_empty() and tryout:
+		out.append("%s: goal_by_path is not for a tryout (a swap never rescales)" % where)
+	if goal != SURVIVE and goal != STOP:
+		return out
+	var paths: Array[StringName] = PATHS
+	if path == &"":
+		paths = [&""]
+	for p in paths:
+		var end := goal_for(p) + (Tuning.smoke_stop_read if goal == STOP else 0.0)
+		for c in cue_list():
+			if c.problem != "" or c.when != &"at" or not _cue_can_run_on(c, p):
+				continue
+			if c.value > end or (goal == SURVIVE and c.value >= end):
+				out.append("%s: cue '%s' is after the goal's end (%s s%s)" % [where, c.source, end,
+						" on %s" % p if p != &"" else ""])
+	return out
+
+
+## Whether a cue's condition can hold on path p: no positive answer:path_<other> part and
+## no "!answer:path_<p>" part (other parts can hold on any path).
+static func _cue_can_run_on(c: Cue, p: StringName) -> bool:
+	for part in c.cond.split("&", false):
+		if p != &"" and part == "!answer:path_%s" % p:
+			return false
+		if part.begins_with("answer:path_") and (p == &"" or part != "answer:path_%s" % p):
+			return false
+	return true
+
+
 ## Everything wrong with this session on its own (CampaignDB adds what needs the order).
 func problems() -> Array[String]:
 	var out: Array[String] = []
@@ -323,6 +375,7 @@ func problems() -> Array[String]:
 			out.append("%s: ships unknown change %s" % [where, c])
 	out.append_array(_weapon_problems(where))
 	out.append_array(_path_basic_problems(where))
+	out.append_array(_goal_by_path_problems(where))
 	for k in cooking:
 		if k.strip_edges() == "":
 			out.append("%s: an empty cooking line" % where)

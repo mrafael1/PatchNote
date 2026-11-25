@@ -643,10 +643,98 @@ func test_the_hand_widget_rows_pips_keys_and_bar() -> void:
 	assert_string_contains(w.text(), "[2] Shotgun ●●○")
 	assert_eq(w.active_row(), 1, "the active card is raised")
 	_kill(r, 5)
-	w._refresh()
+	w.step(0.0)
 	assert_almost_eq(w.bar(), float(r.meter().progress()), 0.0001)
 	assert_gt(w.bar(), 0.0)
 	assert_eq(HandWidget.pips(3), "●●●")
+
+
+## M47.2 (owner G14a: "a card hand ... you see current weapons and which is equipped (real
+## cards)"): one card per held weapon, its title, rank and switch key on the layout.
+func test_the_hand_shows_one_card_per_weapon_with_its_key_and_pips() -> void:
+	var r := await _arsenal_arena()
+	var w := r.widget()
+	w.manual = true
+	assert_eq(w.card_count(), 1)
+	assert_eq(w.card_title(0), "Pistol")
+	assert_eq(w.card_rank(0), 1)
+	var lo := _loadout()
+	lo.give(&"shotgun")
+	lo.upgrade(&"shotgun")
+	lo.give(&"laser")
+	w.step(0.0)
+	assert_eq(w.card_count(), 3)
+	assert_eq([w.card_title(1), w.card_rank(1)], ["Shotgun", 2])
+	assert_eq([w.card_title(2), w.card_rank(2)], ["Laser", 1])
+	for i in 3:
+		assert_eq(w.key_label(i), InputSetup.expand_keys("{key:weapon_%d}" % (i + 1)))
+		assert_eq(w.key_label(i, _azerty), InputSetup.expand_keys("{key:weapon_%d}" % (i + 1), _azerty))
+	assert_eq([w.key_label(0, _azerty), w.key_label(2, _azerty)], ["1", "3"], "AZERTY prints the digit (M46)")
+	assert_eq(w.key_label(1, func(k: int) -> int: return k), "2", "QWERTY")
+
+
+func test_the_equipped_card_is_raised_and_the_others_lowered() -> void:
+	var r := await _arsenal_arena()
+	var w := r.widget()
+	w.manual = true
+	var lo := _loadout()
+	lo.give(&"shotgun")
+	w.step(1.0)
+	var view := Vector2(1280, 720)
+	assert_eq(w.equipped(), 0)
+	assert_lt(w.card_rect(0, view).position.y, w.card_rect(1, view).position.y, "the pistol is up")
+	assert_true(lo.select_slot(1))
+	w.step(0.05)
+	assert_eq(w.equipped(), 1)
+	assert_between(w.lift(1), 0.1, 0.9, "the switch tweens (partway after 0.05 s)")
+	w.step(0.2)
+	assert_eq(w.lift(1), 1.0)
+	assert_eq(w.lift(0), 0.0)
+	assert_lt(w.card_rect(1, view).position.y, w.card_rect(0, view).position.y, "the shotgun is raised")
+	assert_eq(w.card_rect(0, view).end.y, view.y - HandWidget.MARGIN, "the others sit on the margin")
+
+
+func test_a_new_card_slides_in() -> void:
+	var r := await _arsenal_arena()
+	var w := r.widget()
+	w.manual = true
+	w.step(1.0)
+	assert_eq(w.joining(0), 0.0)
+	_loadout().give(&"laser")
+	w.step(0.0)
+	assert_eq(w.joining(1), 1.0, "a new card starts below, faded")
+	w.step(0.1)
+	assert_between(w.joining(1), 0.1, 0.9)
+	w.step(0.3)
+	assert_eq(w.joining(1), 0.0, "in after 0.25 s")
+
+
+## reduce_flashing: the lit card never pulses and a joining card has no brightness flash.
+func test_reduce_flashing_never_pulses_the_hand() -> void:
+	var r := await _arsenal_arena()
+	SaveGame.state().settings["reduce_flashing"] = true
+	var w := r.widget()
+	w.manual = true
+	w.step(1.0)
+	var still := true
+	for i in 60:
+		w.step(1.0 / 30.0)
+		still = still and w.lift(0) == 1.0 and w.joining(0) == 0.0 and w.join_flash(0) == 0.0
+	assert_true(still, "the lit card holds still over 2 s")
+	_loadout().give(&"laser")
+	w.step(0.0)
+	assert_true(SaveGame.reduce_flashing())
+	assert_eq(w.joining(1), 1.0)
+	var last := 0.0
+	for i in 20:
+		assert_eq(w.join_flash(1), 0.0, "no brightness flash with reduce_flashing")
+		w.step(1.0 / 60.0)
+		assert_gte(1.0 - w.joining(1), last, "the join's alpha only rises")
+		last = 1.0 - w.joining(1)
+	SaveGame.state().settings["reduce_flashing"] = false
+	_loadout().give(&"shotgun")
+	w.step(0.0)
+	assert_gt(w.join_flash(2), 0.0, "the flash is there without it")
 
 
 # --- 11. G6 for Arsenal ----------------------------------------------------------------------

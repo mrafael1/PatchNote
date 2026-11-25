@@ -26,6 +26,22 @@ const KILL_PULSE_TIME := 0.15
 var _pulse := 0.0
 var _goal: Label   ## a campaign session's goal at the top centre (PLAN v8 2)
 
+## M47.2 (owner G14a: "mascot on the right hide UI => put UI to the top right"): in a
+## campaign session the top right is one band, y BAND_TOP..BAND_BOTTOM: the corner text
+## (HP, version, dash: at most two lines at font 20, 59 px) at the right edge, and the path
+## widget left of it (Auto's level, Survival's ammo). The mascot sits under the band
+## (Mascot.TOP) and never rises into it (MascotBody.top_limit). Arsenal's hand is bottom
+## left (it has hand_rect()). The legacy loop's HUD is untouched.
+const BAND_TOP := 8.0
+const BAND_BOTTOM := 68.0
+const BAND_GAP := 18.0
+const PATH_MAX_W := 300.0
+const CORNER_RIGHT := 14.0
+## The widest corner text the band is placed against (not the live text, so the widget
+## never jitters as HP or the dash line change): HP and the version, and the dash line.
+const CORNER_WIDEST: Array[String] = ["HP 999   v9.99.99", "teleport ready", "teleport ..."]
+const GOAL_WIDEST: Array[String] = ["Survive 9:59", "Kills 999/999"]
+
 
 func _ready() -> void:
 	layer = 50
@@ -103,6 +119,45 @@ func _build_gauge() -> void:
 	add_child(_gauge)
 
 
+## M47.2: the corner text's reserved rect on a canvas of size `view` (right-aligned at
+## W - CORNER_RIGHT, the widest corner text plus its outline).
+static func corner_rect(view: Vector2) -> Rect2:
+	var w := 0.0
+	for t in CORNER_WIDEST:
+		w = maxf(w, ThemeDB.fallback_font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 10.0)
+	return Rect2(view.x - CORNER_RIGHT - w, BAND_TOP, w, BAND_BOTTOM - BAND_TOP)
+
+
+## M47.2: the goal's rect (top centre, the widest goal text at font 24 plus its outline).
+static func goal_rect(view: Vector2) -> Rect2:
+	var w := 0.0
+	for t in GOAL_WIDEST:
+		w = maxf(w, ThemeDB.fallback_font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x + 10.0)
+	var h := ThemeDB.fallback_font.get_height(24) + 10.0
+	return Rect2(view.x * 0.5 - w * 0.5, 5.0, w, h)
+
+
+## M47.2: where a band widget may sit: right of the goal, left of the corner text.
+static func band_rect(view: Vector2) -> Rect2:
+	var right := corner_rect(view).position.x - BAND_GAP
+	return Rect2(right - PATH_MAX_W, BAND_TOP, PATH_MAX_W, BAND_BOTTOM - BAND_TOP)
+
+
+## M47.2: places the path widget for a canvas of size `view`: a hand (hand_rect()) where
+## it says, anything else right-aligned in the band at its minimum size.
+func layout_path_widget(view: Vector2) -> void:
+	if not is_instance_valid(path_widget):
+		return
+	if path_widget.has_method(&"hand_rect"):
+		var r: Rect2 = path_widget.call(&"hand_rect", view)
+		path_widget.position = r.position
+		path_widget.size = r.size
+		return
+	var band := band_rect(view)
+	var min_size := path_widget.get_combined_minimum_size()
+	path_widget.position = Vector2(band.end.x - minf(min_size.x, PATH_MAX_W), BAND_TOP)
+
+
 ## The gauge's fill, 0..1, or -1 while it is hidden (tests).
 func gauge_value() -> float:
 	return _gauge_fill.size.x / GAUGE_SIZE.x if _gauge.visible else -1.0
@@ -163,6 +218,8 @@ func set_path_widget(widget: Control) -> void:
 		if widget.get_parent() != null:
 			widget.get_parent().remove_child(widget)
 		add_child(widget)
+	if widget != null and is_inside_tree():
+		layout_path_widget(get_viewport().get_visible_rect().size)
 
 
 func banner_shown() -> bool:
@@ -192,6 +249,7 @@ func _process(delta: float) -> void:
 			dash = "%s ready" % dasher.label() if dasher.is_ready() else "%s ..." % dasher.label()
 	if RunState.session != null:
 		_label.text = session_text(hp, dash)
+		layout_path_widget(get_viewport().get_visible_rect().size)
 		return
 	_label.text = "HP %d   Kills %d   %s\n%s" % [hp, RunState.kills, version_text(), dash]
 	# Rollbacks are parked (PLAN v5 1.3): the line shows only while a test grants charges.

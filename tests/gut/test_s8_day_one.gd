@@ -38,6 +38,8 @@ const AUDIT := [
 	["s2_02_day_one", "-", "^at 50: spawn splitter 2$", "splitter"],
 ]
 
+const BotRuns := preload("res://tools/bot_runs.gd")
+
 var game: Main
 var _tuning := {}
 
@@ -103,6 +105,7 @@ func test_s8_validates_in_the_campaign() -> void:
 	assert_eq(CampaignDB.index_of(S8), 8, "after S7, the last playable session (D4)")
 	assert_eq([s.stage, s.path, s.goal, s.goal_value, s.hp_floor, s.bump, s.fork],
 			[2, &"fork:fork_path", SessionDef.SURVIVE, 120.0, 0, &"patch", &""])
+	assert_eq(s.goal_by_path, {&"survival": 90.0} as Dictionary[StringName, float], "M47.2: Survival 90 s")
 	assert_eq(s.basics, CampaignDB.get_session(&"s1_06_playground").basics)
 	assert_eq(s.notes, PackedStringArray(["Day one", "The shotgun", "New enemy: the splitter"]))
 	assert_true(&"fork_path" in CampaignDB.get_session(S7).asked_forks(), "asked earlier, in S7")
@@ -142,6 +145,88 @@ func test_every_s7_s8_audit_row_has_its_cue() -> void:
 			"gems / LV", "drops + crates", "swap", "sidearm fallback", "kill-heal", "weapons (shotgun)",
 			"weapon ranks (card text)", "splitter", "hp_floor 1"]:
 		assert_true(covered.has(need), "the audit covers " + need)
+
+
+# --- M47.2 (owner G14a: "survival 2:00 => 1:30") -------------------------------------------
+
+func test_s8_survival_lasts_90_s_and_the_others_120() -> void:
+	var s := CampaignDB.get_session(S8)
+	assert_eq([s.goal_for(&"arsenal"), s.goal_for(&"auto"), s.goal_for(&"survival"), s.goal_for(&"")],
+			[120.0, 120.0, 90.0, 120.0])
+	for p in PATHS:
+		await _s8(p)
+		var want := 90.0 if p == &"survival" else 120.0
+		assert_eq(game.run_loop.goal_value, want, "%s: the run plays %s s" % [p, want])
+		assert_eq(game.hud.goal_shown(), "Survive 1:30" if p == &"survival" else "Survive 2:00", String(p))
+		await _at(want - 1.0)
+		assert_eq(game.run_loop.phase, RunLoop.PLAY, "%s: still playing 1 s before its end" % p)
+		if p == &"survival":   # the session-end telemetry line records the 90 s goal
+			game.run_loop.goal_clock = want + 0.5
+			await wait_physics_frames(3)
+			var rec := CampaignDB.telemetry_record(s, game.genre.run_record(), &"won", 0, &"next")
+			assert_eq(float(Dictionary(rec.get("goal", {})).get("value", 0.0)), 90.0, "telemetry: goal value 90")
+		game.free()
+
+
+func test_the_survival_intro_says_ninety_seconds() -> void:
+	var s := CampaignDB.get_session(S8)
+	for p in PATHS:
+		SaveGame.go_inert()
+		CampaignDB.answer_fork(&"fork_path", StringName("path_%s" % p))
+		var intro := "\n".join(Line.passing(s.intro_lines(), CampaignDB.line_context(s)).map(
+				func(l: Line) -> String: return l.text))
+		assert_eq(intro.contains("Ninety seconds"), p == &"survival", "%s: %s" % [p, intro])
+		assert_eq(intro.contains("Two minutes"), p != &"survival", "%s: %s" % [p, intro])
+
+
+## "Almost there" (last_seconds) reads the run's goal: 4 s left at 86 s on Survival.
+func test_last_seconds_fires_before_the_survival_goal() -> void:
+	await _s8(&"survival")
+	await _at(86.0)
+	var left: float = game.reactions._survive_left()
+	assert_between(left, 0.0, ReactionDef.LAST_SECONDS, "%s s left at 86 s of 90" % left)
+	game.free()
+	await _s8(&"arsenal")
+	await _at(86.0)
+	assert_gt(game.reactions._survive_left(), 30.0, "Arsenal still has 34 s")
+
+
+func test_goal_by_path_problems() -> void:
+	var s := CampaignDB.get_session(S8).duplicate() as SessionDef
+	s.goal_by_path = {&"survival": 90.0}
+	assert_eq(s.problems(), [] as Array[String])
+	s.goal_by_path = {&"nowhere": 90.0}
+	assert_string_contains(" ".join(s.problems()), "goal_by_path: unknown path nowhere")
+	s.goal_by_path = {&"auto": 0.0}
+	assert_string_contains(" ".join(s.problems()), "goal_by_path: auto must be > 0")
+	s.goal_by_path = {&"survival": 40.0}
+	assert_string_contains(" ".join(s.problems()), "cue 'at 50: spawn splitter 2' is after the goal's end (40.0 s on survival)")
+	assert_false(" ".join(s.problems()).contains("answer:path_arsenal at 20"), "a cue of another path is not checked")
+	s.goal_by_path = {&"survival": 90.0}
+	s.cues.append("answer:path_survival at 95: say happy: Late.")
+	s._parsed = false
+	assert_string_contains(" ".join(s.problems()), "after the goal's end (90.0 s on survival)")
+	var pathless := CampaignDB.get_session(&"s1_04_level").duplicate() as SessionDef
+	pathless.goal_by_path = {&"auto": 20.0}
+	assert_string_contains(" ".join(pathless.problems()), "goal_by_path needs a path")
+	var tryout := CampaignDB.get_session(S7).duplicate() as SessionDef
+	tryout.goal_by_path = {&"auto": 100.0}
+	assert_string_contains(" ".join(tryout.problems()), "goal_by_path is not for a tryout")
+	for id: StringName in [&"s1_00_nothing", &"s1_01_move"]:
+		assert_eq(CampaignDB.get_session(id).problems(), [] as Array[String], "%s: a stop session's cue at its end still fires" % id)
+	var late := CampaignDB.get_session(&"s1_01_move").duplicate() as SessionDef
+	late.cues.append("at %d: say happy: Too late." % int(late.goal_value + Tuning.smoke_stop_read + 1.0))
+	late._parsed = false
+	assert_string_contains(" ".join(late.problems()), "after the goal's end")
+
+
+## bot_runs' --session-set goal_value replaces goal_by_path (it would shadow it on Survival).
+func test_a_session_set_goal_value_replaces_goal_by_path() -> void:
+	var copy := CampaignDB.get_session(S8).duplicate() as SessionDef
+	BotRuns.set_session_field(copy, "goal_value", 60.0)
+	assert_eq(copy.goal_for(&"survival"), 60.0)
+	assert_eq(copy.goal_for(&"arsenal"), 60.0)
+	assert_eq(CampaignDB.get_session(S8).goal_for(&"survival"), 90.0, "the shipped session is untouched")
 
 
 # --- Per path ------------------------------------------------------------------------------

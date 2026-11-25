@@ -25,6 +25,15 @@ func pose() -> Dictionary:
 	return out
 
 
+## M47.2: the arrow and its shadow (the eyes and mouth sit inside it).
+func outline() -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for v in ARROW:
+		pts.append(p(v))
+		pts.append(p(v) + Vector2(4, 5))
+	return pts
+
+
 func _paint() -> void:
 	var pts := PackedVector2Array()
 	for v in ARROW:

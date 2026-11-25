@@ -43,7 +43,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal (happy) Cards. Today it's you and one card: the pistol.
 - answer:path_auto (happy) Auto. Don't touch the trigger. I mean it.
 - answer:path_survival (happy) Scavenger. You get a pistol. The rest is out there.
-- (thinking) Two minutes. I'll build it properly this time.
+- !answer:path_survival (thinking) Two minutes. I'll build it properly this time.
+- answer:path_survival (thinking) Ninety seconds. I'll build it properly this time.
 ### Cues
 - answer:path_arsenal at 10: (happy) Remember the cards? Now they're real. Rank pips, a meter. Twenty-five kills, a new card.
 - answer:path_arsenal at 20: (thinking) Secret: the first shot after a switch hits twice as hard. Switch a lot.

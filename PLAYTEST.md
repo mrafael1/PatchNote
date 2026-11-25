@@ -1,6 +1,11 @@
-# Patch Notes: G14a (M47 build, ~15 min): the three paths
+# Patch Notes: G14a (M47.2 build, ~15 min): the three paths
 
 One page. The G13 sheet is kept below for reference.
+
+## G14a feedback (M47.2, from your notes of 2026-11-25)
+- The level bar (Auto) and the ammo line (Survival) moved to the top right, next to HP, so the AI no longer hides them. The AI sits a little lower (12 px) and its hops never reach the HP line.
+- Arsenal: your guns are a hand of cards at the bottom left (key, picture, rank pips); the one in your hand is raised and lit; the card meter sits next to them.
+- Survival's S8 lasts 1:30 (Arsenal and Auto 2:00).
 
 ## Before
 - In `%APPDATA%\Godot\app_userdata\Patch Notes\`, back up, then move aside `save\save.json` and `playtest\runs.jsonl` (e.g. rename them `*.before-g14a.*`).
@@ -10,7 +15,7 @@ One page. The G13 sheet is kept below for reference.
 
 ## What to play
 1. **S7 "Three games"** once (2.5 min, you can't lose). The AI swaps the whole game twice: cards (Arsenal), guns on the floor (Survival), then auto-fire (Auto). At the end it asks which one to build.
-2. **S8 "Day one"** on the path you picked (2 min, you can lose; Retry or Move on).
+2. **S8 "Day one"** on the path you picked (2 min, 1:30 on Survival; you can lose; Retry or Move on).
 3. Back on the title screen, the **Replay** row (new): pick S8 and another path, then Replay. Do it for both other paths. A replay never touches your save: it plays a copy, and the title restores it.
 
 ## Controls added

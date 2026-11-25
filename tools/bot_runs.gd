@@ -55,7 +55,8 @@ extends SceneTree
 ##                                own field (spawn_rate, spawn_cap, goal_value, time_limit)
 ##                                on a copy of it, exactly as the .tres would ship it. In
 ##                                the chain it applies to every session; <session id>.<key>
-##                                applies to that one only
+##                                applies to that one only. goal_value also clears the
+##                                copy's goal_by_path (M47.2: S8 Survival's 90 s)
 ##   --dash=<classic|grapple|teleport|none>   with --campaign (M42.1): the dash style.
 ##                                With --only, ships dash_<style> before the session (none:
 ##                                the player's dash stays locked, a control); in the chain,
@@ -1274,13 +1275,22 @@ func _apply_session_set() -> bool:
 			if not copies.has(i):
 				copies[i] = sessions[i].duplicate()
 				sessions[i] = copies[i]
-			copies[i].set(key, float(text))
+			set_session_field(copies[i], key, float(text))
 			found = true
 		if not found:
 			print("[botrun] FAILED: --session-set %s: no session %s" % [entry, target])
 			return false
 		print("[botrun] session-set %s: %s = %s" % [target if target != "" else "every session", key, float(text)])
 	return true
+
+
+## Sets one --session-set field on a session's copy. M47.2: goal_value also clears the
+## copy's goal_by_path (it would shadow the set value on that path: S8 Survival's 90 s).
+static func set_session_field(copy: Resource, key: String, value: float) -> void:
+	copy.set(key, value)
+	if key == "goal_value" and not (copy.get(&"goal_by_path") as Dictionary).is_empty():
+		copy.set(&"goal_by_path", Dictionary({}, TYPE_STRING_NAME, &"", null, TYPE_FLOAT, &"", null))
+		print("[botrun] %s: goal_value=%s replaces goal_by_path" % [copy.get(&"id"), value])
 
 
 ## Estimated seconds a player spends reading this attempt's lines (M42 "chain:"): the

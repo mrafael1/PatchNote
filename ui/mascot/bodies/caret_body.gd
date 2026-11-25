@@ -7,6 +7,12 @@ const COLOR := Color(0.55, 1.0, 0.65)
 const SIZE := Vector2(16, 30)
 
 
+## M47.2: the caret and its three thinking dots.
+func outline() -> PackedVector2Array:
+	return PackedVector2Array([-SIZE * 0.5, SIZE * 0.5, Vector2(SIZE.x * 0.5 + 27.0, SIZE.y * 0.5 - 5.0),
+			Vector2(SIZE.x * 0.5 + 27.0, SIZE.y * 0.5 + 1.0)])
+
+
 func _paint() -> void:
 	var lit := talking or fmod(t, 1.06) < 0.62
 	if expression == &"panic":

@@ -35,6 +35,14 @@ var frozen := false
 ## reduce_flashing (set by whoever holds the body): a glitch only wobbles.
 var gentle := false
 
+## M47.2 (owner G14a): the highest the drawn body may reach, in this node's own (posed)
+## space's y (-INF: no limit). The corner sets it so a hop, a pop or a pointing lean never
+## rises into the HUD's top-right band; the pose is pushed down by what it would overshoot.
+var top_limit := -INF
+## The glitch ghosts' sideways reach (k = 3 + 2 sin in _draw) and the outlines' stroke.
+const GHOST_REACH := 5.0
+const STROKE := 2.0
+
 var _glitch_left := 0.0
 var _point_dir := Vector2.ZERO
 var _point_left := 0.0
@@ -107,7 +115,7 @@ func advance(delta: float) -> void:
 
 
 func _draw() -> void:
-	var p := pose()
+	var p := posed()
 	if glitching() and not gentle:
 		var k := 3.0 + 2.0 * sin(t * 40.0)
 		_tint = Color(1.0, 0.25, 0.35, 0.55)
@@ -125,6 +133,73 @@ func _draw() -> void:
 ## The body's shape, eyes and mouth, in the posed space. Each body overrides it.
 func _paint() -> void:
 	pass
+
+
+## M47.2: points (body space, before the pose) that bound everything _paint() draws at this
+## moment: the shape, its shadow, the pointing arrow or pseudopod. Each body overrides it.
+func outline() -> PackedVector2Array:
+	return PackedVector2Array([Vector2(-50, -50), Vector2(50, -50), Vector2(50, 50), Vector2(-50, 50)])
+
+
+## pose() with top_limit applied: the offset is pushed down by what the body would
+## overshoot above the limit (only ever down, so nothing else changes).
+func posed() -> Dictionary:
+	var p := pose()
+	if top_limit > -INF:
+		var top := _bounds(p).position.y
+		if top < top_limit:
+			p["offset"] = Vector2(p["offset"]) + Vector2(0, top_limit - top)
+	return p
+
+
+## M47.2: the rect (this node's space) the body draws in right now, posed and clamped,
+## with the glitch ghosts' reach and the stroke.
+func posed_bounds() -> Rect2:
+	return _bounds(posed())
+
+
+func _bounds(p: Dictionary) -> Rect2:
+	var xf := Transform2D(float(p["angle"]), Vector2(p["scale"]), 0.0, Vector2(p["offset"]))
+	var pts := outline()
+	var r := Rect2(xf * pts[0], Vector2.ZERO)
+	for v in pts:
+		r = r.expand(xf * v)
+	var ghost := GHOST_REACH if glitching() and not gentle else 0.0
+	return r.grow_individual(STROKE + ghost, STROKE, STROKE + ghost, STROKE)
+
+
+## M47.2: the union of posed_bounds() over every expression, 2 s of time (every 1/30 s),
+## a fresh and a settled expression, at rest, pointing 8 ways and glitching: everywhere the
+## body can ever draw (tests and the HUD layout check). The body's state is restored.
+func worst_bounds() -> Rect2:
+	var saved := [expression, t, expr_t, talking, _glitch_left, _point_dir, _point_left]
+	var out := Rect2()
+	var first := true
+	var dirs: Array[Vector2] = [Vector2.ZERO]
+	for i in 8:
+		dirs.append(Vector2.RIGHT.rotated(TAU * i / 8.0))
+	for e in Line.EXPRESSIONS:
+		expression = e
+		for d in dirs:
+			_point_dir = d
+			_point_left = 1.0 if d != Vector2.ZERO else 0.0
+			for g in [0.0, 1.0]:
+				_glitch_left = g
+				for et in [0.0, 0.35]:
+					for i in 60:
+						t = i / 30.0
+						expr_t = et
+						var b := posed_bounds()
+						out = b if first else out.merge(b)
+						first = false
+	expression = saved[0]
+	t = saved[1]
+	expr_t = saved[2]
+	talking = saved[3]
+	_glitch_left = saved[4]
+	_point_dir = saved[5]
+	_point_left = saved[6]
+	return out
 
 
 ## A colour through the current tint (the glitch's ghosts).

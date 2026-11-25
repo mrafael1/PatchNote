@@ -11,6 +11,18 @@ const HALF := Vector2(46, 38)
 const BAR_H := 18.0
 
 
+## M47.2: the window, its shadow and (pointing) the arrow's tip at its longest.
+func outline() -> PackedVector2Array:
+	var pts := PackedVector2Array([-HALF, Vector2(HALF.x, -HALF.y), HALF + Vector2(4, 5), Vector2(-HALF.x, HALF.y + 5)])
+	if pointing():
+		var edge := Vector2(signf(_point_dir.x) * HALF.x if absf(_point_dir.x) > absf(_point_dir.y) else 0.0,
+				signf(_point_dir.y) * HALF.y if absf(_point_dir.y) >= absf(_point_dir.x) else 0.0)
+		pts.append(edge + _point_dir * 28.0)
+		pts.append(edge + _point_dir.orthogonal() * 7.0)
+		pts.append(edge - _point_dir.orthogonal() * 7.0)
+	return pts
+
+
 func _paint() -> void:
 	var box := Rect2(-HALF, HALF * 2.0)
 	draw_rect(Rect2(box.position + Vector2(4, 5), box.size), col(Color(0, 0, 0, 0.3)))

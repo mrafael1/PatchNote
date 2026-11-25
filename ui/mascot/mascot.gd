@@ -11,7 +11,11 @@ extends CanvasLayer
 
 const SIZE := 112.0
 const MARGIN := 16.0
-const TOP := 64.0   ## below the HUD's two lines at the top right
+## Below the HUD's top-right band (Hud.BAND_BOTTOM 68: two corner lines at font 20 are
+## 59 px from y 8). M47.2 (owner G14a, measured): at 64 the cursor's resting tilt reached
+## y 61-63 under the dash line; at 76 every resting pose clears it (top >= 71) and
+## top_limit stops the hops, pops and pointing leans at the band's bottom.
+const TOP := 76.0
 const TYPE_CPS := 45.0
 const MIN_SHOWN := 0.4
 const BUBBLE_MAX_W := 360.0
@@ -97,7 +101,36 @@ func _rebuild_body() -> void:
 	body.gentle = SaveGame.reduce_flashing()
 	body.position = Vector2(SIZE, SIZE) * 0.5
 	body.scale = Vector2.ONE * (SIZE / 100.0)
+	body.top_limit = corner_top_limit()
 	_corner.add_child(body)
+
+
+## M47.2: the body's top_limit in the corner (its own space): never above Hud.BAND_BOTTOM
+## (+1). Only while the layer sits unshifted in the corner: the stage card's centred AI
+## keeps its whole pose.
+func corner_top_limit() -> float:
+	if offset != Vector2.ZERO:
+		return -INF
+	return (Hud.BAND_BOTTOM + 1.0 - (TOP + SIZE * 0.5)) / (SIZE / 100.0)
+
+
+## M47.2: the screen rect the corner body can ever draw in on a canvas of size `view`
+## (MascotBody.worst_bounds() through the corner's place and scale).
+func keep_out(view: Vector2) -> Rect2:
+	var r := body.worst_bounds()
+	var s := SIZE / 100.0
+	var origin := Vector2(view.x - MARGIN - SIZE, TOP) + Vector2(SIZE, SIZE) * 0.5 + offset
+	return Rect2(origin + r.position * s, r.size * s)
+
+
+## M47.2: the bubble's screen rect for `text` on a canvas of size `view` (it grows left
+## from W - MARGIN - SIZE - 10 and down from TOP + 14).
+static func bubble_rect(text: String, view: Vector2) -> Rect2:
+	var w := bubble_width(text)
+	var h := ThemeDB.fallback_font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, w,
+			FONT_SIZE, -1, TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE).y
+	var size := Vector2(w + 28.0, h + 16.0)
+	return Rect2(Vector2(view.x - (MARGIN + SIZE + 10.0) - size.x, TOP + 14.0), size)
 
 
 ## Queues `line`. priority: 1 chatter, 2 notable, 3 important (PLAN v8 1.7); the session's
@@ -165,6 +198,8 @@ func silence() -> void:
 
 
 func _process(delta: float) -> void:
+	if body != null:
+		body.top_limit = corner_top_limit()
 	step(delta)
 
 
