@@ -7,6 +7,10 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - Okay. Now we make it a real game.
 
 ## s2_01_tryout: Three games
+### Door beat (on the stage card, before the cook beat)
+- (thinking) Before I build three shooters, the front door needs work.
+- (proud) Options. Real ones. They even save.
+- (happy) And {key:pause} finally does something.
 ### Cook beat (on the stage card)
 - Trying three kinds of shooter...
 - Compiling... mostly.
@@ -32,6 +36,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - at 128: (panic) That's a lot of them. That's the point!
 - at 145: (thinking) Okay. Three games. I can only build one.
 ### Debrief
+- (happy) Like the new chat? I redecorated.
 - (thinking) So. Three versions of the same game.
 - hit_lots (worried) You took a beating in there. Prototypes, sorry.
 - (thinking) I can only build one of them properly.
@@ -104,6 +109,10 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - Path: Arsenal (cards) · Cards. Every gun is a card; upgrade the card, upgrade the gun. · Cards it is. I'll start printing.
 - Path: Auto · Auto. It shoots for you; you pick upgrades and dodge. · Auto! I'll make more enemies. Many more.
 - Path: Survival (scavenger) · Scavenge. Guns on the ground, ammo runs out, kills heal you. · Scavenger. Good. I'll hide guns everywhere.
+
+## The title (M47.4)
+- One per launch, by sessions done: happy: Welcome back. I kept the lights on. · proud: Look! A real menu. · thinking: I fixed three bugs while you were gone. I made two. · idle: Ready when you are.
+- The unveil: guilty: You missed it. I made this while you were away.
 
 ## The paths
 - arsenal: warn "happy: New version. Your guns are cards." · full "thinking: That's enough cards for one test." · pick "New card. Pick one."

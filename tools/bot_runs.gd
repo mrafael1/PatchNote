@@ -1017,6 +1017,9 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 	root.add_child(start)
 	current_scene = start
 	await process_frame
+	if start.seed_field == null:   # M47.4: a save at S7+ opens the title (no seed row)
+		start.seed_field = LineEdit.new()
+		start.add_child(start.seed_field)
 	start.seed_field.text = str(base)
 	start.start()
 	var failures := 0

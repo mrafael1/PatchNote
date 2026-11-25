@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M47.3"
+const BUILD := "M47.4"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -173,6 +173,8 @@ func _ready() -> void:
 		if CampaignDB.stage_card_due(RunState.session):
 			stage_card = StageCard.new()
 			stage_card.name = "StageCard"
+			if CampaignDB.door_beat_due(RunState.session):   # M47.4: the front door, built first
+				stage_card.setup_door(RunState.session.door_beat_lines())
 			if not RunState.session.cook_beat.is_empty():   # M47 (D2): the AI cooking it first
 				stage_card.setup_beat(RunState.session.cook_beat, CampaignDB.version_after(RunState.session).label())
 			stage_card.setup(RunState.session.stage, CampaignDB.campaign.stage_titles[RunState.session.stage])

@@ -25,6 +25,10 @@ var campaign: CampaignDef
 ## The AI's live reactions (PLAN v8 1.7), every file in REACTIONS_DIR, sorted by id.
 var reactions: Array[ReactionDef] = []
 var active := false
+## M47.4: a --session= jump happened this process (a dev replay plays S7's full door beat).
+var jumped := false
+## M47.4 (PLAN 1.16): the session whose stage card brings the front door (S7).
+const FRONT_DOOR_SESSION := &"s2_01_tryout"
 ## --session=<id> was read from the command line (once per process).
 var _arg_read := false
 
@@ -337,20 +341,21 @@ func session_for_game() -> SessionDef:
 ## --answer= / --dash= / --dash-aim= (answers_from_args) then every earlier fork with
 ## option 0. Without --session= nothing is parsed, shipped or activated. True on a jump.
 func read_jump_args(args: PackedStringArray) -> bool:
-	var jumped := false
+	var did_jump := false
 	for arg in args:
 		if arg.begins_with("--session="):
 			var id := StringName(arg.trim_prefix("--session="))
 			if jump_to(id):
 				active = true
-				jumped = true
+				did_jump = true
+				self.jumped = true   # M47.4: a dev jump replays S7's full door beat
 				var answers := answers_from_args(args)
 				for f: StringName in answers:
 					answer_fork(f, answers[f])
 				answer_earlier_forks(id)
 			else:
 				push_warning("No session %s" % id)
-	return jumped
+	return did_jump
 
 
 ## fork id -> change id from command-line arguments: every --answer=<fork>=<change>, then
@@ -497,6 +502,31 @@ func stage_card_due(s: SessionDef) -> bool:
 		if String(other.id) in (camp.done as Array) or int((camp.attempts as Dictionary).get(String(other.id), 0)) > 0:
 			return false
 	return true
+
+
+## M47.4 (PLAN 1.16): the title replaces the raw start screen once the save's progress is at
+## S7 or later: S7 done (the old stub's done S7 counts) or attempted, the save past it, or
+## standing at it after the door beat played (quit mid-S7). A save standing at S7 that never
+## played it (the end of Stage 1) still gets the raw screen: the beat shows it change.
+func front_door_open() -> bool:
+	var at := index_of(FRONT_DOOR_SESSION)
+	if at < 0:
+		return false
+	var camp := SaveGame.campaign()
+	if String(FRONT_DOOR_SESSION) in (camp.done as Array):
+		return true
+	if int((camp.attempts as Dictionary).get(String(FRONT_DOOR_SESSION), 0)) > 0:
+		return true
+	var now := current_index()
+	return now > at or (now >= at and bool(Settings.get_value("front_door_seen")))
+
+
+## M47.4 (PLAN 3.2): S7's stage card plays its door beat first when the save has not seen
+## the front door yet, or on a dev jump (--session=), which replays it in full.
+func door_beat_due(s: SessionDef) -> bool:
+	if s == null or s.door_beat.is_empty() or not stage_card_due(s):
+		return false
+	return jumped or not bool(Settings.get_value("front_door_seen"))
 
 
 ## The context Line conditions read (Line.passes).

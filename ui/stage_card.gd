@@ -19,6 +19,13 @@ extends CanvasLayer
 ## beat of the AI cooking it ("Building v0.8.0", a spinner, its lines one by one, the bar to
 ## full), then the card as usual (title, mascot line, 3 s). After 0.5 s a key ends the beat,
 ## the next closes the card; skip() closes it at once. Never the cooking branches.
+##
+## Door mode (M47.4, PLAN 3.2; setup_door() before setup_beat()): S7's front door first, the
+## DoorBeat (<= 12 s: the raw start column, the glitch wipe, the logo, the menu, Options, the
+## pause chip, the mascot on the right saying its lines), then the cook beat, re-timed from
+## the door's end. After 0.5 s a key ends the door (the cook beat starts); skip() closes all.
+## front_door_seen is set and written when the door starts. The beat and cooking boxes sit in
+## a framed build window (polish, v9.1); title, mascot line and timings are unchanged.
 
 signal closed
 
@@ -41,6 +48,8 @@ const DOTS_HZ := 1.5
 ## Beat mode (M47).
 const BEAT_FIRST := 0.5
 const BEAT_EVERY := 0.6
+const BEAT_FRAME_H := 260.0   ## M47.4: the beat's build window (centred)
+const BELOW_FRAME := 16.0     ## M47.4: the mascot's gap under it after the door
 
 var stage := 2
 var title := ""
@@ -61,6 +70,11 @@ var _beat_box: VBoxContainer
 var _beat_spinner: Label
 var _beat_bar: ProgressBar
 var _beat_list: VBoxContainer
+## Door mode (M47.4): the door beat's lines; door_done once the cook beat (or the card) is on.
+var door_lines: Array[Line] = []
+var door_done := true
+var door: DoorBeat
+var _door_end := 0.0        ## when the door ended (the cook beat's timing starts there)
 
 var _open := false
 var _stage_label: Label
@@ -96,6 +110,16 @@ func in_beat() -> bool:
 	return not beat_done
 
 
+## Door mode (M47.4): call before setup_beat(). The lines are said at DoorBeat.LINE_AT.
+func setup_door(lines: Array[Line]) -> void:
+	door_lines = lines
+	door_done = lines.is_empty()
+
+
+func in_door() -> bool:
+	return not door_done
+
+
 func _ready() -> void:
 	layer = LAYER
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -105,6 +129,7 @@ func _ready() -> void:
 	back.set_anchors_preset(Control.PRESET_FULL_RECT)
 	back.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(back)
+	UiTheme.apply(back)
 	var box := VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
 	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -113,6 +138,7 @@ func _ready() -> void:
 	box.offset_bottom = 10.0
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(box)
+	UiTheme.apply(box)
 	_stage_label = _label("Stage %d" % stage, 28, Palette.UI_DIM)
 	box.add_child(_stage_label)
 	_title_label = _label(title, 56, Color.WHITE)
@@ -129,8 +155,10 @@ func _ready() -> void:
 	add_child(mascot)
 	mascot.layer = LAYER + 1
 	mascot.setup(true, SaveGame.mascot())
-	_place_mascot()
-	if not in_beat():
+	_place_mascot(in_door())
+	if in_door():
+		_build_door()
+	elif not in_beat():
 		mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY)
 	if is_cooking():
 		mascot.say(Line.make(COOK_LINE, &"thinking"), SessionRunner.PRIORITY)
@@ -139,6 +167,7 @@ func _ready() -> void:
 
 
 func _build_cooking() -> void:
+	_frame(Control.PRESET_CENTER_BOTTOM, Rect2(-290.0, -280.0, 580.0, 260.0))
 	var box := VBoxContainer.new()
 	box.name = "Cooking"
 	box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
@@ -150,6 +179,7 @@ func _build_cooking() -> void:
 	box.alignment = BoxContainer.ALIGNMENT_END
 	box.add_theme_constant_override(&"separation", 6)
 	add_child(box)
+	UiTheme.apply(box)
 	var head := HBoxContainer.new()
 	head.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(head)
@@ -173,6 +203,8 @@ func _build_cooking() -> void:
 
 
 func _build_beat() -> void:
+	var frame := _frame(Control.PRESET_CENTER, Rect2(-290.0, -BEAT_FRAME_H * 0.5, 580.0, BEAT_FRAME_H))
+	frame.name = "BeatFrame"
 	_beat_box = VBoxContainer.new()
 	_beat_box.name = "Beat"
 	_beat_box.set_anchors_preset(Control.PRESET_CENTER)
@@ -183,6 +215,7 @@ func _build_beat() -> void:
 	_beat_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	_beat_box.add_theme_constant_override(&"separation", 6)
 	add_child(_beat_box)
+	UiTheme.apply(_beat_box)
 	var head := HBoxContainer.new()
 	head.alignment = BoxContainer.ALIGNMENT_CENTER
 	_beat_box.add_child(head)
@@ -200,13 +233,77 @@ func _build_beat() -> void:
 	_beat_box.add_child(_beat_list)
 
 
+## M47.4 (v9.1 polish): the framed build window behind the beat or cooking box (a sibling
+## placed first, so nothing moves): the chat window's frame and a "patchnotes · build" bar.
+func _frame(preset: Control.LayoutPreset, rect: Rect2) -> Panel:
+	var frame := Panel.new()
+	frame.name = "Frame"
+	frame.set_anchors_preset(preset)
+	frame.offset_left = rect.position.x
+	frame.offset_top = rect.position.y
+	frame.offset_right = rect.end.x
+	frame.offset_bottom = rect.end.y
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	UiTheme.apply(frame)
+	frame.add_theme_stylebox_override(&"panel", UiTheme.window_style())
+	var bar := Label.new()
+	bar.name = "Bar"
+	bar.text = "patchnotes · build · %s" % (building if building != "" else "next")
+	bar.theme_type_variation = UiTheme.CHAT_BAR
+	bar.position = Vector2(12, 6)
+	frame.add_child(bar)
+	add_child(frame)
+	return frame
+
+
+## Door mode (M47.4): the DoorBeat over the card; its lines go to the card's mascot.
+func _build_door() -> void:
+	if _beat_box != null:
+		_beat_box.visible = false
+	for n in get_children():
+		if n.name == &"BeatFrame":
+			(n as Control).visible = false
+	door = DoorBeat.new()
+	door.name = "Door"
+	door.setup(door_lines, false, gentle)
+	door.say.connect(func(l: Line) -> void: mascot.say(SessionRunner.with_keys(l), SessionRunner.PRIORITY, true))
+	door.finished.connect(_end_door)
+	add_child(door)
+	Settings.set_value("front_door_seen", true)
+	Settings.commit()
+
+
+## The door is over (its end, a key, skip()): the cook beat from now, or the card.
+func _end_door() -> void:
+	if door_done:
+		return
+	door_done = true
+	_door_end = elapsed
+	door.visible = false
+	_place_mascot()
+	if not beat_lines.is_empty() and not beat_done:
+		# The door's last line is still up: the mascot waits under the build window (tidy).
+		mascot.offset.y = get_viewport().get_visible_rect().size.y * 0.5 + BEAT_FRAME_H * 0.5 \
+				+ BELOW_FRAME - Mascot.TOP
+		_beat_end += _door_end
+		_beat_box.visible = true
+		for n in get_children():
+			if n.name == &"BeatFrame":
+				(n as Control).visible = true
+	else:
+		_beat_end = _door_end
+		_stage_label.visible = true
+		_title_label.visible = true
+		mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY, true)
+
+
 ## The beat's bar (tests): 0..1, full once every line is up.
 func beat_bar() -> float:
 	return _beat_bar.value if _beat_bar != null else 1.0
 
 
 func _beat() -> void:
-	var due := clampi(floori((elapsed - BEAT_FIRST) / BEAT_EVERY) + 1, 0, beat_lines.size())
+	var due := clampi(floori((elapsed - _door_end - BEAT_FIRST) / BEAT_EVERY) + 1, 0, beat_lines.size())
 	while beat_shown < due:
 		_beat_list.add_child(_label(beat_lines[beat_shown], 18, Palette.BEAT_TEXT))
 		beat_shown += 1
@@ -227,6 +324,11 @@ func _end_beat() -> void:
 	beat_done = true
 	_beat_end = elapsed
 	_beat_box.visible = false
+	for n in get_children():
+		if n.name == &"BeatFrame":
+			(n as Control).visible = false
+	if not door_lines.is_empty():
+		_place_mascot()   # back under the title (it waited under the build window)
 	_stage_label.visible = true
 	_title_label.visible = true
 	mascot.say(Line.make(LINE, &"happy"), SessionRunner.PRIORITY)
@@ -243,8 +345,12 @@ func _label(text: String, size: int, color: Color) -> Label:
 
 ## The mascot sits in the top-right corner of its own layer: shift the layer so the body
 ## and its bubble (which grows to the left) are centred under the title.
-func _place_mascot() -> void:
+func _place_mascot(at_door := false) -> void:
 	var view := get_viewport().get_visible_rect().size
+	if at_door:   # M47.4: the door beat's mascot on the right third, by the title's menu
+		var body := Vector2(view.x - Mascot.MARGIN - Mascot.SIZE * 0.5, Mascot.TOP + Mascot.SIZE * 0.5)
+		mascot.offset = Vector2(view.x * 0.78, view.y * 0.5) - body
+		return
 	var widest := Mascot.bubble_width(LINE)
 	if is_cooking():
 		widest = maxf(widest, Mascot.bubble_width(COOK_LINE))
@@ -257,6 +363,9 @@ func _process(delta: float) -> void:
 	if not _open:
 		return
 	elapsed += delta
+	if in_door():
+		door.step(delta)
+		return
 	if in_beat():
 		_beat()
 		return
@@ -324,16 +433,23 @@ func _input(event: InputEvent) -> void:
 			or (event is InputEventJoypadButton and event.pressed)
 	if pressed:
 		get_viewport().set_input_as_handled()
-		if is_cooking() and not ended:
+		if in_door():
+			mascot.silence()
+			door.finish()
+		elif is_cooking() and not ended:
 			_end()
 		elif in_beat():
-			_end_beat()
+			# The cook beat gets its own 0.5 s after a door (a double tap must not skip both).
+			if door_lines.is_empty() or elapsed - _door_end >= SKIP_AFTER:
+				_end_beat()
 		elif elapsed - _beat_end >= SKIP_AFTER or _beat_end == 0.0:
 			close()
 
 
 ## Closes the card now, whatever its age (the bot, tests). A cooking card ends first.
 func skip() -> void:
+	if in_door():
+		door.finish()
 	if is_cooking():
 		_end()
 	close()

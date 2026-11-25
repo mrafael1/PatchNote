@@ -113,12 +113,17 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## M47 (D2): progress lines the stage card shows before its title when it plays before this
 ## session (the AI cooking it, a short beat; S7). Empty = the plain card.
 @export var cook_beat: PackedStringArray = []
+## M47.4 (PLAN 3.2, v9.1): the front door's beat on the stage card, before the cook_beat
+## (S7): Line syntax (`expression: text`, `{key:..}` allowed, no condition), at most
+## DoorBeat.LINE_AT.size() lines. Empty = no door beat.
+@export var door_beat: PackedStringArray = []
 
 var _intro: Array[Line] = []
 var _cues: Array[Cue] = []
 var _debrief: Array[Line] = []
 var _after_pick: Array[Line] = []
 var _reveal_lines: Array[Line] = []
+var _door_beat: Array[Line] = []
 var _parsed := false
 
 
@@ -158,6 +163,12 @@ func reveal_line_list() -> Array[Line]:
 	return _reveal_lines
 
 
+## M47.4: the door beat's lines, parsed (DoorBeat says them at LINE_AT).
+func door_beat_lines() -> Array[Line]:
+	_parse()
+	return _door_beat
+
+
 func _parse() -> void:
 	if _parsed:
 		return
@@ -167,6 +178,7 @@ func _parse() -> void:
 	_debrief = Line.parse_all(debrief)
 	_after_pick = Line.parse_all(after_pick)
 	_reveal_lines = Line.parse_all(reveal_lines)
+	_door_beat = Line.parse_all(door_beat)
 
 
 ## The arena this session plays.
@@ -403,6 +415,7 @@ func problems() -> Array[String]:
 	for k in cook_beat:
 		if k.strip_edges() == "":
 			out.append("%s: an empty cook_beat line" % where)
+	out.append_array(_door_beat_problems(where))
 	if not after_pick.is_empty() and asked_forks().is_empty():
 		out.append("%s: after_pick lines need a fork" % where)
 	for l in after_pick_lines():
@@ -472,6 +485,29 @@ func problems() -> Array[String]:
 const SPECIMEN_BASES: Array[StringName] = EnemyDB.WALKERS
 const SKINS: Array[StringName] = [&"", &"pixel"]
 const REVEALS: Array[StringName] = [&"all", &"manual"]
+## M47.4: the door beat's line slots (DoorBeat.LINE_AT.size(); test_front_door pins it).
+const DOOR_BEAT_MAX := 3
+
+
+## M47.4 (PLAN 3.2): the door beat plays on the stage card (stage 2 on), one Line per slot,
+## never conditional (it is not a debrief).
+func _door_beat_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	if door_beat.is_empty():
+		return out
+	if stage <= 1:
+		out.append("%s: door_beat needs a stage card (stage 2 or later)" % where)
+	if door_beat.size() > DOOR_BEAT_MAX:
+		out.append("%s: door_beat has %d lines (at most %d)" % [where, door_beat.size(), DOOR_BEAT_MAX])
+	for k in door_beat:
+		if k.strip_edges() == "":
+			out.append("%s: an empty door_beat line" % where)
+	for l in door_beat_lines():
+		if l.problem != "":
+			out.append("%s: door_beat: %s" % [where, l.problem])
+		elif l.when != &"":
+			out.append("%s: door_beat: '%s' cannot have a condition" % [where, l.text])
+	return out
 
 
 ## M48b (PLAN 1.7.1): the skin fields and the skin / specimen / release cues.

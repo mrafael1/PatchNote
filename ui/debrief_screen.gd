@@ -12,6 +12,13 @@ extends CanvasLayer
 ## as done, the AI owns it; its `ended` lines play and its fork is asked then), except in an overrun session, where
 ## going down is the end and the way on is Next session. Enter presses the first button;
 ## 1 and 2 pick by order. The game stays paused while it is open.
+##
+## M47.4 (PLAN 1.16, v9.1): from Stage 2 the polished dev chat (`style` &"polished"): the column
+## sits in a framed chat window titled "patchnotes · dev chat · v0.8.x"; the first bubble has
+## the mascot's avatar and its name; typing dots while a line types; the fork cards are framed
+## panels that lift on focus with a key chip; the patch notes are a changelog (Added / Changed
+## / Fixed); the way-on buttons carry their key. Stage 1 keeps today's debrief (&"plain": the
+## window is an empty box with no margin, so nothing moves). `_notes.text` stays notes_text().
 
 signal next_requested
 signal retry_requested
@@ -33,6 +40,14 @@ const PREVIEW_AT := Vector2(93, 65)
 const LINES := &"lines"
 const FORK := &"fork"
 const DONE := &"done"
+## M47.4: the debrief's two styles.
+const PLAIN := &"plain"
+const POLISHED := &"polished"
+const AVATAR := 40.0        ## the polished first bubble's avatar box
+const AVATAR_SCALE := 0.35
+const LIFT := 6.0           ## a focused card's lift (px)
+const DOTS: Array[String] = ["•", "••", "•••"]
+const SECTIONS: Array[String] = ["Added", "Changed", "Fixed"]
 
 var session: SessionDef
 var outcome: StringName = &""   ## won, died or stopped
@@ -67,6 +82,14 @@ var _line_t := 0.0
 var _asked: StringName = &""    ## the fork whose question is queued
 var _buttons_msec := 0
 var _cards_msec := 0
+## M47.4: the chat window (plain: an empty box), its title bar, the changelog, the dots.
+var style: StringName = PLAIN
+var _window: PanelContainer
+var _bar: Label
+var _inner: MarginContainer
+var _changelog: VBoxContainer
+var _dots: Label
+var _avatar_shown := false
 
 
 var events: Array = []   ## the events played this attempt (open())
@@ -83,6 +106,7 @@ func _ready() -> void:
 	dim.color = Color(Palette.SCRIM, 0.94)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.add_child(dim)
+	UiTheme.apply(_root)   # M47.4: neutral (fallback font and size): nothing moves
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	row.offset_left = 32
@@ -98,10 +122,23 @@ func _ready() -> void:
 	var center := CenterContainer.new()
 	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(center)
+	_window = PanelContainer.new()
+	_window.name = "ChatWindow"
+	center.add_child(_window)
+	var frame := VBoxContainer.new()
+	frame.add_theme_constant_override(&"separation", 0)
+	_window.add_child(frame)
+	_bar = Label.new()
+	_bar.name = "Bar"
+	_bar.theme_type_variation = UiTheme.CHAT_BAR
+	_bar.visible = false
+	frame.add_child(_bar)
+	_inner = MarginContainer.new()
+	frame.add_child(_inner)
 	var column := VBoxContainer.new()
 	column.custom_minimum_size = Vector2(700, 0)
 	column.add_theme_constant_override(&"separation", 16)
-	center.add_child(column)
+	_inner.add_child(column)
 	_title = Label.new()
 	_title.add_theme_font_size_override(&"font_size", 20)
 	_title.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.55))
@@ -116,6 +153,11 @@ func _ready() -> void:
 	_notes.add_theme_font_size_override(&"font_size", 20)
 	_notes.add_theme_color_override(&"font_color", Palette.ACCENT)
 	column.add_child(_notes)
+	_changelog = VBoxContainer.new()
+	_changelog.name = "Changelog"
+	_changelog.add_theme_constant_override(&"separation", 4)
+	_changelog.visible = false
+	column.add_child(_changelog)
 	_buttons = HBoxContainer.new()
 	_buttons.add_theme_constant_override(&"separation", 16)
 	column.add_child(_buttons)
@@ -124,6 +166,7 @@ func _ready() -> void:
 	_hint.add_theme_font_size_override(&"font_size", 14)
 	_hint.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.3))
 	column.add_child(_hint)
+	_apply_style()
 	Skins.hub.skin_changed.connect(_on_skin_changed)
 
 
@@ -140,6 +183,7 @@ func _on_skin_changed(_skin: ArtSkin) -> void:
 		var old := big_body
 		_set_body(old.id)
 		Mascot.carry_state(old, big_body)
+	_apply_window()   # M47.4: the chat window follows the look too
 	for b in _buttons.get_children():
 		if b is Button and not b.is_queued_for_deletion():
 			Skins.redress_button(b)
@@ -153,6 +197,37 @@ func _on_skin_changed(_skin: ArtSkin) -> void:
 		_cards_msec = at
 		if focused >= 0 and focused < _cards.get_child_count():
 			(_cards.get_child(focused) as Button).grab_focus.call_deferred()
+
+
+## M47.4: the window for `style`: plain = an empty box with no margin and no bar (the
+## Stage 1 layout does not move); polished = the chat window's frame (or the look's UI
+## panel), the title bar and a margin.
+func _apply_style() -> void:
+	var polished := style == POLISHED
+	_apply_window()
+	_bar.visible = polished
+	for side: StringName in [&"margin_left", &"margin_right", &"margin_bottom"]:
+		_inner.add_theme_constant_override(side, 22 if polished else 0)
+	_inner.add_theme_constant_override(&"margin_top", 12 if polished else 0)
+	if polished:
+		_bar.text = "  patchnotes · dev chat · %s" % (CampaignDB.version_after(session).label() if session != null else "")
+	_notes.visible = not polished
+	_changelog.visible = false
+
+
+func _apply_window() -> void:
+	_window.remove_theme_stylebox_override(&"panel")
+	_window.add_theme_stylebox_override(&"panel", UiTheme.window_style() if style == POLISHED else StyleBoxEmpty.new())
+
+
+## The style for session `s`: polished from Stage 2.
+static func style_for(s: SessionDef) -> StringName:
+	return POLISHED if s != null and s.stage >= 2 else PLAIN
+
+
+## The chat window's title bar text ("" in the plain style).
+func bar_text() -> String:
+	return _bar.text.strip_edges() if style == POLISHED else ""
 
 
 ## Outcome names a debrief reads (Line conditions) from the run loop's.
@@ -189,7 +264,11 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 	_clear(_body)
 	_clear(_cards)
 	_clear(_buttons)
+	_clear(_changelog)
 	_notes.text = ""
+	style = style_for(session)
+	_avatar_shown = false
+	_apply_style()
 	_set_body(body_for(session))
 	_pending = lines.duplicate()
 	phase = LINES
@@ -281,7 +360,11 @@ func _next_line() -> void:
 	_typing.add_theme_color_override(&"font_color", Palette.MASCOT_INK)
 	_typing.visible_characters = 0
 	bubble.add_child(_typing)
-	_body.add_child(bubble)
+	_dots = null
+	if style == POLISHED:
+		_body.add_child(_chat_row(bubble))
+	else:
+		_body.add_child(bubble)
 	big_body.set_expression(_line.expression)
 	big_body.say_start()
 	_hint.visible = Settings.key_hints()   # M47.3: the key hints setting
@@ -291,12 +374,135 @@ func _typed() -> bool:
 	return _line == null or _chars >= _line.text.length()
 
 
+# --- M47.4: the polished chat ------------------------------------------------------
+
+## A polished line: [avatar, bubble]; the first one shows the mascot's small body and its
+## name above the bubble, the rest keep the avatar's width empty (aligned). Typing dots sit
+## in the bubble's corner while the line types ("…", still, under reduce flashing).
+func _chat_row(bubble: PanelContainer) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override(&"separation", 10)
+	var holder := Control.new()
+	holder.name = "Avatar"
+	holder.custom_minimum_size = Vector2(AVATAR, AVATAR)
+	holder.size_flags_vertical = Control.SIZE_SHRINK_END
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(holder)
+	var right := VBoxContainer.new()
+	right.add_theme_constant_override(&"separation", 2)
+	row.add_child(right)
+	if not _avatar_shown:
+		_avatar_shown = true
+		var body_id := body_for(session)
+		var small := MascotBody.make(body_id)
+		small.gentle = true
+		small.process_mode = Node.PROCESS_MODE_DISABLED   # a still portrait
+		if Skins.is_on(&"mascot"):
+			var view := PixelBodyView.wrap(small, AVATAR_SCALE)
+			view.position = Vector2(AVATAR, AVATAR) * 0.5
+			holder.add_child(view)
+		else:
+			small.scale = Vector2.ONE * AVATAR_SCALE
+			small.position = Vector2(AVATAR, AVATAR) * 0.5
+			holder.add_child(small)
+		var tag := Label.new()
+		tag.name = "Speaker"
+		tag.text = speaker_name(body_id)
+		tag.add_theme_font_size_override(&"font_size", 14)
+		tag.add_theme_color_override(&"font_color", Palette.ACCENT)
+		right.add_child(tag)
+	right.add_child(bubble)
+	_dots = Label.new()
+	_dots.name = "Dots"
+	_dots.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_dots.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_dots.add_theme_font_size_override(&"font_size", 16)
+	_dots.add_theme_color_override(&"font_color", Color(Palette.MASCOT_INK, 0.45))
+	_dots.text = dots_text(0.0)
+	bubble.add_child(_dots)
+	return row
+
+
+## The typing dots at line time `t`: "•" "••" "•••" cycling, or a still "…" under reduce
+## flashing; "" once typed.
+func dots_text(t: float) -> String:
+	if _typed():
+		return ""
+	if SaveGame.reduce_flashing():
+		return "…"
+	return DOTS[posmod(floori(t * 3.0), DOTS.size())]
+
+
+## The mascot's name on the chat (its body's change, e.g. "Window"; "AI" for the caret).
+static func speaker_name(body_id: StringName) -> String:
+	var f := ChangeDB.get_fork(&"fork_mascot")
+	if f != null:
+		for c in f.changes():
+			if c.take != null and c.take.id == body_id:
+				return c.short_name()
+	return "AI"
+
+
+## The patch notes as a changelog: a note starting "Added " / "Changed " / "Fixed " goes
+## to that section (the verb dropped, the next letter capitalised); any other note and every
+## fork pick go to Added.
+static func changelog(s: SessionDef, pick: Change = null, more: Array[Change] = []) -> Dictionary:
+	var out := {}
+	for k in SECTIONS:
+		out[k] = [] as Array[String]
+	for n in s.notes:
+		var section := "Added"
+		var text := n
+		for k in SECTIONS:
+			if n.begins_with(k + " "):
+				section = k
+				text = n.substr(k.length() + 1)
+				break
+		if text != "":
+			text = text.left(1).to_upper() + text.substr(1)
+		(out[section] as Array[String]).append(text)
+	var picks: Array[Change] = [pick]
+	picks.append_array(more)
+	for c in picks:
+		if c != null:
+			(out["Added"] as Array[String]).append(c.title)
+	return out
+
+
+func _show_changelog(s: SessionDef, pick: Change, more: Array[Change]) -> void:
+	_clear(_changelog)
+	var head := Label.new()
+	head.text = "%s · changelog" % CampaignDB.version_after(s).label()
+	head.add_theme_font_size_override(&"font_size", 20)
+	head.add_theme_color_override(&"font_color", Palette.ACCENT)
+	_changelog.add_child(head)
+	var entries := changelog(s, pick, more)
+	for k in SECTIONS:
+		var items: Array[String] = entries[k]
+		if items.is_empty():
+			continue
+		var section := Label.new()
+		section.text = k.to_upper()
+		section.add_theme_font_size_override(&"font_size", 14)
+		section.add_theme_color_override(&"font_color", Palette.UI_DIM)
+		_changelog.add_child(section)
+		for item in items:
+			var l := Label.new()
+			l.text = "  + " + item
+			l.add_theme_font_size_override(&"font_size", 18)
+			l.add_theme_color_override(&"font_color", Palette.UI_TEXT)
+			_changelog.add_child(l)
+	_changelog.visible = true
+
+
 func _finish_typing() -> void:
 	if _line == null:
 		return
 	_chars = _line.text.length()
 	_typing.visible_characters = -1
 	big_body.say_end()
+	if _dots != null:
+		_dots.text = ""
 
 
 ## Space / Enter / click while the lines play: finish the line, or move on from it.
@@ -330,6 +536,8 @@ func _process(delta: float) -> void:
 		_typing.visible_characters = int(_chars)
 		if _typed():
 			big_body.say_end()
+		if _dots != null:
+			_dots.text = dots_text(_line_t)
 	elif _line_t >= (0.0 if cps <= 0.0 else _line.text.length() / cps) + SessionRunner.read_seconds(_line.text):
 		_next_line()
 
@@ -380,6 +588,12 @@ func _card(c: Change, index: int) -> Button:
 	key.text = str(index + 1)
 	key.add_theme_font_size_override(&"font_size", 14)
 	key.add_theme_color_override(&"font_color", Color(1, 1, 1, 0.45))
+	if style == POLISHED:   # M47.4: the key chip, the card's frame and its focus lift
+		key.name = "KeyChip"
+		key.text = InputSetup.key_label(StringName("choose_%d" % (index + 1)))
+		key.theme_type_variation = UiTheme.KEY_CHIP
+		key.remove_theme_color_override(&"font_color")
+		key.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	box.add_child(key)
 	if c.kind == &"mascot":
 		var holder := Control.new()
@@ -424,8 +638,37 @@ func _card(c: Change, index: int) -> Button:
 	b.pressed.connect(func() -> void:
 		if cards_ready():
 			pick(index))
+	if style == POLISHED:
+		_frame_card(b, box)
 	Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
 	return b
+
+
+## M47.4: a polished card is a framed panel; focused, its content lifts LIFT px (a
+## real-time tween: the tree is paused and Engine.time_scale is the game's).
+func _frame_card(b: Button, box: Control) -> void:
+	var plain := StyleBoxFlat.new()
+	plain.bg_color = Palette.UI_PANEL
+	plain.border_color = Color(Palette.ACCENT, 0.3)
+	plain.set_border_width_all(1)
+	plain.set_corner_radius_all(6)
+	var lit := plain.duplicate() as StyleBoxFlat
+	lit.border_color = Palette.ACCENT
+	lit.set_border_width_all(2)
+	b.add_theme_stylebox_override(&"normal", plain)
+	b.add_theme_stylebox_override(&"disabled", plain)
+	for state: StringName in [&"hover", &"pressed", &"focus", &"hover_pressed"]:
+		b.add_theme_stylebox_override(state, lit)
+	b.focus_entered.connect(_lift.bind(b, box, true))
+	b.focus_exited.connect(_lift.bind(b, box, false))
+
+
+func _lift(b: Button, box: Control, up: bool) -> void:
+	if not b.is_inside_tree():
+		return
+	var tw := b.create_tween().set_ignore_time_scale(true).set_parallel(true)
+	tw.tween_property(box, ^"offset_top", 10.0 - (LIFT if up else 0.0), 0.12)
+	tw.tween_property(box, ^"offset_bottom", -10.0 - (LIFT if up else 0.0), 0.12)
 
 
 ## A card's still (M47, 1.12): a path option shows the player's own taste of it when S7
@@ -488,6 +731,8 @@ func _finish() -> void:
 		_add_button(MOVE_ON, func() -> void: choose(MOVE_ON))
 	else:
 		_notes.text = notes_text(session, picked, more_picks())
+		if style == POLISHED:   # M47.4: the notes as a changelog (the text stays for tests)
+			_show_changelog(session, picked, more_picks())
 		var last := CampaignDB.index_of(session.id) + 1 >= CampaignDB.size()
 		var label := LAST if last else NEXT
 		_add_button(label, func() -> void: choose(label))
@@ -515,6 +760,17 @@ func _add_button(label: String, action: Callable) -> void:
 	b.add_theme_font_size_override(&"font_size", 22)
 	b.pressed.connect(action)
 	Skins.dress_button(b)
+	if style == POLISHED:   # M47.4: its key (and the pad's A on the first) at the right
+		var keys := InputSetup.key_label(StringName("choose_%d" % (_buttons.get_child_count() + 1)))
+		if _buttons.get_child_count() == 0 and not Input.get_connected_joypads().is_empty():
+			keys += " / A"
+		var chip := UiTheme.key_chip(keys)
+		chip.name = "KeyChip"
+		chip.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+		chip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		chip.grow_vertical = Control.GROW_DIRECTION_BOTH
+		chip.offset_right = -10
+		b.add_child(chip)
 	_buttons.add_child(b)
 
 

@@ -45,6 +45,7 @@ func _ready() -> void:
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP
 	_root.visible = false
 	add_child(_root)
+	UiTheme.apply(_root)   # M47.4 (PLAN 1.16): neutral until a look is picked
 	_scrim = ColorRect.new()
 	_scrim.color = Color(Palette.SCRIM, 0.72)
 	_scrim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

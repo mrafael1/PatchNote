@@ -91,7 +91,8 @@ func test_s7_is_real_valid_and_playable() -> void:
 			"One of them is on fire.", "Done. Mostly."]))
 	assert_eq(s.after_pick_lines().map(func(l: Line) -> String: return l.text),
 			["The other two go in a drawer. I never throw anything away."])
-	assert_eq(s.notes, PackedStringArray(["The shooter, three ways"]))
+	assert_eq(s.notes, PackedStringArray(["The shooter, three ways", "Added a title screen.",
+			"Added options (audio, video, controls, accessibility).", "Added a pause menu."]), "M47.4: v0.8.0 gains the front door")
 	assert_eq(CampaignDB.index_of(S7), 7)
 
 

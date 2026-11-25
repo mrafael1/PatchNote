@@ -258,7 +258,7 @@ func test_quit_leaves_nothing_paused_writes_abandon_and_not_the_save() -> void:
 	assert_eq(lines.size(), 1)
 	assert_eq(lines[0].choice, "abandon")
 	assert_eq(lines[0].outcome, "quit")
-	assert_eq(lines[0].build, "M47.3")
+	assert_eq(lines[0].build, Main.BUILD)   # M47.4: the build, not a pinned name
 
 
 func test_restart_counts_one_attempt_and_one_line() -> void:

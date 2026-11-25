@@ -1,0 +1,412 @@
+{
+	"bubbles": {
+		"And I made the crowd bigger again. Sorry. You need it.": [
+			360.0,
+			620.0
+		],
+		"And a nova for you. It pops around you.": [
+			347.0,
+			461.0
+		],
+		"And every few kills patch you up. Kills are food.": [
+			360.0,
+			547.0
+		],
+		"And kills heal you. Like I promised.": [
+			304.0,
+			405.0
+		],
+		"And more enemies. Lots more. You'll need them.": [
+			360.0,
+			567.0
+		],
+		"Another one!": [
+			118.0,
+			156.0
+		],
+		"Auto. Don't touch the trigger. I mean it.": [
+			344.0,
+			458.0
+		],
+		"But which kind? Let's try three. Quick ones.": [
+			360.0,
+			504.0
+		],
+		"Can't lose today. It's a tryout.": [
+			257.0,
+			342.0
+		],
+		"Cards feel good. I want more of them.": [
+			331.0,
+			439.0
+		],
+		"Cards. Today it's you and one card: the pistol.": [
+			360.0,
+			528.0
+		],
+		"Day one bugs. Want another go, or should I just patch it?": [
+			360.0,
+			620.0
+		],
+		"Day one. It works!": [
+			160.0,
+			211.0
+		],
+		"Drew that one too.": [
+			167.0,
+			221.0
+		],
+		"Give me a minute. I'm cooking.": [
+			271.0,
+			359.0
+		],
+		"Grab the gems. You'll level up.": [
+			266.0,
+			354.0
+		],
+		"I can only build one of them properly.": [
+			330.0,
+			438.0
+		],
+		"I learned to draw. Watch this one.": [
+			297.0,
+			394.0
+		],
+		"I'm going to learn to draw. Give me a session.": [
+			360.0,
+			525.0
+		],
+		"I'm... a different colour? I like it.": [
+			278.0,
+			369.0
+		],
+		"I'm... chunky. I love it.": [
+			192.0,
+			254.0
+		],
+		"It looks like a game now. Almost.": [
+			288.0,
+			382.0
+		],
+		"It shoots for you. You just move.": [
+			284.0,
+			377.0
+		],
+		"My arrow looks great.": [
+			193.0,
+			256.0
+		],
+		"My first asset! Look at it. LOOK at it.": [
+			315.0,
+			417.0
+		],
+		"New enemy. It's two enemies. Sort of.": [
+			331.0,
+			439.0
+		],
+		"New gun: the laser. It goes through things.": [
+			360.0,
+			494.0
+		],
+		"New theme. Finally.": [
+			175.0,
+			232.0
+		],
+		"Next time, I'll have something to show you. A drawing. My first.": [
+			360.0,
+			620.0
+		],
+		"Next time. Promise.": [
+			176.0,
+			233.0
+		],
+		"Ninety seconds. I'll build it properly this time.": [
+			360.0,
+			528.0
+		],
+		"Now the room.": [
+			134.0,
+			177.0
+		],
+		"Okay. Now we make it a real game.": [
+			309.0,
+			410.0
+		],
+		"Okay. Saving that one.": [
+			198.0,
+			262.0
+		],
+		"Okay. Three games. I can only build one.": [
+			353.0,
+			470.0
+		],
+		"Okay. You can shoot it now. Gently.": [
+			311.0,
+			411.0
+		],
+		"Ooh. That one came out nice.": [
+			259.0,
+			343.0
+		],
+		"Remember the cards? Now they're real. Rank pips, a meter. Twenty-five kills, a new card.": [
+			360.0,
+			620.0
+		],
+		"Remember the gems? Now they count. Real levels, a real bar.": [
+			360.0,
+			620.0
+		],
+		"Remember the guns on the floor? Now they come in crates. Two now, one every twenty seconds.": [
+			360.0,
+			620.0
+		],
+		"Run dry and you get the pistol back. It never runs out.": [
+			360.0,
+			620.0
+		],
+		"Saving that too.": [
+			140.0,
+			185.0
+		],
+		"Scavenger. You get a pistol. The rest is out there.": [
+			360.0,
+			567.0
+		],
+		"Secret: the first shot after a switch hits twice as hard. Switch a lot.": [
+			360.0,
+			620.0
+		],
+		"See? Better gun, same card.": [
+			244.0,
+			325.0
+		],
+		"So. Three versions of the same game.": [
+			327.0,
+			435.0
+		],
+		"Stage two. I want to make a real shooter.": [
+			359.0,
+			478.0
+		],
+		"That one has teeth now.": [
+			214.0,
+			283.0
+		],
+		"That's a lot of them. That's the point!": [
+			324.0,
+			430.0
+		],
+		"That's you. Why are they all you? Fixing!": [
+			348.0,
+			464.0
+		],
+		"The cards are still in the drawer. And the gems.": [
+			360.0,
+			548.0
+		],
+		"The cards are still in the drawer. Just saying.": [
+			360.0,
+			513.0
+		],
+		"The gems are still in the drawer.": [
+			283.0,
+			375.0
+		],
+		"The other two go in a drawer. I never throw anything away.": [
+			360.0,
+			620.0
+		],
+		"The paint was still wet. My fault.": [
+			283.0,
+			376.0
+		],
+		"The screen too. Boxes with corners!": [
+			313.0,
+			415.0
+		],
+		"The shotgun's in. Close range, big mess.": [
+			348.0,
+			462.0
+		],
+		"There. That's us now.": [
+			188.0,
+			248.0
+		],
+		"They're upside down. They don't mind. I do.": [
+			360.0,
+			508.0
+		],
+		"Too much brick. One second.": [
+			255.0,
+			338.0
+		],
+		"Two minutes. I'll build it properly this time.": [
+			360.0,
+			500.0
+		],
+		"Version one. Your guns are cards.": [
+			294.0,
+			391.0
+		],
+		"Version three. Hands off the trigger.": [
+			317.0,
+			420.0
+		],
+		"Version two. No cards. Guns are lying around.": [
+			360.0,
+			532.0
+		],
+		"Walk over a gun to take it. Ammo runs out, so keep looking.": [
+			360.0,
+			620.0
+		],
+		"Walk over another gun to swap. Yours drops at your feet.": [
+			360.0,
+			620.0
+		],
+		"You didn't touch the trigger and didn't get touched. Fair.": [
+			360.0,
+			620.0
+		],
+		"You know what? It still looks like a prototype.": [
+			360.0,
+			525.0
+		],
+		"You took a beating in there. Prototypes, sorry.": [
+			360.0,
+			537.0
+		],
+		"You're a good scavenger. Suspiciously good.": [
+			360.0,
+			510.0
+		],
+		"Your turn. Hold still. ...Or don't. I can draw moving things now.": [
+			360.0,
+			620.0
+		],
+		"{key:weapon_prev} and {key:weapon_next} to switch cards. Kill some, I'll deal you a new one.": [
+			360.0,
+			620.0
+		]
+	},
+	"labels": {
+		"Day one. It works! Mostly. Do not look at the left wall too closely.": [
+			620.0,
+			71.0
+		],
+		"So. Three versions of the same game.": [
+			435.0,
+			34.0
+		],
+		"The other two go in a drawer. I never throw anything away.": [
+			620.0,
+			71.0
+		]
+	},
+	"rects": {
+		"1280x720": {
+			"band": [
+				776.0,
+				8.0,
+				300.0,
+				60.0
+			],
+			"corner": [
+				1094.0,
+				8.0,
+				172.0,
+				60.0
+			],
+			"goal": [
+				562.5,
+				5.0,
+				155.0,
+				44.0
+			],
+			"hand": [
+				8.0,
+				612.0,
+				328.0,
+				100.0
+			]
+		},
+		"1280x960": {
+			"band": [
+				776.0,
+				8.0,
+				300.0,
+				60.0
+			],
+			"corner": [
+				1094.0,
+				8.0,
+				172.0,
+				60.0
+			],
+			"goal": [
+				562.5,
+				5.0,
+				155.0,
+				44.0
+			],
+			"hand": [
+				8.0,
+				852.0,
+				328.0,
+				100.0
+			]
+		},
+		"1600x720": {
+			"band": [
+				1096.0,
+				8.0,
+				300.0,
+				60.0
+			],
+			"corner": [
+				1414.0,
+				8.0,
+				172.0,
+				60.0
+			],
+			"goal": [
+				722.5,
+				5.0,
+				155.0,
+				44.0
+			],
+			"hand": [
+				8.0,
+				612.0,
+				328.0,
+				100.0
+			]
+		},
+		"1706x720": {
+			"band": [
+				1202.0,
+				8.0,
+				300.0,
+				60.0
+			],
+			"corner": [
+				1520.0,
+				8.0,
+				172.0,
+				60.0
+			],
+			"goal": [
+				775.5,
+				5.0,
+				155.0,
+				44.0
+			],
+			"hand": [
+				8.0,
+				612.0,
+				328.0,
+				100.0
+			]
+		}
+	}
+}

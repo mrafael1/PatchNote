@@ -19,6 +19,10 @@ static func render() -> String:
 			continue
 		out.append("")
 		out.append("## %s: %s" % [s.id, s.title])
+		if not s.door_beat.is_empty():   # M47.4: the front door, before the cook beat
+			out.append("### Door beat (on the stage card, before the cook beat)")
+			for l in s.door_beat_lines():
+				out.append("- %s" % _line(l))
 		if not s.cook_beat.is_empty():
 			out.append("### Cook beat (on the stage card)")
 			for k in s.cook_beat:
@@ -53,6 +57,10 @@ static func render() -> String:
 		out.append("- Question: %s" % fork.question)
 		for c: Change in fork.changes():
 			out.append("- %s · %s · %s" % [c.title, c.pitch, c.take.line if c.take != null else ""])
+	out.append("")
+	out.append("## The title (M47.4)")
+	out.append("- One per launch, by sessions done: %s" % " · ".join(TitleScreen.TITLE_LINES))
+	out.append("- The unveil: %s" % TitleScreen.UNVEIL_LINE)
 	out.append("")
 	out.append("## The paths")
 	for id: StringName in PathDB.ids():

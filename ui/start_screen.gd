@@ -57,15 +57,21 @@ var replay_session: OptionButton
 var replay_path: OptionButton
 const REPLAY_FORK := &"fork_path"
 var _after_question: Callable
+## M47.4 (PLAN 1.16): the title screen when the front door is open, else null (the raw column).
+var title: TitleScreen
 
 
 func _ready() -> void:
 	if uses_real_save():
 		SaveGame.use_snapshot(SaveGame.DEFAULT_PATH)
 		Settings.apply()   # M47.3: the real save's volumes and window
-	print("[boot] Patch Notes %s, start screen, game %s, %s, %s" % [Main.BUILD, SaveGame.version().label(),
-			"real save" if uses_real_save() else "inert save", Main.answers_text()])
+	var front_door := not legacy_loop and CampaignDB.front_door_open()   # M47.4 (PLAN 1.16)
+	print("[boot] Patch Notes %s, start screen, game %s, %s, %s%s" % [Main.BUILD, SaveGame.version().label(),
+			"real save" if uses_real_save() else "inert save", Main.answers_text(), ", title" if front_door else ""])
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if front_door:
+		_build_title()
+		return
 
 	var bg := ColorRect.new()
 	bg.color = Palette.TITLE_BG
@@ -219,6 +225,22 @@ func _build_campaign(column: VBoxContainer) -> void:
 		start.call_deferred()
 
 
+## M47.4 (PLAN 1.16): the title screen instead of the raw column once the save is at S7 or
+## later. Its controls are this screen's continue_button, new_button, save_label and
+## flash_panel; Seed lives in its Replay menu, Less flashing / Fullscreen / Volume in Options.
+func _build_title() -> void:
+	SaveGame.end_replay()   # M47: the title after a replay restores the stored save mode
+	title = TitleScreen.new()
+	title.name = "Title"
+	title.screen = self
+	add_child(title)
+	refresh_campaign()
+	if not title.unveiling():
+		title.menu_items()[0].grab_focus.call_deferred()
+	if "--autostart" in OS.get_cmdline_user_args():
+		start.call_deferred()
+
+
 func _big_button(text: String, action: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
@@ -253,10 +275,13 @@ func refresh_campaign() -> void:
 	continue_button.disabled = SaveGame.read_only
 	new_button.disabled = SaveGame.read_only
 	new_button.text = NEW_ARMED if _new_armed else NEW_GAME
-	flashing.set_block_signals(true)
-	flashing.button_pressed = bool(SaveGame.setting("reduce_flashing"))
-	flashing.set_block_signals(false)
+	if flashing != null:   # M47.4: the title has no Less flashing row (Options has it)
+		flashing.set_block_signals(true)
+		flashing.button_pressed = bool(SaveGame.setting("reduce_flashing"))
+		flashing.set_block_signals(false)
 	_refresh_replay()
+	if title != null:
+		title.refresh()
 
 
 # --- Replay as path (M47, PLAN v9 2, D17) ----------------------------------------------
@@ -323,12 +348,19 @@ func press_new_game() -> void:
 
 
 func _new_campaign() -> void:
+	reset_campaign()
+	_start_campaign()
+
+
+## A new campaign in the save (written), its settings kept; M47.4: front_door_seen goes with
+## the progress (the raw screen and S7's door beat come back).
+func reset_campaign() -> void:
 	_go_live()
 	var settings: Dictionary = (SaveGame.state().settings as Dictionary).duplicate()
+	settings.erase("front_door_seen")   # M47.4: story, not a setting (the raw screen comes back)
 	SaveGame.reset()
 	SaveGame.state().settings = settings
 	SaveGame.write()
-	_start_campaign()
 
 
 ## The first-launch question (PLAN v8 1.9) comes once, before the first session.
@@ -362,7 +394,7 @@ func set_reduce_flashing(on: bool) -> void:
 
 func _start_campaign() -> void:
 	CampaignDB.active = true
-	Main.next_seed = parse_seed(seed_field.text)
+	Main.next_seed = parse_seed(seed_field.text if seed_field != null else (title.seed_text() if title != null else ""))
 	get_tree().change_scene_to_file(continue_target())
 
 
