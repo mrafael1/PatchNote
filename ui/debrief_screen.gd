@@ -19,6 +19,13 @@ extends CanvasLayer
 ## panels that lift on focus with a key chip; the patch notes are a changelog (Added / Changed
 ## / Fixed); the way-on buttons carry their key. Stage 1 keeps today's debrief (&"plain": the
 ## window is an empty box with no margin, so nothing moves). `_notes.text` stays notes_text().
+##
+## M47.5a (PLAN v9.3, 0.7): `view = TERMINAL` (always on, set by Main when hosted): the same
+## logic, phases, API and keys, but no screen. Its root stays hidden (the buttons keep their
+## labels, so choices() and choose() are unchanged), the lines are typed as rows of the host's
+## terminal beside the frozen arena, the corner mascot's body takes every expression (_body()),
+## a fork is numbered choices + `you>` with raw preview boxes over the game, then the AI
+## thinks, prints the patch and (auto_way_on, a live host only) takes the way on by itself.
 
 signal next_requested
 signal retry_requested
@@ -47,6 +54,13 @@ const AVATAR := 40.0        ## the polished first bubble's avatar box
 const AVATAR_SCALE := 0.35
 const LIFT := 6.0           ## a focused card's lift (px)
 const DOTS: Array[String] = ["•", "••", "•••"]
+## M47.5a: the two views (screen: today's; terminal: always on).
+const SCREEN := &"screen"
+const TERMINAL := &"terminal"
+const AUTO_DELAY := 0.4     ## real seconds after the patch rows before the auto way on
+const AGAIN := "again"
+const MOVE_ON_ROW := "move on (I'll take this one)"
+const BOX := Vector2(230, 210)   ## a raw fork preview box
 const SECTIONS: Array[String] = ["Added", "Changed", "Fixed"]
 
 var session: SessionDef
@@ -90,6 +104,17 @@ var _inner: MarginContainer
 var _changelog: VBoxContainer
 var _dots: Label
 var _avatar_shown := false
+## M47.5a: the terminal view (Main sets these before add_child when hosted).
+var view: StringName = SCREEN
+var terminal: TerminalPanel
+var corner: Mascot              ## the corner mascot whose body the beat moves
+var auto_way_on := false        ## a live host: Next is chosen once the patch rows are typed
+var _open := false
+var _chosen := false            ## the way on was taken (terminal view: one choose per open)
+var _boxes: CenterContainer     ## the fork's raw preview boxes over the frozen game
+var _boxes_row: HBoxContainer
+var _auto_wait := false
+var _auto_msec := 0
 
 
 var events: Array = []   ## the events played this attempt (open())
@@ -168,6 +193,18 @@ func _ready() -> void:
 	column.add_child(_hint)
 	_apply_style()
 	Skins.hub.skin_changed.connect(_on_skin_changed)
+	_boxes = CenterContainer.new()
+	_boxes.name = "ForkBoxes"
+	_boxes.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_boxes.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boxes.visible = false
+	add_child(_boxes)
+	_boxes_row = HBoxContainer.new()
+	_boxes_row.add_theme_constant_override(&"separation", 24)
+	_boxes_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boxes.add_child(_boxes_row)
+	if terminal != null:
+		terminal.chosen.connect(_on_row_chosen)
 
 
 func _exit_tree() -> void:
@@ -187,6 +224,11 @@ func _on_skin_changed(_skin: ArtSkin) -> void:
 	for b in _buttons.get_children():
 		if b is Button and not b.is_queued_for_deletion():
 			Skins.redress_button(b)
+	if phase == FORK and fork() != null and view == TERMINAL:
+		var at_t := _cards_msec
+		_show_cards(fork(), false)
+		_cards_msec = at_t
+		return
 	if phase == FORK and fork() != null:
 		var focused := -1
 		for i in _cards.get_child_count():
@@ -269,13 +311,45 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 	style = style_for(session)
 	_avatar_shown = false
 	_apply_style()
-	_set_body(body_for(session))
+	_chosen = false
+	_auto_wait = false
+	if view != TERMINAL:
+		_set_body(body_for(session))
 	_pending = lines.duplicate()
 	phase = LINES
 	_line = null
 	RunState.set_pause(&"debrief", true)
-	_root.visible = true
+	if view == TERMINAL:
+		_open = true
+		terminal.sys("[game frozen]")
+	else:
+		_root.visible = true
 	_next_line()
+
+
+## M47.5a: the body the beat moves: the big one on the screen, the corner's in the terminal.
+func _beat_body() -> MascotBody:
+	if view == TERMINAL:
+		return corner.body if corner != null and is_instance_valid(corner) else null
+	return big_body
+
+
+func _expr(e: StringName) -> void:
+	var b := _beat_body()
+	if b != null:
+		b.set_expression(e)
+
+
+func _say_start() -> void:
+	var b := _beat_body()
+	if b != null:
+		b.say_start()
+
+
+func _say_end() -> void:
+	var b := _beat_body()
+	if b != null:
+		b.say_end()
 
 
 func _set_body(body_id: StringName) -> void:
@@ -338,8 +412,8 @@ func fork_options() -> Array[Change]:
 # --- Lines ------------------------------------------------------------------------
 
 func _next_line() -> void:
-	if _line != null and big_body != null:
-		big_body.say_end()
+	if _line != null:
+		_say_end()
 	if _pending.is_empty():
 		_line = null
 		_typing = null
@@ -349,6 +423,12 @@ func _next_line() -> void:
 	_chars = 0.0
 	_line_t = 0.0
 	said.append(_line.text)
+	if view == TERMINAL:   # M47.5a: a row of the terminal; this screen keeps the timing
+		_dots = null
+		_typing = terminal.say_row(_line.text, _line.expression)
+		_expr(_line.expression)
+		_say_start()
+		return
 	var bubble := PanelContainer.new()
 	bubble.add_theme_stylebox_override(&"panel", Mascot.bubble_style())
 	bubble.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -398,9 +478,9 @@ func _chat_row(bubble: PanelContainer) -> HBoxContainer:
 		small.gentle = true
 		small.process_mode = Node.PROCESS_MODE_DISABLED   # a still portrait
 		if Skins.is_on(&"mascot"):
-			var view := PixelBodyView.wrap(small, AVATAR_SCALE)
-			view.position = Vector2(AVATAR, AVATAR) * 0.5
-			holder.add_child(view)
+			var avatar_view := PixelBodyView.wrap(small, AVATAR_SCALE)
+			avatar_view.position = Vector2(AVATAR, AVATAR) * 0.5
+			holder.add_child(avatar_view)
 		else:
 			small.scale = Vector2.ONE * AVATAR_SCALE
 			small.position = Vector2(AVATAR, AVATAR) * 0.5
@@ -500,7 +580,9 @@ func _finish_typing() -> void:
 		return
 	_chars = _line.text.length()
 	_typing.visible_characters = -1
-	big_body.say_end()
+	_say_end()
+	if terminal != null and view == TERMINAL:
+		terminal.touch()
 	if _dots != null:
 		_dots.text = ""
 
@@ -523,9 +605,13 @@ func finish_lines() -> void:
 		guard -= 1
 		_finish_typing()
 		_next_line()
+	if view == TERMINAL and terminal != null:
+		terminal.finish()
 
 
 func _process(delta: float) -> void:
+	if view == TERMINAL and is_open() and phase == DONE:
+		_auto_step()
 	if not is_open() or phase != LINES or _line == null:
 		return
 	_line_t += delta
@@ -534,8 +620,10 @@ func _process(delta: float) -> void:
 	if not _typed():
 		_chars = _line.text.length() if cps <= 0.0 else minf(_line.text.length(), _chars + cps * delta)
 		_typing.visible_characters = int(_chars)
+		if view == TERMINAL:
+			terminal.touch()
 		if _typed():
-			big_body.say_end()
+			_say_end()
 		if _dots != null:
 			_dots.text = dots_text(_line_t)
 	elif _line_t >= (0.0 if cps <= 0.0 else _line.text.length() / cps) + SessionRunner.read_seconds(_line.text):
@@ -559,16 +647,76 @@ func _after_lines() -> void:
 
 # --- The fork ---------------------------------------------------------------------
 
-func _show_cards(f: Fork) -> void:
+## ask: false re-dresses the cards (a look swap) without asking again in the terminal.
+func _show_cards(f: Fork, ask := true) -> void:
 	phase = FORK
 	_hint.visible = false
 	_clear(_cards)
 	var options := f.changes()
 	for i in options.size():
-		_cards.add_child(_card(options[i], i))
-	big_body.set_expression(&"thinking")
+		_cards.add_child(_card(options[i], i))   # terminal view: hidden, the API's cards
+	_expr(&"thinking")
 	_cards_msec = Time.get_ticks_msec()
+	if view == TERMINAL:
+		if ask:
+			var rows: Array[String] = []
+			for c in options:
+				rows.append("%s  %s" % [c.short_name().to_lower(), c.pitch])
+			terminal.ask(rows)
+		_show_boxes(options)
+		return
 	_focus_card.call_deferred()
+
+
+## M47.5a: the raw preview boxes over the frozen game: a 1 px grey frame, "[n]" and what the
+## card shows (the live body for a mascot option, a path's still, a take's image). None when
+## no option has a picture.
+func _show_boxes(options: Array[Change]) -> void:
+	_clear(_boxes_row)
+	var any := false
+	for i in options.size():
+		var p := _preview(options[i], i)
+		var box := PanelContainer.new()
+		box.custom_minimum_size = BOX
+		box.mouse_filter = Control.MOUSE_FILTER_PASS
+		var frame := StyleBoxFlat.new()
+		frame.bg_color = Color(Palette.TERM_BG, 0.82)
+		frame.border_color = Palette.TERM_RULE
+		frame.set_border_width_all(1)
+		frame.set_content_margin_all(8)
+		box.add_theme_stylebox_override(&"panel", frame)
+		var col := VBoxContainer.new()
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(col)
+		var key := Label.new()
+		key.text = "[%d]" % (i + 1)
+		key.add_theme_font_override(&"font", UiTheme.mono_font())
+		key.add_theme_font_size_override(&"font_size", 16)
+		key.add_theme_color_override(&"font_color", Palette.TERM_CHOICE)
+		col.add_child(key)
+		if p.node != null:
+			any = true
+			(p.node as Control).size_flags_vertical = Control.SIZE_EXPAND_FILL
+			col.add_child(p.node)
+			var body := p.body as MascotBody
+			if body != null:
+				box.mouse_entered.connect(func() -> void: body.set_expression(&"happy"))
+				box.mouse_exited.connect(func() -> void: body.set_expression(&"idle"))
+		_boxes_row.add_child(box)
+	_boxes.visible = any
+	if not any:
+		_clear(_boxes_row)
+
+
+func _hide_boxes() -> void:
+	if _boxes != null:
+		_boxes.visible = false
+		_clear(_boxes_row)
+
+
+## The fork boxes on show (tests, captures).
+func box_count() -> int:
+	return _boxes_row.get_child_count() if _boxes != null and _boxes.visible else 0
 
 
 func _card(c: Change, index: int) -> Button:
@@ -595,34 +743,15 @@ func _card(c: Change, index: int) -> Button:
 		key.remove_theme_color_override(&"font_color")
 		key.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	box.add_child(key)
-	if c.kind == &"mascot":
-		var holder := Control.new()
-		holder.custom_minimum_size = Vector2(0, 130)
-		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		box.add_child(holder)
-		var preview := MascotBody.make(c.take.id)
-		preview.gentle = SaveGame.reduce_flashing()
-		preview.t = 0.4 * index   # out of step with each other
-		if Skins.is_on(&"mascot"):   # M48a (review): the preview wears the look's body style too
-			var view := PixelBodyView.wrap(preview, PREVIEW)
-			view.position = PREVIEW_AT
-			holder.add_child(view)
-		else:
-			preview.scale = Vector2.ONE * PREVIEW
-			preview.position = PREVIEW_AT
-			holder.add_child(preview)
+	var shown := _preview(c, index)
+	if shown.node != null:
+		box.add_child(shown.node)
+	var preview := shown.body as MascotBody
+	if preview != null:
 		b.mouse_entered.connect(func() -> void: preview.set_expression(&"happy"))
 		b.mouse_exited.connect(func() -> void: preview.set_expression(&"idle"))
 		b.focus_entered.connect(func() -> void: preview.set_expression(&"happy"))
 		b.focus_exited.connect(func() -> void: preview.set_expression(&"idle"))
-	elif _still_for(c) != null:
-		var still := TextureRect.new()
-		still.texture = _still_for(c)
-		still.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		still.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		still.custom_minimum_size = Vector2(0, 110)
-		still.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		box.add_child(still)
 	var title := Label.new()
 	title.text = c.short_name()
 	title.add_theme_font_size_override(&"font_size", 22)
@@ -642,6 +771,36 @@ func _card(c: Change, index: int) -> Button:
 		_frame_card(b, box)
 	Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
 	return b
+
+
+## A card's picture: {node: a mascot option's live preview body in its holder, or a still;
+## null when text only, body: the preview MascotBody or null}. M47.5a: shared with the boxes.
+func _preview(c: Change, index: int) -> Dictionary:
+	if c.kind == &"mascot":
+		var holder := Control.new()
+		holder.custom_minimum_size = Vector2(0, 130)
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var preview := MascotBody.make(c.take.id)
+		preview.gentle = SaveGame.reduce_flashing()
+		preview.t = 0.4 * index   # out of step with each other
+		if Skins.is_on(&"mascot"):   # M48a (review): the preview wears the look's body style too
+			var pview := PixelBodyView.wrap(preview, PREVIEW)
+			pview.position = PREVIEW_AT
+			holder.add_child(pview)
+		else:
+			preview.scale = Vector2.ONE * PREVIEW
+			preview.position = PREVIEW_AT
+			holder.add_child(preview)
+		return {"node": holder, "body": preview}
+	if _still_for(c) != null:
+		var still := TextureRect.new()
+		still.texture = _still_for(c)
+		still.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		still.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		still.custom_minimum_size = Vector2(0, 110)
+		still.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		return {"node": still, "body": null}
+	return {"node": null, "body": null}
 
 
 ## M47.4: a polished card is a framed panel; focused, its content lifts LIFT px (a
@@ -702,12 +861,22 @@ func pick(index: int) -> bool:
 	picks.append(c)
 	_clear(_cards)
 	phase = LINES
-	if c.kind == &"mascot":
+	if view == TERMINAL:
+		terminal.answer(str(index + 1))
+		_hide_boxes()
+	if c.kind == &"mascot" and view == TERMINAL:
+		# M47.5a: the pick lands at once on the game screen, and the prompt renames itself.
+		if corner != null and is_instance_valid(corner):
+			corner.setup(true, c.take.id)
+			corner.show_expression(&"surprised")
+			corner.glitch(0.35)
+		terminal.set_speaker(GameHost.speaker_for(c.take.id), true)
+	elif c.kind == &"mascot":
 		_set_body(c.take.id)
 		big_body.set_expression(&"surprised")
 		big_body.glitch(0.35)
 	elif c.kind in [&"dash", &"dash_aim"]:
-		big_body.set_expression(&"happy")
+		_expr(&"happy")
 	if c.take != null and c.take.line != "":
 		_pending.append(Line.make(c.take.line, &"happy"))
 	if fork() == null:   # M47 (D16): the session's after_pick lines follow its last fork's take
@@ -722,8 +891,7 @@ func pick(index: int) -> bool:
 func _finish() -> void:
 	phase = DONE
 	_hint.visible = false
-	if big_body != null:
-		big_body.say_end()
+	_say_end()
 	_clear(_buttons)
 	if outcome == &"died" and not death_expected() and not moved_on:
 		_notes.text = ""
@@ -737,7 +905,52 @@ func _finish() -> void:
 		var label := LAST if last else NEXT
 		_add_button(label, func() -> void: choose(label))
 	_buttons_msec = Time.get_ticks_msec()
+	if view == TERMINAL:
+		_terminal_way_on()
+		return
 	_focus_first.call_deferred()
+
+
+## M47.5a: the way on in the terminal. A death (not overrun, not moved on): "[1] again" /
+## "[2] move on (I'll take this one)" and `you> _`. Else the AI thinks, builds and applies the
+## patch with its changelog; a live host then takes Next (or To be continued) by itself.
+func _terminal_way_on() -> void:
+	if outcome == &"died" and not death_expected() and not moved_on:
+		terminal.ask([AGAIN, MOVE_ON_ROW] as Array[String])
+		return
+	var v := CampaignDB.version_after(session).label()
+	terminal.think()
+	terminal.cmd("build %s" % v, "ok")
+	terminal.cmd("patch apply %s" % v)
+	terminal.notes(changelog(session, picked, more_picks()))
+	_auto_wait = auto_way_on
+	_auto_msec = Time.get_ticks_msec()
+
+
+## auto_way_on: AUTO_DELAY after the terminal is done typing, the first choice (Next).
+func _auto_step() -> void:
+	if not _auto_wait or _chosen:
+		return
+	if terminal.is_busy():
+		_auto_msec = Time.get_ticks_msec()
+		return
+	if Time.get_ticks_msec() - _auto_msec >= int(AUTO_DELAY * 1000.0) and can_choose():
+		_auto_wait = false
+		var options := choices()
+		if not options.is_empty():
+			choose(options[0])
+
+
+## A click on a terminal choice row: the fork's option or the way on, by order.
+func _on_row_chosen(index: int) -> void:
+	if not is_open():
+		return
+	if phase == FORK and cards_ready():
+		pick(index)
+	elif phase == DONE and can_choose():
+		var options := choices()
+		if index >= 0 and index < options.size():
+			choose(options[index])
 
 
 ## "v0.2.0 · what changed" and a bullet per note, then one per fork pick, in order.
@@ -780,6 +993,8 @@ func _focus_first() -> void:
 
 
 func is_open() -> bool:
+	if view == TERMINAL:
+		return _open
 	return _root.visible
 
 
@@ -805,13 +1020,22 @@ func choices() -> Array[String]:
 func choose(label: String) -> bool:
 	if not can_choose() or not label in choices():
 		return false
+	if view == TERMINAL:
+		if _chosen:
+			return false   # M47.5a: one way on per open (a second key, the auto way on)
+		_auto_wait = false
+		terminal.finish()
+		if terminal.has_prompt():
+			terminal.answer(str(choices().find(label) + 1))
 	match label:
 		NEXT, LAST:
+			_chosen = view == TERMINAL
 			if moved_on:
 				move_on_requested.emit()
 			else:
 				next_requested.emit()
 		RETRY:
+			_chosen = view == TERMINAL
 			retry_requested.emit()
 		MOVE_ON:
 			moved_on = true
@@ -825,6 +1049,7 @@ func choose(label: String) -> bool:
 				else:
 					_next_line()
 			else:
+				_chosen = view == TERMINAL
 				move_on_requested.emit()
 	return true
 
@@ -840,6 +1065,9 @@ func _ended_lines() -> Array[Line]:
 
 func close() -> void:
 	_root.visible = false
+	_open = false
+	_auto_wait = false
+	_hide_boxes()
 	RunState.set_pause(&"debrief", false)
 
 
@@ -874,6 +1102,10 @@ func _unhandled_input(event: InputEvent) -> void:
 						pick(i)
 					return
 		DONE:
+			if view == TERMINAL and terminal.is_busy() and event.is_action_pressed(&"ui_accept"):
+				get_viewport().set_input_as_handled()
+				terminal.finish()   # M47.5a: a key shows the rest of the patch at once
+				return
 			if not can_choose():
 				return
 			var options := choices()

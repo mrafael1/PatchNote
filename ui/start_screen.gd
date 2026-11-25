@@ -19,7 +19,9 @@ extends Control
 ## and "Reduce flashing" is asked once before the first session (1.9). The v6 run loop's
 ## screen above is kept behind --legacy-loop (and `legacy_loop`, for tools and tests).
 
-const GAME_SCENE := "res://main.tscn"
+## M47.5a (PLAN v9.3): the campaign plays in the always-on host; the v6 loop loads Main directly.
+const GAME_SCENE := "res://ui/always_on/game_host.tscn"
+const LEGACY_SCENE := "res://main.tscn"
 const TITLE_SCENE := "res://ui/start_screen.tscn"
 const RESET_LABEL := "Reset save"
 const RESET_ARMED := "Click again to erase the save"
@@ -509,7 +511,7 @@ func _on_session_done(session: DevSession) -> void:
 
 
 func _start_game() -> void:
-	get_tree().change_scene_to_file(GAME_SCENE)
+	get_tree().change_scene_to_file(LEGACY_SCENE)
 
 
 ## M47.3 (PLAN 1.16): stored as Settings' window_mode (1 / 0), so it survives a restart.

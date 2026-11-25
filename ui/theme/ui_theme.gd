@@ -99,6 +99,20 @@ static func window_style() -> StyleBox:
 	return theme().get_stylebox(&"panel", CHAT_WINDOW)
 
 
+## M47.5a: the raw terminal's monospace font, made in code (no font file): the first of
+## these the system has, else Godot's own fallback.
+static var _mono: SystemFont
+
+
+static func mono_font() -> Font:
+	if _mono == null:
+		_mono = SystemFont.new()
+		_mono.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "DejaVu Sans Mono",
+				"Courier New", "monospace"])
+		_mono.fallbacks = [ThemeDB.fallback_font]
+	return _mono
+
+
 ## A key chip Label ("1", "Enter"): the KeyChip variation.
 static func key_chip(text: String) -> Label:
 	var l := Label.new()

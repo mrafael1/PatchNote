@@ -207,11 +207,26 @@ static func _apply_window(key: String) -> void:
 			if _base_size == Vector2i.ZERO:
 				_base_size = Vector2i(int(ProjectSettings.get_setting("display/window/size/viewport_width", 1280)),
 						int(ProjectSettings.get_setting("display/window/size/viewport_height", 720)))
-			var size := Vector2i(Vector2(_base_size) * scale)
 			var screen := DisplayServer.screen_get_usable_rect()
-			size = size.min(screen.size)
+			var size := clamped_size(Vector2(_base_size) * scale, Vector2(screen.size))
 			DisplayServer.window_set_size(size)
 			DisplayServer.window_set_position(screen.position + (screen.size - size) / 2)
+
+
+## M47.5a: the window's size at scale 1 (GameHost: 1760x720 while the game is hosted beside
+## the terminal; back to the project's 1280x720 when it leaves). The next apply() re-sizes.
+static func set_window_base(base: Vector2i) -> void:
+	if base == _base_size:
+		return
+	_base_size = base
+	_scale_applied = -1.0
+
+
+## M47.5a: `size` shrunk by one uniform factor to fit `screen` (never grown), so a wide
+## window keeps its shape on a small screen.
+static func clamped_size(size: Vector2, screen: Vector2) -> Vector2i:
+	var f := minf(1.0, minf(screen.x / maxf(size.x, 1.0), screen.y / maxf(size.y, 1.0)))
+	return Vector2i((size * f).round())
 
 
 static func _window_mode_now() -> int:

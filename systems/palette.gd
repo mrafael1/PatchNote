@@ -98,6 +98,17 @@ const WINDOW_BAR := Color(0.24, 0.45, 0.95)
 const WINDOW_PANIC := Color(0.86, 0.26, 0.28)
 const WINDOW_GUILTY := Color(0.5, 0.53, 0.6)
 
+# --- M47.5a: the raw dev terminal (always on, pre-UI; tier-0 constants, not look roles) ---
+const TERM_BG := Color(0.039, 0.039, 0.047)       ## #0a0a0c, the terminal's back
+const TERM_RULE := Color(0.32, 0.33, 0.36)        ## its 1 px left rule, the fork boxes' frame
+const TERM_TEXT := Color(0.93, 0.93, 0.95)        ## a line the AI says
+const TERM_DIM := Color(0.5, 0.52, 0.56)          ## headers, sys rows, thinking, chatter
+const TERM_CMD := Color(0.35, 0.85, 0.95)         ## $ build / patch apply / hot-reload
+const TERM_NOTE := Color(0.78, 0.79, 0.82)        ## the changelog rows
+const TERM_CHOICE := Color(1.0, 0.85, 0.35)       ## [1] [2] [3]
+const TERM_YOU := Color.WHITE                     ## you> _
+const TERM_ERR := Color(1.0, 0.42, 0.4)
+
 ## 1.7's roles: every look must name each of these (test_pixel_skin).
 const CORE: Array[StringName] = [&"bg", &"grid", &"wall", &"player", &"player_shot", &"enemy",
 	&"enemy_shot", &"elite", &"pickup", &"blast", &"ui_text", &"ui_panel", &"accent", &"danger"]

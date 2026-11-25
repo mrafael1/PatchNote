@@ -5,11 +5,13 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M47.4"
+const BUILD := "M47.5a"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
 static var next_genre: StringName = &""
+## Tests: called with the scene path instead of changing scene (M47.5a review).
+static var leave_hook := Callable()
 
 var genre: Genre
 var feedback: Feedback
@@ -36,6 +38,9 @@ var sound: Sound
 var pause_menu: PauseMenu   ## M47.3 (PLAN 1.16): Esc / Start, when PauseMenu.allowed()
 ## M47.3: tests set it to log the menu's telemetry line from a game that is not the scene.
 var menu_telemetry_always := false
+## M47.5a (PLAN v9.3, 0.7): the always-on host this session plays in (set before add_child),
+## or null (a direct load, a test, a tool). Its terminal carries the AI's voice.
+var host: GameHost
 
 ## Read-only forwarders to the genre's nodes, so tests and tools keep working. They
 ## name shared systems, never a genre; a genre without one of them leaves it null.
@@ -126,6 +131,10 @@ func _ready() -> void:
 		mascot.name = "Mascot"
 		mascot.setup(RunState.session.face, SaveGame.mascot())
 		add_child(mascot)
+		if host != null:   # M47.5a: the body stays in the corner, its words go to the terminal
+			mascot.bubble_enabled = false
+			mascot.line_started.connect(host.terminal.live_say)
+			mascot.line_cut.connect(host.terminal.live_cut)
 		reactions = Reactions.new()
 		reactions.name = "Reactions"
 		reactions.session = RunState.session
@@ -165,6 +174,11 @@ func _ready() -> void:
 		session_runner.event_player = event_player
 		debrief = DebriefScreen.new()
 		debrief.name = "Debrief"
+		if host != null:   # M47.5a: the session's end is a terminal beat beside the frozen arena
+			debrief.view = DebriefScreen.TERMINAL
+			debrief.terminal = host.terminal
+			debrief.corner = mascot
+			debrief.auto_way_on = host.auto_way_on()
 		add_child(debrief)
 		debrief.next_requested.connect(func() -> void: _end_session(&"next"))
 		debrief.move_on_requested.connect(func() -> void: _end_session(&"move_on"))
@@ -274,12 +288,12 @@ func restart(same_seed := false) -> void:
 ## "New build": a fresh run. A negative seed picks a random one. Only works when this
 ## is the current scene (tests instance it as a child and never reload it).
 func start_new_build(run_seed := -1) -> void:
-	if get_tree().current_scene != self:
+	if not is_live_game():   # M47.5a review: hosted, the host is the current scene
 		return
 	save_notes()
-	next_seed = run_seed
-	next_genre = RunState.genre
-	get_tree().reload_current_scene()
+	if host != null:
+		RunState.set_pause(GameHost.HANDOFF, true)   # frozen until the swap, as menu_restart
+	_reload(run_seed)
 
 
 ## The report's main button: "Dev session" when the save is live, else "New build".
@@ -379,7 +393,7 @@ func _on_run_ended(outcome: StringName) -> void:
 func _on_report_ready(outcome: StringName) -> void:
 	transition.clear_toast()
 	if RunState.session != null:
-		mascot.silence()
+		mascot.silence(host == null)   # hosted: the body stays in the corner for the beat
 		debrief.open(RunState.session, outcome, session_runner.hits, event_player.played_ids())
 		return
 	report.open(outcome, genre.run_record())
@@ -400,17 +414,30 @@ func _end_session(choice: StringName) -> void:
 		CampaignDB.retry(s)
 	else:
 		CampaignDB.complete(s, debrief.picked, debrief.more_picks())
-	if get_tree().current_scene != self:
+	if not is_live_game():
 		return   # a test's copy: the save moved on, nothing reloads
-	debrief.close()
+	var leave := ""
 	if SaveGame.in_replay() and choice != &"retry":
-		get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)   # M47: the title ends the replay
+		leave = StartScreen.TITLE_SCENE   # M47: the title ends the replay
 	elif CampaignDB.is_done():
-		get_tree().change_scene_to_file(CookingScreen.after_campaign_scene())
+		leave = CookingScreen.after_campaign_scene()
+	if host != null and leave == "":
+		RunState.set_pause(GameHost.HANDOFF, true)   # M47.5a: the old arena stays frozen until the swap
+	debrief.close()
+	if leave != "":
+		_leave_to(leave)
 	else:
-		next_seed = debrief.next_seed
-		next_genre = RunState.genre
-		get_tree().reload_current_scene()
+		_reload(debrief.next_seed, _restart_text(s) if choice == &"retry" else "")
+
+
+## The session leaves the game for another scene (the title, the cooking screen): nothing
+## stays paused behind it (M47.5a review: the handoff pause leaked to the title).
+func _leave_to(path: String) -> void:
+	RunState.clear_pauses()
+	if leave_hook.is_valid():
+		leave_hook.call(path)
+		return
+	get_tree().change_scene_to_file(path)
 
 
 ## M47.3 (PLAN 1.16): the pause menu's Restart session: the debrief's Retry from the middle
@@ -421,11 +448,27 @@ func menu_restart() -> void:
 		_menu_telemetry(s, &"menu_retry")
 		CampaignDB.retry(s)
 	RunState.clear_pauses()
-	if get_tree().current_scene != self:
+	if not is_live_game():
 		return   # a test's copy: counted, nothing reloads
-	next_seed = -1
+	if host != null:
+		RunState.set_pause(GameHost.HANDOFF, true)
+	_reload(-1, _restart_text(s) if s != null else "")
+
+
+## M47.5a: the next scene plays `run_seed` (-1 = random): the host swaps the session in
+## (hot-reload), or, unhosted, the scene reloads as before.
+func _reload(run_seed: int, restart := "") -> void:
+	next_seed = run_seed
 	next_genre = RunState.genre
-	get_tree().reload_current_scene()
+	if host != null:
+		host.next_session(restart)
+	else:
+		get_tree().reload_current_scene()
+
+
+## "restart s1_04_level (try 2)": the terminal's line for a new attempt.
+static func _restart_text(s: SessionDef) -> String:
+	return "restart %s (try %d)" % [s.id, CampaignDB.attempt(s.id)]
 
 
 ## M47.3: Quit to title (raw: quit to start). A session logs one `abandon` line; the save
@@ -436,7 +479,7 @@ func menu_quit() -> void:
 	if s != null:
 		_menu_telemetry(s, &"abandon")
 	RunState.clear_pauses()
-	if get_tree().current_scene != self:
+	if not is_live_game():
 		return
 	get_tree().change_scene_to_file(StartScreen.TITLE_SCENE)
 
@@ -452,9 +495,10 @@ func _menu_telemetry(s: SessionDef, choice: StringName) -> void:
 
 
 ## True when this scene is the game being played, not a copy instanced by a test.
-## Only the live game writes telemetry and teaches the next run.
+## Only the live game writes telemetry and teaches the next run. M47.5a: or the session of
+## the live always-on host (never a tool's or a test's host).
 func is_live_game() -> bool:
-	return is_inside_tree() and get_tree().current_scene == self
+	return is_inside_tree() and (get_tree().current_scene == self or (host != null and host.is_live()))
 
 
 ## The report's notes become what the AI knows at the start of the next run of this

@@ -21,6 +21,13 @@ const MIN_SHOWN := 0.4
 const BUBBLE_MAX_W := 360.0
 const FONT_SIZE := 18
 
+## M47.5a (always on): a line starts in the corner (the terminal types it) / is cut short.
+signal line_started(line: Line, priority: int)
+signal line_cut(line: Line)
+
+## M47.5a: false while hosted (GameHost): the terminal carries the voice, the corner keeps
+## its body, its queue and its timing.
+var bubble_enabled := true
 var body: MascotBody
 var face := false
 var body_id: StringName = MascotBody.DEFAULT
@@ -202,7 +209,7 @@ func say(line: Line, priority := 2, cut := false) -> void:
 		return
 	if _current != null and ((cut and priority >= _current_priority)
 			or (priority > _current_priority and _shown_for >= MIN_SHOWN)):
-		_end_line()
+		_end_line(true)
 		_start(line, priority)
 		return
 	var at := _queue.size()
@@ -255,10 +262,12 @@ func drop_queued() -> void:
 
 
 ## Hides the corner (the debrief draws its own, larger mascot) and drops what is queued.
-func silence() -> void:
+## M47.5a: `hide` false keeps the body in the corner (the terminal beat talks through it).
+func silence(hide := true) -> void:
 	_queue.clear()
-	_end_line()
-	visible = false
+	_end_line(true)
+	if hide:
+		visible = false
 
 
 func _process(delta: float) -> void:
@@ -278,7 +287,7 @@ func step(delta: float) -> void:
 	_shown_for += delta
 	if _shown_for >= MIN_SHOWN and not _queue.is_empty() \
 			and int(_queue[0].priority) > _current_priority:
-		_end_line()   # a higher priority cuts in, typed or not
+		_end_line(true)   # a higher priority cuts in, typed or not
 		_next()
 		return
 	var total := _current.text.length()
@@ -319,15 +328,20 @@ func _start(line: Line, priority: int) -> void:
 	var w := _bubble.get_combined_minimum_size().x
 	_bubble.offset_left = _bubble.offset_right - w
 	_bubble.offset_bottom = _bubble.offset_top
-	_bubble.visible = true
+	_bubble.visible = bubble_enabled
 	body.set_expression(line.expression)
 	body.say_start()
+	line_started.emit(line, priority)
 
 
-func _end_line() -> void:
+## cut: the line leaves before its read time ran out (M47.5a: the terminal marks it).
+func _end_line(cut := false) -> void:
 	if _current == null:
 		return
+	var was := _current
 	_current = null
+	if cut and (_chars < was.text.length() or _hold > 0.0):
+		line_cut.emit(was)
 	_bubble.visible = false
 	body.say_end()
 	body.set_expression(&"idle")

@@ -35,6 +35,12 @@ extends SceneTree
 ## is chosen), holds it `hold` physics frames, then closes it. A refused open (can_open())
 ## is tried again next tick. Each seed's line ends "menus=<opened>/<wanted>"; a menu that
 ## never opened is a failure. The hash must equal the run without --menu.
+##
+## M47.5a (PLAN v9.3, always on): --shell (campaign only) plays each session inside a tool
+## GameHost (GameHost.host_for_tools: the game in the 1280x720-rect SubViewport, PAUSABLE, never
+## live); --viewport=<w>x<h> sets the SubViewport's on-screen size (the 2D rect stays 1280x720);
+## --handoff=<frames> holds the host's handoff that many physics frames before the first tick.
+## Every hash must equal the unhosted run's.
 
 var seconds := 120
 var out_path := ""
@@ -47,6 +53,9 @@ var answers := {}                    ## --answer (M47): fork id -> change id
 var menus: Array = []                ## --menu (M47.3): [at tick (-1 = pick), hold frames]
 var _menu_done: Array[bool] = []
 var _menu_opened := 0
+var shell := false                   ## --shell (M47.5a)
+var handoff_frames := 0              ## --handoff (M47.5a)
+var viewport_size := Vector2i.ZERO   ## --viewport (M47.5a)
 const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong",
 		&"s1_06_playground"]
 const CAMPAIGN_SECONDS := 300
@@ -82,6 +91,14 @@ func _run() -> void:
 				var at_hold := entry.split(":")
 				if at_hold.size() == 2:
 					menus.append([-1 if at_hold[0] == "pick" else int(at_hold[0]), int(at_hold[1])])
+		elif arg == "--shell":
+			shell = true
+		elif arg.begins_with("--handoff="):
+			handoff_frames = int(arg.trim_prefix("--handoff="))
+		elif arg.begins_with("--viewport="):
+			var wh := arg.trim_prefix("--viewport=").split("x")
+			if wh.size() == 2:
+				viewport_size = Vector2i(int(wh[0]), int(wh[1]))
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=").split("=")
 			if pair.size() == 2:
@@ -92,6 +109,10 @@ func _run() -> void:
 		seeds = [1, 2, 3, 4]
 	if campaign:
 		await _run_campaign(seeds)
+		return
+	if shell:
+		print("[runhash] FAILED: --shell hosts campaign sessions only (the v6 loop is never hosted)")
+		quit(1)
 		return
 	var expected := {}
 	if compare_path != "":
@@ -241,12 +262,24 @@ func _run_campaign(seeds: Array[int]) -> void:
 			db.call(&"jump_to", id)
 			main_script.set(&"next_seed", run_seed)
 			var game: Node = load("res://main.tscn").instantiate()
-			root.add_child(game)
-			current_scene = game
+			var host: Node = null
+			if shell:   # M47.5a: the game inside a tool host (never live)
+				host = load("res://ui/always_on/game_host.gd").call(&"host_for_tools", game, viewport_size)
+				root.add_child(host)
+				current_scene = host
+			else:
+				root.add_child(game)
+				current_scene = game
 			await physics_frame
 			var card: Node = game.get(&"stage_card")   # PLAN v9 2: a stage card pauses the tree
 			if card != null and card.call(&"is_open"):
 				card.call(&"skip")
+			if host != null:
+				if handoff_frames > 0:   # the ready moment, held: no tick may move
+					host.call(&"hold")
+					for f in handoff_frames:
+						await physics_frame
+				host.call(&"skip_handoff")
 			if run_state.session == null or run_state.session.id != id:
 				print("[runhash] session=%s seed=%d FAILED: the game runs another session" % [id, run_seed])
 				quit(1)
@@ -277,14 +310,17 @@ func _run_campaign(seeds: Array[int]) -> void:
 				print("[runhash] %s recorded %d s kills=%d" % [tag, hashes.size(), run_state.kills])
 			if game.debrief.is_open():
 				game.debrief.close()
-			root.remove_child(game)
-			game.free()
+			var top: Node = host if host != null else game
+			root.remove_child(top)
+			top.free()
 			await process_frame
 	if out_path != "":
 		var f := FileAccess.open(out_path, FileAccess.WRITE)
 		f.store_string("\n".join(lines) + "\n")
 		f.close()
-	print("[runhash] summary: campaign, %d runs, %d failures" % [runs, failures])
+	print("[runhash] summary: campaign%s, %d runs, %d failures" % [
+			(" shell" + (" viewport=%dx%d" % [viewport_size.x, viewport_size.y] if viewport_size != Vector2i.ZERO else "")
+			+ (" handoff=%d" % handoff_frames if handoff_frames > 0 else "")) if shell else "", runs, failures])
 	quit(1 if failures > 0 else 0)
 
 

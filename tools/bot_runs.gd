@@ -481,6 +481,9 @@ func _hit_kinds() -> Dictionary:
 ## Skips the game's stage card if it is open (PLAN v9 2: the bot never waits on the
 ## paused tree). Returns the card's stage, or 0 when none was shown.
 func _skip_card(game: Node) -> int:
+	var host: Node = game.get(&"host")   # M47.5a: the always-on host's ready moment, on frame 1
+	if host != null:
+		host.call(&"skip_handoff")
 	var card: Node = game.get(&"stage_card")
 	if card == null or not card.call(&"is_open"):
 		return 0
@@ -1348,16 +1351,28 @@ func _seed_of(spec: String) -> String:
 	return spec.trim_suffix("i")
 
 
+## M47.5a: through the always-on host (its `game`; the old one is freed by the host's swap,
+## so the previous game is told apart by its instance id, read while it is still valid).
 func _wait_for_game(previous: Node) -> Node:
+	var prev_id := previous.get_instance_id() if previous != null and is_instance_valid(previous) else 0
 	for f in 300:
 		await process_frame
 		var scene := current_scene
-		if scene != null and scene != previous and _is_cooking_screen(scene):
+		if scene != null and scene.get_instance_id() != prev_id and _is_cooking_screen(scene):
 			return scene
-		if scene != null and scene != previous and scene.get(&"run_loop") != null:
+		var game := _game_in(scene)
+		if game != null and game.get_instance_id() != prev_id and game.get(&"run_loop") != null:
 			await physics_frame
-			return scene
+			return game
 	return null
+
+
+## The game a scene holds: the host's session, or the scene itself.
+func _game_in(scene: Node) -> Node:
+	if scene != null and scene.has_method(&"skip_handoff"):
+		var g: Variant = scene.get(&"game")
+		return g as Node if g is Node and is_instance_valid(g) else null
+	return scene
 
 
 ## The cooking screen (M43.2): where the campaign stands when its next session is cooking.
@@ -1472,6 +1487,8 @@ func _set_up_save() -> bool:
 	var start_script: GDScript = load("res://ui/start_screen.gd")
 	start_script.save_live = false
 	start_script.legacy_loop = not campaign   # the v6 run loop unless --campaign (PLAN v8)
+	# M47.5a: the always-on host never takes the way on by itself here (the bot chooses).
+	load("res://ui/always_on/game_host.gd").set(&"auto_beats", false)
 	if save_arg != "" and save_arg == save.DEFAULT_PATH:
 		print("[botrun] FAILED: --save must not be the real save (%s)" % save_arg)
 		return false

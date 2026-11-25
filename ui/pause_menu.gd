@@ -187,7 +187,8 @@ static func allowed(g: Main) -> bool:
 	if g.event_player != null and g.event_player.clock_held():
 		return false
 	if RunState.is_paused_for(&"event") or RunState.is_paused_for(&"history") \
-			or RunState.is_paused_for(&"dev_session") or RunState.is_paused_for(&"report"):
+			or RunState.is_paused_for(&"dev_session") or RunState.is_paused_for(&"report") \
+			or RunState.is_paused_for(&"handoff"):   # M47.5a: the hot-reload and the ready moment
 		return false
 	var clock := TurnClock.current()
 	if clock != null and clock.in_turn():

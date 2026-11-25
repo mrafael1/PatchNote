@@ -263,6 +263,17 @@ if ($BotRuns) {
         if ($s9.Text -notmatch "outcome=win t=150\.0 .*path=$p ") { $failures += "bot_s9_${p}: not won on $p in 150 s" }
         if ($s9.Text -notmatch '\[botrun\] summary: s2_03_paint x1, .* 0 failures') { $failures += "bot_s9_${p}: run failed" }
     }
+    # M47.5a (PLAN v9.3): the campaign hosted in the always-on GameHost hashes as the M43.3 refs,
+    # and S8 hosted at a 1560x878 view with the handoff held matches the M47 ref. The refs are
+    # local (.check/ is ignored): a fresh clone skips these two.
+    if (Test-Path (Join-Path $root '.check/ref_m47/s8_arsenal_hash.jsonl')) {
+    $shell =Invoke-Godot 'hash_shell_campaign' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --shell --compare=.check/ref_m43.3/campaign_hash.jsonl 1 2'
+    Test-Errors 'hash_shell_campaign' $shell
+    if ($shell.Text -notmatch '\[runhash\] summary: campaign shell, 8 runs, 0 failures') { $failures += 'hash_shell_campaign: hosted campaign hashes differ' }
+    $shellS8 = Invoke-Godot 'hash_shell_s8' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --session=s2_02_day_one --frames=10 --shell --viewport=1560x878 --handoff=120 --answer=fork_path=path_arsenal --compare=.check/ref_m47/s8_arsenal_hash.jsonl 1'
+    Test-Errors 'hash_shell_s8' $shellS8
+    if ($shellS8.Text -notmatch '\[runhash\] summary: campaign shell viewport=1560x878 handoff=120, 1 runs, 0 failures') { $failures += 'hash_shell_s8: hosted S8 hash differs' }
+    }
 }
 
 if ((Get-SaveSnapshot) -ne $saveBefore) { $failures += 'the real save folder changed during the check (is the game running? a playtest writes it too)' }
