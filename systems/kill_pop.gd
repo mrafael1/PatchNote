@@ -24,6 +24,12 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var t := clampf(_age / LIFETIME, 0.0, 1.0)
+	if Skins.current != null and Skins.current.has(&"pop"):
+		# The Pixel preview (PLAN 1.7): the pop frames over its life.
+		var skin := Skins.current
+		var s := maxf(1.0, roundf(ArtSkin.BODY_SCALE * scale_mult))
+		skin.draw(self, &"pop", Vector2.ZERO, s, skin.life_frame(&"pop", t), Color(1, 1, 1, 1.0 - 0.6 * t))
+		return
 	var eased := 1.0 - (1.0 - t) * (1.0 - t)
 	var radius := lerpf(RADIUS_FROM, RADIUS_TO, eased) * scale_mult
 	var c := color.lerp(Color.WHITE, 0.5)

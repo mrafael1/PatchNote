@@ -143,6 +143,8 @@ func _build_reach() -> void:
 ## seen from above; with gravity the background darkens toward "down" (or the side
 ## gravity pulls to) and every block shows a bright strip on the face you can stand on.
 func _draw() -> void:
+	if Skins.current != null and _draw_skin():
+		return
 	draw_rect(bounds, COLOR_BACKGROUND)
 	var t := Tuning.TILE
 	var rules := RunState.rules
@@ -175,6 +177,102 @@ func _draw() -> void:
 		draw_rect(rect, COLOR_BLOCK)
 		var y := rect.position.y if down else rect.end.y - STRIP
 		draw_rect(Rect2(rect.position.x, y, rect.size.x, STRIP), COLOR_STANDABLE)
+
+
+## The Pixel preview (PLAN 1.7): floor tiles (a rarer variant by a pure cell hash), the
+## same gravity shading as today, wall tiles over every block and, under gravity, the lit
+## `standable` edge turned onto the face a body rests on. False without the tiles.
+func _draw_skin() -> bool:
+	var skin := Skins.current
+	if not (skin.has(&"floor_a") and skin.has(&"wall")):
+		return false
+	var t := Tuning.TILE
+	skin.draw_tile(self, &"floor_a", bounds)
+	if skin.has(&"floor_b"):
+		for r in ROWS:
+			for c in COLS:
+				if Skins.cell_hash(c, r) == 0:
+					skin.draw_tile(self, &"floor_b", Rect2(c * t, r * t, t, t))
+	var rules := RunState.rules
+	var g := rules.gravity_dir
+	if rules.gravity_enabled:
+		if absf(g.x) > absf(g.y):
+			for c in COLS:
+				var depth := float(c) / (COLS - 1)
+				if g.x < 0.0:
+					depth = 1.0 - depth
+				draw_rect(Rect2(c * t, 0, t, bounds.size.y), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
+		else:
+			for r in ROWS:
+				var depth := float(r) / (ROWS - 1)
+				if g.y < 0.0:
+					depth = 1.0 - depth
+				draw_rect(Rect2(0, r * t, bounds.size.x, t), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
+	for rect in blocks:
+		skin.draw_tile(self, &"wall", rect)
+	_draw_wall_rim(skin.wall_rim())
+	if rules.gravity_enabled and skin.has(&"standable"):
+		for rect in blocks:
+			_draw_standable(skin, rect, g)
+	return true
+
+
+## The Pixel walls' rim: a 2 px outline on every block cell edge that faces an open cell
+## (plus a lit line under an open top), so blocks read as one shape and the arena's outer
+## edge gets none. Cells only, so touching blocks never show a seam. {} rim: nothing.
+func _draw_wall_rim(rim: Dictionary) -> void:
+	if rim.is_empty():
+		return
+	var t := Tuning.TILE
+	var cells := {}
+	for rect in blocks:
+		for cy in range(floori(rect.position.y / t), ceili(rect.end.y / t)):
+			for cx in range(floori(rect.position.x / t), ceili(rect.end.x / t)):
+				cells[Vector2i(cx, cy)] = true
+	var outline: Color = rim["outline"]
+	var lit: Color = rim["lit"]
+	for c: Vector2i in cells:
+		var x := c.x * t
+		var y := c.y * t
+		var up := c.y > 0 and not cells.has(c + Vector2i.UP)
+		var dn := c.y + 1 < ROWS and not cells.has(c + Vector2i.DOWN)
+		var lf := c.x > 0 and not cells.has(c + Vector2i.LEFT)
+		var rt := c.x + 1 < COLS and not cells.has(c + Vector2i.RIGHT)
+		if up:
+			draw_rect(Rect2(x, y, t, 2), outline)
+			var l := 2.0 if lf else 0.0
+			draw_rect(Rect2(x + l, y + 2, t - l - (2.0 if rt else 0.0), 2), lit)
+		if dn:
+			draw_rect(Rect2(x, y + t - 2, t, 2), outline)
+		if lf:
+			draw_rect(Rect2(x, y, 2, t), outline)
+		if rt:
+			draw_rect(Rect2(x + t - 2, y, 2, t), outline)
+
+
+## The standable tile along the face of `rect` a body rests on under gravity g (the face
+## standable_strip names), its lit edge on that face.
+func _draw_standable(skin: ArtSkin, rect: Rect2, g: Vector2) -> void:
+	var t := Tuning.TILE
+	var at: Vector2
+	var angle := 0.0
+	var length := rect.size.x
+	if absf(g.x) > absf(g.y):
+		length = rect.size.y
+		if g.x < 0.0:
+			at = Vector2(rect.end.x, rect.get_center().y)
+			angle = PI / 2.0
+		else:
+			at = Vector2(rect.position.x, rect.get_center().y)
+			angle = -PI / 2.0
+	elif g.y >= 0.0:
+		at = Vector2(rect.get_center().x, rect.position.y)
+	else:
+		at = Vector2(rect.get_center().x, rect.end.y)
+		angle = PI
+	draw_set_transform(at, angle)
+	skin.draw_tile(self, &"standable", Rect2(-length / 2.0, 0.0, length, t))
+	draw_set_transform(Vector2.ZERO)
 
 
 ## The bright strip on the face a body rests on under gravity g (the face whose normal

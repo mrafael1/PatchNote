@@ -86,6 +86,7 @@ func test_the_cue_adds_health_live_with_its_hp_and_a_grace() -> void:
 	assert_true(RunState.in_grace(), "the rims light before the first bite")
 	assert_almost_eq(RunState._grace_until - RunState.game_time, Tuning.health_added_grace, 0.1)
 	await wait_physics_frames(1)
+	await wait_process_frames(2)   # the corner label is set in Hud._process, not on a physics frame
 	assert_eq(game.hud._label.text, "HP %d" % int(Tuning.player_max_hp))
 	assert_true(RunState.run_log.any(func(ev: Dictionary) -> bool: return ev.get("event") == &"basic_added"))
 
@@ -256,6 +257,7 @@ func test_adding_version_shows_the_stamp_and_leaves_the_spawner_alone() -> void:
 	assert_string_contains(text, SaveGame.version().label())
 	assert_false("build" in text, "no build N in the campaign stamp")
 	assert_eq(text, "HP 5   %s" % SaveGame.version().label())
+	await wait_process_frames(2)   # the corner label is set in Hud._process, not on a physics frame
 	assert_string_contains(game.hud._label.text, SaveGame.version().label())
 
 
@@ -270,6 +272,7 @@ func test_s5_adds_the_version_stamp_live() -> void:
 	game.run_loop.goal_clock = 15.0
 	await wait_physics_frames(3)
 	assert_true(Unlocks.has_basic(&"version"), "added at 15 s")
+	await wait_process_frames(2)   # the corner label is set in Hud._process, not on a physics frame
 	assert_string_contains(game.hud._label.text, SaveGame.version().label())
 	assert_false("build" in game.hud._label.text)
 	var texts: Array = game.session_runner.said + game.session_runner.queued_lines().map(func(l: Line) -> String: return l.text)
@@ -285,6 +288,7 @@ func test_s6_corner_has_the_version_from_frame_one() -> void:
 	var game := await _game(&"s1_06_playground")
 	await wait_physics_frames(1)
 	assert_true(Unlocks.has_basic(&"version"))
+	await wait_process_frames(2)   # the corner label is set in Hud._process, not on a physics frame
 	assert_string_contains(game.hud._label.text, SaveGame.version().label())
 	assert_string_contains(game.hud._label.text, "HP %d" % int(Tuning.player_max_hp))
 
@@ -310,6 +314,7 @@ func test_s5_version_line_is_queued_by_20_s_behind_the_intro_only() -> void:
 func test_s4_corner_has_hp_and_the_dash() -> void:
 	var game := await _game(&"s1_04_level")
 	await wait_physics_frames(1)
+	await wait_process_frames(2)   # the corner label is set in Hud._process, not on a physics frame
 	assert_eq(game.hud._label.text, "HP %d\ndash ready" % int(Tuning.player_max_hp))
 
 

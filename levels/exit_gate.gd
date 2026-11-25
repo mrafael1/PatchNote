@@ -83,9 +83,15 @@ func direction_from(p: Vector2) -> Vector2:
 func _draw() -> void:
 	var r := RADIUS * Tuning.TILE
 	var pulse := 0.5 + 0.5 * sin(_t * 5.0)
-	draw_circle(Vector2.ZERO, r, Color(COLOR, 0.18 + 0.12 * pulse))
-	draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, COLOR, 3.0)
-	draw_arc(Vector2.ZERO, r * (0.55 + 0.3 * pulse), 0.0, TAU, 32, Color(COLOR, 0.6), 2.0)
+	if Skins.current == null or not Skins.current.has(&"gate"):
+		draw_circle(Vector2.ZERO, r, Color(COLOR, 0.18 + 0.12 * pulse))
+		draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, COLOR, 3.0)
+		draw_arc(Vector2.ZERO, r * (0.55 + 0.3 * pulse), 0.0, TAU, 32, Color(COLOR, 0.6), 2.0)
+	else:
+		# The Pixel preview (PLAN 1.7): the gate sprite filling today's circle.
+		var skin := Skins.current
+		var s := maxf(1.0, roundf(2.0 * r / maxf(skin.size_of(&"gate").x, 1.0)))
+		skin.draw(self, &"gate", Vector2.ZERO, s, skin.idle_frame(&"gate", RunState.real_time()))
 	if not is_instance_valid(player) or _done:
 		return
 	var to := global_position - player.global_position

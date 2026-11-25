@@ -68,6 +68,7 @@ func _ready() -> void:
 		RunState.recompute()
 	print(boot_line())
 	Look.use(Unlocks.look())   # the save's look (PLAN v5 1.7); punchy while inert
+	Skins.read_args(OS.get_cmdline_user_args())   # `-- --look=pixel`: the Pixel preview (PLAN 1.7)
 
 	var def := GenreDB.get_genre(RunState.genre)
 	genre = def.genre_script.new() as Genre

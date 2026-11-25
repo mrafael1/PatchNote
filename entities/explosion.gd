@@ -68,5 +68,12 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var u := clampf(_age / LIFE, 0.0, 1.0)
+	if Skins.current != null and Skins.current.has(&"blast"):
+		# The Pixel preview (PLAN 1.7): the blast frames, grown to the ring today draws.
+		var skin := Skins.current
+		var cells := maxf(skin.size_of(&"blast").x, 1.0)
+		var s := maxf(1.0, roundf(2.0 * radius * (0.4 + 0.6 * u) / cells))
+		skin.draw(self, &"blast", Vector2.ZERO, s, skin.life_frame(&"blast", u), Color(1, 1, 1, 1.0 - u * u))
+		return
 	draw_circle(Vector2.ZERO, radius * (0.4 + 0.6 * u), Color(COLOR, 0.35 * (1.0 - u)))
 	draw_arc(Vector2.ZERO, radius * (0.4 + 0.6 * u), 0.0, TAU, 32, Color(COLOR, 1.0 - u), 3.0)

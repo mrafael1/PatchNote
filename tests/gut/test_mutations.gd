@@ -302,8 +302,10 @@ func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
 	# M44 (D1): res://weapons/ is skipped: the weapon ids orbit (and later well) are PLAN v9
 	# 1.4's names, and the orbit weapon reuses the v6 shard script. test_weapons.gd keeps
 	# weapons/ off RunState.apply / add_ai / MutationDB instead.
+	# The Pixel preview (PLAN 1.7): res://systems/skins/ is skipped too: its sprite ids
+	# hunter and elite are 1.7's visual ids (art only, never RunState.apply / MutationDB).
 	var files := _source_files("res://", ["res://addons/", "res://tests/", "res://tools/",
-			"res://.godot/", "res://.check/", "res://weapons/"])
+			"res://.godot/", "res://.check/", "res://weapons/", "res://systems/skins/"])
 	assert_gt(files.size(), 30)
 	for m in MutationDB.all:
 		var own := "res://mutations/%s/" % m.id

@@ -30,6 +30,7 @@ var ammo_left := -1               ## M47: a dropped weapon keeps its ammo (-1: f
 var untouchable := false          ## M47: see the header
 
 var _player: Node2D
+var _skin_frame := -1   ## the Pixel preview's last idle frame (presentation only)
 
 
 func _ready() -> void:
@@ -90,7 +91,24 @@ func _find_player() -> Node2D:
 	return _player
 
 
+## The Pixel preview's idle (PLAN 1.7): a redraw when the 2-frame idle flips.
+func _process(_delta: float) -> void:
+	if Skins.current != null:
+		var f := Skins.current.idle_frame(_skin_id(), RunState.real_time())
+		if f != _skin_frame:
+			_skin_frame = f
+			queue_redraw()
+
+
+func _skin_id() -> StringName:
+	return &"crate" if crate else pickup_kind
+
+
 func _draw() -> void:
+	if Skins.current != null and Skins.current.has(_skin_id()):
+		var id := _skin_id()
+		Skins.current.draw(self, id, Vector2.ZERO, ArtSkin.BODY_SCALE, Skins.current.idle_frame(id, RunState.real_time()))
+		return
 	if crate:
 		draw_rect(Rect2(-11, -11, 22, 22), CRATE_COLOR)
 		draw_rect(Rect2(-11, -11, 22, 22), Color.BLACK, false, 2.0)
