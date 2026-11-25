@@ -25,7 +25,7 @@ const AUDIT := [
 	["s2_01_tryout", "auto", "^at 112: add levelups$", "gems / LV"],
 	["s2_01_tryout", "-", "hp_floor=1", "hp_floor 1"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 10: add cards$", "card meter"],
-	["s2_02_day_one", "arsenal", "Rank pips", "weapon ranks (card text)"],
+	["s2_02_day_one", "arsenal", "ranks it up\\. Gold ones count twice", "weapon ranks (card text)"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 20: add quick_draw$", "quick-draw"],
 	["s2_02_day_one", "auto", "Don't touch the trigger", "Auto fire button off"],
 	["s2_02_day_one", "auto", "^answer:path_auto at 10: add levelups$", "gems / LV"],
@@ -121,11 +121,13 @@ func test_quick_draw_comes_before_its_line() -> void:
 	assert_true(add >= 0 and add < say, "the M46 carry-over: the add, then the say")
 
 
+## M50.1a: the line reads Arsenal's pack cadence (PathDef.pack_every, 6).
 func test_the_card_line_reads_arsenals_first_card() -> void:
-	var first := PathDB.get_def(&"arsenal").threshold(1)
-	assert_eq(first, 25, "M46 D1: 25 kills")
+	assert_eq(PathDB.get_def(&"arsenal").pack_every, 6, "a pack every 6 kills")
 	var said := "\n".join(CampaignDB.get_session(S8).cues)
-	assert_string_contains(said, "Twenty-five kills, a new card.")
+	assert_string_contains(said, "Six kills, one pack, take one card.")
+	assert_string_contains(said, "Two cards max.")
+
 
 
 ## G10: the 3.5 audit for S7-S8.

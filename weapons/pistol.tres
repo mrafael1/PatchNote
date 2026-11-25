@@ -14,3 +14,5 @@ icon = &"dot"
 ranks = Array[Dictionary]([{"traits": [&"heavy_round"]}, {"traits": [&"heavy_round", &"seeker"]}])
 pitch = "The gun you started with. It still works."
 card_text = PackedStringArray("Pistol: the gun you started with.", "Pistol II: every fifth shot is heavy.", "Pistol III: shots bend toward the nearest enemy.")
+mechanics = Array[StringName]([&"heavy_round", &"seeker", &"chain"])
+mechanic_values = Array[Dictionary]([{}, {}, {}])

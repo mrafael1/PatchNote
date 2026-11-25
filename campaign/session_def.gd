@@ -454,6 +454,12 @@ func problems() -> Array[String]:
 		elif c.when == &"hp" and not &"health" in basics and not cue_list().any(
 				func(x: Cue) -> bool: return x.action == &"add" and x.target == &"health"):
 			out.append("%s: cue '%s': hp needs the health basic" % [where, c.source])
+		elif c.when in [&"fused", &"fuse_ready"] and not _has_basic(&"fusion"):
+			out.append("%s: cue '%s': %s needs the fusion basic" % [where, c.source, c.when])
+		elif c.action == &"fuse" and not _has_basic(&"cards"):
+			out.append("%s: cue '%s': fuse needs the cards basic (a pack path)" % [where, c.source])
+		elif (c.action == &"fuse" or c.when in [&"fused", &"fuse_ready"]) and not _arsenal_only(c):
+			out.append("%s: cue '%s': a fusion cue needs answer:path_arsenal (it can run on another path)" % [where, c.source])
 	# M43.2: a quiet edit says nothing itself, so an earlier warned edit cue with the same
 	# time must announce it (PLAN v8 0.4: the AI says so before it edits).
 	var all_cues := cue_list()
@@ -473,6 +479,8 @@ func problems() -> Array[String]:
 			out.append("%s: an intro line cannot depend on the outcome" % where)
 		elif reads_event(l.when):
 			out.append("%s: an intro line cannot depend on an event" % where)
+		elif reads_fusion(l.when):
+			out.append("%s: an intro line cannot depend on a fusion (fused / misfused)" % where)
 	for l in intro_lines() + debrief_lines():
 		for w in Line.condition_parts(String(l.when)):
 			if w.begins_with("event:") and EventDB.get_event(StringName(w.trim_prefix("event:"))) == null:
@@ -581,6 +589,32 @@ func _skin_problems(where: String) -> Array[String]:
 static func reads_outcome(when: StringName) -> bool:
 	return Line.condition_parts(String(when)).any(func(p: String) -> bool:
 		return StringName(p) in Line.OUTCOMES or p == "ended")
+
+
+## M50.1b review: whether a line condition reads fused / misfused (this attempt's run log),
+## which an intro line has no record of yet.
+static func reads_fusion(when: StringName) -> bool:
+	return Line.condition_parts(String(when)).any(func(p: String) -> bool:
+		return p.trim_prefix("!") in ["fused", "misfused"])
+
+
+## M50.1b review: basic b is in basics or an `add b` cue brings it.
+func _has_basic(b: StringName) -> bool:
+	return b in basics or cue_list().any(func(x: Cue) -> bool:
+		return x.problem == "" and x.action == &"add" and x.target == b)
+
+
+## M50.1b review: a fusion cue runs on Arsenal only: the session's own path is Arsenal, or
+## (a fork path) the cue cannot run on any other path.
+func _arsenal_only(c: Cue) -> bool:
+	if path == &"":
+		return true   # the cards / fusion basic rules already tie it to Arsenal
+	if fork_of(path) == &"":
+		return path == &"arsenal"
+	for p in PATHS:
+		if p != &"arsenal" and _cue_can_run_on(c, p):
+			return false
+	return true
 
 
 ## Whether any part of a line condition reads an event (event:<id>), which an intro or

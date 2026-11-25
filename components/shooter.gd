@@ -57,13 +57,19 @@ func try_fire(dir: Vector2, auto := false) -> Node:
 ## weapon's cooldown: this never touches _ready_in, and try_fire above is unchanged.
 ## `damage_mult` (M46, Arsenal's quick-draw) goes into each pellet's params before the
 ## traits and projectile_fired see them; 1.0 (x * 1.0 is exact) is today's shot.
-func fire(weapon: Weapon, dir: Vector2, auto := false, damage_mult := 1.0) -> Array[Node]:
+## M50.1b (Arsenal's misfuse, an overlay): `aim_turn` turns the shot off the aim (radians; 0 is
+## today's shot, not even rotated) and `skin` names each pellet's sprite (&"": its weapon's).
+## The pellets keep the weapon's damage, traits, weapon_id and source_patch.
+func fire(weapon: Weapon, dir: Vector2, auto := false, damage_mult := 1.0, aim_turn := 0.0,
+		skin: StringName = &"") -> Array[Node]:
 	var out: Array[Node] = []
 	if dir == Vector2.ZERO or weapon == null:
 		return out
 	var shooter := get_parent() as Node2D
 	var from := shooter.global_position
 	var aim := dir.normalized()
+	if aim_turn != 0.0:
+		aim = aim.rotated(aim_turn)
 	var muzzle := from + aim * muzzle_offset
 	var query := PhysicsRayQueryParameters2D.create(from, muzzle, Tuning.LAYER_WORLD)
 	if not shooter.get_world_2d().direct_space_state.intersect_ray(query).is_empty():
@@ -96,6 +102,10 @@ func fire(weapon: Weapon, dir: Vector2, auto := false, damage_mult := 1.0) -> Ar
 			continue
 		for t in weapon.traits:
 			t.spawned(weapon, projectile)
+		if skin != &"":
+			var visual := projectile.get_node_or_null(^"Visual")
+			if visual != null:
+				visual.set(&"skin_id", skin)
 		out.append(projectile)
 		EventBus.projectile_fired.emit(projectile)
 	return out

@@ -18,3 +18,5 @@ icon = &"line"
 ranks = Array[Dictionary]([{"traits": [&"burn_line"]}, {"traits": [&"burn_line", &"ricochet"]}])
 pitch = "Fast, and it goes through things."
 card_text = PackedStringArray("Laser: goes through three enemies.", "Laser II: leaves a burning line.", "Laser III: bounces once off a wall, piercing again.")
+mechanics = Array[StringName]([&"burn_line", &"ricochet", &"overcharge"])
+mechanic_values = Array[Dictionary]([{}, {}, {}])

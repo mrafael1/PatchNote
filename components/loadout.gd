@@ -14,9 +14,11 @@ extends Component
 ## shot spends one ammo; at 0 the slot is the sidearm again in the same call. A passive's
 ## ammo is a battery in seconds (WeaponDef.ammo): at 0 its node goes until refilled.
 
-const MAX_RANK := 3          ## M50.1 raises it (rank-4 evolutions)
+const MAX_RANK := 3          ## the classic curve's top (Survival, Auto, no path)
 const PISTOL := &"pistol"
 const OrbitWeaponShards := preload("res://weapons/orbit_weapon_shards.gd")
+## M50.1b: the misfuse's wrong ways, one every other shot: left, right, back.
+const MISFUSE_TURNS: Array[float] = [-PI / 2.0, PI / 2.0, PI]
 
 var slots: Array[Weapon] = []      ## aimed
 var passives: Array[Weapon] = []
@@ -29,6 +31,16 @@ var max_slots := 3                          ## no path (D5); paths set their own
 var quick_draw_mult := 1.0
 var switches := 0                           ## real changes of the active card (fp, M46)
 var sidearm: Weapon                         ## M47: manual_ammo only (null otherwise)
+## M50.1a: the path's top rank (PathDef.rank_cap; 0 = none, Arsenal) and rank curve
+## (PathDef.rank_curve, handed to every Weapon). No path: MAX_RANK and the classic curve.
+var rank_cap := MAX_RANK
+var curve: StringName = &"classic"
+## M50.1b (Arsenal's misfuse, PathRunner): switching is locked while it lasts, and its shots
+## leave in a fixed wrong-way cycle (MISFUSE_TURNS by shot count, no RNG) drawn as
+## `misfuse_skin`. The slots never change: it is an overlay.
+var switch_locked := false
+var misfuse_skin: StringName = &""
+var misfuse_shots := 0
 var _battery := {}                          ## M47: passive id -> seconds left (manual_ammo)
 
 var _drawn := false
@@ -38,7 +50,7 @@ var _passive_nodes := {}   ## weapon id -> its node on the host
 
 func _ready() -> void:
 	if slots.is_empty():
-		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
+		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1, curve)]
 
 
 func _physics_process(delta: float) -> void:
@@ -72,8 +84,15 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 	if w == null or w.ready_in > 0.0 or dir == Vector2.ZERO:
 		return false
 	var m := QuickDraw.mult(self)
-	if s.fire(w, dir, auto, m).is_empty():
+	var shots: Array[Node]
+	if misfuse_skin != &"":
+		shots = s.fire(w, dir, auto, m, misfuse_turn(misfuse_shots), misfuse_skin)
+	else:
+		shots = s.fire(w, dir, auto, m)
+	if shots.is_empty():
 		return false   # refused at the cap: still armed, nothing logged
+	if misfuse_skin != &"":
+		misfuse_shots += 1
 	QuickDraw.spent(self, m)
 	_drawn = false
 	w.ready_in = float(w.value(&"cooldown"))
@@ -83,6 +102,13 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 		if w.ammo_left == 0:
 			to_sidearm()
 	return true
+
+
+## M50.1b: the misfuse's turn for its shot `n` (0 on even shots, then left, right, back).
+static func misfuse_turn(n: int) -> float:
+	if n % 2 == 0:
+		return 0.0
+	return MISFUSE_TURNS[floori(n / 2.0) % MISFUSE_TURNS.size()]
 
 
 ## M47: the held weapon ran dry (or is dropped): the sidearm again, at once.
@@ -141,13 +167,51 @@ func held(id: StringName) -> Weapon:
 	return null
 
 
+## M50.1b: the held card for weapon `id`: the weapon itself, else a held fusion with `id` as a
+## parent (a parent's card feeds it), else null.
+func holder(id: StringName) -> Weapon:
+	var w := held(id)
+	if w != null:
+		return w
+	for s in slots + passives:
+		if id in s.def.parents:
+			return s
+	return null
+
+
+## M50.1b: aimed slots holding `a` and `b` become one fused card `fused_id` at `rank`. It takes
+## the active parent's slot (else the first of the two), the other slot goes, and it is the
+## active card (not a switch: no quick-draw). Its shots are the parents' (most-fired stays
+## fair). False unless both are held aimed cards and `fused_id` is a fusion.
+func fuse(a: StringName, b: StringName, fused_id: StringName, rank: int) -> bool:
+	var def := WeaponDB.get_weapon(fused_id)
+	var ia := -1
+	var ib := -1
+	for i in slots.size():
+		if slots[i].def.id == a:
+			ia = i
+		elif slots[i].def.id == b:
+			ib = i
+	if def == null or not def.is_fusion() or ia < 0 or ib < 0:
+		return false
+	var at := ia if active == ia else (ib if active == ib else mini(ia, ib))
+	var gone := ib if at == ia else ia
+	var w := Weapon.new(def, cap(rank), curve)
+	w.shots = slots[ia].shots + slots[ib].shots
+	slots[at] = w
+	slots.remove_at(gone)
+	active = slots.find(w)
+	EventBus.weapon_changed.emit(def.id, w.rank)
+	return true
+
+
 func rank_of(id: StringName) -> int:
 	var w := held(id)
 	return w.rank if w != null else 0
 
 
 ## The session hands out a weapon (the `give` cue, F2). Held: one rank up, or to `rank`
-## if that is higher (capped at MAX_RANK; false at the cap). Not held: an aimed weapon
+## if that is higher (capped at rank_cap; false at the cap). Not held: an aimed weapon
 ## takes a free slot at `rank` (a full hand replaces the weakest slot that is not the
 ## active one: lowest rank, then oldest); a passive attaches. No auto-switch.
 func give(id: StringName, rank := 1) -> bool:
@@ -156,12 +220,12 @@ func give(id: StringName, rank := 1) -> bool:
 		return false
 	var have := held(id)
 	if have != null:
-		var to := clampi(maxi(have.rank + 1, rank), 1, MAX_RANK)
+		var to := cap(maxi(have.rank + 1, rank))
 		if to == have.rank:
 			return false
 		_rank_to(have, to)
 		return true
-	_add(def, clampi(rank, 1, MAX_RANK))
+	_add(def, cap(rank))
 	return true
 
 
@@ -170,7 +234,7 @@ func set_weapon(id: StringName, rank: int) -> bool:
 	var def := WeaponDB.get_weapon(id)
 	if def == null:
 		return false
-	rank = clampi(rank, 1, MAX_RANK)
+	rank = cap(rank)
 	var have := held(id)
 	if have != null:
 		_rank_to(have, rank)
@@ -179,18 +243,40 @@ func set_weapon(id: StringName, rank: int) -> bool:
 	return true
 
 
-## One rank up; false at MAX_RANK or when not held.
-func upgrade(id: StringName) -> bool:
+## `by` ranks up (M50.1a: a rare card is 2); false at rank_cap or when not held.
+func upgrade(id: StringName, by := 1) -> bool:
 	var have := held(id)
-	if have == null or have.rank >= MAX_RANK:
+	if have == null or (rank_cap > 0 and have.rank >= rank_cap):
 		return false
-	_rank_to(have, have.rank + 1)
+	_rank_to(have, cap(have.rank + maxi(1, by)))
 	return true
 
 
-## Cycles the aimed slots (a no-op with one).
+## M50.1a: `rank` within 1..rank_cap (no top when rank_cap is 0).
+func cap(rank: int) -> int:
+	return clampi(rank, 1, rank_cap) if rank_cap > 0 else maxi(1, rank)
+
+
+## M50.1a: every aimed slot is taken.
+func hand_full() -> bool:
+	return slots.size() >= max_slots
+
+
+## M50.1a (Arsenal's replace): aimed slot `i` becomes weapon `id` at `rank`; the old card and
+## its ranks go. The slot keeps its position, so an active slot stays active (no switch, no
+## quick-draw). False out of range or for an unknown or passive weapon.
+func replace_slot(i: int, id: StringName, rank: int) -> bool:
+	var def := WeaponDB.get_weapon(id)
+	if def == null or def.is_passive() or i < 0 or i >= slots.size():
+		return false
+	slots[i] = Weapon.new(def, cap(rank), curve)
+	EventBus.weapon_changed.emit(def.id, slots[i].rank)
+	return true
+
+
+## Cycles the aimed slots (a no-op with one, or while the misfuse locks switching).
 func switch(step: int) -> void:
-	if slots.size() <= 1 or step == 0:
+	if slots.size() <= 1 or step == 0 or switch_locked:
 		return
 	var was := active
 	active = posmod(active + step, slots.size())
@@ -202,7 +288,7 @@ func switch(step: int) -> void:
 ## Keys 1-3 (M46): makes aimed slot `i` (0-based) active. False (nothing happens) out of
 ## range or when it is already active, so Stage 1's one pistol never moves.
 func select_slot(i: int) -> bool:
-	if i < 0 or i >= slots.size() or i == active:
+	if i < 0 or i >= slots.size() or i == active or switch_locked:
 		return false
 	active = i
 	_switched()
@@ -234,7 +320,7 @@ func clear() -> void:
 	for id: StringName in _passive_nodes.keys():
 		_free_node(id)
 	passives.clear()
-	slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
+	slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1, curve)]
 	active = 0
 	_drawn = false
 	_battery.clear()
@@ -247,6 +333,8 @@ func clear() -> void:
 ## start weapons at exactly rank 1 (never give(), which ranks a held pistol up). null: the
 ## no-path state (manual_one, 3 slots, the pistol at rank 1).
 func apply_path(def: PathDef) -> void:
+	rank_cap = def.rank_cap if def != null else MAX_RANK
+	curve = def.rank_curve if def != null else &"classic"
 	clear()
 	quick_draw_mult = 1.0
 	sidearm = null
@@ -259,7 +347,7 @@ func apply_path(def: PathDef) -> void:
 	for id in def.start:
 		set_weapon(id, 1)
 	if slots.is_empty():
-		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1)]
+		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1, curve)]
 	active = 0
 	if fire_mode == &"manual_ammo":
 		sidearm = slots[0]
@@ -301,7 +389,7 @@ func passive_node(id: StringName) -> Node:
 
 
 func _add(def: WeaponDef, rank: int) -> void:
-	var w := Weapon.new(def, rank)
+	var w := Weapon.new(def, rank, curve)
 	if fire_mode == &"manual_ammo":
 		_add_survival(w)
 	elif def.is_passive():

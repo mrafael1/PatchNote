@@ -9,10 +9,14 @@ const TICK := 0.5
 const DAMAGE := 1.0
 const MARGIN := 4.0
 const COLOR := Palette.BURN
+## M50.1a: on the deep curve at most this many lines are alive (the oldest goes).
+const DEEP_CAP := 12
+const GROUP := &"burn_line_zone"
 
 var points := PackedVector2Array()
 var source: StringName = &""
 var hits := 0                      ## tests
+var life := LIFE                   ## M50.1a: per line (the trait's level)
 var _born := -1.0
 var _next := {}                    ## enemy -> game time it may burn again
 
@@ -29,11 +33,28 @@ func closest_point(pos: Vector2) -> Vector2:
 	return best
 
 
+func _enter_tree() -> void:
+	add_to_group(GROUP)
+
+
+## M50.1a: frees the oldest lines (tree order) until fewer than `cap` are alive.
+static func make_room(cap: int) -> void:
+	var alive: Array[Node] = []
+	for z in RunState.get_tree().get_nodes_in_group(GROUP):
+		if not z.is_queued_for_deletion():
+			alive.append(z)
+	var i := 0
+	while alive.size() - i >= cap and i < alive.size():
+		alive[i].remove_from_group(GROUP)
+		alive[i].queue_free()
+		i += 1
+
+
 func _physics_process(_delta: float) -> void:
 	if _born < 0.0:
 		_born = RunState.game_time
 	var age := RunState.game_time - _born
-	if age >= LIFE or points.size() < 2:
+	if age >= life or points.size() < 2:
 		queue_free()
 		return
 	for e in get_tree().get_nodes_in_group(&"enemy"):
@@ -57,5 +78,5 @@ func _draw() -> void:
 	if points.size() < 2:
 		return
 	var age := RunState.game_time - _born if _born >= 0.0 else 0.0
-	var a := clampf(1.0 - age / LIFE, 0.0, 1.0)
+	var a := clampf(1.0 - age / life, 0.0, 1.0)
 	draw_polyline(points, Color(Palette.color(&"burn"), 0.55 * a), 5.0)

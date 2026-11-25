@@ -20,21 +20,23 @@ extends RefCounted
 ## checked against a context dictionary (passes()); a key the context lacks fails the line.
 ## Any conditions join with "&" (all must hold): "dash:grapple&dash_aim:aim",
 ## "died&attempts:2". A leading "!" negates one condition ("!answer:path_auto"); it still
-## fails when the context lacks that condition's key. Cues and reactions share this
+## fails when the context lacks that condition's key. M50.1b: fused / misfused (a fusion /
+## the misfuse happened in this attempt, from the run log; Arsenal's S9). Cues and reactions share this
 ## (condition_problem(), condition_holds()).
 
 const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried", &"surprised",
 		&"guilty", &"thinking", &"panic"]
 const OUTCOMES: Array[StringName] = [&"won", &"died", &"stopped"]
 const PLAIN_CONDITIONS: Array[StringName] = [&"won", &"died", &"stopped", &"hit_none", &"hit_lots",
-		&"first_try", &"retry", &"ended"]
+		&"first_try", &"retry", &"ended", &"fused", &"misfused"]
 const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:", "dash:", "dash_aim:",
 		"attempts:", "died_in:"]
 ## The context key each condition reads (a "!" condition fails without it, too).
 const KEYS := {"won": "outcome", "died": "outcome", "stopped": "outcome", "ended": "outcome",
 		"hit_none": "hits", "hit_lots": "hits", "first_try": "attempt", "retry": "attempt",
 		"attempts:": "attempt", "answer:": "shipped", "mascot:": "mascot", "event:": "events",
-		"dash:": "dash", "dash_aim:": "dash_aim", "died_in:": "attempts_by_session"}
+		"dash:": "dash", "dash_aim:": "dash_aim", "died_in:": "attempts_by_session",
+		"fused": "fused", "misfused": "misfused"}
 ## Hits taken at or above this are "hit_lots".
 const HIT_LOTS := 3
 
@@ -210,6 +212,8 @@ static func _holds(cond: StringName, ctx: Dictionary) -> bool:
 		&"ended":
 			return ctx.has("outcome") and (StringName(ctx.outcome) in [&"won", &"stopped"]
 					or bool(ctx.get("moved_on", false)))
+		&"fused", &"misfused":   # M50.1b: a fusion / the misfuse happened this attempt
+			return bool(ctx.get(String(cond), false))
 	if w.begins_with("mascot:"):
 		return ctx.has("mascot") and String(ctx.mascot) == w.trim_prefix("mascot:")
 	if w.begins_with("answer:"):

@@ -51,6 +51,9 @@ var reveal_said := 0            ## reveal_lines said so far (tests)
 const FIRST_MORPH := 3.0
 const LATER_MORPH := 1.0
 const ARENA_MORPH := 3.0
+## M50.1b: a `fused` / `fuse_ready` cue fires at least this long after the previous say cue.
+const SAY_GAP := 4.0
+var _last_say := -1.0
 
 
 func _ready() -> void:
@@ -131,12 +134,17 @@ func _physics_process(_delta: float) -> void:
 			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched,
 			"hp": _player_hp(),
 			"level": path_runner.level() if path_runner != null else -1,
-			"picks": path_runner.picks_on_path if path_runner != null else 0}
+			"picks": path_runner.picks_on_path if path_runner != null else 0,
+			"fused": path_runner.fusions.size() if path_runner != null else 0,
+			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
 		if _cues[i].when == &"picked" and not _bound.has(i):
 			continue   # M47: not bound to a path yet
+		if _cues[i].when == &"fuse_ready" and _cues[i].expired(ctx):
+			_fired[i] = true   # M50.1b review: fused already; "the link's glowing" is stale
+			continue
 		if _cues[i].due(ctx) and not _waits(_cues[i]):
 			_fired[i] = true
 			_fire(_cues[i], i)
@@ -164,6 +172,10 @@ func on_path_started(_path_id: StringName) -> void:
 ## both priority 3, so the second would queue on the mascot and its edit land before
 ## its line is read.
 func _waits(cue: Cue) -> bool:
+	# M50.1b: a fusion cue's line waits SAY_GAP after the previous say cue.
+	if cue.when in [&"fused", &"fuse_ready"] and genre != null and _last_say >= 0.0 \
+			and genre.session_clock() < _last_say + SAY_GAP:
+		return true
 	if rule_book == null:
 		return false
 	if cue.when == &"hp":
@@ -197,6 +209,8 @@ func _fire(cue: Cue, index: int) -> void:
 	RunState.log_event(&"cue", {"index": index, "action": String(cue.action)})
 	match cue.action:
 		&"say":
+			if genre != null:
+				_last_say = genre.session_clock()
 			if cue.tag != &"" and path_runner != null:
 				path_runner.announce(cue.tag)   # M45a, the pool rule: said, so it may be offered
 			if cue.line.passes(CampaignDB.line_context(session)):
@@ -221,6 +235,10 @@ func _fire(cue: Cue, index: int) -> void:
 		&"release":
 			if genre.has_method(&"release_specimens"):
 				genre.call(&"release_specimens")
+		&"fuse":
+			# M50.1b: the misfuse; skipped (logged by the runner) with fewer than 2 cards.
+			if path_runner != null:
+				path_runner.fuse_fail()
 		&"skin":
 			_fire_skin(cue)
 		&"add":
@@ -236,7 +254,7 @@ func _fire(cue: Cue, index: int) -> void:
 		&"give":
 			# M44: with no path, a free slot (or a rank up). M45a: the weapon joins the live
 			# pool, and under Auto the next level-up offers it first instead (no slot filled).
-			if path_runner != null and path_runner.give(cue.target):
+			if path_runner != null and path_runner.give(cue.target, cue.rank):
 				return
 			var loadout: Loadout = null
 			if genre != null and is_instance_valid(genre.player):

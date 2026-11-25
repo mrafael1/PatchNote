@@ -5,9 +5,19 @@ extends RefCounted
 ## AiDirector, the save, build_number or the patch notes (0.4). Drawn from pick_rng out of
 ## the live pool (the pool rule, 1.2), leaning on the session's taste.
 
-## Each card: {id, rank, kind: new | upgrade | hp, text}.
+## Each card: {id, rank, kind: new | upgrade | hp, text}. M50.1a: a pack's cards add rarity
+## (common | rare), from, title and gain (BoosterPack).
 var cards: Array[Dictionary] = []
 var line := ""
+## M50.1a: a booster pack (BoosterPack.draw; Arsenal). Its cards also carry rarity, from, title
+## and gain; `hand` is the hand when it was drawn ([{id, title, rank}], slot order) and
+## max_slots its size, for the panel's hand preview and the replace step.
+var pack := false
+var hand: Array[Dictionary] = []
+var max_slots := 0
+## M50.1b: the pack's FUSE choice (BoosterPack.fuse_option; {} none). It is the choice after
+## the cards (key choose_4 on a 3-card pack) and never replaces one.
+var fuse := {}
 
 const HP := &"hp"
 ## Auto leans to the weapons it holds (D7): an upgrade card weighs this much more.

@@ -415,8 +415,11 @@ func _play_session_frames(game: Node, run_state: Node) -> Array[String]:
 		if path_session:
 			var panel: Node = game.get(&"pick_panel")
 			if panel != null and panel.call(&"can_choose"):
-				var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
-				panel.call(&"choose", bot.call(&"pick_card", run_state.get(&"pick_rng"), n, ""))
+				if bool(panel.get(&"offer").get(&"pack")):
+					bot.call(&"choose_pack", panel, game, "")   # M50.1a: the bot's own pack rule
+				else:
+					var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
+					panel.call(&"choose", bot.call(&"pick_card", run_state.get(&"pick_rng"), n, ""))
 		await physics_frame
 		frames += 1
 		if paused:

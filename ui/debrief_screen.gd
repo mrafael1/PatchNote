@@ -539,18 +539,26 @@ static func speaker_name(body_id: StringName) -> String:
 
 ## The patch notes as a changelog: a note starting "Added " / "Changed " / "Fixed " goes
 ## to that section (the verb dropped, the next letter capitalised); any other note and every
-## fork pick go to Added.
+## fork pick go to Added. Merge (M47.5b + M50.1b): the run's own patch-note lines (Arsenal's
+## misfuse fix, a new recipe) follow the session's notes, as in notes_text(), so the terminal
+## beat prints them too; "Fixed: ..." counts as "Fixed ...".
 static func changelog(s: SessionDef, pick: Change = null, more: Array[Change] = []) -> Dictionary:
 	var out := {}
 	for k in SECTIONS:
 		out[k] = [] as Array[String]
+	var notes: Array[String] = []
 	for n in s.notes:
+		notes.append(n)
+	for e: Dictionary in RunState.run_log:
+		if e.get("event") == &"patch_note":
+			notes.append(String(e.get("text", "")))
+	for n in notes:
 		var section := "Added"
 		var text := n
 		for k in SECTIONS:
-			if n.begins_with(k + " "):
+			if n.begins_with(k + " ") or n.begins_with(k + ": "):
 				section = k
-				text = n.substr(k.length() + 1)
+				text = n.substr(k.length() + (2 if n.begins_with(k + ": ") else 1))
 				break
 		if text != "":
 			text = text.left(1).to_upper() + text.substr(1)
@@ -1021,6 +1029,10 @@ static func notes_text(s: SessionDef, pick: Change = null, more: Array[Change] =
 	var text := "%s · what changed" % CampaignDB.version_after(s).label()
 	for n in s.notes:
 		text += "\n  • " + n
+	# M50.1b: the run's own patch-note lines (Arsenal's misfuse fix, a new recipe), in order.
+	for e: Dictionary in RunState.run_log:
+		if e.get("event") == &"patch_note":
+			text += "\n  • " + String(e.get("text", ""))
 	if pick != null:
 		text += "\n  • " + pick.title
 	for c in more:

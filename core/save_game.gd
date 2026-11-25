@@ -307,6 +307,28 @@ static func set_campaign_position(index: int, next: StringName) -> void:
 	campaign()["next"] = String(next)
 
 
+## M50.1b (Arsenal depth design 7, Q9): the fusion recipes the player has made, in the order
+## learned: knowledge, not power (0.4). A sparse campaign key (a save without it knows none;
+## new_campaign() leaves it out, so an older file and a new one read the same).
+static func recipes() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for id: Variant in campaign().get("recipes", []):
+		out.append(StringName(id))
+	return out
+
+
+## M50.1b: learns recipe `id` (a fused weapon id); true when it is new. Written only when the
+## save persists (never inert: GUT, check, the bot's snapshots).
+static func learn_recipe(id: StringName) -> bool:
+	if id in recipes():
+		return false
+	if not campaign().has("recipes"):
+		campaign()["recipes"] = []
+	(campaign().recipes as Array).append(String(id))
+	write()
+	return true
+
+
 static func set_mascot(id: StringName) -> void:
 	campaign().mascot = String(id)
 
@@ -538,6 +560,17 @@ static func _parse_campaign(src: Dictionary) -> Variant:
 		if not src.mascot is String:
 			return null
 		out.mascot = src.mascot
+	# M50.1b: the recipes learned (sparse; fusion ids only, once each).
+	if src.has("recipes"):
+		if not src.recipes is Array:
+			return null
+		var known: Array = []
+		for x: Variant in src.recipes:
+			if not x is String:
+				return null
+			if WeaponDB.get_weapon(StringName(x)) != null and WeaponDB.get_weapon(StringName(x)).is_fusion() and not x in known:
+				known.append(x)
+		out["recipes"] = known
 	return out
 
 

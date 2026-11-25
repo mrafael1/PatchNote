@@ -6,7 +6,8 @@ extends RefCounted
 ## M48a: with a look on, the picture is the look's player shot sprite for that key
 ## (`shot_<key>_player`), so the card, the pickup and the shot itself show one picture.
 
-const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole"]
+const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole",
+		&"prism", &"misfuse"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too)
 
 static var skin_draws := 0   ## pictures drawn from a look's sprite (tests)
 
@@ -42,6 +43,19 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 			for i in 8:
 				var d := Vector2.RIGHT.rotated(TAU * i / 8.0)
 				ci.draw_line(centre + d * r * 0.2, centre + d * r * (0.95 if i % 2 == 0 else 0.6), color, w, true)
+		&"prism":   # M50.1b: a fan of three thin beams out of one point
+			for i in 3:
+				var d := Vector2.RIGHT.rotated(deg_to_rad(-18.0 + 18.0 * i))
+				ci.draw_line(centre + Vector2(-r * 0.8, 0), centre + Vector2(-r * 0.8, 0) + d * r * 1.7,
+						Color(color, 0.5 + 0.25 * i), w, true)
+		&"misfuse":   # M50.1b: a pistol, a second one crossed over it
+			for k in 2:
+				var c2 := centre + Vector2(-r * 0.15 + r * 0.3 * k, -r * 0.1 + r * 0.2 * k)
+				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 1.2, r * 0.3)), Color(color, 0.6 + 0.4 * k))
+				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 0.3, r * 0.7)), Color(color, 0.6 + 0.4 * k))
+		&"link":   # M50.1b: two rings chained
+			ci.draw_arc(centre - Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
+			ci.draw_arc(centre + Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
 		&"hole":   # concentric arcs
 			for i in 3:
 				ci.draw_arc(centre, r * (0.3 + 0.3 * i), 0.4 * i, 0.4 * i + TAU * 0.75, 18, color, w, true)

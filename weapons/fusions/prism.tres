@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"prism"
+title = "Prism"
+mode = &"aimed"
+cooldown = 0.6
+damage = 1.2
+pellets = 5
+spread_deg = 18.0
+pierce = 2
+speed = 1600.0
+lifetime = 0.45
+size = 1.0
+blast_radius = 0.0
+icon = &"prism"
+pitch = "A fan of five thin beams. The middle one burns."
+card_text = PackedStringArray("Prism: five beams that go through things.")
+mechanics = Array[StringName]([&"knockback_cone", &"burn_line_prism", &"point_blank", &"ricochet"])
+mechanic_values = Array[Dictionary]([])
+parents = Array[StringName]([&"shotgun", &"laser"])
+inherits = Array[StringName]([&"knockback_cone", &"point_blank", &"burn_line", &"ricochet"])
+built_in = ""

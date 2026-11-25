@@ -57,6 +57,19 @@ func _ready() -> void:
 	clear_button.text = "clear (pistol only)"
 	clear_button.pressed.connect(clear_weapons)
 	box.add_child(clear_button)
+	# M50.1b: the fusions, a row of their own (an unbuilt one shows where it lands, disabled).
+	var fusion_row := HBoxContainer.new()
+	box.add_child(fusion_row)
+	var fusion_label := Label.new()
+	fusion_label.text = "FUSIONS:"
+	fusion_row.add_child(fusion_label)
+	for f in WeaponDB.fusions():
+		var fb := Button.new()
+		fb.focus_mode = Control.FOCUS_NONE
+		fb.text = f.title if f.built_in == "" else "%s (%s)" % [f.title, f.built_in]
+		fb.disabled = f.built_in != ""
+		fb.pressed.connect(give_weapon.bind(f.id))
+		fusion_row.add_child(fb)
 	# PATH (M45a): switch the live path now, no warning (debug only; the v6 loop too).
 	var path_heading := Label.new()
 	path_heading.text = "PATH (switch live, debug only)"

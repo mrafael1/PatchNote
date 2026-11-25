@@ -182,12 +182,14 @@ func test_the_arsenal_data_is_valid() -> void:
 	assert_eq(a.widget, &"hand")
 	assert_eq(a.bot_policy, &"arsenal")
 	assert_eq(a.start, [&"pistol"] as Array[StringName])
-	assert_eq(a.max_slots, 3)
+	assert_eq(a.max_slots, 2, "M50.1a: a hand of 2")
 	assert_eq(a.max_passives, 1)
 	assert_eq(a.max_picks, 6)
-	assert_eq(a.basics, [&"cards", &"quick_draw"] as Array[StringName])
+	assert_eq(a.basics, [&"cards", &"quick_draw", &"fusion"] as Array[StringName], "M50.1b: + fusion")
 	assert_eq(a.quick_draw_mult, 2.0)
-	assert_eq(a.pick_line, "New card. Pick one.")
+	assert_eq(a.pick_line, "Pack. Pick one.")
+	assert_eq([a.pack_every, a.pack_taste, a.rank_cap, a.rank_curve], [6, 2, 0, &"deep"], "M50.1a: packs, deep ranks")
+	assert_almost_eq(a.rare_chance, 0.2, 0.0001)
 	assert_eq(a.taste_thresholds, PackedInt32Array([10]))
 	assert_eq(a.level_thresholds.size(), a.max_picks, "one cumulative threshold per pick")
 	for i in range(1, a.level_thresholds.size()):
@@ -203,7 +205,18 @@ func test_the_arsenal_data_is_valid() -> void:
 func test_path_def_problems_bite_on_a_cards_path() -> void:
 	var a := _arsenal().duplicate() as PathDef
 	a.level_thresholds = PackedInt32Array([15, 36])
+	assert_eq(a.problems(), [] as Array[String], "M50.1a: a pack path needs no thresholds")
+	a.pack_every = 0
 	assert_string_contains("\n".join(a.problems()), "a threshold for each of its 6 picks")
+	a = _arsenal().duplicate() as PathDef
+	a.rare_chance = 1.0
+	assert_string_contains("\n".join(a.problems()), "rare_chance")
+	a = _arsenal().duplicate() as PathDef
+	a.pack_taste = -1
+	assert_string_contains("\n".join(a.problems()), "pack_taste")
+	a = _arsenal().duplicate() as PathDef
+	a.rank_curve = &"classic"
+	assert_string_contains("\n".join(a.problems()), "the classic curve stops at rank 3")
 	a = _arsenal().duplicate() as PathDef
 	a.quick_draw_mult = 0.5
 	assert_string_contains("\n".join(a.problems()), "quick_draw_mult")
@@ -507,27 +520,27 @@ func test_a_tryout_card_meter_stops_quietly_after_ten_kills() -> void:
 func test_player_kills_fill_the_meter_in_a_game() -> void:
 	var r := await _arsenal_arena()
 	assert_not_null(r.meter())
+	assert_true(r.pack_path(), "M50.1a: Arsenal deals packs")
 	_kill(r, 3)
 	_kill(r, 5, &"enemy")
 	assert_eq(int(r.meter().get(&"kills")), 3, "a bomber's own fuse kill does not count")
 	assert_eq(r.level(), 1, "no level on Arsenal")
 	assert_eq(r.gems(), 0)
 	assert_eq(r.cards(), 0)
-	assert_eq(r.kills_to_next(), _arsenal().threshold(1) - 3)
+	assert_eq(r.kills_to_next(), 3, "6 kills a pack")
 	r.force_level()
-	assert_eq(r.cards(), 1, "F2's +1 deals one card")
+	assert_eq(r.cards(), 1, "F2's +1 deals one pack")
 	assert_eq(r.pending_picks(), 1)
-	assert_string_contains(r.state_text(), "path=arsenal cards=1 kills=%d/%d" % [_arsenal().threshold(1), _arsenal().threshold(2)])
+	assert_string_contains(r.state_text(), "path=arsenal packs=1 kills=0/6 hand=pistol:1")
 	var meter := r.meter()
 	EventBus.basic_added.emit(&"cards")
 	EventBus.basic_added.emit(&"quick_draw")
 	assert_true(r.meter() == meter, "a second basic_added builds no second meter")
 	assert_eq(_runner_kill_links(), 1, "one kill feed")
-	for i in 6:
+	for i in 9:
 		r.force_level()
-	assert_eq(r.cards(), 6)
-	assert_true(Line.parse(_arsenal().full_line).text in r.said, "the full line")
-	assert_eq(r.said.count(Line.parse(_arsenal().full_line).text), 1)
+	assert_eq(r.cards(), 10, "no session cap on a pack path")
+	assert_false(Line.parse(_arsenal().full_line).text in r.said, "no full line")
 
 
 func test_a_real_kill_reaches_the_meter_and_swaps_leave_no_feed() -> void:
@@ -580,28 +593,21 @@ func test_offers_lead_with_the_most_fired_card_and_respect_the_hand() -> void:
 	r.want_pick()
 	r._open_offer()
 	var offer := game.pick_panel.offer
-	assert_eq(offer.line, "New card. Pick one.")
-	assert_eq(offer.ids()[0], &"shotgun", "the most-fired card's upgrade first")
+	assert_true(offer.pack)
+	assert_eq(offer.line, "Pack. Pick one.")
+	assert_eq(offer.ids()[0], &"shotgun", "the most-fired card's upgrade first (G1)")
 	assert_eq(offer.cards[0].kind, &"upgrade", "a held card is an upgrade")
 	assert_eq(PathRunner.most_fired(lo), &"shotgun")
+	var by := 2 if offer.cards[0].rarity == &"rare" else 1
 	game.pick_panel.choose(0)
-	assert_eq(lo.rank_of(&"shotgun"), 2)
-	# A full hand: only upgrades.
-	lo.set_weapon(&"laser", 1)
-	r.announce(&"launcher")
-	for i in 4:
-		var o := _pick(r, 0)
-		for c: Dictionary in o.cards:
-			assert_ne(c.kind, &"new", "a full hand takes no new card")
-	# Ranks stop at 3, then the filler.
-	for id: StringName in [&"pistol", &"shotgun", &"laser"]:
-		lo.set_weapon(id, 3)
-	assert_eq(PathRunner.most_fired(lo), &"", "nothing left to rank up")
-	var h := Component.find(player, Health) as Health
-	var top := h.max_hp()
+	assert_eq(lo.rank_of(&"shotgun"), 1 + by, "a common card +1, a rare +2")
+	# M50.1a: no top rank on the deep curve, so no filler card.
+	for id: StringName in [&"pistol", &"shotgun"]:
+		lo.set_weapon(id, 30)
+	assert_eq(lo.rank_of(&"pistol"), 30)
+	assert_ne(PathRunner.most_fired(lo), &"", "always something to rank up")
 	var o := _pick(r, 0)
-	assert_eq(o.ids(), [PickOffer.HP] as Array[StringName])
-	assert_almost_eq(h.max_hp(), top + 1.0, 0.0001)
+	assert_false(PickOffer.HP in o.ids(), "no +1 HP filler on a pack path")
 
 
 # --- 9. give ---------------------------------------------------------------------------------
@@ -613,16 +619,22 @@ func test_give_under_arsenal_is_a_free_card() -> void:
 	assert_eq(_loadout().summary(), "pistol:1,shotgun:1", "a free card")
 	assert_eq(r.pending_picks(), 0, "no pick owed")
 	assert_true(&"shotgun" in r.live_pool)
-	# A full hand: the weakest card that is not the active one goes.
+	# A full hand before the `cards` basic: the weakest card that is not the active one goes,
+	# logged give_replaced (M50.1a).
 	var lo := _loadout()
 	lo.apply_path(_arsenal())
 	lo.set_weapon(&"pistol", 2)
 	lo.set_weapon(&"laser", 1)
-	lo.set_weapon(&"launcher", 3)
 	lo.active = 0
 	assert_false(r.give(&"shotgun"))
+	assert_true(RunState.run_log.any(func(e: Dictionary) -> bool: return e.event == &"give_replaced"))
 	assert_true(lo.give(&"shotgun"))
-	assert_eq(lo.summary(), "pistol:2,shotgun:1,launcher:3")
+	assert_eq(lo.summary(), "pistol:2,shotgun:1")
+	# Once the packs are live a full hand never loses a card silently: G4.
+	RunState.add_basic(&"cards")
+	assert_true(r.give(&"laser", 3))
+	assert_eq(lo.summary(), "pistol:2,shotgun:1", "nothing replaced")
+	assert_eq(r.give_waiting(), &"laser")
 
 
 # --- 10. HandWidget --------------------------------------------------------------------------
@@ -633,14 +645,16 @@ func test_the_hand_widget_rows_pips_keys_and_bar() -> void:
 	assert_not_null(w)
 	assert_true(game.hud.path_widget == w, "set through hud.set_path_widget")
 	await wait_physics_frames(1)
-	assert_string_contains(w.text(), "[1] Pistol ●○○")
-	assert_string_contains(w.text(), "cards 0/6")
+	assert_string_contains(w.text(), "[1] Pistol 1 ○○○", "M50.1a: the rank digit and 3 mechanic dots")
+	assert_string_contains(w.text(), "pack in 6")
 	assert_eq(w.active_row(), 0)
 	var lo := _loadout()
 	lo.give(&"shotgun")
 	lo.upgrade(&"shotgun")
 	assert_true(lo.select_slot(1))
-	assert_string_contains(w.text(), "[2] Shotgun ●●○")
+	assert_string_contains(w.text(), "[2] Shotgun 2 ●○○")
+	lo.set_weapon(&"shotgun", 9)
+	assert_string_contains(w.text(), "[2] Shotgun 9 ●'●●", "rank 6 unlocks C, rank 8 strengthens A")
 	assert_eq(w.active_row(), 1, "the active card is raised")
 	_kill(r, 5)
 	w.step(0.0)
@@ -661,15 +675,13 @@ func test_the_hand_shows_one_card_per_weapon_with_its_key_and_pips() -> void:
 	var lo := _loadout()
 	lo.give(&"shotgun")
 	lo.upgrade(&"shotgun")
-	lo.give(&"laser")
 	w.step(0.0)
-	assert_eq(w.card_count(), 3)
+	assert_eq(w.card_count(), 2, "M50.1a: a hand of 2")
 	assert_eq([w.card_title(1), w.card_rank(1)], ["Shotgun", 2])
-	assert_eq([w.card_title(2), w.card_rank(2)], ["Laser", 1])
-	for i in 3:
+	for i in 2:
 		assert_eq(w.key_label(i), InputSetup.expand_keys("{key:weapon_%d}" % (i + 1)))
 		assert_eq(w.key_label(i, _azerty), InputSetup.expand_keys("{key:weapon_%d}" % (i + 1), _azerty))
-	assert_eq([w.key_label(0, _azerty), w.key_label(2, _azerty)], ["1", "3"], "AZERTY prints the digit (M46)")
+	assert_eq([w.key_label(0, _azerty), w.key_label(1, _azerty)], ["1", "2"], "AZERTY prints the digit (M46)")
 	assert_eq(w.key_label(1, func(k: int) -> int: return k), "2", "QWERTY")
 
 
@@ -732,9 +744,9 @@ func test_reduce_flashing_never_pulses_the_hand() -> void:
 		assert_gte(1.0 - w.joining(1), last, "the join's alpha only rises")
 		last = 1.0 - w.joining(1)
 	SaveGame.state().settings["reduce_flashing"] = false
-	_loadout().give(&"shotgun")
+	_loadout().replace_slot(1, &"shotgun", 1)
 	w.step(0.0)
-	assert_gt(w.join_flash(2), 0.0, "the flash is there without it")
+	assert_gt(w.join_flash(1), 0.0, "the flash is there without it")
 
 
 # --- 11. G6 for Arsenal ----------------------------------------------------------------------
@@ -809,6 +821,7 @@ func _tick(bot: BotInput) -> void:
 func test_the_arsenal_bot_picks_the_card_for_the_moment() -> void:
 	await _arsenal_arena()
 	var lo := _loadout()
+	lo.max_slots = 3   # M50.1a: the hand is 2; the fight rule still knows 3 kinds
 	lo.set_weapon(&"pistol", 3)
 	lo.set_weapon(&"shotgun", 1)
 	lo.set_weapon(&"laser", 1)
@@ -845,7 +858,9 @@ func test_the_arsenal_bot_picks_the_card_for_the_moment() -> void:
 func test_the_arsenal_bot_launches_into_groups_of_three_only() -> void:
 	await _arsenal_arena()
 	var lo := _loadout()
+	lo.max_slots = 3   # M50.1a: the hand is 2; the fight rule still knows 3 kinds
 	lo.set_weapon(&"pistol", 3)
+
 	lo.set_weapon(&"shotgun", 1)
 	lo.set_weapon(&"launcher", 1)
 	lo.active = 0

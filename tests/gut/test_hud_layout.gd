@@ -206,9 +206,9 @@ func test_the_hand_sits_bottom_left_with_its_meter() -> void:
 	await _fill(&"arsenal")
 	var w := game.hud.path_widget
 	assert_true(w.has_method(&"hand_rect"))
-	assert_eq(w.card_count(), 3)
+	assert_eq(w.card_count(), 2, "M50.1a: a hand of 2 (HandWidget.ROWS)")
 	for view in VIEWS:   # a joining card slides up from below: its title and pips still show
-		for i in 3:
+		for i in 2:
 			for r: Rect2 in [w.title_rect(i, view), w.pips_rect(i, view)]:
 				assert_true(Rect2(Vector2.ZERO, view).encloses(r), "card %d's title and pips while it joins" % i)
 	w.step(1.0)
@@ -217,8 +217,8 @@ func test_the_hand_sits_bottom_left_with_its_meter() -> void:
 		assert_true(Rect2(0, view.y * 0.8, view.x * 0.3, view.y * 0.2).encloses(hand), "%s: %s" % [view, hand])
 		assert_true(hand.encloses(w.meter_rect(view)), "the meter sits with the hand")
 		assert_false(hand.intersects(Rect2(view * 0.15, view * 0.7)), "out of the centre 70%")
-		for i in 3:
-			for r: Rect2 in [w.title_rect(i, view), w.pips_rect(i, view), w.card_rect(i, view)]:
+		for i in 2:
+			for r: Rect2 in [w.title_rect(i, view), w.pips_rect(i, view), w.card_rect(i, view), w.rank_badge_rect(i, view)]:
 				assert_true(Rect2(Vector2.ZERO, view).encloses(r), "card %d on screen at %s" % [i, view])
 	var live := game.get_viewport().get_visible_rect().size
 	assert_eq(w.position, w.hand_rect(live).position, "Hud places it where hand_rect says")
