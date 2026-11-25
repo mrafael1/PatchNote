@@ -8,6 +8,9 @@ const BurnLineZone := preload("res://weapons/traits/burn_line_zone.gd")
 const STRAIGHT := 0.005
 
 var points := PackedVector2Array()   ## the path so far (tests)
+## M50.1a: the line's life (the trait's level) and the alive cap (0 = none: the classic curve).
+var life := BurnLineZone.LIFE
+var cap := 0
 
 
 ## Each tick: where the shot is now (a straight flight keeps one segment).
@@ -28,6 +31,9 @@ func despawned(p: Node2D) -> void:
 	var zone := BurnLineZone.new()
 	zone.points = points.duplicate()
 	zone.source = p.source_patch
+	zone.life = life
+	if cap > 0:
+		BurnLineZone.make_room(cap)
 	RunState.world.add_child.call_deferred(zone)
 
 

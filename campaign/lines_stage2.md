@@ -22,8 +22,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - (worried) Can't lose today. It's a tryout.
 ### Cues
 - at 13: path arsenal warning: (happy) Version one. Your guns are cards.
-- at 17: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Kill some, I'll deal you a new one.
-- picked 1: (proud) See? Better gun, same card.
+- at 17: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack.
+- picked 1: (proud) See? Same card, stronger gun.
 - at 52: (proud) Okay. Saving that one.
 - at 56: path survival warning: (happy) Version two. No cards. Guns are lying around.
 - at 61: (happy) Walk over a gun to take it. Ammo runs out, so keep looking.
@@ -51,7 +51,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - !answer:path_survival (thinking) Two minutes. I'll build it properly this time.
 - answer:path_survival (thinking) Ninety seconds. I'll build it properly this time.
 ### Cues
-- answer:path_arsenal at 10: (happy) Remember the cards? Now they're real. Rank pips, a meter. Twenty-five kills, a new card.
+- answer:path_arsenal at 10: (happy) Remember the cards? Now they come in packs. Six kills, one pack, take one card.
 - answer:path_arsenal at 20: (thinking) Secret: the first shot after a switch hits twice as hard. Switch a lot.
 - answer:path_auto at 10: (happy) Remember the gems? Now they count. Real levels, a real bar.
 - answer:path_auto at 14: (worried) And I made the crowd bigger again. Sorry. You need it.
@@ -65,6 +65,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - !answer:path_survival at 86: (happy) I'm going to learn to draw. Give me a session.
 - answer:path_survival at 74: (thinking) You know what? It still looks like a prototype.
 - answer:path_survival at 80: (happy) I'm going to learn to draw. Give me a session.
+- answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. Gold ones count twice. No top rank.
+- answer:path_arsenal at 34: (worried) Two cards max. Anything new means letting one go.
 ### Debrief
 - won (happy) Day one. It works!
 - died (guilty) Day one bugs. Want another go, or should I just patch it?
@@ -91,6 +93,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - at 74: (proud) There. That's us now.
 - at 80: (happy) New gun: the laser. It goes through things.
 - answer:path_auto at 90: (happy) And a nova for you. It pops around you.
+- answer:path_arsenal at 11: (happy) Your shotgun's back. I drew it a card.
 ### Reveal lines (one per new enemy drawn in, in order)
 - (happy) Another one!
 - (proud) Drew that one too.
@@ -115,7 +118,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - The unveil: guilty: You missed it. I made this while you were away.
 
 ## The paths
-- arsenal: warn "happy: New version. Your guns are cards." · full "thinking: That's enough cards for one test." · pick "New card. Pick one."
+- arsenal: warn "happy: New version. Your guns are cards." · full "thinking: That's enough cards for one test." · pick "Pack. Pick one."
 - auto: warn "worried: New version. Hands off the trigger." · full "thinking: That's enough levels for one test." · pick "Level up. Pick one."
 - survival: warn "happy: New version. Guns are lying around." · full "" · pick "Level up. Pick one."
 - Pick lines: happy: Ooh, that one. · proud: Good pick.

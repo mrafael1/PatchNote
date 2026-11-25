@@ -86,6 +86,15 @@ extends SceneTree
 ##                                no dash, no jump, no fire (Auto still fires by itself). The
 ##                                line gets probe=afk at its end
 ##   --probe=no_switch            (M46) the arsenal policy never switches cards
+##   --probe=no_fuse              (M50.1a) a pack's FUSE is never taken (M50.1b's; a no-op now)
+##   --probe=skip_new             (M50.1a) a pack's NEW card is never taken (no join, no replace)
+##   --probe=human_pace           (M50.1a) Arsenal deals a pack every 9 kills instead of 6 (the
+##                                bot's ~0.9 kills/s then gives a human's pack cadence)
+##   (M50.1a) A booster pack (Arsenal) is chosen by BotRuns.pack_choice, one static rule with no
+##   RNG shared with tools/run_hash.gd; the --only line ends with packs=n pack_gap_median=
+##   rares= replaces= backs= max_rank= hand= cards_fired= shots=, and the "arsenal:" summary
+##   reads packs per seed, the median pack gap, max ranks and in_band (median gap 4-12 s and
+##   cards_fired >= 2; the packs target of the session, S8 12-25, S9 15-28, invincible only).
 ##   --probe=no_pickup            (M47) the survival policy never walks to a pickup (it still
 ##                                takes what it walks over)
 ##   (M47) On Survival a "survival:" summary follows the paths: line (pickups per min, heals,
@@ -185,7 +194,10 @@ var draft_arg := ""                          ## --draft (M45a)
 var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 no_switch, first_pick
 var fp_arg := false                          ## --fp (M46)
 var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
-const PROBES := ["afk", "no_switch", "first_pick", "no_pickup"]
+const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace"]
+## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
+const PACK_TARGETS := {"s2_02_day_one": [12, 25], "s2_03_paint": [15, 28]}
+const HUMAN_PACE_EVERY := 9
 
 
 func _initialize() -> void:
@@ -268,8 +280,8 @@ func _run() -> void:
 			for pair in arg.trim_prefix("--loadout=").split(",", false):
 				var wid := StringName(pair.get_slice(":", 0))
 				var wrank := int(pair.get_slice(":", 1)) if ":" in pair else 1
-				if not db_script.call(&"has", wid) or wrank < 1 or wrank > 3:
-					print("[botrun] FAILED: bad --loadout entry %s (<weapon>:<rank 1-3>)" % pair)
+				if not db_script.call(&"has", wid) or wrank < 1 or wrank > 99:
+					print("[botrun] FAILED: bad --loadout entry %s (<weapon>:<rank 1-99>; classic paths stop at 3)" % pair)
 					quit(1)
 					return
 				loadout_arg.append([wid, wrank])
@@ -285,6 +297,9 @@ func _run() -> void:
 				print("[botrun] FAILED: bad %s (--probe=%s)" % [arg, "|".join(PROBES)])
 				quit(1)
 				return
+			if probe_arg == "human_pace":
+				var arsenal_def: Resource = load("res://paths/path_db.gd").call(&"get_def", &"arsenal")
+				arsenal_def.set(&"pack_every", HUMAN_PACE_EVERY)
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=")
 			var fork_id := StringName(pair.get_slice("=", 0))
@@ -708,10 +723,16 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		# M46: Arsenal's cards, at the very end (Auto's lines are unchanged).
 		if path_text != "" and runner.get(&"def") != null and runner.get(&"def").get(&"growth") == &"cards":
 			var ar := _arsenal_run(cards_run, duration)
+			if bool(runner.call(&"pack_path")):
+				ar = _pack_run(cards_run, runner, loadout, String(only), invincible)
+				landed_text += " packs=%d pack_gap_median=%.1f rares=%d replaces=%d backs=%d max_rank=%d hand=%s cards_fired=%d shots=%s" % [
+						int(ar.offers), float(ar.gap_median), int(ar.rares), int(ar.replaces), int(ar.backs),
+						int(ar.max_rank), ar.hand, int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots))]
+			else:
+				landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
+						_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),
+						int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots))]
 			arsenal_runs.append(ar)
-			landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
-					_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),
-					int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots))]
 		# M46: PLAN 4's per-seed fp=, only behind --fp (check.ps1's anchored regexes never see it).
 		if fp_arg and path_text != "":
 			landed_text += " fp=%s" % _fp_text(runner.call(&"fingerprint"))
@@ -793,7 +814,24 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			only, _join_or_dash(tryout_runs[0].swaps), swaps_ok, tryout_runs.size(), clean, tryout_runs.size(),
 			second, picked_ok, tryout_runs.size(),
 			",".join(tryout_runs.map(func(r: Dictionary) -> String: return "%.1f" % float(r.picked_at)))])
-	if not arsenal_runs.is_empty():
+	if not arsenal_runs.is_empty() and arsenal_runs[0].has("gap_median"):
+		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
+		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
+		var rank4 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.max_rank) >= 4).size()
+		var all_gaps: Array = []
+		for r: Dictionary in arsenal_runs:
+			all_gaps.append_array(r.gaps)
+		print("[botrun] arsenal: %s packs median=%.1f per_seed=%s pack_gap_median=%.1f per_seed_gap=%s rares=%s replaces=%s backs=%s max_rank=%s max_rank>=4 %d/%d hands=%s in_band=%d/%d cards_fired>=2 %d/%d" % [
+			only, _median(arsenal_runs.map(func(r: Dictionary) -> int: return int(r.offers))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.offers))),
+			_median(all_gaps), ",".join(arsenal_runs.map(func(r: Dictionary) -> String: return "%.1f" % float(r.gap_median))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.rares))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.replaces))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.backs))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.max_rank))), rank4, arsenal_runs.size(),
+			"|".join(arsenal_runs.map(func(r: Dictionary) -> String: return String(r.hand))),
+			in_band, arsenal_runs.size(), fired2, arsenal_runs.size()])
+	elif not arsenal_runs.is_empty():
 		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
 		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
 		var all_gaps: Array = []
@@ -840,6 +878,33 @@ static func _arsenal_run(run: Dictionary, duration: float) -> Dictionary:
 	var fired := (run.shots as Dictionary).keys().filter(func(k: String) -> bool: return int(run.shots[k]) > 0).size()
 	return {"offers": offers.size(), "gaps": gaps, "mean": mean, "tail": tail, "fired": fired,
 			"ok": offers.size() >= 3 and mean >= 35.0 and mean <= 60.0 and tail <= 60.0}
+
+
+## M50.1a: one pack run: packs (pick_offered times), the median gap between packs (from the
+## `add cards` time), what was taken, the top rank at the end and the hand. ok = median gap in
+## [4, 12] s, cards_fired >= 2 and, invincible, the session's packs target (PACK_TARGETS).
+static func _pack_run(run: Dictionary, runner: Node, lo: Node, session_id: String, invincible: bool) -> Dictionary:
+	var offers: Array = run.offers
+	var last := maxf(0.0, float(run.cards_at))
+	var gaps: Array = []
+	for t: float in offers:
+		gaps.append(t - last)
+		last = t
+	var fired := (run.shots as Dictionary).keys().filter(func(k: String) -> bool: return int(run.shots[k]) > 0).size()
+	var picks: Dictionary = runner.get(&"pack_picks")
+	var max_rank := 0
+	if lo != null:
+		for w: RefCounted in lo.get(&"slots"):
+			max_rank = maxi(max_rank, int(w.get(&"rank")))
+	var med := _median(gaps)
+	var ok := med >= 4.0 and med <= 12.0 and fired >= 2
+	if invincible and PACK_TARGETS.has(session_id):
+		var band: Array = PACK_TARGETS[session_id]
+		ok = ok and offers.size() >= int(band[0]) and offers.size() <= int(band[1])
+	return {"offers": offers.size(), "gaps": gaps, "gap_median": med, "fired": fired,
+			"rares": int(picks.get("rare", 0)), "replaces": int(picks.get("replace", 0)),
+			"backs": int(picks.get("back", 0)), "max_rank": max_rank,
+			"hand": String(lo.call(&"summary")) if lo != null else "-", "ok": ok}
 
 
 static func _shots_parts(shots: Dictionary) -> Array:
@@ -1234,16 +1299,67 @@ static func _path_text(runner: Node) -> String:
 
 
 ## An open pick panel gets a card from RunState.pick_rng (PLAN v9 4). True if it chose.
+## M50.1a: a booster pack is chosen by pack_choice instead (no RNG; -1 = Back).
 func _choose_pick(game: Node) -> bool:
 	var panel: Node = game.get(&"pick_panel")
 	if panel == null or not panel.call(&"can_choose"):
 		return false
+	if bool(panel.get(&"offer").get(&"pack")):
+		choose_pack(panel, game, probe_arg)
+		return true
 	var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
 	panel.call(&"choose", pick_card(root.get_node("RunState").get(&"pick_rng"), n, probe_arg))
 	return true
 
 
+## M50.1a: chooses on an open pack panel with pack_choice (shared with tools/run_hash.gd).
+static func choose_pack(panel: Node, game: Node, probe: String) -> void:
+	var p: Node = game.get(&"player")
+	var lo: Node = p.get_node_or_null(^"Loadout") if is_instance_valid(p) else null
+	var i := pack_choice(panel, lo, probe)
+	if i < 0:
+		panel.call(&"back")
+	else:
+		panel.call(&"choose", i)
+
+
+## M50.1a (Arsenal depth design 8): the bot's pack choice, one static rule with no RNG (-1 =
+## Back). In order: (1) FUSE (M50.1b; never with no_fuse); (2)-(3) recipe pairs (M50.1b);
+## (4) a rare card for a held weapon; (5) a NEW card while the hand has room (never with
+## skip_new); (6) a NEW card on a full hand is never taken (on the replace step: Back);
+## (7) the held card with the most shots. Ties: card order. first_pick: card 0 (always a
+## held card, G1), Back on the replace step.
+static func pack_choice(panel: Node, lo: Node, probe: String) -> int:
+	if int(panel.call(&"replacing")) >= 0:
+		return -1
+	var offer: RefCounted = panel.get(&"offer")
+	var cards: Array = offer.get(&"cards")
+	if cards.is_empty():
+		return -1
+	if probe == "first_pick":
+		return 0
+	for i in cards.size():
+		if cards[i].kind == &"upgrade" and cards[i].get("rarity") == &"rare":
+			return i
+	if probe != "skip_new" and (offer.get(&"hand") as Array).size() < int(offer.get(&"max_slots")):
+		for i in cards.size():
+			if cards[i].kind == &"new":
+				return i
+	var best := -1
+	var best_shots := -1
+	for i in cards.size():
+		if cards[i].kind != &"upgrade":
+			continue
+		var w: RefCounted = lo.call(&"held", cards[i].id) if lo != null else null
+		var shots := int(w.get(&"shots")) if w != null else 0
+		if best < 0 or shots > best_shots:
+			best = i
+			best_shots = shots
+	return best if best >= 0 else 0
+
+
 ## The card the bot takes out of `n`: a pick_rng draw; --probe=first_pick (M46) takes card 0
+
 ## but still consumes this draw. Only this draw is kept: PickOffer.draw's rolls depend on the
 ## hand's candidates, so later offers match the default run only while the hands match.
 static func pick_card(rng: RandomNumberGenerator, n: int, probe: String) -> int:

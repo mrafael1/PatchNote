@@ -234,7 +234,7 @@ func _fire(cue: Cue, index: int) -> void:
 		&"give":
 			# M44: with no path, a free slot (or a rank up). M45a: the weapon joins the live
 			# pool, and under Auto the next level-up offers it first instead (no slot filled).
-			if path_runner != null and path_runner.give(cue.target):
+			if path_runner != null and path_runner.give(cue.target, cue.rank):
 				return
 			var loadout: Loadout = null
 			if genre != null and is_instance_valid(genre.player):

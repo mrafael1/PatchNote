@@ -11,13 +11,19 @@ extends Control
 ## Hud places it with hand_rect(). Plain shapes and colours only (the look is M48). No
 ## passive row yet (M51). It runs while the pick panel pauses the tree (Hud's ALWAYS): a
 ## card given by a pick slides in behind the panel.
+##
+## M50.1a (Arsenal depth): a hand of 2 (ROWS). On the deep curve each card has a rank number
+## badge (top right, any size: "7", "12") and, under the title, one dot per mechanic (lit once
+## unlocked) with up to 3 tick marks under it for its strengthen level ("+" past 3); the pips
+## stay for the classic curve only. On a pack path the meter reads "pack in n" over a bar of
+## the pack's kills.
 
 const CARD := Vector2(64, 92)
 const GAP := 8.0
 const MARGIN := 8.0
 const RAISE := 8.0
 const SLIDE := 40.0
-const ROWS := 3               ## Arsenal's hand (PathDef.max_slots): 3 slots kept free
+const ROWS := 2               ## Arsenal's hand (PathDef.max_slots, M50.1a): 2 slots kept free
 const BAR := Vector2(110, 6)
 const METER_GAP := 10.0
 const RAISE_TIME := 0.12
@@ -136,13 +142,53 @@ func joining(i: int) -> float:
 	return _join[i] if i < _join.size() else 0.0
 
 
-## Every card's row ("[1] Pistol ●○○"), then "cards n/6" (tests, F1).
+## Every card's row ("[1] Pistol ●○○"; deep: "[1] Pistol 7 ●''●○"), then "cards n/6" (a pack
+## path: "pack in n") (tests, F1).
 func text() -> String:
 	var out: Array[String] = []
 	for i in card_count():
-		out.append("[%s] %s %s" % [key_label(i), card_title(i), pips(card_rank(i))])
-	out.append("cards %d/%d" % [_cards(), max_cards])
+		var w := _slots()[i]
+		if w.deep():
+			out.append("[%s] %s %d %s" % [key_label(i), card_title(i), card_rank(i), dots_text(card_levels(i))])
+		else:
+			out.append("[%s] %s %s" % [key_label(i), card_title(i), pips(card_rank(i))])
+	out.append(meter_text())
 	return "\n".join(out)
+
+
+## "cards n/6", or on a pack path "pack in n" (the kills left).
+func meter_text() -> String:
+	if meter != null and meter.has_method(&"kills_left"):
+		var left := int(meter.call(&"kills_left"))
+		return "pack in %d" % left if left >= 0 else "no packs"
+	return "cards %d/%d" % [_cards(), max_cards]
+
+
+## M50.1a: card i's mechanic levels on the deep curve ([] on the classic curve).
+func card_levels(i: int) -> Array[int]:
+	var w := _slots()[i]
+	if not w.deep():
+		return [] as Array[int]
+	return WeaponCurve.levels(w.rank, WeaponCurve.mechanics(w.def).size())
+
+
+## "●''○○": one dot per mechanic (○ locked, ● unlocked), a ' per strengthen (up to 3), "+"
+## past that.
+static func dots_text(levels: Array[int]) -> String:
+	var out := ""
+	for lv in levels:
+		if lv <= 0:
+			out += "○"
+			continue
+		out += "●" + "'".repeat(mini(lv - 1, WeaponCurve.STEPS))
+		if lv - 1 > WeaponCurve.STEPS:
+			out += "+"
+	return out
+
+
+func rank_badge_rect(i: int, view: Vector2) -> Rect2:
+	var c := card_rect(i, view)
+	return Rect2(c.position + Vector2(CARD.x - 25, 5), Vector2(20, 20))
 
 
 func bar() -> float:
@@ -218,23 +264,50 @@ func _draw() -> void:
 		draw_string(font, t.position + Vector2(0, 12), w.def.title, HORIZONTAL_ALIGNMENT_CENTER, t.size.x, fs, ink)
 		var pr := pips_rect(i, view)
 		pr.position -= position
-		for k in Loadout.MAX_RANK:
-			var c := pr.position + Vector2(pr.size.x * (k + 0.5) / Loadout.MAX_RANK, pr.size.y * 0.5)
-			if k < w.rank:
-				draw_circle(c, 3.5, ink)
-			else:
-				draw_arc(c, 3.5, 0.0, TAU, 12, ink, 1.2, true)
+		if w.deep():
+			_draw_deep(i, w, r, pr, ink, font, a)
+		else:
+			for k in Loadout.MAX_RANK:
+				var c := pr.position + Vector2(pr.size.x * (k + 0.5) / Loadout.MAX_RANK, pr.size.y * 0.5)
+				if k < w.rank:
+					draw_circle(c, 3.5, ink)
+				else:
+					draw_arc(c, 3.5, 0.0, TAU, 12, ink, 1.2, true)
 		WeaponGlyph.draw(self, w.def.icon, r.position + Vector2(CARD.x * 0.5, 74), 26.0, ink)
 	var m := meter_rect(view)
 	m.position -= position
-	draw_string(font, m.position + Vector2(0, 14), "cards %d/%d" % [_cards(), max_cards],
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 14, DIM)
+	draw_string(font, m.position + Vector2(0, 14), meter_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, DIM)
 	var bar_at := Rect2(m.position + Vector2(0, m.size.y - BAR.y), BAR)
 	draw_rect(bar_at, Color(1, 1, 1, 0.15))
 	draw_rect(Rect2(bar_at.position, Vector2(BAR.x * clampf(bar(), 0.0, 1.0), BAR.y)), BAR_FILL)
 
 
+## M50.1a: the deep curve's rank badge (top right) and mechanic dots with their ticks.
+func _draw_deep(i: int, w: Weapon, r: Rect2, pr: Rect2, ink: Color, font: Font, a: float) -> void:
+	var badge := Rect2(r.position + Vector2(CARD.x - 25, 5), Vector2(20, 20))
+	draw_rect(badge, Color(ink, 0.25 * a))
+	draw_rect(badge, ink, false, 1.5)
+	var digits := str(w.rank)
+	var fs := 13 if digits.length() <= 1 else (11 if digits.length() == 2 else 8)
+	draw_string(font, badge.position + Vector2(0, 15), digits, HORIZONTAL_ALIGNMENT_CENTER, badge.size.x, fs, ink)
+	var lv := card_levels(i)
+	var n := maxi(1, lv.size())
+	for k in lv.size():
+		var c := pr.position + Vector2(pr.size.x * (k + 0.5) / n, pr.size.y * 0.5 - 2.0)
+		if lv[k] > 0:
+			draw_circle(c, 3.5, ink)
+		else:
+			draw_arc(c, 3.5, 0.0, TAU, 12, ink, 1.2, true)
+		var ticks := mini(maxi(0, lv[k] - 1), WeaponCurve.STEPS)
+		for t in ticks:
+			var x := c.x - 4.0 + t * 4.0
+			draw_line(Vector2(x, c.y + 6.0), Vector2(x, c.y + 9.0), ink, 1.5)
+		if lv[k] - 1 > WeaponCurve.STEPS:
+			draw_string(font, Vector2(c.x + 6.0, c.y + 11.0), "+", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, ink)
+
+
 ## M48a: a card's pixel panel tint: white (equipped) or UI_DIM, faded in by `a`, brightened
+
 ## by the join flash (`flash`, join_flash(): 0 under reduce flashing) as tier 0's fill is.
 static func panel_modulate(lit: bool, a: float, flash: float) -> Color:
 	var base := Color.WHITE if lit else Palette.UI_DIM

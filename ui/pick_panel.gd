@@ -7,12 +7,24 @@ extends CanvasLayer
 ## paused. A different frame from the debrief's cards: no mascot portrait, no "ship".
 ## Keys 1-3 (choose_1..3, named on the player's layout), click, pad focus; 0.4 s of input
 ## delay after opening (the debrief's, M42.1).
+##
+## M50.1a (Arsenal's booster packs, PickOffer.pack): each card shows its title with the rank
+## arrow, its tags (NEW, RARE +2) and its gain; a rare card sits in a frame of the look's
+## card_rare role. Under the cards the hand at 60% size. A NEW card on a full hand opens the
+## replace step on the same panel: the hand's cards are choices 1-2 ("Replace Pistol 7"),
+## Back is the next one (a key and a button; never Esc / ui_cancel, the pause menu's). Back
+## returns to the same pack: nothing is drawn again and `picked` is not emitted. Each step
+## has its own input delay.
 
 signal picked(offer: PickOffer, index: int)
+## M50.1a: the replace step's Back (the pack stays open).
+signal went_back(offer: PickOffer)
 
 const PAUSE := &"pick"
 const INPUT_DELAY := 0.4
 const LAYER := 72   ## over the HUD (50) and the mascot (60), under the debrief (95)
+const CHOICES := 4  ## choose_1..4 (M50.1a: the replace step's Back, M50.1b's FUSE)
+const HAND_SCALE := 0.6
 
 var offer: PickOffer
 var input_delay := INPUT_DELAY   ## tests set 0
@@ -21,6 +33,9 @@ var _root: Control
 var _line: Label
 var _cards: HBoxContainer
 var _buttons: Array[Button] = []
+var _frames: Array[Control] = []
+var _hand_row: HBoxContainer
+var _replacing := -1        ## M50.1a: the pack card waiting for a slot (-1: the pack itself)
 var _locked_for := 0.0
 var _dismissed := false   ## the run is over: never open again
 
@@ -52,6 +67,10 @@ func _ready() -> void:
 	_cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	_cards.add_theme_constant_override(&"separation", 20)
 	column.add_child(_cards)
+	_hand_row = HBoxContainer.new()
+	_hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_hand_row.add_theme_constant_override(&"separation", 12)
+	column.add_child(_hand_row)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 60)
 	column.add_child(gap)
@@ -67,27 +86,130 @@ func open(p_offer: PickOffer) -> bool:
 	if _dismissed or p_offer == null or p_offer.cards.is_empty():
 		return false
 	offer = p_offer
+	_replacing = -1
 	RunState.set_pause(PAUSE, true)
-	_line.text = p_offer.line
-	for b in _buttons:
-		b.queue_free()
-	_buttons.clear()
-	for i in p_offer.cards.size():
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(300, 150)
-		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.add_theme_font_size_override(&"font_size", 18)
-		b.text = card_text(p_offer, i, Callable(), Settings.key_hints())
-		b.disabled = true
-		b.pressed.connect(choose.bind(i))
-		Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
-		_cards.add_child(b)
-		_buttons.append(b)
+	_build()
 	_locked_for = input_delay
 	_root.visible = true
 	if _locked_for <= 0.0:
 		_unlock()
 	return true
+
+
+## The buttons for the offer (a pack's cards, or its replace step).
+func _build() -> void:
+	for b in _frames:
+		b.queue_free()
+	_frames.clear()
+	_buttons.clear()
+	for c in _hand_row.get_children():
+		c.queue_free()
+	var hints := Settings.key_hints()
+	if _replacing >= 0:
+		_line.text = "Your hand is full. %s replaces:" % offer.cards[_replacing].get("title", "")
+		for j in replace_count() + 1:
+			_add_button(replace_text(offer, j, Callable(), hints), choose.bind(j), false)
+		return
+	_line.text = offer.line
+	for i in offer.cards.size():
+		var text := pack_card_text(offer, i, Callable(), hints) if offer.pack else card_text(offer, i, Callable(), hints)
+		_add_button(text, choose.bind(i), offer.pack and offer.cards[i].get("rarity") == BoosterPack.RARE)
+	if offer.pack:
+		_add_hand_preview()
+
+
+func _add_button(text: String, on_press: Callable, rare: bool) -> void:
+	var frame := PanelContainer.new()
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(Palette.color(&"card_rare"), 0.0)
+	box.border_color = Color(Palette.color(&"card_rare"), 1.0 if rare else 0.0)
+	box.set_border_width_all(4 if rare else 0)
+	box.set_corner_radius_all(8)
+	box.set_content_margin_all(4 if rare else 0)
+	frame.add_theme_stylebox_override(&"panel", box)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(300, 150)
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.add_theme_font_size_override(&"font_size", 18)
+	b.text = text
+	b.disabled = true
+	b.pressed.connect(on_press)
+	Skins.dress_button(b)   # M48a: the look's UI panel (no look: today's theme)
+	frame.add_child(b)
+	_cards.add_child(frame)
+	_frames.append(frame)
+	_buttons.append(b)
+
+
+## M50.1a: the hand under a pack's cards, at HAND_SCALE.
+func _add_hand_preview() -> void:
+	var label := Label.new()
+	label.text = "Hand (%d/%d):" % [offer.hand.size(), offer.max_slots]
+	label.add_theme_font_size_override(&"font_size", 16)
+	label.add_theme_color_override(&"font_color", Palette.INFO)
+	label.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
+	label.add_theme_constant_override(&"outline_size", 4)
+	_hand_row.add_child(label)
+	for h: Dictionary in offer.hand:
+		var p := PanelContainer.new()
+		p.custom_minimum_size = Vector2(300, 150) * HAND_SCALE * Vector2(1.0, 0.5)
+		Skins.dress_panel(p)
+		var l := Label.new()
+		l.text = "%s %d" % [h.title, int(h.rank)]
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_size_override(&"font_size", roundi(18 * HAND_SCALE) + 2)
+		p.add_child(l)
+		_hand_row.add_child(p)
+
+
+## M50.1a: a pack card's text: "[1]  Pistol 6 -> 7  RARE +2" then its gain.
+static func pack_card_text(p_offer: PickOffer, i: int, to_label := Callable(), hints := true) -> String:
+	var c: Dictionary = p_offer.cards[i]
+	var head := String(c.get("title", c.get("id", "")))
+	var tags := BoosterPack.tags(c)
+	if tags != "":
+		head += "   " + tags
+	if hints:
+		head = "[%s]  %s" % [InputSetup.expand_keys("{key:choose_%d}" % (i + 1), to_label), head]
+	return "%s\n%s" % [head, c.get("gain", c.get("text", ""))]
+
+
+## M50.1a: the replace step's choice j: "Replace Pistol 7" per hand card, then "Back".
+static func replace_text(p_offer: PickOffer, j: int, to_label := Callable(), hints := true) -> String:
+	var text := "Back to the pack"
+	if j < p_offer.hand.size():
+		text = "Replace %s %d" % [p_offer.hand[j].title, int(p_offer.hand[j].rank)]
+	if not hints:
+		return text
+	return "[%s]  %s" % [InputSetup.expand_keys("{key:choose_%d}" % (j + 1), to_label), text]
+
+
+## M50.1a: the replace step is showing (the pack card waiting, else -1).
+func replacing() -> int:
+	return _replacing if _root.visible else -1
+
+
+func replace_count() -> int:
+	return offer.hand.size() if offer != null else 0
+
+
+## M50.1a: Back from the replace step to the same pack (no draw, no `picked`).
+func back() -> void:
+	if not can_choose() or _replacing < 0:
+		return
+	_replacing = -1
+	_build()
+	_relock()
+	went_back.emit(offer)
+
+
+func _relock() -> void:
+	for b in _buttons:
+		b.disabled = true
+	_locked_for = input_delay
+	if _locked_for <= 0.0:
+		_unlock()
 
 
 ## Card i's text: its key on the player's layout ({key:choose_n}, never a literal number),
@@ -132,17 +254,37 @@ func _unlock() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not can_choose():
 		return
-	for i in 3:
+	for i in CHOICES:
 		if event.is_action_pressed(StringName("choose_%d" % (i + 1))):
 			choose(i)
 			get_viewport().set_input_as_handled()
 			return
 
 
-## Pick card i (0-based): closes, unpauses, reports.
+## Pick card i (0-based): closes, unpauses, reports. M50.1a: in a pack, a NEW card on a full
+## hand opens the replace step instead; there, choice j < hand size replaces that slot and
+## the next one is Back.
 func choose(i: int) -> void:
-	if not can_choose() or i < 0 or i >= offer.cards.size():
+	if not can_choose():
 		return
+	if _replacing >= 0:
+		if i == replace_count():
+			back()
+			return
+		if i < 0 or i > replace_count():
+			return
+		offer.cards[_replacing]["replace"] = i
+		i = _replacing
+		_replacing = -1
+	elif i < 0 or i >= offer.cards.size():
+		return
+	elif offer.pack and offer.cards[i].get("kind") == &"new" and offer.hand.size() >= offer.max_slots \
+			and offer.max_slots > 0:
+		_replacing = i
+		_build()
+		_relock()
+		return
+
 	var from := offer
 	_root.visible = false
 	RunState.set_pause(PAUSE, false)

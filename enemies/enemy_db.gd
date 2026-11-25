@@ -10,6 +10,9 @@ extends RefCounted
 
 const BASES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber", &"lancer"]
 const VARIANTS: Array[StringName] = [&"splitter"]
+## The bases in card reading order (M50.1a: WeaponCurve's breakpoint text, "one-shots
+## chasers and lancers, tank in 4"). Same ids as BASES.
+const READING: Array[StringName] = [&"chaser", &"lancer", &"shooter", &"bomber", &"tank"]
 ## The bases whose scene is an EnemyWalker (M48b: the ones a `spawn ... specimen` may name).
 const WALKERS: Array[StringName] = [&"chaser", &"tank", &"bomber", &"lancer"]
 const VARIANTS_DIR := "res://enemies/variants/"

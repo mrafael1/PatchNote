@@ -53,6 +53,20 @@ const THRESHOLD_STEP := 20
 ## Quick-draw (M46, Arsenal): the first shot after a real switch does this much damage, once
 ## the `quick_draw` basic is live. 1.0 = none.
 @export var quick_draw_mult := 1.0
+## M50.1a (Arsenal depth): a booster pack every `pack_every` player kills (0 = the classic
+## card meter's thresholds). A pack path has no session cap (max_picks, level_thresholds
+## and full_line are unused there); a tryout deals `pack_taste` packs, then stops quietly.
+@export var pack_every := 0
+@export var pack_taste := 0
+## Per pack card: rare (+2 ranks, a new card at rank 3) when its roll is under this.
+@export var rare_chance := 0.0
+## The top rank (0 = none). Classic paths keep Loadout.MAX_RANK (3).
+@export var rank_cap := 3
+## &"classic" (WeaponDef.ranks 2-3) or &"deep" (WeaponCurve: odd ranks damage, even ranks
+## mechanics, no top).
+@export var rank_curve: StringName = &"classic"
+
+const RANK_CURVES: Array[StringName] = [&"classic", &"deep"]
 
 
 ## The gems needed to reach level `level + 1` from `level` (level >= 1); -1 past a tryout's
@@ -108,7 +122,7 @@ func problems(file_id: StringName = id) -> Array[String]:
 				break
 	if growth == &"levelups" and level_thresholds.is_empty():
 		out.append("%s: a levelups path needs level_thresholds" % where)
-	if growth == &"cards" and level_thresholds.size() < max_picks:
+	if growth == &"cards" and pack_every <= 0 and level_thresholds.size() < max_picks:
 		out.append("%s: a cards path needs a threshold for each of its %d picks" % [where, max_picks])
 	for pair: Array in [["warn_line", warn_line], ["full_line", full_line]]:
 		var text: String = pair[1]
@@ -118,4 +132,16 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: an empty pick_line" % where)
 	if quick_draw_mult < 1.0:
 		out.append("%s: quick_draw_mult must be >= 1" % where)
+	if pack_every < 0 or pack_taste < 0:
+		out.append("%s: pack_every and pack_taste must be >= 0" % where)
+	if pack_every > 0 and growth != &"cards":
+		out.append("%s: pack_every needs the cards growth" % where)
+	if rare_chance < 0.0 or rare_chance >= 1.0:
+		out.append("%s: rare_chance must be in [0, 1)" % where)
+	if rank_cap < 0:
+		out.append("%s: rank_cap must be >= 0 (0 = none)" % where)
+	if not rank_curve in RANK_CURVES:
+		out.append("%s: unknown rank_curve %s (%s)" % [where, rank_curve, RANK_CURVES])
+	if rank_curve == &"classic" and (rank_cap == 0 or rank_cap > Loadout.MAX_RANK):
+		out.append("%s: the classic curve stops at rank %d" % [where, Loadout.MAX_RANK])
 	return out

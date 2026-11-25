@@ -38,6 +38,13 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export_multiline var pitch := ""
 ## One line per rank ("Shotgun II: knockback").
 @export var card_text: PackedStringArray = []
+## M50.1a (the deep curve, WeaponCurve): the mechanics unlocked at ranks 2, 4 and 6 (trait
+## ids, A first). Empty: the classic ranks' new traits in order. The classic curve never
+## reads it.
+@export var mechanics: Array[StringName] = []
+## M50.1a: per mechanic, the fields it sets once unlocked (absolute, like `ranks`): the
+## shotgun's B (point blank) tightens the cone to 18 degrees. The classic curve never reads it.
+@export var mechanic_values: Array[Dictionary] = []
 
 
 ## A field's value at `rank`: the rank's override, else the field.
@@ -109,6 +116,16 @@ func problems(file_id: StringName = id) -> Array[String]:
 		previous = now
 		if rank >= 4:
 			out.append("%s: rank 4 is not built yet (M50.1)" % where)
+	for m in mechanics:
+		if not ResourceLoader.exists(TRAITS_DIR + String(m) + ".gd"):
+			out.append("%s: mechanic %s is not built yet (%s%s.gd)" % [where, m, TRAITS_DIR, m])
+	if mechanic_values.size() > maxi(mechanics.size(), 3):
+		out.append("%s: %d mechanic_values for %d mechanics" % [where, mechanic_values.size(), mechanics.size()])
+	for i in mechanic_values.size():
+		for key: Variant in mechanic_values[i]:
+			var k := String(key)
+			if not fields.has(k) or k in ["id", "mode", "ranks", "card_text", "pitch", "title", "damage"]:
+				out.append("%s: mechanic %d sets %s, not a rank field" % [where, i, k])
 	if card_text.size() != max_rank():
 		out.append("%s: %d card lines for %d ranks" % [where, card_text.size(), max_rank()])
 	return out

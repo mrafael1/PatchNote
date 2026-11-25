@@ -22,6 +22,11 @@ extends Node
 ## warnings, picks counted per path since the last swap (`picked n` cues), a second sweep
 ## on the tick after a swap (deferred spawns from the swap tick) and leftovers(), checked
 ## then and logged as `path_leftovers`; S7's per-taste fingerprints.
+##
+## M50.1a (Arsenal depth): a path with PathDef.pack_every > 0 deals booster packs (PackMeter,
+## BoosterPack on RunState.pack_rng) instead of the card meter's cards: no session cap, owed
+## packs queue and open at least PACK_GAP s apart, a full-hand `give` waits in the next packs
+## (G4) instead of replacing a card silently, and the pick counts feed the telemetry.
 
 signal started(path_id: StringName)
 
@@ -29,10 +34,15 @@ const Gems := preload("res://paths/auto/gems.gd")
 const LevelMeter := preload("res://paths/auto/level_meter.gd")
 const LevelWidget := preload("res://paths/auto/level_widget.gd")
 const CardMeter := preload("res://paths/arsenal/card_meter.gd")
+const PackMeter := preload("res://paths/arsenal/pack_meter.gd")
 const HandWidget := preload("res://paths/arsenal/hand_widget.gd")
 const Drops := preload("res://paths/survival/drops.gd")
 const AmmoWidget := preload("res://paths/survival/ammo_widget.gd")
 const SWAP_WARN_SECONDS := 1.5
+## M50.1a: owed packs never open back to back: at least this much game time between two.
+const PACK_GAP := 2.0
+## M50.1a (G4): a full-hand give's card waits in at most this many packs.
+const GIVE_PACKS := 3
 const GLITCH := 0.6        ## one pulse: one flash, far under 3 a second (D12)
 const FADE_SECONDS := 0.4  ## the pulse under reduce flashing
 ## The mascot's word after a pick (priority 1, muted with --mute-ai; D8, first to cut).
@@ -73,6 +83,8 @@ var taste_fps := {}
 ## M47: the leftovers found on the tick after each swap ([] = clean), in order.
 var leftover_checks: Array = []
 var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or the fade)
+## M50.1a (packs): what was taken, for the telemetry and the bot's line.
+var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0}
 
 var _gems: Node
 var _meter: RefCounted
@@ -97,6 +109,9 @@ var late_sweep := true
 var _late_swept := 0
 var _fp_base := [0, 0, 0]   ## picks, switches, pickups when the taste started
 var _still_tick := -1
+var _pack_gap_until := -1        ## M50.1a: the tick the next owed pack may open
+## M50.1a (G4): {id, rare, packs} of a full-hand give waiting in the packs ({} none).
+var _give_wait := {}
 
 
 func _ready() -> void:
@@ -104,6 +119,7 @@ func _ready() -> void:
 	EventBus.pickup_taken.connect(_on_pickup_taken)
 	if panel != null:
 		panel.picked.connect(_on_picked)
+		panel.went_back.connect(_on_back)
 
 
 func _exit_tree() -> void:
@@ -165,6 +181,16 @@ func _levelups() -> bool:
 
 func _cards_growth() -> bool:
 	return def != null and def.growth == &"cards"
+
+
+## M50.1a: Arsenal's booster packs (a cards path with pack_every > 0).
+func pack_path() -> bool:
+	return _cards_growth() and def.pack_every > 0
+
+
+## M50.1a (G4): the weapon a full-hand give left waiting (&"" none).
+func give_waiting() -> StringName:
+	return _give_wait.get("id", &"")
 
 
 func meter() -> RefCounted:
@@ -403,7 +429,7 @@ func _build_levels() -> void:
 
 ## Arsenal (M46): the card meter, fed by player kills, and the hand widget.
 func _build_cards() -> void:
-	_meter = CardMeter.new()
+	_meter = PackMeter.new() if pack_path() else CardMeter.new()
 	_meter.def = def
 	_meter.tryout = RunState.session != null and RunState.session.tryout
 	_meter.on_card = want_pick
@@ -450,6 +476,8 @@ func _clear_growth() -> void:
 		_widget.queue_free()
 	_widget = null
 	_want = 0
+	_give_wait = {}
+	_pack_gap_until = -1
 
 
 func _on_basic_added(id: StringName) -> void:
@@ -503,8 +531,21 @@ func announce(w: StringName) -> void:
 ## A `give` cue under a path: Auto offers it first at its next level-up (no slot is filled).
 ## False with no path live, and on Arsenal: the caller hands it over itself (M44's free
 ## slot: a free card, the weakest non-active card replaced when the hand is full; 1.3).
-func give(w: StringName) -> bool:
+## M50.1a (packs): a full hand never loses a card silently once the packs are live: the weapon
+## waits as card 2 of the next packs (G4, at the cue's rank: 3 = rare) and this returns true;
+## before the `cards` basic the old replace applies, logged `give_replaced`.
+func give(w: StringName, rank := 1) -> bool:
 	announce(w)
+	if pack_path():
+		var lo := loadout()
+		var wd := WeaponDB.get_weapon(w)
+		if lo != null and wd != null and not wd.is_passive() and lo.held(w) == null and lo.hand_full():
+			if _meter != null and not frozen and not _stopped:
+				_give_wait = {"id": w, "rare": rank >= 3, "packs": 0}
+				RunState.log_event(&"give_queued", {"weapon": String(w), "rare": rank >= 3})
+				return true
+			RunState.log_event(&"give_replaced", {"weapon": String(w)})
+		return false
 	if def != null and def.growth == &"pickups" and is_instance_valid(_drops):
 		# M47 (1.3): a crate near the player; with no tile free, the gun into the slot.
 		return bool(_drops.call(&"crate_near_player", w))
@@ -583,7 +624,7 @@ func _physics_process(_delta: float) -> void:
 		RunState.log_event(&"path_leftovers", {"to": String(path_id), "left": left, "late": _late_swept})
 	if _swap_tick >= 0 and _tick >= _swap_tick:
 		swap_now(_swap_target)
-	if _want > 0 and not _opening and can_open_now():
+	if _want > 0 and not _opening and _tick >= _pack_gap_until and can_open_now():
 		_opening = true
 		_open_offer.call_deferred()
 
@@ -595,11 +636,17 @@ func _open_offer() -> void:
 	var lo := loadout()
 	if _want <= 0 or lo == null or not can_open_now():
 		return
-	var first := _first
-	if first == &"" and _cards_growth():
-		first = most_fired(lo)   # Arsenal: the most-fired card's upgrade first (1.5, D7)
-	var offer := PickOffer.draw(lo, def, offer_pool(), first, RunState.pick_rng, taste)
-	_first = &""
+	var offer: PickOffer
+	if pack_path():
+		offer = BoosterPack.draw(lo, def, offer_pool(), _give_wait, RunState.pack_rng, taste)
+		if not _give_wait.is_empty():
+			_give_wait.packs = int(_give_wait.packs) + 1
+	else:
+		var first := _first
+		if first == &"" and _cards_growth():
+			first = most_fired(lo)   # Arsenal: the most-fired card's upgrade first (1.5, D7)
+		offer = PickOffer.draw(lo, def, offer_pool(), first, RunState.pick_rng, taste)
+		_first = &""
 	offers.append(offer)
 	EventBus.pick_offered.emit(offer)
 	fp.menu_open()
@@ -611,7 +658,10 @@ func _open_offer() -> void:
 static func most_fired(lo: Loadout) -> StringName:
 	var best: Weapon = null
 	for w in lo.slots:
-		if w.rank >= mini(Loadout.MAX_RANK, w.def.max_rank()):
+		if w.deep():
+			if lo.rank_cap > 0 and w.rank >= lo.rank_cap:
+				continue
+		elif w.rank >= mini(lo.rank_cap, w.def.max_rank()):
 			continue
 		if best == null or w.shots > best.shots:
 			best = w
@@ -629,7 +679,9 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 	picks += 1
 	picks_on_path += 1
 	var lo := loadout()
-	if card.kind == &"new" and lo != null:
+	if offer.pack:
+		_take_pack_card(lo, card)
+	elif card.kind == &"new" and lo != null:
 		lo.give(card.id, 1)
 	elif card.kind == &"upgrade" and lo != null:
 		lo.upgrade(card.id)
@@ -640,7 +692,48 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 	RunState.log_event(&"pick", {"offer": offer.ids().map(func(i: StringName) -> String: return String(i)),
 			"pick": String(card.id)})
 	EventBus.pick_made.emit(card.id)
+	if offer.pack:
+		# M50.1a: a pack every ~6 s: no "good pick" each time (the `picked n` cues speak), and
+		# queued packs wait PACK_GAP.
+		if _want > 0:
+			_pack_gap_until = _tick + roundi(PACK_GAP * Engine.physics_ticks_per_second)
+		return
 	_speak(Line.parse(PICK_LINES[(picks - 1) % PICK_LINES.size()]), 1)
+
+
+## M50.1a: a pack card goes to the hand: a held weapon ranks up (+1, rare +2), a new one joins
+## (rank 1, rare 3) or replaces the slot the panel's replace step chose. G4's weapon stops
+## waiting once taken or after GIVE_PACKS packs.
+func _take_pack_card(lo: Loadout, card: Dictionary) -> void:
+	var rare: bool = card.get("rarity") == BoosterPack.RARE
+	if lo != null:
+		if card.kind == &"upgrade":
+			lo.upgrade(card.id, 2 if rare else 1)
+			pack_picks.upgrade += 1
+		elif card.kind == &"new":
+			if card.has("replace"):
+				var at := int(card.replace)
+				var old: StringName = lo.slots[at].def.id if at < lo.slots.size() else &""
+				lo.replace_slot(at, card.id, int(card.rank))
+				pack_picks.replace += 1
+				RunState.log_event(&"card_replaced", {"weapon": String(card.id), "lost": String(old)})
+			else:
+				lo.give(card.id, int(card.rank))
+			pack_picks.new += 1
+	if rare:
+		pack_picks.rare += 1
+	if not _give_wait.is_empty() and (card.id == _give_wait.id or int(_give_wait.packs) >= GIVE_PACKS):
+		_give_wait = {}
+
+
+## M50.1a: the pack panel's Back (the replace step, back to the same pack).
+func _on_back(_offer: PickOffer) -> void:
+	pack_picks.back += 1
+
+
+## M50.1a: the packs dealt so far (0 off a pack path).
+func packs() -> int:
+	return cards() if pack_path() else 0
 
 
 ## The filler card: +1 max HP and 1 HP back, this session only.
@@ -727,8 +820,14 @@ func state_text() -> String:
 			ammo = "%d/%d" % [w.ammo_left, w.def.ammo]
 		return "path=survival weapon=%s ammo=%s picks=%d pickups=%d heals=%d" % [
 				"%s:%d" % [w.def.id, w.rank] if w != null else "-", ammo, picks, pickups_taken, heals()]
+	if pack_path():
+		var lo := loadout()
+		var k := int(_meter.get(&"kills")) - int(_meter.get(&"cards")) * def.pack_every if _meter != null else 0
+		return "path=%s packs=%d kills=%d/%d hand=%s picks=%d pickups=%d" % [path_id, cards(), k,
+				def.pack_every, lo.summary() if lo != null else "-", picks, pickups_taken]
 	if _cards_growth():
 		var need := int(_meter.call(&"next_need")) if _meter != null else -1
+
 		return "path=%s cards=%d kills=%d/%s picks=%d pickups=%d" % [path_id, cards(),
 				int(_meter.get(&"kills")) if _meter != null else 0, str(need) if need >= 0 else "-", picks,
 				pickups_taken]

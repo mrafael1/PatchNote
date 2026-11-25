@@ -42,6 +42,8 @@ var gameplay_rng := RandomNumberGenerator.new()
 ## above. Nothing draws from them yet.
 var loot_rng := RandomNumberGenerator.new()
 var pick_rng := RandomNumberGenerator.new()
+## M50.1a (Arsenal depth): booster packs draw here, exactly 6 numbers a pack (BoosterPack).
+var pack_rng := RandomNumberGenerator.new()
 
 var game_time := 0.0          ## unpaused, time-scaled seconds since the run started
 var real_frames := 0          ## physics frames since the run started, pauses included (telemetry)
@@ -538,6 +540,7 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
 	loot_rng.seed = hash([new_seed, "loot"])
 	pick_rng.seed = hash([new_seed, "pick"])
+	pack_rng.seed = hash([new_seed, "pack"])
 	_pending.clear()
 	_grace_until = -1.0
 	_time_factors.clear()

@@ -104,7 +104,7 @@ func test_the_cue_order_and_the_d1_times() -> void:
 	assert_eq(got, TIMES)
 	var picked := CampaignDB.get_session(S7).cue_list().filter(func(c: Cue) -> bool: return c.when == &"picked")
 	assert_eq(picked.size(), 1)
-	assert_eq((picked[0] as Cue).line.text, "See? Better gun, same card.")
+	assert_eq((picked[0] as Cue).line.text, "See? Same card, stronger gun.")
 
 
 func test_each_path_cue_carries_its_own_warning() -> void:
@@ -215,21 +215,22 @@ func test_each_swap_wipes_once_and_crossfades_under_reduce_flashing() -> void:
 	assert_lte(PathRunner.GLITCH, 1.0)
 
 
-func test_the_arsenal_taste_deals_one_card_after_10_kills() -> void:
+## M50.1a: the taste deals pack_taste (2) packs, one every 6 kills, then stops quietly.
+func test_the_arsenal_taste_deals_two_packs_then_stops() -> void:
 	await _game(S7)
 	var r := game.path_runner
 	RunState.add_basic(&"cards")
 	r.swap_now(&"arsenal")
 	await wait_physics_frames(2)
 	var e := _dummy()
-	for i in 9:
+	for i in 5:
 		_player_kill(e)
-	assert_eq(r.cards(), 0, "9 kills: no card")
+	assert_eq(r.cards(), 0, "5 kills: no pack")
 	_player_kill(e)
-	assert_eq(r.cards(), 1, "the 10th: one card")
+	assert_eq(r.cards(), 1, "the 6th: one pack")
 	for i in 40:
 		_player_kill(e)
-	assert_eq(r.cards(), 1, "then the meter stops")
+	assert_eq(r.cards(), 2, "the second, then the meter stops")
 	game.free()
 
 
@@ -299,7 +300,7 @@ func test_picked_binds_to_arsenal_and_expires_at_the_next_swap() -> void:
 	await wait_physics_frames(1)
 	assert_true((sr.get(&"_fired") as Array)[idx], "expired at the swap (0 Arsenal picks: no line)")
 	assert_eq(RunState.run_log.filter(func(e: Dictionary) -> bool: return e.event == &"cue_expired").size(), 1)
-	assert_false(r.said.has("See? Better gun, same card."))
+	assert_false(r.said.has("See? Same card, stronger gun."))
 
 
 func test_the_auto_gated_reactions_read_the_live_path() -> void:

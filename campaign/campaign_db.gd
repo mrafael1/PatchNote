@@ -681,6 +681,15 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		out.fp_tastes = (runner.get(&"taste_fps") as Dictionary).duplicate()
 	elif String(out.path) != "":
 		out.fp = runner.call(&"fingerprint")
+	# M50.1a (additive, Arsenal's packs only): packs, what was taken, ranks at the end.
+	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
+		out.packs = int(runner.call(&"packs"))
+		out.pack_picks = (runner.get(&"pack_picks") as Dictionary).duplicate()
+		out.ranks_end = (out.weapons as Dictionary).duplicate()
+		var top := 0
+		for r: Variant in (out.weapons as Dictionary).values():
+			top = maxi(top, int(r))
+		out.max_rank = top
 	return out
 
 

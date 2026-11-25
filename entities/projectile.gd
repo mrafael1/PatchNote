@@ -154,6 +154,17 @@ func _hit_entity(target: Node, pos: Vector2, dir: Vector2, rid := RID()) -> bool
 		if mover:
 			mover.knockback(dir * (Tuning.projectile_knockback if knockback < 0.0 else knockback))
 	EventBus.projectile_hit.emit(self, target, pos)
+	# M50.1a: after the damage a mod may keep the shot flying (chain re-aims on a kill).
+	# Only this shot's landed damage counts: a corpse still in the space is not its kill.
+	if applied and not _mods.is_empty() and not _dead:
+		var killed := health != null and health.dead
+		var keep := false
+		for m in _mods:
+			if m.after_hit(self, target, killed):
+				keep = true
+		if keep:
+			_pierced.append(rid)
+			return true
 	if pierce_left > 0 and not _dead:
 		pierce_left -= 1
 		_pierced.append(rid)
