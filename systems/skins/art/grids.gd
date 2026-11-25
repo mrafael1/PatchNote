@@ -609,6 +609,27 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#ff5a30", "S": "#b8241e", "H": "#ffaa22", "A": "#fff4b0"},
 	},
+	# M50.1b: Prism's beam (player-only): the laser's bar, thinner, in three hues (cyan tail,
+	# violet body, warm-white head).
+	"shot_prism_player": {
+		"grid": [
+			".KKKKKKKKKK.",
+			"KSSSPPPPHHHK",
+			".KKKKKKKKKK.",
+		],
+		"ramp": {"P": "#b48cff", "S": "#27c0e0", "H": "#fff8d0", "A": "#ffffff"},
+	},
+	# M50.1b: the misfuse's shot (player-only): a tiny pistol, barrel first.
+	"shot_misfuse_player": {
+		"grid": [
+			"KKKKKKKK",
+			"KSPPPPHK",
+			"KSPKKKKK",
+			"KSK.....",
+			"KKK.....",
+		],
+		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+	},
 	"gem": {
 		"grid": [
 			"..KKKKK.",

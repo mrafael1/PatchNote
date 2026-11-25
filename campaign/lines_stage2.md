@@ -91,9 +91,16 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - mascot:cursor at 70: (surprised) My arrow looks great.
 - mascot:window at 70: (surprised) New theme. Finally.
 - at 74: (proud) There. That's us now.
-- at 80: (happy) New gun: the laser. It goes through things.
+- !answer:path_arsenal at 80: (happy) New gun: the laser. It goes through things.
 - answer:path_auto at 90: (happy) And a nova for you. It pops around you.
-- answer:path_arsenal at 11: (happy) Your shotgun's back. I drew it a card.
+- answer:path_arsenal at 11: (happy) Your shotgun's back. I drew it a gold card.
+- answer:path_arsenal at 78: (happy) New trick. I can glue two cards into one.
+- answer:path_arsenal at 82: misfused (surprised) It's a pistol. That shoots pistols. Sideways.
+- answer:path_arsenal at 86: misfused (guilty) Undoing. Not every pair goes together.
+- answer:path_arsenal at 86: (happy) New gun: the laser. A gold card: it starts at rank three.
+- answer:path_arsenal at 94: (thinking) Real fusion now. Two cards at rank four light a link.
+- answer:path_arsenal fuse_ready 1: (happy) The link's glowing. Open the next pack and fuse them.
+- answer:path_arsenal fused 1: (proud) A Prism! That recipe goes in the book.
 ### Reveal lines (one per new enemy drawn in, in order)
 - (happy) Another one!
 - (proud) Drew that one too.
@@ -106,6 +113,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_auto (thinking) The cards are still in the drawer. Just saying.
 - answer:path_arsenal (thinking) The gems are still in the drawer.
 - answer:path_survival (thinking) The cards are still in the drawer. And the gems.
+- answer:path_arsenal&fused (proud) You fused one. I'm keeping the recipe.
 
 ## fork_path
 - Question: Which shooter do we make?

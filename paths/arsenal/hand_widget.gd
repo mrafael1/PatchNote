@@ -17,6 +17,14 @@ extends Control
 ## unlocked) with up to 3 tick marks under it for its strengthen level ("+" past 3); the pips
 ## stay for the classic curve only. On a pack path the meter reads "pack in n" over a bar of
 ## the pack's kills.
+##
+## M50.1b (fusion): the link on the seam between the two cards, hidden until the `fusion` basic
+## is live and for any pair that is not a recipe (PathRunner.link_state): dim with a small "4"
+## while a half is below rank 4, lit and slowly pulsing once FUSE is available (steady under
+## reduce_flashing). A fused card has a two-tone frame, its parents under the title ("Shotgun
+## + Laser") and 4 mechanic dots. The misfuse draws both cards as one wobbling card ("Pistgun?",
+## both glyphs overlapped, a glitch frame; no wobble under reduce_flashing) that glitches out
+## when the AI patches it.
 
 const CARD := Vector2(64, 92)
 const GAP := 8.0
@@ -35,6 +43,7 @@ const BAR_FILL := Palette.CARD_BAR
 
 var meter: RefCounted        ## paths/arsenal/card_meter.gd
 var loadout: Loadout
+var runner: Node             ## M50.1b: the PathRunner (link_state); null in tests without one
 var max_cards := 6
 ## Tests: the tween moves only through step().
 var manual := false
@@ -44,6 +53,14 @@ var _join: Array[float] = []
 var _ids: Array[StringName] = []
 var _panels := {}            ## M48a: lit -> this widget's copy of the look's UI panel
 var _panel_version := -1
+var _clock := 0.0            ## M50.1b: real seconds (the link's pulse, the misfuse's wobble)
+var _misfuse := false
+var _glitch_out := 0.0       ## M50.1b: seconds left of the misfuse's glitch-out
+
+const GLITCH_OUT := 0.3
+const WOBBLE_HZ := 2.0
+const WOBBLE_DEG := 5.0
+const PULSE_HZ := 0.8
 
 
 func _ready() -> void:
@@ -68,6 +85,8 @@ func _process(delta: float) -> void:
 
 ## One tick of the switch and join tweens (tests call it with a chosen delta).
 func step(delta: float) -> void:
+	_clock += delta
+	_glitch_out = maxf(0.0, _glitch_out - delta)
 	_sync()
 	for i in _lift.size():
 		_lift[i] = move_toward(_lift[i], 1.0 if i == equipped() else 0.0, delta / RAISE_TIME)
@@ -146,6 +165,10 @@ func joining(i: int) -> float:
 ## path: "pack in n") (tests, F1).
 func text() -> String:
 	var out: Array[String] = []
+	if _misfuse:
+		out.append("[%s+%s] %s" % [key_label(0), key_label(1), misfuse_title()])
+		out.append(meter_text())
+		return "\n".join(out)
 	for i in card_count():
 		var w := _slots()[i]
 		if w.deep():
@@ -164,12 +187,60 @@ func meter_text() -> String:
 	return "cards %d/%d" % [_cards(), max_cards]
 
 
-## M50.1a: card i's mechanic levels on the deep curve ([] on the classic curve).
+## M50.1a: card i's mechanic levels on the deep curve ([] on the classic curve). M50.1b: a
+## fused card's 4.
 func card_levels(i: int) -> Array[int]:
 	var w := _slots()[i]
 	if not w.deep():
 		return [] as Array[int]
-	return WeaponCurve.levels(w.rank, WeaponCurve.mechanics(w.def).size())
+	return WeaponCurve.levels_of(w.def, w.rank)
+
+
+## M50.1b: the link between the two cards (0 hidden, 1 dim, 2 lit; PathRunner.link_state).
+func link_state() -> int:
+	if card_count() != 2 or runner == null or not runner.has_method(&"link_state"):
+		return 0
+	return int(runner.call(&"link_state"))
+
+
+## M50.1b: the lit link's brightness now, 0.6..1 (1, steady, under reduce_flashing).
+func link_glow() -> float:
+	if SaveGame.reduce_flashing():
+		return 1.0
+	return 0.8 + 0.2 * sin(_clock * TAU * PULSE_HZ)
+
+
+## M50.1b: the misfuse overlay on / off (off starts the glitch-out).
+func set_misfuse(on: bool) -> void:
+	if _misfuse and not on:
+		_glitch_out = GLITCH_OUT
+	_misfuse = on
+	queue_redraw()
+
+
+func misfusing() -> bool:
+	return _misfuse
+
+
+## M50.1b: the misfuse card's title: "Pistgun?" (the first card's first 4 letters, the second
+## card's last 3).
+func misfuse_title() -> String:
+	if card_count() < 2:
+		return "?"
+	return "%s%s?" % [card_title(0).left(4), card_title(1).right(3).to_lower()]
+
+
+## M50.1b: the misfuse card's tilt now, degrees (0 under reduce_flashing).
+func wobble() -> float:
+	if SaveGame.reduce_flashing():
+		return 0.0
+	return WOBBLE_DEG * sin(_clock * TAU * WOBBLE_HZ)
+
+
+## M50.1b: the seam's rect between card 0 and card 1.
+func link_rect(view: Vector2) -> Rect2:
+	var a := card_rect(0, view)
+	return Rect2(Vector2(a.end.x - 4.0, a.position.y + CARD.y * 0.5 - 8.0), Vector2(GAP + 8.0, 16.0))
 
 
 ## "●''○○": one dot per mechanic (○ locked, ● unlocked), a ' per strengthen (up to 3), "+"
@@ -230,7 +301,11 @@ func meter_rect(view: Vector2) -> Rect2:
 func _draw() -> void:
 	var view := get_viewport_rect().size
 	var font := ThemeDB.fallback_font
+	if _misfuse and card_count() >= 2:
+		_draw_misfuse(view, font)
 	for i in card_count():
+		if _misfuse and card_count() >= 2:
+			break
 		var w := _slots()[i]
 		var lit := i == equipped()
 		var r := card_rect(i, view)
@@ -274,6 +349,13 @@ func _draw() -> void:
 				else:
 					draw_arc(c, 3.5, 0.0, TAU, 12, ink, 1.2, true)
 		WeaponGlyph.draw(self, w.def.icon, r.position + Vector2(CARD.x * 0.5, 74), 26.0, ink)
+		if w.def.is_fusion():
+			_draw_fused(w, r, ink, font, a)
+		if _glitch_out > 0.0 and not SaveGame.reduce_flashing():
+			var k := _glitch_out / GLITCH_OUT
+			draw_rect(Rect2(r.position + Vector2(6.0 * k, 10.0), Vector2(r.size.x, 6.0)), Color(Palette.color(&"danger"), 0.5 * k))
+	if not _misfuse:
+		_draw_link(view, font)
 	var m := meter_rect(view)
 	m.position -= position
 	draw_string(font, m.position + Vector2(0, 14), meter_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, DIM)
@@ -304,6 +386,70 @@ func _draw_deep(i: int, w: Weapon, r: Rect2, pr: Rect2, ink: Color, font: Font, 
 			draw_line(Vector2(x, c.y + 6.0), Vector2(x, c.y + 9.0), ink, 1.5)
 		if lv[k] - 1 > WeaponCurve.STEPS:
 			draw_string(font, Vector2(c.x + 6.0, c.y + 11.0), "+", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, ink)
+
+
+## M50.1b: the link on the seam (hidden: nothing; dim: an outline and a "4"; lit: filled).
+func _draw_link(view: Vector2, font: Font) -> void:
+	var state := link_state()
+	if state <= 0:
+		return
+	var r := link_rect(view)
+	r.position -= position
+	var c := r.get_center()
+	if state == 1:
+		draw_circle(c, 7.0, Color(DIM, 0.35))
+		draw_arc(c, 7.0, 0.0, TAU, 16, DIM, 1.5, true)
+		draw_string(font, c + Vector2(-4, 4), "4", HORIZONTAL_ALIGNMENT_CENTER, 8, 10, DIM)
+		return
+	var g := link_glow()
+	draw_circle(c, 9.0, Color(LIT, 0.35 * g))
+	draw_circle(c, 6.0, Color(LIT, g))
+	draw_line(c - Vector2(9, 0), c + Vector2(9, 0), Color(LIT, g), 2.0, true)
+
+
+## M50.1b: a fused card: a second-tone frame on its lower-right half and its parents' titles.
+func _draw_fused(w: Weapon, r: Rect2, ink: Color, font: Font, a: float) -> void:
+	var tone := Color(Palette.color(&"card_rare"), a)
+	draw_polyline(PackedVector2Array([r.position + Vector2(r.size.x, 2), r.end,
+			r.position + Vector2(2, r.size.y)]), tone, 3.0, true)
+	var names: Array[String] = []
+	for p in w.def.parents:
+		var pd := WeaponDB.get_weapon(p)
+		names.append(pd.title if pd != null else String(p))
+	var sub := " + ".join(names)
+	var fs := 9
+	while fs > 6 and font.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > CARD.x - 6:
+		fs -= 1
+	draw_string(font, r.position + Vector2(3, 66), sub, HORIZONTAL_ALIGNMENT_CENTER, CARD.x - 6, fs, Color(ink, 0.8))
+
+
+## M50.1b: the misfuse: both cards as one wobbling card between their slots, both glyphs
+## overlapped, a glitch frame, "Pistgun?".
+func _draw_misfuse(view: Vector2, font: Font) -> void:
+	var r0 := card_rect(0, view)
+	var r := Rect2(r0.position + Vector2((CARD.x + GAP) * 0.5, -RAISE), CARD)
+	r.position -= position
+	var centre := r.get_center()
+	draw_set_transform(centre, deg_to_rad(wobble()), Vector2.ONE)
+	var box := Rect2(-CARD * 0.5, CARD)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = FACE
+	sb.border_color = LIT
+	sb.set_border_width_all(3)
+	sb.set_corner_radius_all(6)
+	draw_style_box(sb, box)
+	if not SaveGame.reduce_flashing():
+		var k := int(_clock * 12.0) % 3
+		draw_rect(Rect2(box.position + Vector2(-3 + k * 2, 12 + k * 9), Vector2(box.size.x + 6, 4)), Color(Palette.color(&"danger"), 0.6))
+		draw_rect(Rect2(box.position + Vector2(2 - k, 60 - k * 7), Vector2(box.size.x - 4, 3)), Color(Palette.color(&"player_shot"), 0.6))
+	var title := misfuse_title()
+	var fs := 13
+	while fs > 8 and font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > CARD.x - 8:
+		fs -= 1
+	draw_string(font, box.position + Vector2(4, 40), title, HORIZONTAL_ALIGNMENT_CENTER, CARD.x - 8, fs, LIT)
+	WeaponGlyph.draw(self, _slots()[0].def.icon, Vector2(-5, 22), 26.0, Color(LIT, 0.85))
+	WeaponGlyph.draw(self, _slots()[1].def.icon, Vector2(5, 26), 26.0, Color(Palette.color(&"danger"), 0.85))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## M48a: a card's pixel panel tint: white (equipped) or UI_DIM, faded in by `a`, brightened

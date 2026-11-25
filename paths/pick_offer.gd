@@ -15,6 +15,9 @@ var line := ""
 var pack := false
 var hand: Array[Dictionary] = []
 var max_slots := 0
+## M50.1b: the pack's FUSE choice (BoosterPack.fuse_option; {} none). It is the choice after
+## the cards (key choose_4 on a 3-card pack) and never replaces one.
+var fuse := {}
 
 const HP := &"hp"
 ## Auto leans to the weapons it holds (D7): an upgrade card weighs this much more.

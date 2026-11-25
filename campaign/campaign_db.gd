@@ -542,6 +542,14 @@ func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: 
 		ctx.moved_on = moved_on
 	if hits >= 0:
 		ctx.hits = hits
+	# M50.1b: the `fused` / `misfused` conditions (this attempt's run log; Arsenal only).
+	ctx.fused = false
+	ctx.misfused = false
+	for e: Dictionary in RunState.run_log:
+		if e.get("event") == &"fused":
+			ctx.fused = true
+		elif e.get("event") == &"fuse_fail":
+			ctx.misfused = true
 	return ctx
 
 
@@ -690,6 +698,13 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		for r: Variant in (out.weapons as Dictionary).values():
 			top = maxi(top, int(r))
 		out.max_rank = top
+		# M50.1b (additive): fusions made, the misfuse, the seconds FUSE sat available, the
+		# recipes the save knows.
+		out.fusions = (runner.get(&"fusions") as Array).duplicate(true)
+		var mf: Dictionary = runner.get(&"misfuse")
+		out.misfuse = {"t": mf.t, "pair": mf.pair, "restored": mf.restored} if not mf.is_empty() else null
+		out.link_lit_s = snappedf(float(runner.get(&"link_lit_ticks")) / Engine.physics_ticks_per_second, 0.1)
+		out.recipes_known = SaveGame.recipes().map(func(id: StringName) -> String: return String(id))
 	return out
 
 

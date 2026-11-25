@@ -185,7 +185,7 @@ func test_the_arsenal_data_is_valid() -> void:
 	assert_eq(a.max_slots, 2, "M50.1a: a hand of 2")
 	assert_eq(a.max_passives, 1)
 	assert_eq(a.max_picks, 6)
-	assert_eq(a.basics, [&"cards", &"quick_draw"] as Array[StringName])
+	assert_eq(a.basics, [&"cards", &"quick_draw", &"fusion"] as Array[StringName], "M50.1b: + fusion")
 	assert_eq(a.quick_draw_mult, 2.0)
 	assert_eq(a.pick_line, "Pack. Pick one.")
 	assert_eq([a.pack_every, a.pack_taste, a.rank_cap, a.rank_curve], [6, 2, 0, &"deep"], "M50.1a: packs, deep ranks")

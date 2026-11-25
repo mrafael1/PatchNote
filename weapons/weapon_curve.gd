@@ -73,6 +73,11 @@ static func levels(rank: int, n: int, fused := false) -> Array[int]:
 	return lv
 
 
+## M50.1b: `def`'s mechanic levels at `rank` (a fusion: all unlocked from rank 1).
+static func levels_of(def: WeaponDef, rank: int) -> Array[int]:
+	return levels(rank, mechanics(def).size(), def.is_fusion())
+
+
 ## The deep-curve mechanics of `def`: its `mechanics` list, else its classic ranks' new
 ## traits in order (A at rank 2, B at rank 3).
 static func mechanics(def: WeaponDef) -> Array[StringName]:
@@ -95,7 +100,7 @@ static func built(trait_id: StringName) -> bool:
 static func traits(def: WeaponDef, rank: int) -> Array:
 	var out: Array = []
 	var mech := mechanics(def)
-	var lv := levels(rank, mech.size())
+	var lv := levels_of(def, rank)
 	for i in mech.size():
 		if lv[i] > 0 and built(mech[i]):
 			out.append([mech[i], lv[i]])
@@ -108,7 +113,7 @@ static func value(def: WeaponDef, field: StringName, rank: int) -> Variant:
 	if field == &"damage":
 		return def.damage * mult(rank)
 	var v: Variant = def.get(field)
-	var lv := levels(rank, mechanics(def).size())
+	var lv := levels_of(def, rank)
 	for i in mini(lv.size(), def.mechanic_values.size()):
 		if lv[i] <= 0:
 			continue
@@ -161,12 +166,12 @@ static func breakpoint_text(def: WeaponDef, from: int, to: int) -> String:
 static func gain_text(def: WeaponDef, from: int, to: int) -> String:
 	var parts: Array[String] = []
 	var mech := mechanics(def)
-	var lv_from := levels(from, mech.size())
+	var lv_from := levels_of(def, from)
 	var dmg_from := from
 	for r in range(from + 1, to + 1):
 		if r % 2 == 1:
 			continue
-		var lv := levels(r, mech.size())
+		var lv := levels_of(def, r)
 		for i in mech.size():
 			if lv[i] != lv_from[i]:
 				if not built(mech[i]):

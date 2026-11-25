@@ -15,16 +15,26 @@ extends CanvasLayer
 ## Back is the next one (a key and a button; never Esc / ui_cancel, the pause menu's). Back
 ## returns to the same pack: nothing is drawn again and `picked` is not emitted. Each step
 ## has its own input delay.
+##
+## M50.1b (fusion): when the pack carries a FUSE choice (PickOffer.fuse) it is the choice after
+## the cards (key choose_4 on a 3-card pack), in a frame of the hand's lit colour: the link,
+## "FUSE: Shotgun 5 + Laser 4 -> Prism 5", the 4 kept mechanics and one dim "loses:" line.
+## Choosing it emits fuse_requested; the PathRunner fuses and hands back the same pack for the
+## new hand (after_fuse): the cards hide for FUSE_TIME (real time, the tree stays paused, so the
+## hand's merge shows) and the pack comes back with its own input delay.
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
 signal went_back(offer: PickOffer)
+## M50.1b: the pack's FUSE was chosen (the PathRunner answers with after_fuse).
+signal fuse_requested(offer: PickOffer)
 
 const PAUSE := &"pick"
 const INPUT_DELAY := 0.4
 const LAYER := 72   ## over the HUD (50) and the mascot (60), under the debrief (95)
 const CHOICES := 4  ## choose_1..4 (M50.1a: the replace step's Back, M50.1b's FUSE)
 const HAND_SCALE := 0.6
+const FUSE_TIME := 0.4   ## M50.1b: the fuse animation (real time)
 
 var offer: PickOffer
 var input_delay := INPUT_DELAY   ## tests set 0
@@ -37,6 +47,8 @@ var _frames: Array[Control] = []
 var _hand_row: HBoxContainer
 var _replacing := -1        ## M50.1a: the pack card waiting for a slot (-1: the pack itself)
 var _locked_for := 0.0
+var _fusing := 0.0          ## M50.1b: seconds left of the fuse animation
+var _fused_title := ""
 var _dismissed := false   ## the run is over: never open again
 
 
@@ -87,6 +99,7 @@ func open(p_offer: PickOffer) -> bool:
 		return false
 	offer = p_offer
 	_replacing = -1
+	_fusing = 0.0
 	RunState.set_pause(PAUSE, true)
 	_build()
 	_locked_for = input_delay
@@ -107,25 +120,33 @@ func _build() -> void:
 	var hints := Settings.key_hints()
 	if _replacing >= 0:
 		_line.text = "Your hand is full. %s replaces:" % offer.cards[_replacing].get("title", "")
+		var new_name := String(WeaponDB.get_weapon(offer.cards[_replacing].id).title)
 		for j in replace_count() + 1:
-			_add_button(replace_text(offer, j, Callable(), hints), choose.bind(j), false)
+			_add_button(replace_text(offer, j, Callable(), hints, kept_slot(), new_name), choose.bind(j), false,
+					j == kept_slot())
+		return
+	if _fusing > 0.0:
+		_line.text = "Fusing... %s" % _fused_title
 		return
 	_line.text = offer.line
 	for i in offer.cards.size():
 		var text := pack_card_text(offer, i, Callable(), hints) if offer.pack else card_text(offer, i, Callable(), hints)
 		_add_button(text, choose.bind(i), offer.pack and offer.cards[i].get("rarity") == BoosterPack.RARE)
+	if has_fuse():
+		_add_button(fuse_text(offer, Callable(), hints), choose.bind(offer.cards.size()), false, true)
 	if offer.pack:
 		_add_hand_preview()
 
 
-func _add_button(text: String, on_press: Callable, rare: bool) -> void:
+func _add_button(text: String, on_press: Callable, rare: bool, fuse := false) -> void:
 	var frame := PanelContainer.new()
 	var box := StyleBoxFlat.new()
-	box.bg_color = Color(Palette.color(&"card_rare"), 0.0)
-	box.border_color = Color(Palette.color(&"card_rare"), 1.0 if rare else 0.0)
-	box.set_border_width_all(4 if rare else 0)
+	var edge := Palette.CARD_LIT if fuse else Palette.color(&"card_rare")
+	box.bg_color = Color(edge, 0.0)
+	box.border_color = Color(edge, 1.0 if rare or fuse else 0.0)
+	box.set_border_width_all(4 if rare or fuse else 0)
 	box.set_corner_radius_all(8)
-	box.set_content_margin_all(4 if rare else 0)
+	box.set_content_margin_all(4 if rare or fuse else 0)
 	frame.add_theme_stylebox_override(&"panel", box)
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(300, 150)
@@ -175,10 +196,47 @@ static func pack_card_text(p_offer: PickOffer, i: int, to_label := Callable(), h
 	return "%s\n%s" % [head, c.get("gain", c.get("text", ""))]
 
 
+## M50.1b: the pack offers FUSE (the choice after its cards).
+func has_fuse() -> bool:
+	return offer != null and offer.pack and not offer.fuse.is_empty()
+
+
+## M50.1b: the FUSE choice's text: "[4]  FUSE: Shotgun 5 + Laser 4 -> Prism 5", the kept
+## mechanics, then "loses: ..." (BoosterPack.fuse_option's text).
+static func fuse_text(p_offer: PickOffer, to_label := Callable(), hints := true) -> String:
+	var text := String(p_offer.fuse.get("text", ""))
+	if not hints:
+		return text
+	var key := InputSetup.expand_keys("{key:choose_%d}" % (p_offer.cards.size() + 1), to_label)
+	return "[%s]  %s" % [key, text]
+
+
+## M50.1b: the PathRunner fused: `next` is the same pack for the new hand. The cards hide for
+## FUSE_TIME (the fused card's title on the line), then come back with the input delay.
+func after_fuse(next: PickOffer, title: String) -> void:
+	if not _root.visible:
+		return
+	offer = next
+	_replacing = -1
+	_fused_title = title
+	_fusing = FUSE_TIME
+	_build()
+
+
+## M50.1b: the fuse animation is playing.
+func fusing() -> bool:
+	return _root.visible and _fusing > 0.0
+
+
 ## M50.1a: the replace step's choice j: "Replace Pistol 7" per hand card, then "Back".
-static func replace_text(p_offer: PickOffer, j: int, to_label := Callable(), hints := true) -> String:
+## M50.1b review: `keep` (the waiting card's `keep`, BoosterPack.mark_keeps) is the hand card
+## the new one links with: "Keep Shotgun 5: it links with the Laser", not a choice.
+static func replace_text(p_offer: PickOffer, j: int, to_label := Callable(), hints := true, keep := -1,
+		new_title := "") -> String:
 	var text := "Back to the pack"
-	if j < p_offer.hand.size():
+	if j < p_offer.hand.size() and j == keep:
+		text = "Keep %s %d: it links with the %s" % [p_offer.hand[j].title, int(p_offer.hand[j].rank), new_title]
+	elif j < p_offer.hand.size():
 		text = "Replace %s %d" % [p_offer.hand[j].title, int(p_offer.hand[j].rank)]
 	if not hints:
 		return text
@@ -188,6 +246,13 @@ static func replace_text(p_offer: PickOffer, j: int, to_label := Callable(), hin
 ## M50.1a: the replace step is showing (the pack card waiting, else -1).
 func replacing() -> int:
 	return _replacing if _root.visible else -1
+
+
+## M50.1b review: on the replace step, the hand card the waiting card keeps (-1 none).
+func kept_slot() -> int:
+	if offer == null or _replacing < 0 or _replacing >= offer.cards.size():
+		return -1
+	return int(offer.cards[_replacing].get("keep", -1))
 
 
 func replace_count() -> int:
@@ -222,9 +287,18 @@ static func card_text(p_offer: PickOffer, i: int, to_label := Callable(), hints 
 
 
 func _process(delta: float) -> void:
-	if not _root.visible or _locked_for <= 0.0:
+	if not _root.visible:
 		return
 	if RunState.is_paused_for(RunState.MENU):   # M47.3: the pause menu holds the lock
+		return
+	if _fusing > 0.0:
+		_fusing -= delta / maxf(Engine.time_scale, 0.001)   # real time
+		if _fusing <= 0.0:
+			_fusing = 0.0
+			_build()
+			_relock()
+		return
+	if _locked_for <= 0.0:
 		return
 	_locked_for -= delta / maxf(Engine.time_scale, 0.001)   # real time
 	if _locked_for <= 0.0:
@@ -232,7 +306,7 @@ func _process(delta: float) -> void:
 
 
 func can_choose() -> bool:
-	return _root.visible and _locked_for <= 0.0 and not RunState.is_paused_for(RunState.MENU)
+	return _root.visible and _locked_for <= 0.0 and _fusing <= 0.0 and not RunState.is_paused_for(RunState.MENU)
 
 
 ## Closes without a pick, for good (the session ended); the pause reason goes with it.
@@ -245,10 +319,12 @@ func dismiss() -> void:
 
 func _unlock() -> void:
 	_locked_for = 0.0
+	for i in _buttons.size():
+		_buttons[i].disabled = _replacing >= 0 and i == kept_slot()
 	for b in _buttons:
-		b.disabled = false
-	if not _buttons.is_empty():
-		_buttons[0].grab_focus()
+		if not b.disabled:
+			b.grab_focus()
+			break
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -271,11 +347,16 @@ func choose(i: int) -> void:
 		if i == replace_count():
 			back()
 			return
-		if i < 0 or i > replace_count():
+		if i < 0 or i > replace_count() or i == kept_slot():
 			return
 		offer.cards[_replacing]["replace"] = i
 		i = _replacing
 		_replacing = -1
+	elif has_fuse() and i == offer.cards.size():
+		for b in _buttons:
+			b.disabled = true
+		fuse_requested.emit(offer)
+		return
 	elif i < 0 or i >= offer.cards.size():
 		return
 	elif offer.pack and offer.cards[i].get("kind") == &"new" and offer.hand.size() >= offer.max_slots \

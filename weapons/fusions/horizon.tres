@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"horizon"
+title = "Horizon"
+mode = &"aimed"
+cooldown = 0.6
+damage = 2.0
+pellets = 1
+spread_deg = 0.0
+pierce = 3
+speed = 1600.0
+lifetime = -1.0
+size = 1.5
+blast_radius = 0.0
+icon = &"horizon"
+pitch = "The laser, and its path pulls enemies in."
+card_text = PackedStringArray("Horizon: a line that pulls.")
+mechanics = Array[StringName]([&"burn_line", &"slow", &"ricochet", &"teeth"])
+mechanic_values = Array[Dictionary]([])
+parents = Array[StringName]([&"laser", &"well"])
+inherits = Array[StringName]([&"burn_line", &"ricochet", &"slow", &"teeth"])
+built_in = "Auto depth"

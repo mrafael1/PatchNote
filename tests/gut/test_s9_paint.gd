@@ -127,7 +127,8 @@ func test_s9_is_data_and_matches_the_plan() -> void:
 			"at 14: skin player morph": 14.0, "at 20: skin shots": 20.0, "at 20: skin enemies": 20.0,
 			"at 28: skin bug swap 3": 28.0, "at 40: skin arena morph": 40.0, "at 44: skin bug tiles 2.5": 44.0,
 			"at 55: skin ui": 55.0, "at 62: skin bug flip 2": 62.0, "at 70: skin mascot": 70.0,
-			"at 72: skin all": 72.0, "at 80: give laser": 80.0}
+			"at 72: skin all": 72.0, "!answer:path_arsenal at 80: give laser": 80.0,
+			"answer:path_arsenal at 86: give laser 3": 86.0}   # M50.1b: Arsenal's laser is a gold card at 86 (review: the 110 s fallback)
 	for src: String in want:
 		var hit := s.cue_list().filter(func(c: Cue) -> bool: return c.source == src)
 		assert_eq(hit.size(), 1, src)
@@ -519,7 +520,9 @@ func test_s9_per_path_the_laser_at_80_and_novas_line_on_auto() -> void:
 		await _at(79.0)
 		assert_false(&"laser" in game.path_runner.live_pool, "%s: no laser before 80 s" % p)
 		await _at(80.0)
-		assert_true(&"laser" in game.path_runner.live_pool, "%s: the laser at 80 s" % p)
+		# M50.1b: on Arsenal the laser comes at 86 s (review: the design's fallback), a gold card (rank 3), after the misfuse.
+		assert_eq(&"laser" in game.path_runner.live_pool, p != &"arsenal", "%s: the laser at 80 s" % p)
 		await _at(90.0)
+		assert_true(&"laser" in game.path_runner.live_pool, "%s: the laser by 90 s" % p)
 		assert_eq(&"nova" in game.path_runner.live_pool, p == &"auto", "%s: nova announced on Auto only" % p)
 		game.free()

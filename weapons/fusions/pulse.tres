@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"pulse"
+title = "Pulse"
+mode = &"aimed"
+cooldown = 0.18
+damage = 1.0
+pellets = 1
+spread_deg = 0.0
+pierce = 0
+speed = 900.0
+lifetime = -1.0
+size = 1.0
+blast_radius = 0.0
+icon = &"pulse"
+pitch = "The pistol, and every hit pops a little nova."
+card_text = PackedStringArray("Pulse: every hit pops.")
+mechanics = Array[StringName]([&"heavy_round", &"shove", &"seeker", &"dash_nova"])
+mechanic_values = Array[Dictionary]([])
+parents = Array[StringName]([&"pistol", &"nova"])
+inherits = Array[StringName]([&"heavy_round", &"seeker", &"shove", &"dash_nova"])
+built_in = "Auto depth"

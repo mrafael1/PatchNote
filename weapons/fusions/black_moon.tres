@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"black_moon"
+title = "Black Moon"
+mode = &"passive"
+cooldown = 0.4
+damage = 2.0
+pellets = 1
+spread_deg = 0.0
+pierce = 0
+speed = 0.0
+lifetime = -1.0
+size = 2.0
+blast_radius = 0.0
+icon = &"moon"
+pitch = "One big dark shard that pulls things in."
+card_text = PackedStringArray("Black Moon: a shard that pulls.")
+mechanics = Array[StringName]([&"flare", &"slow", &"guard", &"teeth"])
+mechanic_values = Array[Dictionary]([])
+parents = Array[StringName]([&"orbit", &"well"])
+inherits = Array[StringName]([&"flare", &"guard", &"slow", &"teeth"])
+built_in = "S11 + Auto depth"

@@ -11,6 +11,9 @@ extends CanvasLayer
 ## Quit to title, in the Pixel UI panel once the look's `ui` group is on, neutral before.
 ## Raw (Stage 1 and the v6 loop): one grey monospace line, "PAUSED   [Esc] resume   [Q]
 ## quit to start" (Q by position: AZERTY prints A; the pad's Y quits too).
+##
+## M50.1b (Arsenal depth design 7, Q9): under the buttons, the fusion recipes the save knows
+## ("Recipes: Prism (shotgun + laser)"), hidden while it knows none. Read when the menu opens.
 
 const LAYER := 98
 const RAW_LINE := "PAUSED   [{key:pause}] resume   [%s] quit to start"
@@ -31,6 +34,7 @@ var _panel: PanelContainer
 var _menu: VBoxContainer
 var _confirm: VBoxContainer
 var _raw_label: Label
+var _recipes: Label
 var _buttons: Array[Button] = []
 var _confirm_buttons: Array[Button] = []
 var _open := false
@@ -92,6 +96,14 @@ func _ready() -> void:
 	_buttons.append(_button(_menu, "Restart session", ask_restart))
 	_buttons.append(_button(_menu, "Quit to title", quit))
 	_wrap_focus(_buttons)
+	_recipes = Label.new()
+	_recipes.name = "Recipes"
+	_recipes.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_recipes.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_recipes.add_theme_font_size_override(&"font_size", 16)
+	_recipes.add_theme_color_override(&"font_color", Palette.UI_SOFT)
+	_recipes.visible = false
+	_menu.add_child(_recipes)
 
 	_confirm = VBoxContainer.new()
 	_confirm.add_theme_constant_override(&"separation", 10)
@@ -230,6 +242,8 @@ func open() -> bool:
 	_menu.visible = true
 	_confirm.visible = false
 	options.visible = false
+	_recipes.text = recipes_text()
+	_recipes.visible = _recipes.text != ""
 	_dress()
 	_root.visible = true
 	_root.modulate.a = 0.0
@@ -240,6 +254,20 @@ func open() -> bool:
 	if not raw:
 		_buttons[0].grab_focus()
 	return true
+
+
+## M50.1b: "Recipes: Prism (shotgun + laser)" for the recipes the save knows ("" none).
+static func recipes_text() -> String:
+	var parts: Array[String] = []
+	for id in SaveGame.recipes():
+		var f := WeaponDB.get_weapon(id)
+		if f == null:
+			continue
+		var names: Array[String] = []
+		for p in f.parents:
+			names.append(String(p))
+		parts.append("%s (%s)" % [f.title, " + ".join(names)])
+	return "Recipes: " + ", ".join(parts) if not parts.is_empty() else ""
 
 
 ## Resume.

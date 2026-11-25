@@ -45,6 +45,17 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 ## M50.1a: per mechanic, the fields it sets once unlocked (absolute, like `ranks`): the
 ## shotgun's B (point blank) tightens the cone to 18 degrees. The classic curve never reads it.
 @export var mechanic_values: Array[Dictionary] = []
+## M50.1b (fusion, Arsenal depth design 4): a fused card's two parent weapon ids (empty: a
+## base weapon). A fusion lives in weapons/fusions/<id>.tres (WeaponDB.fusions()); its
+## `mechanics` are its own trait list (A2, B2, A4, B4 in the cycle's order), all at level 1
+## from rank 1 (WeaponCurve.levels(rank, 4, true)).
+@export var parents: Array[StringName] = []
+## M50.1b: the mechanic names it keeps (parent A's rank-2 and rank-4, then B's): the UI, the
+## recipe and the check (every one covered by a `mechanics` trait: the same id, or a variant
+## named <id>_<fusion>).
+@export var inherits: Array[StringName] = []
+## M50.1b: "" = built; else the milestone that builds this fusion (a data row until then).
+@export var built_in := ""
 
 
 ## A field's value at `rank`: the rank's override, else the field.
@@ -75,6 +86,16 @@ func is_passive() -> bool:
 	return mode == &"passive"
 
 
+## M50.1b: a fused card (two parents).
+func is_fusion() -> bool:
+	return not parents.is_empty()
+
+
+## M50.1b: `mechanics` covers inherited mechanic `name` (the same trait, or its variant).
+func covers(name: StringName) -> bool:
+	return mechanics.any(func(m: StringName) -> bool: return m == name or String(m).begins_with(String(name) + "_"))
+
+
 ## Everything wrong with this weapon on its own. `file_id` is its file name.
 func problems(file_id: StringName = id) -> Array[String]:
 	var out: Array[String] = []
@@ -89,6 +110,17 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: pellets must be >= 1 (passive: the shard count)" % where)
 	if title.strip_edges() == "":
 		out.append("%s: no title" % where)
+	if is_fusion():
+		if parents.size() != 2 or parents[0] == parents[1]:
+			out.append("%s: a fusion needs two different parents (%s)" % [where, parents])
+		if inherits.size() != 4:
+			out.append("%s: a fusion inherits 4 mechanics, not %d" % [where, inherits.size()])
+		if built_in != "":
+			out.append("%s: not built yet (%s)" % [where, built_in])
+			return out
+		for name in inherits:
+			if not covers(name):
+				out.append("%s: no trait covers the inherited %s" % [where, name])
 	if node_script != "" and not is_passive():
 		out.append("%s: node_script on an aimed weapon" % where)
 	if node_script != "" and not ResourceLoader.exists(node_script):

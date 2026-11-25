@@ -47,11 +47,16 @@ extends RefCounted
 ##   "at 28: skin bug swap 3"       a scripted visual bug: swap | tiles | flip, 0 < s <= 3
 ##   "at 1: spawn chaser 1 specimen"  stands still, takes and deals no damage until...
 ##   "at 9: release"                ...every specimen fights
+## M50.1b (Arsenal's fusion, Arsenal depth design 6):
+##   "answer:path_arsenal at 79: fuse fail"   the misfuse (PathRunner.fuse_fail; skipped
+##                                            with fewer than 2 cards, logged)
+##   "fuse_ready 1: say ..."   the n-th time FUSE became available
+##   "fused 1: say ..."        once n fusions were made this session
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
-		&"level", &"picked"]
+		&"level", &"picked", &"fused", &"fuse_ready"]
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
-		&"drop", &"look", &"boss", &"skin", &"release"]
+		&"drop", &"look", &"boss", &"skin", &"release", &"fuse"]
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
@@ -127,7 +132,7 @@ static func parse(p_source: String) -> Cue:
 			return c
 		c.value = head[1].to_int()
 		c.at_seconds = head[3].to_float() if head.size() == 4 else -1.0
-	elif c.when in [&"level", &"picked", &"boss_hp"]:
+	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready"]:
 		var low := 0 if c.when == &"boss_hp" else 1
 		var high := 100 if c.when == &"boss_hp" else 1000000
 		if head.size() != 2 or not head[1].is_valid_int() or head[1].to_int() < low or head[1].to_int() > high:
@@ -239,6 +244,11 @@ static func parse(p_source: String) -> Cue:
 		&"release":
 			if words.size() != 1:
 				c.problem = "cue '%s': release takes nothing" % p_source
+		&"fuse":
+			if words.size() != 2 or words[1] != "fail":
+				c.problem = "cue '%s': fuse takes 'fail'" % p_source
+			else:
+				c.target = &"fail"
 		&"boss":
 			if words.size() < 2 or words.size() > 3 or (words.size() == 3 and words[2] != "dummy") \
 					or (words[1].begins_with("fork:") and words[1].length() <= 5):
@@ -301,9 +311,16 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("level", 0)) >= int(value)
 		&"picked":
 			return int(ctx.get("picks", 0)) >= int(value)
+		&"fused":
+			return int(ctx.get("fused", 0)) >= int(value)
+		&"fuse_ready":
+			return int(ctx.get("fuse_ready", 0)) >= int(value)
 	return false
 
 
-## A touch cue past its deadline never fires (the moment has passed).
+## A touch cue past its deadline never fires (the moment has passed); nor a fuse_ready n
+## cue once n fusions were made (M50.1b review).
 func expired(ctx: Dictionary) -> bool:
+	if when == &"fuse_ready":   # M50.1b review: the n-th link was already fused, so it is gone
+		return int(ctx.get("fused", 0)) >= int(value)
 	return when == &"touch" and value > 0.0 and float(ctx.get("clock", 0.0)) >= value

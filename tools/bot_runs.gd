@@ -90,6 +90,9 @@ extends SceneTree
 ##   --probe=skip_new             (M50.1a) a pack's NEW card is never taken (no join, no replace)
 ##   --probe=human_pace           (M50.1a) Arsenal deals a pack every 9 kills instead of 6 (the
 ##                                bot's ~0.9 kills/s then gives a human's pack cadence)
+##   --probe=human                (M50.1b review) human_pace, and a replace step that lets the
+##                                lowest-rank card go that the step allows (a first play does
+##                                not know the recipes; the step's kept partner is never offered)
 ##   (M50.1a) A booster pack (Arsenal) is chosen by BotRuns.pack_choice, one static rule with no
 ##   RNG shared with tools/run_hash.gd; the --only line ends with packs=n pack_gap_median=
 ##   rares= replaces= backs= max_rank= hand= cards_fired= shots=, and the "arsenal:" summary
@@ -194,7 +197,7 @@ var draft_arg := ""                          ## --draft (M45a)
 var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 no_switch, first_pick
 var fp_arg := false                          ## --fp (M46)
 var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
-const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace"]
+const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human"]
 ## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
 const PACK_TARGETS := {"s2_02_day_one": [12, 25], "s2_03_paint": [15, 28]}
 const HUMAN_PACE_EVERY := 9
@@ -297,7 +300,7 @@ func _run() -> void:
 				print("[botrun] FAILED: bad %s (--probe=%s)" % [arg, "|".join(PROBES)])
 				quit(1)
 				return
-			if probe_arg == "human_pace":
+			if probe_arg in ["human_pace", "human"]:
 				var arsenal_def: Resource = load("res://paths/path_db.gd").call(&"get_def", &"arsenal")
 				arsenal_def.set(&"pack_every", HUMAN_PACE_EVERY)
 		elif arg.begins_with("--answer="):
@@ -725,9 +728,10 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			var ar := _arsenal_run(cards_run, duration)
 			if bool(runner.call(&"pack_path")):
 				ar = _pack_run(cards_run, runner, loadout, String(only), invincible)
-				landed_text += " packs=%d pack_gap_median=%.1f rares=%d replaces=%d backs=%d max_rank=%d hand=%s cards_fired=%d shots=%s" % [
+				landed_text += " packs=%d pack_gap_median=%.1f rares=%d replaces=%d backs=%d max_rank=%d hand=%s cards_fired=%d shots=%s fusions=%s misfuse=%s" % [
 						int(ar.offers), float(ar.gap_median), int(ar.rares), int(ar.replaces), int(ar.backs),
-						int(ar.max_rank), ar.hand, int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots))]
+						int(ar.max_rank), ar.hand, int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots)),
+						_join_or_dash(ar.fusions), ar.misfuse]
 			else:
 				landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
 						_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),
@@ -831,6 +835,14 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.max_rank))), rank4, arsenal_runs.size(),
 			"|".join(arsenal_runs.map(func(r: Dictionary) -> String: return String(r.hand))),
 			in_band, arsenal_runs.size(), fired2, arsenal_runs.size()])
+		# M50.1b: fusions per seed (the S9 target: >= 12/16, median t <= 110 s) and the misfuse.
+		var fused_runs := arsenal_runs.filter(func(r: Dictionary) -> bool: return float(r.fuse_t) >= 0.0)
+		var mf_ok := arsenal_runs.filter(func(r: Dictionary) -> bool: return r.misfuse == "ok").size()
+		print("[botrun] fusion: %s fused %d/%d median_t=%.1f per_seed=%s misfuse_ok %d/%d" % [only,
+			fused_runs.size(), arsenal_runs.size(),
+			_median(fused_runs.map(func(r: Dictionary) -> float: return float(r.fuse_t))) if not fused_runs.is_empty() else -1.0,
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return _join_or_dash(r.fusions))),
+			mf_ok, arsenal_runs.size()])
 	elif not arsenal_runs.is_empty():
 		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
 		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
@@ -901,10 +913,22 @@ static func _pack_run(run: Dictionary, runner: Node, lo: Node, session_id: Strin
 	if invincible and PACK_TARGETS.has(session_id):
 		var band: Array = PACK_TARGETS[session_id]
 		ok = ok and offers.size() >= int(band[0]) and offers.size() <= int(band[1])
+	# M50.1b: the fusions made ("@112.3:prism") and the misfuse (ok: restored; skipped; - none).
+	var fused: Array = (runner.get(&"fusions") as Array).map(func(f: Dictionary) -> String:
+		return "@%.1f:%s" % [float(f.t), f.id])
+	var mf: Dictionary = runner.get(&"misfuse")
+	var misfuse := "-"
+	if not mf.is_empty():
+		misfuse = "ok" if bool(mf.get("restored", false)) else "broken"
+	elif (runner.get_tree().root.get_node("RunState").get(&"run_log") as Array).any(func(e: Dictionary) -> bool:
+			return e.get("event") == &"fuse_fail_skipped"):
+		misfuse = "skipped"
 	return {"offers": offers.size(), "gaps": gaps, "gap_median": med, "fired": fired,
 			"rares": int(picks.get("rare", 0)), "replaces": int(picks.get("replace", 0)),
 			"backs": int(picks.get("back", 0)), "max_rank": max_rank,
-			"hand": String(lo.call(&"summary")) if lo != null else "-", "ok": ok}
+			"hand": String(lo.call(&"summary")) if lo != null else "-", "ok": ok,
+			"fusions": fused, "fuse_t": float(runner.get(&"fusions")[0].t) if not fused.is_empty() else -1.0,
+			"misfuse": misfuse}
 
 
 static func _shots_parts(shots: Dictionary) -> Array:
@@ -1324,20 +1348,53 @@ static func choose_pack(panel: Node, game: Node, probe: String) -> void:
 
 
 ## M50.1a (Arsenal depth design 8): the bot's pack choice, one static rule with no RNG (-1 =
-## Back). In order: (1) FUSE (M50.1b; never with no_fuse); (2)-(3) recipe pairs (M50.1b);
+## Back). In order: (1) FUSE (M50.1b; never with no_fuse; then it chooses again in the same
+## pack); (2) a card for the lower half of a held recipe pair; (3) on a full hand, a NEW card
+## that makes a recipe with a held card (the replace step then lets the other card go);
 ## (4) a rare card for a held weapon; (5) a NEW card while the hand has room (never with
-## skip_new); (6) a NEW card on a full hand is never taken (on the replace step: Back);
+## skip_new); (6) any other NEW card on a full hand is never taken (on the replace step: Back);
 ## (7) the held card with the most shots. Ties: card order. first_pick: card 0 (always a
 ## held card, G1), Back on the replace step.
 static func pack_choice(panel: Node, lo: Node, probe: String) -> int:
-	if int(panel.call(&"replacing")) >= 0:
-		return -1
 	var offer: RefCounted = panel.get(&"offer")
 	var cards: Array = offer.get(&"cards")
+	var hand: Array = offer.get(&"hand")
+	var replacing := int(panel.call(&"replacing"))
+	# Loaded, not named: this tool compiles before the autoloads those classes reach.
+	var db: GDScript = load("res://weapons/weapon_db.gd")
+	var bp: GDScript = load("res://paths/arsenal/booster_pack.gd")
+	if replacing >= 0:
+		if probe == "human":
+			var keep := int(panel.call(&"kept_slot"))
+			var low := -1
+			for j in hand.size():
+				if j != keep and (low < 0 or int(hand[j].rank) < int(hand[low].rank)):
+					low = j
+			return low
+		# (3): the card that is not the new card's recipe partner goes.
+		if probe != "first_pick" and replacing < cards.size() and hand.size() == 2:
+			for j in 2:
+				if _built_recipe(db, cards[replacing].id, hand[j].id):
+					return 1 - j
+		return -1
 	if cards.is_empty():
 		return -1
 	if probe == "first_pick":
 		return 0
+	if probe != "no_fuse" and not (offer.get(&"fuse") as Dictionary).is_empty():
+		return cards.size()
+	var low: StringName = bp.call(&"recipe_low_half", lo) if lo != null else &""
+	if low != &"":
+		for i in cards.size():
+			if cards[i].id == low and cards[i].kind == &"upgrade":
+				return i
+	if probe != "skip_new" and hand.size() >= int(offer.get(&"max_slots")):
+		for i in cards.size():
+			if cards[i].kind != &"new":
+				continue
+			for h: Dictionary in hand:
+				if _built_recipe(db, cards[i].id, h.id):
+					return i
 	for i in cards.size():
 		if cards[i].kind == &"upgrade" and cards[i].get("rarity") == &"rare":
 			return i
@@ -1356,6 +1413,12 @@ static func pack_choice(panel: Node, lo: Node, probe: String) -> int:
 			best = i
 			best_shots = shots
 	return best if best >= 0 else 0
+
+
+## M50.1b: `a` and `b` make a built fusion (WeaponDB, loaded: see pack_choice).
+static func _built_recipe(db: GDScript, a: StringName, b: StringName) -> bool:
+	var f: StringName = db.call(&"recipe", a, b)
+	return f != &"" and bool(db.call(&"fusion_built", f))
 
 
 ## The card the bot takes out of `n`: a pick_rng draw; --probe=first_pick (M46) takes card 0

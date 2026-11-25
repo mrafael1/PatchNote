@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"satellite"
+title = "Satellite"
+mode = &"passive"
+cooldown = 1.5
+damage = 2.0
+pellets = 2
+spread_deg = 0.0
+pierce = 0
+speed = 0.0
+lifetime = -1.0
+size = 1.0
+blast_radius = 1.2
+icon = &"satellite"
+pitch = "Two shells orbit you and blow on touch."
+card_text = PackedStringArray("Satellite: shells that orbit and blow.")
+mechanics = Array[StringName]([&"sticky", &"flare", &"implode", &"guard"])
+mechanic_values = Array[Dictionary]([])
+parents = Array[StringName]([&"launcher", &"orbit"])
+inherits = Array[StringName]([&"sticky", &"implode", &"flare", &"guard"])
+built_in = "S11"

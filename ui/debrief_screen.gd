@@ -745,6 +745,10 @@ static func notes_text(s: SessionDef, pick: Change = null, more: Array[Change] =
 	var text := "%s · what changed" % CampaignDB.version_after(s).label()
 	for n in s.notes:
 		text += "\n  • " + n
+	# M50.1b: the run's own patch-note lines (Arsenal's misfuse fix, a new recipe), in order.
+	for e: Dictionary in RunState.run_log:
+		if e.get("event") == &"patch_note":
+			text += "\n  • " + String(e.get("text", ""))
 	if pick != null:
 		text += "\n  • " + pick.title
 	for c in more:

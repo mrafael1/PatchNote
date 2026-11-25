@@ -322,10 +322,13 @@ func _choose_card(lo: Loadout, here: Vector2, nearest_d: float) -> Node2D:
 		return null
 	var want := &""
 	var group_at: Node2D = null
-	if lo.held(&"shotgun") != null and lo.held(&"shotgun") in lo.slots and nearest_d < SHOTGUN_REACH:
-		want = &"shotgun"
-	elif lo.held(&"laser") != null and lo.held(&"laser") in lo.slots and _in_corridor(here) >= GROUP:
-		want = &"laser"
+	# M50.1b: a fused card answers for its parents (Prism: the shotgun's and the laser's rule).
+	var sg := lo.holder(&"shotgun")
+	var ls := lo.holder(&"laser")
+	if sg != null and sg in lo.slots and nearest_d < SHOTGUN_REACH:
+		want = sg.def.id
+	elif ls != null and ls in lo.slots and _in_corridor(here) >= GROUP:
+		want = ls.def.id
 	elif lo.held(&"launcher") != null and lo.held(&"launcher") in lo.slots:
 		var w := lo.held(&"launcher")
 		var radius := float(w.value(&"blast_radius")) * Tuning.TILE
@@ -337,7 +340,7 @@ func _choose_card(lo: Loadout, here: Vector2, nearest_d: float) -> Node2D:
 	if want == &"":
 		var top: Weapon = null
 		for w in lo.slots:
-			if top == null or w.rank > top.rank:
+			if top == null or w.rank > top.rank or (w.rank == top.rank and w.def.is_fusion() and not top.def.is_fusion()):
 				top = w
 		want = top.def.id
 	if want != _card and (_card == &"" or _tick - _card_tick >= HOLD_TICKS or lo.held(_card) == null):

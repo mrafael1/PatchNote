@@ -17,6 +17,8 @@ extends Component
 const MAX_RANK := 3          ## the classic curve's top (Survival, Auto, no path)
 const PISTOL := &"pistol"
 const OrbitWeaponShards := preload("res://weapons/orbit_weapon_shards.gd")
+## M50.1b: the misfuse's wrong ways, one every other shot: left, right, back.
+const MISFUSE_TURNS: Array[float] = [-PI / 2.0, PI / 2.0, PI]
 
 var slots: Array[Weapon] = []      ## aimed
 var passives: Array[Weapon] = []
@@ -33,6 +35,12 @@ var sidearm: Weapon                         ## M47: manual_ammo only (null other
 ## (PathDef.rank_curve, handed to every Weapon). No path: MAX_RANK and the classic curve.
 var rank_cap := MAX_RANK
 var curve: StringName = &"classic"
+## M50.1b (Arsenal's misfuse, PathRunner): switching is locked while it lasts, and its shots
+## leave in a fixed wrong-way cycle (MISFUSE_TURNS by shot count, no RNG) drawn as
+## `misfuse_skin`. The slots never change: it is an overlay.
+var switch_locked := false
+var misfuse_skin: StringName = &""
+var misfuse_shots := 0
 var _battery := {}                          ## M47: passive id -> seconds left (manual_ammo)
 
 var _drawn := false
@@ -76,8 +84,15 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 	if w == null or w.ready_in > 0.0 or dir == Vector2.ZERO:
 		return false
 	var m := QuickDraw.mult(self)
-	if s.fire(w, dir, auto, m).is_empty():
+	var shots: Array[Node]
+	if misfuse_skin != &"":
+		shots = s.fire(w, dir, auto, m, misfuse_turn(misfuse_shots), misfuse_skin)
+	else:
+		shots = s.fire(w, dir, auto, m)
+	if shots.is_empty():
 		return false   # refused at the cap: still armed, nothing logged
+	if misfuse_skin != &"":
+		misfuse_shots += 1
 	QuickDraw.spent(self, m)
 	_drawn = false
 	w.ready_in = float(w.value(&"cooldown"))
@@ -87,6 +102,13 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 		if w.ammo_left == 0:
 			to_sidearm()
 	return true
+
+
+## M50.1b: the misfuse's turn for its shot `n` (0 on even shots, then left, right, back).
+static func misfuse_turn(n: int) -> float:
+	if n % 2 == 0:
+		return 0.0
+	return MISFUSE_TURNS[floori(n / 2.0) % MISFUSE_TURNS.size()]
 
 
 ## M47: the held weapon ran dry (or is dropped): the sidearm again, at once.
@@ -143,6 +165,44 @@ func held(id: StringName) -> Weapon:
 	if sidearm != null and sidearm.def.id == id:
 		return sidearm   # M47: the pistol in the pocket while another gun is in hand
 	return null
+
+
+## M50.1b: the held card for weapon `id`: the weapon itself, else a held fusion with `id` as a
+## parent (a parent's card feeds it), else null.
+func holder(id: StringName) -> Weapon:
+	var w := held(id)
+	if w != null:
+		return w
+	for s in slots + passives:
+		if id in s.def.parents:
+			return s
+	return null
+
+
+## M50.1b: aimed slots holding `a` and `b` become one fused card `fused_id` at `rank`. It takes
+## the active parent's slot (else the first of the two), the other slot goes, and it is the
+## active card (not a switch: no quick-draw). Its shots are the parents' (most-fired stays
+## fair). False unless both are held aimed cards and `fused_id` is a fusion.
+func fuse(a: StringName, b: StringName, fused_id: StringName, rank: int) -> bool:
+	var def := WeaponDB.get_weapon(fused_id)
+	var ia := -1
+	var ib := -1
+	for i in slots.size():
+		if slots[i].def.id == a:
+			ia = i
+		elif slots[i].def.id == b:
+			ib = i
+	if def == null or not def.is_fusion() or ia < 0 or ib < 0:
+		return false
+	var at := ia if active == ia else (ib if active == ib else mini(ia, ib))
+	var gone := ib if at == ia else ia
+	var w := Weapon.new(def, cap(rank), curve)
+	w.shots = slots[ia].shots + slots[ib].shots
+	slots[at] = w
+	slots.remove_at(gone)
+	active = slots.find(w)
+	EventBus.weapon_changed.emit(def.id, w.rank)
+	return true
 
 
 func rank_of(id: StringName) -> int:
@@ -214,9 +274,9 @@ func replace_slot(i: int, id: StringName, rank: int) -> bool:
 	return true
 
 
-## Cycles the aimed slots (a no-op with one).
+## Cycles the aimed slots (a no-op with one, or while the misfuse locks switching).
 func switch(step: int) -> void:
-	if slots.size() <= 1 or step == 0:
+	if slots.size() <= 1 or step == 0 or switch_locked:
 		return
 	var was := active
 	active = posmod(active + step, slots.size())
@@ -228,7 +288,7 @@ func switch(step: int) -> void:
 ## Keys 1-3 (M46): makes aimed slot `i` (0-based) active. False (nothing happens) out of
 ## range or when it is already active, so Stage 1's one pistol never moves.
 func select_slot(i: int) -> bool:
-	if i < 0 or i >= slots.size() or i == active:
+	if i < 0 or i >= slots.size() or i == active or switch_locked:
 		return false
 	active = i
 	_switched()
