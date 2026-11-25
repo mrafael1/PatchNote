@@ -133,7 +133,7 @@ func _rebuild_body() -> void:
 		_pixel_view = null
 	body = MascotBody.make(body_id if face else MascotBody.CARET)
 	body.gentle = SaveGame.reduce_flashing()
-	if Skins.current != null:
+	if Skins.is_on(&"mascot"):
 		# M48a: the look's body style (Pixel: the body rendered small, shown at 3x nearest).
 		body.top_limit = corner_top_limit()
 		_pixel_view = PixelBodyView.wrap(body, SIZE / 100.0)

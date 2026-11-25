@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M48a"
+const BUILD := "M48b"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
@@ -69,6 +69,7 @@ func _ready() -> void:
 	print(boot_line())
 	Look.use(Unlocks.look())   # the save's look (PLAN v5 1.7); punchy while inert
 	Skins.read_args(OS.get_cmdline_user_args())   # `-- --look=pixel`: the Pixel preview (PLAN 1.7)
+	Skins.apply_session(RunState.session)   # M48b: the session's skin (S9: revealed by cues)
 
 	var def := GenreDB.get_genre(RunState.genre)
 	genre = def.genre_script.new() as Genre
@@ -347,6 +348,8 @@ func _on_player_died() -> void:
 func _on_run_ended(outcome: StringName) -> void:
 	if path_runner != null:
 		path_runner.stop()   # M45a: the pick panel closes with its pause reason
+	if RunState.session != null and RunState.session.look_reveal == &"manual":
+		Skins.reveal_all()   # M48b (D4): the debrief and an early death end fully revealed
 	if RunState.session != null:
 		# A campaign session logs one line when the player picks the way on (_end_session).
 		prompt_panel.dismiss()

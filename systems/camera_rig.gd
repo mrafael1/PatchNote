@@ -26,6 +26,15 @@ func shake_left() -> float:
 	return _shake
 
 
+func _init() -> void:
+	# M48b: a look's physics interpolation (Skins.apply_motion) is on before the camera is
+	# built in S9: say physics mode up front, as the engine would force it on entering the
+	# tree anyway (no warning then). The project's own setting (tier 0): untouched.
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree != null and tree.physics_interpolation:
+		process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS
+
+
 func _ready() -> void:
 	position_smoothing_enabled = true
 	position_smoothing_speed = 8.0

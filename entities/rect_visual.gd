@@ -46,6 +46,7 @@ var skin_id: StringName = &""
 var _skin_id: StringName = &""
 var _skin_version := -1
 var _skin_frame := -1
+var _skin_bugged := false   ## M48b: a bug was live at the last check (one redraw after it ends)
 
 
 func _enter_tree() -> void:
@@ -70,17 +71,23 @@ func _process(delta: float) -> void:
 	if telegraph > 0.0:
 		queue_redraw()   # the telegraph flickers
 	if Skins.current != null:
-		if _resolved_skin_id() == &"aim_arrow":
+		var id := _resolved_skin_id()
+		if not Skins.is_on(id):
+			return   # M48b: not revealed yet, today's rect
+		if id == &"aim_arrow":
 			queue_redraw()   # the arrow cancels its parent's turn and snaps to whole pixels
 			return
-		var f := Skins.current.idle_frame(_resolved_skin_id(), RunState.real_time())
+		if Skins.morphing(id) or Skins.glitch_kind() != &"" or _skin_bugged:
+			_skin_bugged = Skins.glitch_kind() != &""
+			queue_redraw()   # M48b: a morph's steps, a bug's start and its end
+		var f := Skins.current.idle_frame(id, RunState.real_time())
 		if f != _skin_frame:
 			_skin_frame = f
 			queue_redraw()   # the idle's next frame
 
 
 func _draw() -> void:
-	if Skins.current != null and _draw_skin():
+	if Skins.current != null and Skins.is_on(_resolved_skin_id()) and _draw_skin():
 		return
 	var body := size * (1.0 + TELEGRAPH_GROW * telegraph)
 	var fill := color
@@ -112,24 +119,77 @@ func _draw_skin() -> bool:
 	if id == &"" or not skin.has(id):
 		return false
 	if id == &"aim_arrow":
+		if Skins.morphing(id):
+			return false   # M48b: the arrow arrives whole, after the body's morph
 		return _draw_aim_arrow(skin)
+	var now := RunState.real_time()
+	var u := Skins.morph_of(id, now)
+	var drawn := Skins.drawn_id(id, now)   # M48b: the swap bug dresses an enemy as the player
+	if not skin.has(drawn):
+		drawn = id
 	var grow := 1.0 + TELEGRAPH_GROW * telegraph
-	var s := skin.scale_for(id, size.x) * grow
-	var frame := skin.idle_frame(id, RunState.real_time())
+	var s := skin.scale_for(drawn, size.x) * grow
+	var frame := skin.idle_frame(drawn, now)
 	var upright := Skins.upright(id)
+	var flip := Vector2(1, -1) if Skins.flipped(id, now) else Vector2.ONE   # M48b: the flip bug
 	if upright:
-		draw_set_transform(Vector2.ZERO, -rotation)
-	skin.draw(self, id, Vector2.ZERO, s, frame, Color(1, 1, 1, color.a))
-	var white := 0.0
-	if _flash_left > 0.0:
-		white = 0.9
-	elif telegraph > 0.0:
-		var blink := 0.5 + 0.5 * sin(RunState.real_time() * 1000.0 * 0.04 * (1.0 + telegraph))
-		white = telegraph * (0.45 + 0.55 * blink)
+		draw_set_transform(Vector2.ZERO, -rotation, flip)
+	elif flip.y < 0.0:
+		draw_set_transform(Vector2.ZERO, 0.0, flip)
+	if u >= 0.0:
+		# M48b: mid-morph (SkinMorph), the placeholder rect is today's fill, with today's
+		# hit flash and telegraph flicker on it; the later steps get the white silhouette
+		# (M48b review: a morph never hides a telegraph or a hit).
+		var over := morph_overlay(u, now)
+		SkinMorph.draw(self, skin, drawn, Vector2.ZERO, s, frame, u, over["fill"], size * grow,
+				SaveGame.reduce_flashing(), color.a)
+		if float(over["silhouette"]) > 0.0:
+			skin.draw_silhouette(self, drawn, Vector2.ZERO, s, frame,
+					Color(1, 1, 1, float(over["silhouette"]) * color.a))
+		if upright or flip.y < 0.0:
+			draw_set_transform(Vector2.ZERO)
+		_draw_rim_and_bar(grow)
+		return true
+	skin.draw(self, drawn, Vector2.ZERO, s, frame, Color(1, 1, 1, color.a))
+	var white := _white(now)
 	if white > 0.0:
-		skin.draw_silhouette(self, id, Vector2.ZERO, s, frame, Color(1, 1, 1, white * color.a))
-	if upright:
+		skin.draw_silhouette(self, drawn, Vector2.ZERO, s, frame, Color(1, 1, 1, white * color.a))
+	if upright or flip.y < 0.0:
 		draw_set_transform(Vector2.ZERO)
+	_draw_rim_and_bar(grow)
+	return true
+
+
+## The white over a sprite: the hit flash, else the telegraph's flicker (0: none).
+func _white(now: float) -> float:
+	if _flash_left > 0.0:
+		return 0.9
+	if telegraph > 0.0:
+		var blink := 0.5 + 0.5 * sin(now * 1000.0 * 0.04 * (1.0 + telegraph))
+		return telegraph * (0.45 + 0.55 * blink)
+	return 0.0
+
+
+## Today's fill (tier 0): white for the hit flash, else the telegraph's lerp toward white.
+func _tier0_fill(now: float) -> Color:
+	if _flash_left > 0.0:
+		return Color.WHITE
+	if telegraph > 0.0:
+		var blink := 0.5 + 0.5 * sin(now * 1000.0 * 0.04 * (1.0 + telegraph))
+		return color.lerp(Color.WHITE, telegraph * (0.45 + 0.55 * blink))
+	return color
+
+
+## M48b review: what a morph at u draws over its steps: the placeholder's fill (today's,
+## flash and telegraph included) and the white silhouette's alpha on the sprite steps
+## (0 on the placeholder step, whose fill already carries it).
+func morph_overlay(u: float, now: float) -> Dictionary:
+	var on_sprite := SkinMorph.step(u) != SkinMorph.PLACEHOLDER
+	return {"fill": _tier0_fill(now), "silhouette": _white(now) if on_sprite else 0.0}
+
+
+## Today's rim and HP bar over a sprite (never touched by a morph or a bug).
+func _draw_rim_and_bar(grow: float) -> void:
 	if rim > 0.0:
 		var body := size * grow
 		var edge := RIM
@@ -137,7 +197,25 @@ func _draw_skin() -> bool:
 		draw_rect(Rect2(-body / 2.0, body).grow(RIM_WIDTH * 0.5 + 1.0), edge, false, RIM_WIDTH * (0.6 + 0.4 * rim))
 	if hp_shown < 1.0 and hp_shown > 0.0:
 		_draw_hp_bar()
-	return true
+
+
+## M48b (tests): what this node draws now: its id, the sprite drawn (the swap bug), the
+## flip, the morph step (-1: none) and the idle frame. id &"" or `on` false: today's rect.
+func draw_key() -> Dictionary:
+	var id := _resolved_skin_id()
+	var on := Skins.current != null and Skins.is_on(id) and Skins.current.has(id)
+	if not on:
+		return {"id": id, "on": false}
+	var now := RunState.real_time()
+	var u := Skins.morph_of(id, now)
+	return {"id": id, "on": true, "drawn": Skins.drawn_id(id, now), "flip": Skins.flipped(id, now),
+			"morph_step": SkinMorph.step(u) if u >= 0.0 else -1,
+			"frame": Skins.current.idle_frame(id, now)}
+
+
+## The skin version this node last read its id at (M48b: after S9 it is Skins.version).
+func skin_version() -> int:
+	return _skin_version
 
 
 ## The player's aim tip as a pixel arrow: the glyph snaps to 8 directions (aim_arrow by

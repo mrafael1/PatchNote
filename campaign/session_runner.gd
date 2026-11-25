@@ -40,6 +40,15 @@ var _fired: Array[bool] = []
 var _bound := {}   ## cue index -> true
 var _queue: Array[Line] = []
 var _free_at_msec := 0
+## M48b (PLAN 1.7.1): the transformation's bookkeeping. Sim-side and the same with skins on
+## or off (Skins.reveal is a no-op without a look), so the lines never depend on the look.
+var _morphs := 0                ## `skin ... morph` cues fired (the first one morphs 3 s)
+var _enemies_armed := false     ## `skin enemies` fired: each new enemy id gets drawn in
+var _met := {}                  ## enemy ids named by a skin cue or met since (said once)
+var reveal_said := 0            ## reveal_lines said so far (tests)
+const FIRST_MORPH := 3.0
+const LATER_MORPH := 1.0
+const ARENA_MORPH := 3.0
 
 
 func _ready() -> void:
@@ -187,8 +196,17 @@ func _fire(cue: Cue, index: int) -> void:
 			var archetype := _resolve_archetype(cue.archetype)
 			if archetype == &"":
 				push_warning("Session %s: %s has no answer yet, nothing spawned" % [session.id, cue.archetype])
-			elif not genre.spawn_archetype(archetype, cue.count):
+			elif cue.specimen and not genre.has_method(&"spawn_specimens"):
+				push_warning("Session %s: the genre has no specimens" % session.id)
+			elif cue.specimen and not genre.call(&"spawn_specimens", archetype, cue.count):
 				push_warning("Session %s: the genre cannot spawn %s" % [session.id, archetype])
+			elif not cue.specimen and not genre.spawn_archetype(archetype, cue.count):
+				push_warning("Session %s: the genre cannot spawn %s" % [session.id, archetype])
+		&"release":
+			if genre.has_method(&"release_specimens"):
+				genre.call(&"release_specimens")
+		&"skin":
+			_fire_skin(cue)
 		&"add":
 			RunState.add_basic(cue.target)
 		&"edit":
@@ -211,6 +229,70 @@ func _fire(cue: Cue, index: int) -> void:
 				push_warning("Session %s: give %s %d refused" % [session.id, cue.target, cue.rank])
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
+
+
+## M48b (PLAN 1.7.1): a `skin` cue. A morph lasts FIRST_MORPH on the session's first morph
+## cue and LATER_MORPH after (the arena paints over ARENA_MORPH); shots, ui, mascot and all
+## are instant. `skin enemies` arms the per-spawn reveal and draws in the enemies already
+## on screen (tree order).
+func _fire_skin(cue: Cue) -> void:
+	if cue.target == &"bug":
+		Skins.glitch(cue.bug, cue.seconds)
+		return
+	if cue.target == &"all":
+		# M48b review: the transformation is over: no more reveal lines or morphs (decided
+		# from the cue, not from Skins, so the lines are the same with skins on or off).
+		_disarm_enemies()
+		Skins.reveal_all()
+		return
+	var length := 0.0
+	if cue.morph:
+		_morphs += 1
+		length = ARENA_MORPH if cue.target == &"arena" else (FIRST_MORPH if _morphs == 1 else LATER_MORPH)
+	for id in Skins.target_ids(cue.target):
+		if id in Skins.ENEMY_IDS:
+			_met[id] = true
+	Skins.reveal(cue.target, length)
+	if cue.target == &"enemies" and not _enemies_armed:
+		_enemies_armed = true
+		EventBus.entity_spawned.connect(_on_entity_spawned)
+		for e in get_tree().get_nodes_in_group(&"enemy"):
+			if is_instance_valid(e) and not e.is_queued_for_deletion():
+				_meet(e)
+
+
+func _on_entity_spawned(entity: Node) -> void:
+	if genre == null or genre.is_over() or not entity.is_in_group(&"enemy"):
+		return
+	_meet(entity)
+
+
+## An enemy id met for the first time after `skin enemies`: the next reveal line, and
+## its sprite morphs in over LATER_MORPH.
+func _meet(entity: Node) -> void:
+	var visual := entity.get_node_or_null(^"Visual")
+	if visual == null:
+		return
+	var id := Skins.id_for(visual)
+	if id == &"" or _met.has(id) or not id in Skins.ENEMY_IDS:
+		return
+	_met[id] = true
+	var pool := session.reveal_line_list()
+	if not pool.is_empty():
+		say(pool[reveal_said % pool.size()])
+		reveal_said += 1
+	Skins.reveal(id, LATER_MORPH)
+
+
+func _disarm_enemies() -> void:
+	_enemies_armed = true   # a later `skin enemies` does not re-arm either
+	if EventBus.entity_spawned.is_connected(_on_entity_spawned):
+		EventBus.entity_spawned.disconnect(_on_entity_spawned)
+
+
+func _exit_tree() -> void:
+	if EventBus.entity_spawned.is_connected(_on_entity_spawned):
+		EventBus.entity_spawned.disconnect(_on_entity_spawned)
 
 
 ## The bot and tests (PLAN v8 M40): drop every cue of one action (the session's own

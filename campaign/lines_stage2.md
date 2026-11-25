@@ -56,12 +56,48 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_survival kills 5: (proud) And kills heal you. Like I promised.
 - at 30: (happy) The shotgun's in. Close range, big mess.
 - at 50: (surprised) New enemy. It's two enemies. Sort of.
+- !answer:path_survival at 80: (thinking) You know what? It still looks like a prototype.
+- !answer:path_survival at 86: (happy) I'm going to learn to draw. Give me a session.
+- answer:path_survival at 74: (thinking) You know what? It still looks like a prototype.
+- answer:path_survival at 80: (happy) I'm going to learn to draw. Give me a session.
 ### Debrief
 - won (happy) Day one. It works!
 - died (guilty) Day one bugs. Want another go, or should I just patch it?
 - answer:path_auto&hit_none (surprised) You didn't touch the trigger and didn't get touched. Fair.
 - answer:path_arsenal (thinking) Cards feel good. I want more of them.
 - answer:path_survival (thinking) You're a good scavenger. Suspiciously good.
+- (thinking) Next time, I'll have something to show you. A drawing. My first.
+
+## s2_03_paint: Fresh paint
+### Intro
+- (happy) I learned to draw. Watch this one.
+### Cues
+- at 6.5: (proud) My first asset! Look at it. LOOK at it.
+- at 9: (happy) Okay. You can shoot it now. Gently.
+- at 14: (thinking) Your turn. Hold still. ...Or don't. I can draw moving things now.
+- at 28.5: (surprised) That's you. Why are they all you? Fixing!
+- at 40: (happy) Now the room.
+- at 44.5: (worried) Too much brick. One second.
+- at 55: (proud) The screen too. Boxes with corners!
+- at 62.5: (guilty) They're upside down. They don't mind. I do.
+- mascot:blob at 70: (surprised) I'm... a different colour? I like it.
+- mascot:cursor at 70: (surprised) My arrow looks great.
+- mascot:window at 70: (surprised) New theme. Finally.
+- at 74: (proud) There. That's us now.
+- at 80: (happy) New gun: the laser. It goes through things.
+- answer:path_auto at 90: (happy) And a nova for you. It pops around you.
+### Reveal lines (one per new enemy drawn in, in order)
+- (happy) Another one!
+- (proud) Drew that one too.
+- (happy) Ooh. That one came out nice.
+- (surprised) That one has teeth now.
+### Debrief
+- won (proud) It looks like a game now. Almost.
+- died (guilty) The paint was still wet. My fault.
+- (happy) I'm... chunky. I love it.
+- answer:path_auto (thinking) The cards are still in the drawer. Just saying.
+- answer:path_arsenal (thinking) The gems are still in the drawer.
+- answer:path_survival (thinking) The cards are still in the drawer. And the gems.
 
 ## fork_path
 - Question: Which shooter do we make?

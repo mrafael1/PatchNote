@@ -207,7 +207,7 @@ func _set_body(body_id: StringName) -> void:
 		_big_view = null
 	big_body = MascotBody.make(body_id)
 	big_body.gentle = SaveGame.reduce_flashing()
-	if Skins.current != null:   # M48a: the look's body style (Pixel: 3x nearest)
+	if Skins.is_on(&"mascot"):   # M48a: the look's body style (Pixel: 3x nearest; M48b: once revealed)
 		_big_view = PixelBodyView.wrap(big_body, BIG)
 		_stage.add_child(_big_view)
 		_place_body()
@@ -387,7 +387,7 @@ func _card(c: Change, index: int) -> Button:
 		var preview := MascotBody.make(c.take.id)
 		preview.gentle = SaveGame.reduce_flashing()
 		preview.t = 0.4 * index   # out of step with each other
-		if Skins.current != null:   # M48a (review): the preview wears the look's body style too
+		if Skins.is_on(&"mascot"):   # M48a (review): the preview wears the look's body style too
 			var view := PixelBodyView.wrap(preview, PREVIEW)
 			view.position = PREVIEW_AT
 			holder.add_child(view)

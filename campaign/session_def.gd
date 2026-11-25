@@ -60,6 +60,19 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var spawn_weights: Dictionary = {}
 ## The player's HP never goes below this in this session (WorldRules.hp_floor; 0 = none).
 @export var hp_floor := 0
+## M48b (PLAN 1.7.1, D1): the code-drawn art this session wears: "" keeps whatever the
+## command line or F10 chose (no look by default), "pixel" puts on Pixel (Skins.apply_session).
+## Not the legacy `look` (the juice take, whose presets M48a never made for Pixel).
+@export var skin: StringName = &""
+## M48b: "all" (every id drawn from the start) or "manual" (nothing until `skin` cues
+## reveal it: S9's transformation). Manual needs a skin.
+@export var look_reveal: StringName = &"all"
+## M48b (D10): the spawner stays silent for this long (s of spawner time) before its first
+## wave (S9's specimen moment). 0 = today.
+@export var spawn_after := 0.0
+## M48b (D8): after a `skin enemies` cue, each new enemy id met says the next of these
+## lines (in order, wrapping) as it is drawn in. Lines (Line syntax).
+@export var reveal_lines: PackedStringArray = []
 
 @export_group("Goal")
 @export var goal: StringName = SURVIVE
@@ -105,6 +118,7 @@ var _intro: Array[Line] = []
 var _cues: Array[Cue] = []
 var _debrief: Array[Line] = []
 var _after_pick: Array[Line] = []
+var _reveal_lines: Array[Line] = []
 var _parsed := false
 
 
@@ -139,6 +153,11 @@ func after_pick_lines() -> Array[Line]:
 	return _after_pick
 
 
+func reveal_line_list() -> Array[Line]:
+	_parse()
+	return _reveal_lines
+
+
 func _parse() -> void:
 	if _parsed:
 		return
@@ -147,6 +166,7 @@ func _parse() -> void:
 	_cues = Cue.parse_all(cues)
 	_debrief = Line.parse_all(debrief)
 	_after_pick = Line.parse_all(after_pick)
+	_reveal_lines = Line.parse_all(reveal_lines)
 
 
 ## The arena this session plays.
@@ -376,6 +396,7 @@ func problems() -> Array[String]:
 	out.append_array(_weapon_problems(where))
 	out.append_array(_path_basic_problems(where))
 	out.append_array(_goal_by_path_problems(where))
+	out.append_array(_skin_problems(where))
 	for k in cooking:
 		if k.strip_edges() == "":
 			out.append("%s: an empty cooking line" % where)
@@ -443,6 +464,78 @@ func problems() -> Array[String]:
 		for w in Line.condition_parts(String(l.when)):
 			if w.begins_with("event:") and EventDB.get_event(StringName(w.trim_prefix("event:"))) == null:
 				out.append("%s: unknown event %s" % [where, w.trim_prefix("event:")])
+	return out
+
+
+## The enemy bases a `spawn ... specimen` may name (a walker: the chaser and the scripts
+## that extend it); a variant counts by its base.
+const SPECIMEN_BASES: Array[StringName] = EnemyDB.WALKERS
+const SKINS: Array[StringName] = [&"", &"pixel"]
+const REVEALS: Array[StringName] = [&"all", &"manual"]
+
+
+## M48b (PLAN 1.7.1): the skin fields and the skin / specimen / release cues.
+func _skin_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	if not skin in SKINS:
+		out.append("%s: unknown skin %s (%s)" % [where, skin, SKINS])
+	if not look_reveal in REVEALS:
+		out.append("%s: look_reveal must be all or manual, not %s" % [where, look_reveal])
+	elif look_reveal == &"manual" and skin == &"":
+		out.append("%s: look_reveal manual needs a skin" % where)
+	if spawn_after < 0.0:
+		out.append("%s: spawn_after must be >= 0" % where)
+	# M48b review: the specimen / release order is checked on cue times and conditions,
+	# not list positions. Both are `at` cues; a specimen needs a release that fires on
+	# every run it spawns on (no condition, or its own) at a later time (the same time
+	# counts when the release is listed after it: same-frame cues fire in list order).
+	var specimens: Array = []   # [index, cue]
+	var releases: Array = []
+	var enemies_cue := false
+	var list := cue_list()
+	for i in list.size():
+		var c: Cue = list[i]
+		if c.problem != "":
+			continue
+		if c.action == &"skin":
+			if skin == &"" or look_reveal != &"manual":
+				out.append("%s: cue '%s': skin cues need a skin and look_reveal manual" % [where, c.source])
+			enemies_cue = enemies_cue or c.target == &"enemies"
+		elif c.action == &"spawn" and c.specimen:
+			specimens.append([i, c])
+			if c.when != &"at":
+				out.append("%s: cue '%s': a specimen spawn must be an 'at' cue" % [where, c.source])
+			var base := EnemyDB.base_of(c.archetype) if EnemyDB.has(c.archetype) else &""
+			if not base in SPECIMEN_BASES:
+				out.append("%s: cue '%s': only a walker can be a specimen (%s)" % [where, c.source, SPECIMEN_BASES])
+		elif c.action == &"release":
+			releases.append([i, c])
+			if c.when != &"at":
+				out.append("%s: cue '%s': release must be an 'at' cue" % [where, c.source])
+	var after := func(a: Array, b: Array) -> bool:   # b fires after a
+		var ca: Cue = a[1]
+		var cb: Cue = b[1]
+		return cb.value > ca.value or (cb.value == ca.value and int(b[0]) > int(a[0]))
+	for r: Array in releases:
+		var rc: Cue = r[1]
+		if rc.when == &"at" and not specimens.any(func(sp: Array) -> bool:
+				return (sp[1] as Cue).when == &"at" and after.call(sp, r)):
+			out.append("%s: cue '%s': release needs an earlier specimen spawn" % [where, rc.source])
+		elif rc.cond != "" and specimens.any(func(sp: Array) -> bool: return (sp[1] as Cue).cond != rc.cond):
+			out.append("%s: cue '%s': a release narrower than its specimen's condition" % [where, rc.source])
+	for sp: Array in specimens:
+		var sc: Cue = sp[1]
+		if sc.when != &"at":
+			continue
+		if not releases.any(func(r: Array) -> bool:
+				var rc: Cue = r[1]
+				return rc.when == &"at" and (rc.cond == "" or rc.cond == sc.cond) and after.call(sp, r)):
+			out.append("%s: cue '%s': a specimen is never released (add a later 'at' release cue with no condition or its own)" % [where, sc.source])
+	for l in reveal_line_list():
+		if l.problem != "":
+			out.append("%s: reveal_lines: %s" % [where, l.problem])
+	if not reveal_lines.is_empty() and not enemies_cue:
+		out.append("%s: reveal_lines need a 'skin enemies' cue" % where)
 	return out
 
 

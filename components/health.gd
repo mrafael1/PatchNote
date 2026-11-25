@@ -56,6 +56,9 @@ func heal(amount: float) -> void:
 func take(info: DamageInfo) -> bool:
 	if dead or is_invulnerable():
 		return false
+	# M48b (PLAN 1.7.1): a specimen (S9's first asset) takes nothing until its release.
+	if get_parent().get(&"specimen") == true:
+		return false
 	# Before the session has `health` nothing hurts the player, and nothing shows it:
 	# no i-frames, no telemetry, no player_hit (owner, M39.2).
 	if get_parent().get(&"damage_locked") == true:

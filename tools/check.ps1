@@ -156,8 +156,11 @@ if ($BotRuns) {
     # (Arsenal), v0.8.0; then S8 on Arsenal, the last playable session, v0.8.1, no card.
     if ($camp.Text -match '\[botrun\] cooking:') { $failures += 'bot_campaign: a cooking screen played (nothing cooks after M47)' }
     if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_01_tryout attempt=1 \(invincible\) outcome=stopped t=152\.0 .*choice=next_session .*pick=path_arsenal version=v0\.7\.0->v0\.8\.0 card=2 .*swaps=arsenal@14\.5,survival@57\.5,auto@100\.5,off@144\.5 leftovers=0\r?$') { $failures += 'bot_campaign: S7 did not play its three tastes with the Stage 2 card and fork_path' }
-    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 \(invincible\) outcome=won t=120\.0 .*choice=to_be_continued .*version=v0\.8\.0->v0\.8\.1 path=arsenal ') { $failures += 'bot_campaign: S8 did not play on Arsenal to v0.8.1' }
+    # M48b: S8 now leads to S9 ("Fresh paint", the transformation), the last playable session.
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 \(invincible\) outcome=won t=120\.0 .*choice=next_session .*version=v0\.8\.0->v0\.8\.1 path=arsenal ') { $failures += 'bot_campaign: S8 did not play on Arsenal to v0.8.1' }
     if ($camp.Text -match '\[botrun\] session=s2_02_day_one .* card=') { $failures += 'bot_campaign: S8 showed a stage card' }
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_03_paint attempt=1 \(invincible\) outcome=won t=150\.0 .*choice=to_be_continued .*version=v0\.8\.1->v0\.8\.2 path=arsenal ') { $failures += 'bot_campaign: S9 did not play on Arsenal to v0.8.2' }
+    if ($camp.Text -match '\[botrun\] session=s2_03_paint .* card=') { $failures += 'bot_campaign: S9 showed a stage card' }
     if ($camp.Text -notmatch "\[botrun\] chain: sessions=$playableCount ") { $failures += 'bot_campaign: no chain total' }
     Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
@@ -251,6 +254,14 @@ if ($BotRuns) {
         $t = if ($p -eq 'survival') { '90\.0' } else { '120\.0' }
         if ($s8.Text -notmatch "outcome=win t=$t .*path=$p ") { $failures += "bot_s8_${p}: not won on $p in $t s" }
         if ($s8.Text -notmatch '\[botrun\] summary: s2_02_day_one x1, .* 0 failures') { $failures += "bot_s8_${p}: run failed" }
+    }
+    # M48b: S9 (the transformation) wins on each path in 150 s (survive 150, no goal_by_path).
+    foreach ($p in @('arsenal', 'auto', 'survival')) {
+        $s9 = Invoke-Godot "bot_s9_$p" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_03_paint --answer=fork_path=path_$p --save=user://m48b_check/s9_$p.json --log=user://m48b_check/s9_$p.jsonl 3i"
+        Test-Errors "bot_s9_$p" $s9
+        Select-String -Path $s9.Log -Pattern '^\[botrun\] session=s2_03_paint' | ForEach-Object { Write-Host "    $($_.Line)" }
+        if ($s9.Text -notmatch "outcome=win t=150\.0 .*path=$p ") { $failures += "bot_s9_${p}: not won on $p in 150 s" }
+        if ($s9.Text -notmatch '\[botrun\] summary: s2_03_paint x1, .* 0 failures') { $failures += "bot_s9_${p}: run failed" }
     }
 }
 

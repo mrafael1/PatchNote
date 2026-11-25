@@ -10,6 +10,8 @@ extends RefCounted
 
 const BASES: Array[StringName] = [&"chaser", &"shooter", &"tank", &"bomber", &"lancer"]
 const VARIANTS: Array[StringName] = [&"splitter"]
+## The bases whose scene is an EnemyWalker (M48b: the ones a `spawn ... specimen` may name).
+const WALKERS: Array[StringName] = [&"chaser", &"tank", &"bomber", &"lancer"]
 const VARIANTS_DIR := "res://enemies/variants/"
 
 static var _variants := {}

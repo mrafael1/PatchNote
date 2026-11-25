@@ -331,9 +331,23 @@ func test_the_cue_grammar() -> void:
 	assert_eq([c.problem, c.target, c.seconds], ["", &"fork:fork_look@2", 10.0])
 	c = Cue.parse("at 3: boss fork:fork_boss dummy")
 	assert_eq([c.problem, c.target, c.dummy], ["", &"fork:fork_boss", true])
+	# M48b (PLAN 1.7.1): the transformation's cues.
+	c = Cue.parse("at 3: skin chaser morph")
+	assert_eq([c.problem, c.action, c.target, c.morph], ["", &"skin", &"chaser", true])
+	c = Cue.parse("at 6.5: skin shots")
+	assert_eq([c.problem, c.value, c.target, c.morph], ["", 6.5, &"shots", false])
+	c = Cue.parse("at 28: skin bug swap 3")
+	assert_eq([c.problem, c.target, c.bug, c.seconds], ["", &"bug", &"swap", 3.0])
+	c = Cue.parse("at 1: spawn chaser 1 specimen")
+	assert_eq([c.problem, c.archetype, c.count, c.specimen], ["", &"chaser", 1, true])
+	c = Cue.parse("at 9: release")
+	assert_eq([c.problem, c.action], ["", &"release"])
 	for bad: String in ["room 0: say x", "room 2 at: say x", "boss_hp 101: say x", "level 0: say x",
 			"at 3: path nowhere", "at 3: give shotgun 5", "at 3: drop", "at 3: look clean 0",
-			"at 3: boss x y", "attempts:0 at 3: say x", "at 3 []: say x", "soon: say x"]:
+			"at 3: boss x y", "attempts:0 at 3: say x", "at 3 []: say x", "soon: say x",
+			"at 3: skin", "at 3: skin nothing", "at 3: skin chaser slowly", "at 3: skin bug swap 4",
+			"at 3: skin bug swap 0", "at 3: skin bug melt 1", "at 3: skin bug swap", "at 3: release now",
+			"at 3: spawn chaser 1 frozen", "at 3: spawn chaser specimen"]:
 		assert_ne(Cue.parse(bad).problem, "", bad)
 	assert_false(Cue.parse("room 2 at 5: say x").due({"room": 2, "room_clock": 4.0}))
 	assert_true(Cue.parse("room 2 at 5: say x").due({"room": 2, "room_clock": 5.0}))

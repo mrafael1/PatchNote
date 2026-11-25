@@ -40,6 +40,7 @@ var _roles := {}      ## M48a: role -> Color, the art's ROLES (Palette.color rea
 var _ramps := {}      ## M48a: id -> the ramp's main colour P (effects take a body's colour)
 var _panels := {}     ## M48a: lit (bool) -> StyleBoxTexture, built on first use
 var _particle: CanvasTexture   ## M48a: the neutral particle sprite, built on first use
+var _morph_tex := {}  ## M48b: [id, kind] -> CanvasTexture (SkinMorph's mosaic and outline)
 
 
 ## Bakes every sprite and tile of an art script (its constants PALETTE, SPRITES, TILES).
@@ -220,19 +221,91 @@ func draw_tile(ci: CanvasItem, id: StringName, rect: Rect2, tint := Color.WHITE)
 		ci.draw_texture_rect(t, rect, true, tint)
 
 
+## M48b (SkinMorph): frame 0 of `id` as a mosaic of MOSAIC x MOSAIC cell blocks, each the
+## mean colour of its opaque pixels (a block with none stays clear). Same size as the
+## sprite. Derived on demand, not part of digest().
+const MOSAIC := 4
+
+
+func mosaic(id: StringName) -> Image:
+	var src := image(id)
+	if src == null:
+		return null
+	var img := Image.create(src.get_width(), src.get_height(), false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for by in range(0, src.get_height(), MOSAIC):
+		for bx in range(0, src.get_width(), MOSAIC):
+			var sum := Color(0, 0, 0, 0)
+			var n := 0
+			for y in range(by, mini(by + MOSAIC, src.get_height())):
+				for x in range(bx, mini(bx + MOSAIC, src.get_width())):
+					var c := src.get_pixel(x, y)
+					if c.a > 0.0:
+						sum += c
+						n += 1
+			if n == 0:
+				continue
+			var mean := Color(sum.r / n, sum.g / n, sum.b / n, 1.0)
+			img.fill_rect(Rect2i(bx, by, mini(MOSAIC, src.get_width() - bx), mini(MOSAIC, src.get_height() - by)), mean)
+	return img
+
+
+## M48b (SkinMorph): frame 0's edge only, the opaque pixels next to a clear cell (or the
+## grid's border), in the sprite's main colour (its ramp's P). Same size as the sprite.
+func outline(id: StringName) -> Image:
+	var src := image(id)
+	if src == null:
+		return null
+	var ink: Color = _ramps.get(id, Color.WHITE)
+	ink.a = 1.0
+	var w := src.get_width()
+	var h := src.get_height()
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	for y in h:
+		for x in w:
+			if src.get_pixel(x, y).a <= 0.0:
+				continue
+			var edge := false
+			for d: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var q := Vector2i(x, y) + d
+				if q.x < 0 or q.y < 0 or q.x >= w or q.y >= h or src.get_pixelv(q).a <= 0.0:
+					edge = true
+					break
+			if edge:
+				img.set_pixel(x, y, ink)
+	return img
+
+
+## Draws SkinMorph's `kind` (&"mosaic" / &"outline") picture of `id` like draw() does.
+func draw_morph(ci: CanvasItem, kind: StringName, id: StringName, at: Vector2, scale: float,
+		tint := Color.WHITE) -> void:
+	var key := "%s/%s" % [id, kind]
+	if not _morph_tex.has(key):
+		var img := mosaic(id) if kind == &"mosaic" else outline(id)
+		_morph_tex[key] = _canvas(img) if img != null else null
+	var tex: CanvasTexture = _morph_tex[key]
+	if tex == null:
+		return
+	var sz: Vector2 = _size[id] * scale
+	ci.draw_texture_rect(tex, Rect2(at - sz * 0.5, sz), false, tint)
+
+
 ## A stable hash of every baked image (two bakes of one art script must match).
 func digest() -> String:
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_SHA256)
+	# M48b: sorted as Strings. A StringName sort follows interning order (pointers), so the
+	# M48a digest moved whenever other code named an id first; the images did not.
 	var keys := _images.keys()
-	keys.sort()
+	keys.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
 	for id: StringName in keys:
 		ctx.update(String(id).to_utf8_buffer())
 		for img: Image in _images[id]:
 			ctx.update(var_to_bytes(img.get_size()))
 			ctx.update(img.get_data())
 	var rk := _roles.keys()
-	rk.sort()
+	rk.sort_custom(func(a: StringName, b: StringName) -> bool: return String(a) < String(b))
 	for r: StringName in rk:   # M48a: the roles are part of the look
 		ctx.update(("%s=%s" % [r, (_roles[r] as Color).to_html()]).to_utf8_buffer())
 	return ctx.finish().hex_encode()

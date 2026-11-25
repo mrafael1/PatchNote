@@ -55,8 +55,8 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 ## The look's sprite for `icon` at the largest whole scale that fits `size` (pixels stay
 ## square), dimmed with the card's ink (its brightness) and faded with its alpha.
 static func _draw_skin(ci: CanvasItem, icon: StringName, centre: Vector2, size: float, color: Color) -> bool:
-	var skin := Skins.current
 	var id := StringName("shot_%s_player" % icon)
+	var skin := Skins.on(id)   # M48b: once revealed
 	if skin == null or not skin.has(id):
 		return false
 	var cells := skin.size_of(id)

@@ -635,3 +635,41 @@ func test_the_bake_is_fast_enough() -> void:
 	var ms := (Time.get_ticks_usec() - t0) / 1000.0
 	assert_lt(ms, 150.0, "bake %.1f ms (1.7: <= 150 ms)" % ms)
 	gut.p("pixel bake %.1f ms, %d ids, digest %s" % [ms, skin.ids().size(), skin.digest()])
+
+
+# --- M48b (PLAN 1.7.1) -------------------------------------------------------------------
+
+## The approved art never moved: M48a's atlas, hashed in String order (M48b: M48a's
+## f8bf9165... sorted the ids as StringNames, i.e. by interning order, so it moved whenever
+## other code named an id first; M48a's grids give this value under the stable order). The
+## morph's mosaic and outline are derived on demand, outside digest().
+func test_the_atlas_hash_is_m48as() -> void:
+	var skin := Skins.pixel()
+	assert_not_null(skin.mosaic(&"chaser"))
+	assert_not_null(skin.outline(&"chaser"))
+	assert_eq(skin.digest(), "e233951dadbfd53f30a9e1a1ca11efba4090d8abfc69c823e112506d65313755")
+
+
+## A CLI / F10 / console swap reveals everything (M48a's behaviour); a manual reveal state
+## puts every hook and Palette on tier 0 until its id is revealed.
+func test_use_reveals_all_and_role_on_drives_palette() -> void:
+	Skins.use(Skins.pixel())
+	assert_true(Skins.all_on())
+	for id: StringName in [&"player", &"chaser", &"floor_a", &"ui_panel", &"mascot", &"particle"]:
+		assert_true(Skins.is_on(id), String(id))
+	assert_eq(Palette.color(&"bg"), Color.html("#3a2a4f"))
+	Skins.reset_reveal(true)
+	assert_false(Skins.is_on(&"player"))
+	assert_eq(Palette.color(&"bg"), Palette.tier_0(&"bg"), "manual: tier 0 until the arena")
+	assert_eq(Palette.color(&"enemy"), Palette.tier_0(&"enemy"))
+	Skins.reveal(&"arena")
+	assert_eq(Palette.color(&"bg"), Color.html("#3a2a4f"), "the arena's roles follow its reveal")
+	assert_eq(Palette.color(&"enemy"), Palette.tier_0(&"enemy"))
+	Skins.reveal(&"chaser")
+	assert_eq(Palette.color(&"enemy"), Color.html("#f2402e"))
+	Skins.use(null)
+	Skins.use(Skins.pixel())
+	assert_true(Skins.all_on() and Skins.is_on(&"player"), "a swap reveals all again")
+	Skins.use(null)
+	assert_false(Skins.is_on(&"player"))
+	assert_eq(Palette.color(&"bg"), Palette.tier_0(&"bg"))

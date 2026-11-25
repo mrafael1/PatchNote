@@ -133,9 +133,8 @@ const TIER_0 := {
 ## The live colour of `role`: the current look's, else tier 0 (magenta for an unknown
 ## role, so a typo shows on screen; test_pixel_skin checks every role used resolves).
 static func color(role: StringName) -> Color:
-	var skin := Skins.current
-	if skin != null:
-		var c: Variant = skin.role(role)
+	if Skins.role_on(role):   # M48b: the role's id is revealed (all, outside S9)
+		var c: Variant = Skins.current.role(role)
 		if c != null:
 			return c
 	return TIER_0.get(role, Color.MAGENTA)

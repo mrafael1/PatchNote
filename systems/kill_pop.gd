@@ -24,7 +24,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var t := clampf(_age / LIFETIME, 0.0, 1.0)
-	if Skins.current != null and Skins.current.has(&"pop"):
+	if Skins.is_on(&"pop") and Skins.current.has(&"pop"):
 		# The Pixel preview (PLAN 1.7): the pop frames over its life.
 		var skin := Skins.current
 		var s := maxf(1.0, roundf(ArtSkin.BODY_SCALE * scale_mult))

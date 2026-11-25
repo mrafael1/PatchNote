@@ -41,11 +41,17 @@ extends RefCounted
 ## arsenal happy: Version one."), said 1.5 s before the swap instead of the path's
 ## warn_line. A `picked n` cue counts the picks on the path that starts after the session
 ## reaches it (or the one live then), since that swap; a later swap expires it unfired.
+## M48b (PLAN 1.7.1, the transformation; presentation only, never the simulation):
+##   "at 3: skin chaser morph"      reveal a group / an id / all in the session's skin,
+##                                  morphing (3 s the session's first morph, 1 s later)
+##   "at 28: skin bug swap 3"       a scripted visual bug: swap | tiles | flip, 0 < s <= 3
+##   "at 1: spawn chaser 1 specimen"  stands still, takes and deals no damage until...
+##   "at 9: release"                ...every specimen fights
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
 		&"level", &"picked"]
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
-		&"drop", &"look", &"boss"]
+		&"drop", &"look", &"boss", &"skin", &"release"]
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
@@ -77,6 +83,9 @@ var at_seconds := -1.0         ## room N at s: s seconds after part N starts (-1
 var tag: StringName = &""      ## [tag]: the weapon a say cue announces
 var rank := 1                  ## give: the rank (1-4)
 var dummy := false             ## boss: the harmless one
+var specimen := false          ## spawn: stands still and harmless until a `release` (M48b)
+var morph := false             ## skin: morph in (M48b)
+var bug: StringName = &""      ## skin bug: swap / tiles / flip (M48b); target is then &"bug"
 var problem := ""
 var source := ""
 
@@ -154,7 +163,11 @@ static func parse(p_source: String) -> Cue:
 				c.problem = "cue '%s': spawn what?" % p_source
 			else:
 				c.archetype = StringName(words[1])
-				if words.size() >= 3:
+				if words.size() == 4 and words[3] == "specimen":
+					c.specimen = true
+				elif words.size() > 3:
+					c.problem = "cue '%s': spawn takes an enemy, a count and optionally 'specimen'" % p_source
+				if words.size() >= 3 and c.problem == "":
 					if not words[2].is_valid_int() or words[2].to_int() < 1:
 						c.problem = "cue '%s': bad count" % p_source
 					else:
@@ -206,6 +219,26 @@ static func parse(p_source: String) -> Cue:
 			else:
 				c.target = StringName(words[1])
 				c.seconds = words[2].to_float() if words.size() == 3 else -1.0
+		&"skin":
+			if words.size() >= 2 and words[1] == "bug":
+				if words.size() != 4 or not StringName(words[2]) in Skins.BUGS or not words[3].is_valid_float() \
+						or words[3].to_float() <= 0.0 or words[3].to_float() > Skins.BUG_MAX:
+					c.problem = "cue '%s': skin bug takes %s and seconds (0 < s <= %s)" % [p_source,
+							Skins.BUGS, Skins.BUG_MAX]
+				else:
+					c.target = &"bug"
+					c.bug = StringName(words[2])
+					c.seconds = words[3].to_float()
+			elif words.size() < 2 or words.size() > 3 or (words.size() == 3 and words[2] != "morph"):
+				c.problem = "cue '%s': skin takes a group, an id or all, and optionally 'morph'" % p_source
+			elif not Skins.is_target(StringName(words[1])):
+				c.problem = "cue '%s': skin %s: not a group, an enemy or a sprite id" % [p_source, words[1]]
+			else:
+				c.target = StringName(words[1])
+				c.morph = words.size() == 3
+		&"release":
+			if words.size() != 1:
+				c.problem = "cue '%s': release takes nothing" % p_source
 		&"boss":
 			if words.size() < 2 or words.size() > 3 or (words.size() == 3 and words[2] != "dummy") \
 					or (words[1].begins_with("fork:") and words[1].length() <= 5):

@@ -26,6 +26,7 @@ var spawn_points: Array[Vector2] = []  ## pixels
 var player_start: Vector2
 
 var _reach := PackedByteArray()        ## is_reachable's flood fill, built on first use
+var _was_busy := false                 ## M48b: redrawn once more after a morph or a bug ends
 
 
 func _init(p_def: ArenaDef = null) -> void:
@@ -144,8 +145,52 @@ func _build_reach() -> void:
 ## seen from above; with gravity the background darkens toward "down" (or the side
 ## gravity pulls to) and every block shows a bright strip on the face you can stand on.
 func _draw() -> void:
-	if Skins.current != null and _draw_skin():
+	var painted := ROWS
+	if Skins.is_on(&"floor_a"):
+		painted = painted_rows()
+		if painted >= ROWS and _draw_skin(ROWS):
+			return
+	_draw_tier_0()
+	if painted < ROWS and painted > 0 and Skins.current != null:
+		_draw_skin(painted)   # M48b: the arena paints in row by row over today's
+
+
+## M48b: how many rows (from the top) the skin paints: all once revealed, fewer mid-morph.
+func painted_rows() -> int:
+	var u := Skins.morph_of(&"floor_a")
+	return ROWS if u < 0.0 else clampi(int(floor(u * ROWS)), 0, ROWS)
+
+
+## M48b: keeps redrawing while the arena morphs or the tiles bug is live (and once after).
+func _process(_delta: float) -> void:
+	if Skins.current == null:
 		return
+	var busy := Skins.morphing(&"floor_a") or Skins.glitch_kind() == &"tiles"
+	if busy or _was_busy:
+		queue_redraw()
+	_was_busy = busy
+
+
+## M48b (tests): what cell (c, r) shows now: &"tier0" (today's flat tiles) or the tile id
+## the skin draws there (the tiles bug swaps floor and wall).
+func tile_key(c: int, r: int) -> StringName:
+	if not Skins.is_on(&"floor_a") or r >= painted_rows():
+		return &"tier0"
+	var centre := (Vector2(c, r) + Vector2(0.5, 0.5)) * Tuning.TILE
+	var block := false
+	for rect in blocks:
+		if rect.has_point(centre):
+			block = true
+			break
+	var tiles := Skins.glitch_kind() == &"tiles"
+	if block:
+		return &"floor_a" if tiles else &"wall"
+	if tiles:
+		return &"wall"
+	return &"floor_b" if Skins.cell_hash(c, r) == 0 and Skins.current.has(&"floor_b") else &"floor_a"
+
+
+func _draw_tier_0() -> void:
 	draw_rect(bounds, COLOR_BACKGROUND)
 	var t := Tuning.TILE
 	var rules := RunState.rules
@@ -183,14 +228,20 @@ func _draw() -> void:
 ## The Pixel preview (PLAN 1.7): floor tiles (a rarer variant by a pure cell hash), the
 ## same gravity shading as today, wall tiles over every block and, under gravity, the lit
 ## `standable` edge turned onto the face a body rests on. False without the tiles.
-func _draw_skin() -> bool:
+## M48b: `rows` < ROWS paints only the top rows (the arena's morph); the tiles bug draws
+## the floor as wall and the blocks as floor, and the real blocks keep their rim.
+func _draw_skin(rows := ROWS) -> bool:
 	var skin := Skins.current
 	if not (skin.has(&"floor_a") and skin.has(&"wall")):
 		return false
 	var t := Tuning.TILE
-	skin.draw_tile(self, &"floor_a", bounds)
-	if skin.has(&"floor_b"):
-		for r in ROWS:
+	var tiles := Skins.glitch_kind() == &"tiles"
+	var floor_id := &"wall" if tiles else &"floor_a"
+	var wall_id := &"floor_a" if tiles else &"wall"
+	var top := Rect2(bounds.position, Vector2(bounds.size.x, minf(bounds.size.y, rows * t)))
+	skin.draw_tile(self, floor_id, top)
+	if skin.has(&"floor_b") and not tiles:
+		for r in rows:
 			for c in COLS:
 				if Skins.cell_hash(c, r) == 0:
 					skin.draw_tile(self, &"floor_b", Rect2(c * t, r * t, t, t))
@@ -202,17 +253,19 @@ func _draw_skin() -> bool:
 				var depth := float(c) / (COLS - 1)
 				if g.x < 0.0:
 					depth = 1.0 - depth
-				draw_rect(Rect2(c * t, 0, t, bounds.size.y), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
+				draw_rect(Rect2(c * t, 0, t, top.size.y), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
 		else:
-			for r in ROWS:
+			for r in rows:
 				var depth := float(r) / (ROWS - 1)
 				if g.y < 0.0:
 					depth = 1.0 - depth
 				draw_rect(Rect2(0, r * t, bounds.size.x, t), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
 	for rect in blocks:
-		skin.draw_tile(self, &"wall", rect)
-	_draw_wall_rim(skin.wall_rim())
-	if rules.gravity_enabled and skin.has(&"standable"):
+		var clipped := rect.intersection(top) if rows < ROWS else rect
+		if clipped.has_area():
+			skin.draw_tile(self, wall_id, clipped)
+	_draw_wall_rim(skin.wall_rim(), rows)
+	if rules.gravity_enabled and skin.has(&"standable") and rows >= ROWS:
 		for rect in blocks:
 			_draw_standable(skin, rect, g)
 	return true
@@ -221,7 +274,7 @@ func _draw_skin() -> bool:
 ## The Pixel walls' rim: a 2 px outline on every block cell edge that faces an open cell
 ## (plus a lit line under an open top), so blocks read as one shape and the arena's outer
 ## edge gets none. Cells only, so touching blocks never show a seam. {} rim: nothing.
-func _draw_wall_rim(rim: Dictionary) -> void:
+func _draw_wall_rim(rim: Dictionary, rows := ROWS) -> void:
 	if rim.is_empty():
 		return
 	var t := Tuning.TILE
@@ -233,6 +286,8 @@ func _draw_wall_rim(rim: Dictionary) -> void:
 	var outline: Color = rim["outline"]
 	var lit: Color = rim["lit"]
 	for c: Vector2i in cells:
+		if c.y >= rows:
+			continue
 		var x := c.x * t
 		var y := c.y * t
 		var up := c.y > 0 and not cells.has(c + Vector2i.UP)

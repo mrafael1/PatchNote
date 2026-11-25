@@ -34,6 +34,11 @@ static func render() -> String:
 			var when := "%s %s" % [c.when, (str(int(c.value)) if c.value == floorf(c.value) else str(c.value))] if c.when != &"" else ""
 			var what := "path %s warning: " % c.target if c.action == &"path" else ""
 			out.append("- %s%s: %s%s" % [cond, when.strip_edges(), what, _line(c.line)])
+		if not s.reveal_lines.is_empty():
+			# M48b: said in order, one per new enemy drawn in after `skin enemies`.
+			out.append("### Reveal lines (one per new enemy drawn in, in order)")
+			for l in s.reveal_line_list():
+				out.append("- %s" % _line(l))
 		out.append("### Debrief")
 		for l in s.debrief_lines():
 			out.append("- %s" % _line(l))

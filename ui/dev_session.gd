@@ -245,7 +245,7 @@ func _add_rework_card() -> void:
 	var b := _card_button(session.fork != null and session.fork.mockup)
 	b.custom_minimum_size.x = REWORK_CARD_WIDTH
 	b.self_modulate = REWORK_TINT
-	if Skins.current == null:   # M48a (review): with a look, its panel in every state (tinted)
+	if not Skins.is_on(&"ui_panel"):   # M48a (review): with a look, its panel in every state (tinted)
 		var outline := StyleBoxFlat.new()
 		outline.bg_color = Palette.REWORK_BACK
 		outline.border_color = REWORK_TINT

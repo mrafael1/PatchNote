@@ -84,7 +84,7 @@ func direction_from(p: Vector2) -> Vector2:
 func _draw() -> void:
 	var r := RADIUS * Tuning.TILE
 	var pulse := 0.5 + 0.5 * sin(_t * 5.0)
-	if Skins.current == null or not Skins.current.has(&"gate"):
+	if not Skins.is_on(&"gate") or not Skins.current.has(&"gate"):
 		draw_circle(Vector2.ZERO, r, Color(COLOR, 0.18 + 0.12 * pulse))
 		draw_arc(Vector2.ZERO, r, 0.0, TAU, 40, COLOR, 3.0)
 		draw_arc(Vector2.ZERO, r * (0.55 + 0.3 * pulse), 0.0, TAU, 32, Color(COLOR, 0.6), 2.0)

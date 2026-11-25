@@ -190,7 +190,7 @@ func test_the_cooking_screen_shows_a_cooking_session_and_writes_nothing() -> voi
 	assert_eq(screen.card.building, "v0.9.0")
 	screen.card.skip()
 	assert_false(get_tree().paused)
-	assert_eq(SaveGame.version().label(), "v0.8.1", "no bump")
+	assert_eq(SaveGame.version().label(), "v0.8.2", "no bump (M48b: S9 is v0.8.2)")
 	assert_eq(FileAccess.get_file_as_string(TEST_PATH), save_text, "no save write")
 	assert_false(FileAccess.file_exists(TEST_LOG), "no telemetry")
 

@@ -236,7 +236,7 @@ func burst(pos: Vector2, color: Color, amount: int, speed_min: float, speed_max:
 	p.scale_amount_min = size * 0.6
 	p.scale_amount_max = size * 1.3
 	p.color = color
-	var skin := Skins.current
+	var skin := Skins.on(&"particle")   # M48b: once the shots are revealed
 	if skin != null and skin.particle_texture() != null:
 		# A look's particle sprite (PLAN 1.7): square pixels at a whole scale (one size per
 		# burst, so they stay crisp), about today's on-screen size. Tier 0: untouched.
@@ -262,7 +262,7 @@ func burst(pos: Vector2, color: Color, amount: int, speed_min: float, speed_max:
 ## look the main colour of the sprite it wears.
 func _body_color(visual: RectVisual) -> Color:
 	var color := visual.color if visual else Color.WHITE
-	if visual != null and Skins.current != null:
+	if visual != null and Skins.is_on(Skins.id_for(visual)):
 		color = Skins.current.main_color(Skins.id_for(visual), color)
 	return color
 

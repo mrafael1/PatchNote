@@ -121,6 +121,8 @@ func build(p_shell: Node) -> void:
 	spawner.arena = arena
 	spawner.player = player
 	spawner.enabled = _spawner_wanted()
+	if RunState.session != null:
+		spawner.hold = RunState.session.spawn_after   # M48b (D10): S9's quiet start
 	add_child(spawner)
 
 	run_loop = RunLoop.new()
@@ -286,6 +288,51 @@ func spawn_archetype(archetype: StringName, count: int) -> bool:
 			params.merge({&"variant": v.id, &"size_mult": v.scale, &"hp_mult": v.hp_mult})
 		RunState.spawn(Spawner.SCENES[base], spawner.pick_point() + jitter, params)
 	return true
+
+
+## M48b (PLAN 1.7.1, D9): `count` specimens of a walker `archetype`, in view: 4 tiles right
+## of the arena's start (1.5 tiles apart in y), each snapped to the nearest reachable tile
+## centre, no jitter, no RNG. They stand still, take and deal no damage until
+## release_specimens(). False for a non-walker.
+const SPECIMEN_OFFSET := Vector2(4.0, 0.0)   ## tiles from player_start
+const SPECIMEN_GAP := 1.5                    ## tiles between two specimens (y)
+
+
+func spawn_specimens(archetype: StringName, count: int) -> bool:
+	var v := EnemyDB.variant(archetype)
+	var base := v.base if v != null else archetype
+	if not base in SessionDef.SPECIMEN_BASES or not Spawner.SCENES.has(base):
+		return false
+	var t := Tuning.TILE
+	for i in count:
+		var want := arena.player_start + (SPECIMEN_OFFSET + Vector2(0.0, SPECIMEN_GAP * i)) * t
+		var params := {&"from_spawner": true, &"specimen": true}
+		if v != null:
+			params.merge({&"variant": v.id, &"size_mult": v.scale, &"hp_mult": v.hp_mult})
+		RunState.spawn(Spawner.SCENES[base], _nearest_open_tile(want), params)
+	return true
+
+
+## The centre of the reachable tile nearest `p` (rings of growing radius, row-major).
+func _nearest_open_tile(p: Vector2) -> Vector2:
+	var t := Tuning.TILE
+	var c := Vector2i(int(floorf(p.x / t)), int(floorf(p.y / t)))
+	for radius in 8:
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius:
+					continue
+				var centre := (Vector2(c + Vector2i(dx, dy)) + Vector2(0.5, 0.5)) * t
+				if arena.is_reachable(centre):
+					return centre
+	return p
+
+
+## M48b: every specimen fights from now on (tree order).
+func release_specimens() -> void:
+	for node in get_tree().get_nodes_in_group(&"specimen"):
+		if is_instance_valid(node):
+			node.set(&"specimen", false)
 
 
 func is_over() -> bool:

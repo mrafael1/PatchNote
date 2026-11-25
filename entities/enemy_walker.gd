@@ -26,6 +26,16 @@ var hp_mult := 1.0
 ## on its max HP after every overlay (a splitter's minis: 1).
 var variant: StringName = &""
 var min_hp := 0.0
+## M48b (PLAN 1.7.1, D9): a `spawn ... specimen` cue's enemy: it stands still, shows no rim,
+## takes no damage (Health.take) and deals none until a `release` cue clears it.
+var specimen := false:
+	set(value):
+		specimen = value
+		if is_inside_tree():
+			if value:
+				add_to_group(&"specimen")
+			elif is_in_group(&"specimen"):
+				remove_from_group(&"specimen")
 
 var _contact_damage := 1.0
 var _hop_cooldown_time := 0.5
@@ -55,6 +65,8 @@ func _ready() -> void:
 	_contact_damage = _tuned("contact_damage")
 	_hop_cooldown_time = _tuned("hop_cooldown")
 	_avoid_side = 1.0 if RunState.gameplay_rng.randi() % 2 == 0 else -1.0   # seeded: same seed, same run
+	if specimen:
+		add_to_group(&"specimen")
 	RunState.register_entity(self, kind)
 
 
@@ -63,6 +75,10 @@ func _tuned(suffix: String) -> float:
 
 
 func _physics_process(delta: float) -> void:
+	if specimen:
+		mover.wish = Vector2.ZERO   # M48b: held still and harmless until `release`
+		visual.rim = 0.0
+		return
 	if _before_tick(delta):
 		return
 	EnemyCommon.follow_scale(self)

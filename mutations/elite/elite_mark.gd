@@ -48,7 +48,7 @@ func _draw_ring() -> void:
 	var left := shield_left()
 	var host := get_parent()
 	var r: float = (host.get(&"half_width") if host.get(&"half_width") != null else 15.0) + 9.0
-	if Skins.current != null and _draw_ring_skin(left, r):
+	if Skins.is_on(&"elite") and _draw_ring_skin(left, r):
 		return
 	if left <= 0:
 		_ring.draw_arc(Vector2.ZERO, r, 0.0, TAU, 32, Color(COLOR, 0.35), 2.0)   # still an elite

@@ -66,8 +66,8 @@ func _run() -> void:
 				session_ids.append(StringName(id))
 		elif arg.begins_with("--frames="):
 			frames_every = int(arg.trim_prefix("--frames="))
-		elif arg.begins_with("--look="):
-			pass   # read by main at boot (Skins.read_args: the Pixel preview, visual only)
+		elif arg.begins_with("--look=") or arg == "--skins=off":
+			pass   # read by main at boot (Skins.read_args: the Pixel preview / M48b's off switch, visual only)
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=").split("=")
 			if pair.size() == 2:

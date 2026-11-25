@@ -100,6 +100,8 @@ func test_a_save_with_next_reads_the_id() -> void:
 	_load({"index": 9, "done": _done(7) + ["s2_01_tryout"], "next": ""})
 	assert_eq(CampaignDB.current().id, &"s2_01_tryout", "M47 (D3): a stub-era save plays the real S7")
 	_load({"index": 9, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one"], "next": ""})
+	assert_eq(CampaignDB.current().id, &"s2_03_paint", "M48b: after S8 comes S9")
+	_load({"index": 10, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint"], "next": ""})
 	assert_true(CampaignDB.is_done(), "next \"\": after the furthest done")
 	_load({"done": _done(2), "next": "s9_gone"})
 	assert_eq(CampaignDB.current().id, &"s1_02_enemies", "an unknown id: after the furthest done")
@@ -332,7 +334,7 @@ func test_a_dev_jump_still_plays_the_s7_auto_stub_draft() -> void:
 	assert_true(s.cue_list().any(func(c: Cue) -> bool: return c.action == &"path" and c.target == &"auto"),
 			"M45a: the stub is an Auto taste")
 	CampaignDB.campaign.sessions.insert(CampaignDB.cooking_index(), s)
-	assert_eq(CampaignDB.index_of(s.id), CampaignDB.size() - 1, "inserted after S8 (C2.12)")
+	assert_eq(CampaignDB.index_of(s.id), CampaignDB.size() - 1, "inserted after S9 (C2.12)")
 	for pair: Array in [[STUB, DebriefScreen.LAST], [&"s1_06_playground", DebriefScreen.NEXT]]:
 		var d := DebriefScreen.new()
 		add_child_autofree(d)
@@ -361,7 +363,7 @@ func test_after_and_until_fit_the_old_sessions() -> void:
 
 func test_the_stage_2_reaction_lists_match_their_fixture() -> void:
 	var fixture: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(REACTIONS_FIXTURE))
-	assert_eq(fixture.size(), 4, "M47: s2_01_tryout (one row: live-path reactions), s2_02_day_one x 3 paths")
+	assert_eq(fixture.size(), 7, "M47: s2_01_tryout (one row: live-path reactions), s2_02_day_one x 3 paths; M48b: s2_03_paint x 3")
 	for key: String in fixture:
 		var session := CampaignDB.get_session(StringName(key.get_slice("|", 0)))
 		assert_not_null(session, key)
@@ -422,7 +424,10 @@ func test_the_clamp_holds_for_every_save_past_stage_1() -> void:
 	assert_false(CampaignDB.stub_era(), "past the real S7: the rule is off")
 	assert_eq(CampaignDB.current().id, &"s2_02_day_one")
 	_load({"index": 9, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one"], "next": ""})
-	assert_true(CampaignDB.is_done(), "after S8: to be continued")
+	assert_false(CampaignDB.is_done(), "M48b: after S8, S9 plays")
+	assert_eq(CampaignDB.current().id, &"s2_03_paint")
+	_load({"index": 10, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint"], "next": ""})
+	assert_true(CampaignDB.is_done(), "after S9: to be continued")
 	_load({"index": 5, "done": _done(5), "next": "s1_05_wrong"})
 	assert_false(CampaignDB.is_done(), "mid Stage 1: playable")
 	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)

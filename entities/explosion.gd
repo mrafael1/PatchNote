@@ -68,7 +68,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var u := clampf(_age / LIFE, 0.0, 1.0)
-	if Skins.current != null and Skins.current.has(&"blast"):
+	if Skins.is_on(&"blast") and Skins.current.has(&"blast"):
 		# The Pixel preview (PLAN 1.7): the blast frames, grown to the ring today draws.
 		var skin := Skins.current
 		var cells := maxf(skin.size_of(&"blast").x, 1.0)

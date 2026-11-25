@@ -102,7 +102,7 @@ func test_s8_validates_in_the_campaign() -> void:
 	var s := CampaignDB.get_session(S8)
 	assert_eq(s.problems(), [] as Array[String])
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.index_of(S8), 8, "after S7, the last playable session (D4)")
+	assert_eq(CampaignDB.index_of(S8), 8, "after S7 (D4); S9 follows since M48b")
 	assert_eq([s.stage, s.path, s.goal, s.goal_value, s.hp_floor, s.bump, s.fork],
 			[2, &"fork:fork_path", SessionDef.SURVIVE, 120.0, 0, &"patch", &""])
 	assert_eq(s.goal_by_path, {&"survival": 90.0} as Dictionary[StringName, float], "M47.2: Survival 90 s")
@@ -244,7 +244,8 @@ func test_the_conditioned_intro_and_cues_load_per_path() -> void:
 			assert_eq(intro.any(func(t: String) -> bool: return t.begins_with(mine[q])), q == p, "%s intro, %s line" % [p, q])
 		var cues := s.cue_list().filter(func(c: Cue) -> bool: return Line.condition_holds(c.cond, ctx))
 		for c: Cue in cues:
-			assert_true(c.cond == "" or c.cond == "answer:path_%s" % p, "%s: %s" % [p, c.cond])
+			assert_true(c.cond == "" or c.cond == "answer:path_%s" % p
+					or (c.cond.begins_with("!answer:path_") and c.cond != "!answer:path_%s" % p), "%s: %s" % [p, c.cond])
 		await _s8(p)
 		assert_eq(RunState.live_path(), p)
 		assert_eq(_lo().summary(), "pistol:1", "%s: power stays in its session (pistol:1)" % p)
@@ -422,6 +423,29 @@ func test_minis_keep_1_hp_under_autos_hp_overlay() -> void:
 func test_a_variant_is_never_a_fork_unlock() -> void:
 	assert_false(&"splitter" in Unlocks.ARCHETYPES)
 	assert_eq(load("res://enemies/variants/splitter.tres").problems(), [] as Array[String])
+
+
+# --- M48b (v9.2 0.6): the two prototype lines, no try-on, no fork -------------------------
+
+## S8 says the game still looks like a prototype (80 s, Survival 74 s), then promises a
+## drawing (86 s, Survival 80 s): before each path's goal; the debrief ends on the drawing.
+func test_s8_promises_a_drawing_per_path_before_the_goal() -> void:
+	var s := CampaignDB.get_session(S8)
+	var want := {&"arsenal": [80.0, 86.0], &"auto": [80.0, 86.0], &"survival": [74.0, 80.0]}
+	for p: StringName in want:
+		SaveGame.go_inert()
+		CampaignDB.answer_fork(&"fork_path", StringName("path_%s" % p))
+		var ctx := CampaignDB.line_context(s)
+		var times: Array = []
+		for c in s.cue_list():
+			if c.action == &"say" and Line.condition_holds(c.cond, ctx) and (c.line.text.contains("prototype")
+					or c.line.text.contains("learn to draw")):
+				times.append(c.value)
+		assert_eq(times, want[p], String(p))
+		assert_lt(float(times[1]), s.goal_for(p), "%s: before the goal" % p)
+	assert_eq(s.debrief[s.debrief.size() - 1], "thinking: Next time, I'll have something to show you. A drawing. My first.")
+	assert_eq([s.look, s.skin, s.fork, s.more_forks], ["", &"", &"", [] as Array[StringName]], "no look, no try-on, no fork")
+	assert_false(s.cue_list().any(func(c: Cue) -> bool: return c.action in [&"look", &"skin"]))
 
 
 # --- The lines file (0.4) -----------------------------------------------------------------

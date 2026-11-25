@@ -244,7 +244,7 @@ static func panel_modulate(lit: bool, a: float, flash: float) -> Color:
 ## M48a: this widget's own copy of the look's UI panel (it sets the copy's modulate per
 ## card); null with no look.
 func _skin_panel(lit: bool) -> StyleBoxTexture:
-	if Skins.current == null or Skins.current.ui_panel(lit) == null:
+	if not Skins.is_on(&"ui_panel") or Skins.current.ui_panel(lit) == null:
 		return null
 	if _panel_version != Skins.version:
 		_panel_version = Skins.version

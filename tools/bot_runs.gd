@@ -294,6 +294,8 @@ func _run() -> void:
 				print("[botrun] FAILED: bad %s (--answer=<fork>=<one of its options>)" % arg)
 				quit(1)
 				return
+		elif arg.begins_with("--look=") or arg == "--skins=off":
+			pass   # M48b: read by main at boot (Skins.read_args), visual only
 		else:
 			specs.append(arg)
 	# The game's own parser, so a bot line and a game jump with the same flags answer the

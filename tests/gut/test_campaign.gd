@@ -62,7 +62,7 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 9)
+	assert_eq(CampaignDB.size(), 10)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
 	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
@@ -70,7 +70,8 @@ func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.session(6).id, &"s1_06_playground", "S6 ends Stage 1 (M42)")
 	assert_eq(CampaignDB.session(7).id, &"s2_01_tryout", "S7 opens Stage 2 (M43)")
 	assert_eq(CampaignDB.session(8).id, &"s2_02_day_one", "S8 (M47)")
-	assert_null(CampaignDB.session(9))
+	assert_eq(CampaignDB.session(9).id, &"s2_03_paint", "S9 (M48b)")
+	assert_null(CampaignDB.session(10))
 	assert_null(CampaignDB.cooking(), "M47: nothing cooks")
 
 
@@ -378,8 +379,8 @@ func test_done_campaign_shows_to_be_continued() -> void:
 			assert_eq(CampaignDB.version_after(CampaignDB.session(i)).label(), "v0.8.0", "S7: v0.8.0")
 		CampaignDB.complete(CampaignDB.session(i))
 	assert_true(CampaignDB.is_done())
-	assert_eq(SaveGame.version().label(), "v0.8.1", "S8 is a patch")
-	assert_true(StartScreen.campaign_line().ends_with("v0.8.1 · to be continued"), StartScreen.campaign_line())
+	assert_eq(SaveGame.version().label(), "v0.8.2", "S8 and S9 are patches")
+	assert_true(StartScreen.campaign_line().ends_with("v0.8.2 · to be continued"), StartScreen.campaign_line())
 	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)
 	assert_eq(CookingScreen.after_campaign_scene(), StartScreen.TITLE_SCENE, "nothing cooks: the title")
 	var screen := await _screen()

@@ -16,10 +16,17 @@ var phase_cap := 1.0
 
 var _timer := 1.0
 var _elapsed := 0.0
+## M48b (D10): seconds of enabled spawner time before the first tick counts (a session's
+## spawn_after); 0 = today.
+var hold := 0.0
+var _held := 0.0
 
 
 func _physics_process(delta: float) -> void:
 	if not enabled or not is_instance_valid(player) or arena == null:
+		return
+	if _held < hold:
+		_held += delta
 		return
 	_elapsed += delta
 	_timer -= delta * RunState.rules.spawn_rate_mult * phase_rate

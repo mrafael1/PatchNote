@@ -94,7 +94,7 @@ func _find_player() -> Node2D:
 
 ## The Pixel preview's idle (PLAN 1.7): a redraw when the 2-frame idle flips.
 func _process(_delta: float) -> void:
-	if Skins.current != null:
+	if Skins.is_on(_skin_id()):   # M48b: once revealed
 		var f := Skins.current.idle_frame(_skin_id(), RunState.real_time())
 		if f != _skin_frame:
 			_skin_frame = f
@@ -106,7 +106,7 @@ func _skin_id() -> StringName:
 
 
 func _draw() -> void:
-	if Skins.current != null and Skins.current.has(_skin_id()):
+	if Skins.is_on(_skin_id()) and Skins.current.has(_skin_id()):
 		var id := _skin_id()
 		Skins.current.draw(self, id, Vector2.ZERO, ArtSkin.BODY_SCALE, Skins.current.idle_frame(id, RunState.real_time()))
 		if pickup_kind == &"weapon" and not crate and weapon_id != &"" and WeaponDB.has(weapon_id):
