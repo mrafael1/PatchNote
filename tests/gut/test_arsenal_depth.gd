@@ -701,19 +701,20 @@ func test_the_bot_pack_rule() -> void:
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), 2, "(4) a rare card for a held weapon first")
 	assert_eq(BotRuns.pack_choice(panel, lo, "first_pick"), 0)
 	panel.choose(0)
-	lo.give(&"shotgun")
-	lo.held(&"shotgun").shots = 9
+	lo.give(&"launcher")
+	lo.held(&"launcher").shots = 9
 	r.want_pick()
 	r._open_offer()
-	# M50.1b: a NEW card that is not a built recipe with a held card (the launcher: Cluster is
-	# an unbuilt row) is never taken on a full hand; the laser (Prism with the shotgun) is.
-	panel.offer.cards = [BoosterPack.card(lo, &"pistol", false), BoosterPack.card(lo, &"launcher", false),
-			BoosterPack.card(lo, &"shotgun", false)] as Array[Dictionary]
+	# M50.1b: a NEW card that is not a built recipe with a held card is never taken on a full
+	# hand. M50.3b (Cluster built): on Pistol + Launcher the laser makes no recipe; the shotgun
+	# (Cluster with the launcher) does.
+	panel.offer.cards = [BoosterPack.card(lo, &"pistol", false), BoosterPack.card(lo, &"laser", false),
+			BoosterPack.card(lo, &"launcher", false)] as Array[Dictionary]
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), 2, "(7) the most-fired held card; (6) no NEW on a full hand")
 	panel._replacing = 1
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), -1, "Back on the replace step")
 	panel._replacing = -1
-	panel.offer.cards[1] = BoosterPack.card(lo, &"laser", false)
+	panel.offer.cards[1] = BoosterPack.card(lo, &"shotgun", false)
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), 1, "(3) a NEW card that makes a recipe with a held card")
 	panel._replacing = 1
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), 0, "(3) its replace step lets the non-partner (pistol) go")

@@ -1,6 +1,6 @@
 extends GutTest
 ## M50.1b (Arsenal depth design, .check/arsenal_depth/design.md, sections 4-8): the fusions
-## (WeaponDB.fusions() / recipe(), Prism built, 5 unbuilt rows), FUSE (free: the same pack
+## (WeaponDB.fusions() / recipe(), Prism and (M50.3b) Cluster built, 4 unbuilt rows), FUSE (free: the same pack
 ## reopens for the new hand, nothing drawn), fused levels from the rank, a parent's card
 ## feeding the fusion, the link, Prism's centre-beam burn, the misfuse overlay, the cue
 ## grammar (fuse fail, fused, fuse_ready, the fused / misfused conditions), S9's timeline,
@@ -96,13 +96,14 @@ func test_the_six_recipes_load_and_the_base_list_is_unchanged() -> void:
 	assert_eq(WeaponDB.recipe(&"shotgun", &"launcher"), &"cluster")
 	assert_eq(WeaponDB.recipe(&"pistol", &"shotgun"), &"", "the misfuse pair has no recipe")
 	assert_true(WeaponDB.fusion_built(&"prism"))
-	for id: StringName in [&"cluster", &"satellite", &"pulse", &"horizon", &"black_moon"]:
+	assert_true(WeaponDB.fusion_built(&"cluster"), "M50.3b")
+	for id: StringName in [&"satellite", &"pulse", &"horizon", &"black_moon"]:
 		assert_false(WeaponDB.fusion_built(id), String(id))
 
 
 func test_fusion_problems_mark_the_unbuilt_rows_and_check_inherits() -> void:
 	var probs := WeaponDB.fusion_problems()
-	assert_eq(probs.size(), 5, str(probs))
+	assert_eq(probs.size(), 4, str(probs))
 	for p in probs:
 		assert_string_contains(p, "not built yet")
 	assert_eq(WeaponDB.problems(), [] as Array[String], "the base weapons stay clean")
@@ -319,12 +320,14 @@ func test_mark_keeps_only_for_one_built_partner_on_a_full_non_pair_hand() -> voi
 		return o
 	var o1: PickOffer = cards.call(_deep([&"pistol", &"shotgun"], [9, 2]), [&"laser", &"launcher", &"pistol"])
 	assert_eq(int(o1.cards[0].get("keep", -1)), 1, "laser: keep the shotgun")
-	assert_false(o1.cards[1].has("keep"), "launcher: Cluster is unbuilt")
+	assert_eq(int(o1.cards[1].get("keep", -1)), 1, "launcher: keep the shotgun (M50.3b: Cluster is built)")
 	assert_false(o1.cards[2].has("keep"), "an upgrade is never marked")
 	var o2: PickOffer = cards.call(_deep([&"shotgun", &"laser"], [4, 2]), [&"pistol"])
 	assert_false(o2.cards[0].has("keep"), "a recipe pair already: the choice stays free")
 	var o3: PickOffer = cards.call(_deep([&"shotgun"], [4]), [&"laser"])
 	assert_false(o3.cards[0].has("keep"), "room in the hand: no replace step")
+	var o4: PickOffer = cards.call(_deep([&"pistol", &"launcher"], [9, 2]), [&"laser"])
+	assert_false(o4.cards[0].has("keep"), "laser on Pistol + Launcher: no recipe, no keep")
 
 
 ## M50.1b review (finding 3): fused before the first-time `fuse_ready` line's gap ended:

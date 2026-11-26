@@ -715,6 +715,15 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 			elif e.get("event") == &"mine_blown":
 				mines.blown = int(mines.blown) + 1
 		out.mines = mines
+		# M50.3b (additive): Cluster's bomblets thrown and refused at the player budget.
+		var bomblets := 0
+		var bomblets_refused := 0
+		for e: Dictionary in RunState.run_log:
+			if e.get("event") == &"cluster_burst":
+				bomblets += int(e.get("bomblets", 0))
+				bomblets_refused += int(e.get("refused", 0))
+		out.bomblets = bomblets
+		out.bomblets_refused = bomblets_refused
 		out.ranks_end = (out.weapons as Dictionary).duplicate()
 		var top := 0
 		for r: Variant in (out.weapons as Dictionary).values():

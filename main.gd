@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M50.3a"
+const BUILD := "M50.3b"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 

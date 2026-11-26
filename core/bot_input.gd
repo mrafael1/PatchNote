@@ -184,7 +184,7 @@ func _arsenal_policy() -> void:
 		move = aim_dir.rotated(1.2) * 0.6
 	var lo := Component.find(get_parent(), Loadout) as Loadout
 	var group_at := _choose_card(lo, here, to_enemy.length())
-	if _card == &"launcher" and group_at != null:
+	if group_at != null:   # the launcher (or Cluster) aims at its group
 		aim_dir = (group_at.global_position - here).normalized()
 	if lo != null and probe != &"no_switch":
 		for i in lo.slots.size():
@@ -323,20 +323,24 @@ func _choose_card(lo: Loadout, here: Vector2, nearest_d: float) -> Node2D:
 	var want := &""
 	var group_at: Node2D = null
 	# M50.1b: a fused card answers for its parents (Prism: the shotgun's and the laser's rule).
+	# M50.3b: Cluster answers for the shotgun and the launcher; the launcher's group rule wins.
 	var sg := lo.holder(&"shotgun")
 	var ls := lo.holder(&"laser")
-	if sg != null and sg in lo.slots and nearest_d < SHOTGUN_REACH:
+	var lc := lo.holder(&"launcher")
+	var cluster_group: Node2D = null
+	if lc != null and lc in lo.slots and lc.def.is_fusion():
+		cluster_group = _group_for(lc)
+	if cluster_group != null:
+		want = lc.def.id
+		group_at = cluster_group
+	elif sg != null and sg in lo.slots and nearest_d < SHOTGUN_REACH:
 		want = sg.def.id
 	elif ls != null and ls in lo.slots and _in_corridor(here) >= GROUP:
 		want = ls.def.id
-	elif lo.held(&"launcher") != null and lo.held(&"launcher") in lo.slots:
-		var w := lo.held(&"launcher")
-		var radius := float(w.value(&"blast_radius")) * Tuning.TILE
-		group_at = AutoFire.densest(get_parent() as Node2D, Tuning.auto_attack_range, radius)
-		if group_at != null and _around(group_at.global_position, radius) >= GROUP:
-			want = &"launcher"
-		else:
-			group_at = null
+	elif lc != null and lc in lo.slots and not lc.def.is_fusion():
+		group_at = _group_for(lc)
+		if group_at != null:
+			want = lc.def.id
 	if want == &"":
 		var top: Weapon = null
 		for w in lo.slots:
@@ -346,7 +350,16 @@ func _choose_card(lo: Loadout, here: Vector2, nearest_d: float) -> Node2D:
 	if want != _card and (_card == &"" or _tick - _card_tick >= HOLD_TICKS or lo.held(_card) == null):
 		_card = want
 		_card_tick = _tick
-	return group_at if _card == &"launcher" else null
+	return group_at if lc != null and _card == lc.def.id else null
+
+
+## The densest group within auto-attack range with >= GROUP enemies inside `w`'s blast, or null.
+func _group_for(w: Weapon) -> Node2D:
+	var radius := float(w.value(&"blast_radius")) * Tuning.TILE
+	var at := AutoFire.densest(get_parent() as Node2D, Tuning.auto_attack_range, radius)
+	if at != null and _around(at.global_position, radius) >= GROUP:
+		return at
+	return null
 
 
 ## Enemies in the LASER_CORRIDOR along aim_dir, out to LASER_REACH.

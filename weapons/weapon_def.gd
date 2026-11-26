@@ -56,6 +56,9 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var inherits: Array[StringName] = []
 ## M50.1b: "" = built; else the milestone that builds this fusion (a data row until then).
 @export var built_in := ""
+## M50.3b (Cluster): bomblets thrown on each blast of a player's shell (weapons/cluster_mod.gd,
+## attached by Weapon.attach from the Loadout, never in Shooter.fire). 0 = none.
+@export var burst := 0
 
 
 ## A field's value at `rank`: the rank's override, else the field.

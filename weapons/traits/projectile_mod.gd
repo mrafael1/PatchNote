@@ -31,6 +31,12 @@ func despawned(_p: Node2D) -> void:
 	pass
 
 
+## M50.3b: the projectile is about to blow at `pos` (Projectile.explode, before the blast):
+## a mod may still change its damage (Cluster's point blank).
+func blasting(_p: Node2D, _pos: Vector2) -> void:
+	pass
+
+
 ## M50.3a: the projectile blew at `pos` (Projectile.explode), after the blast and its contact
 ## event, before the despawn. Cluster's bomblets come from here.
 func blasted(_p: Node2D, _pos: Vector2) -> void:
