@@ -367,7 +367,14 @@ func test_session_half_and_last_seconds_on_a_survive_goal() -> void:
 	var last := _def("last_seconds", ["Almost."], 2)
 	last.id = &"test_last"
 	game.reactions._defs.assign([half, last])
-	game.run_loop.goal_clock = 16.0   # S4: survive 30 s
+	# M47.6c1: S4 clears a set now; a 30 s survive goal set by hand (Stage 2 keeps them).
+	var s := game.reactions.session.duplicate() as SessionDef
+	s.goal = SessionDef.SURVIVE
+	s.goal_value = 30.0
+	game.reactions.session = s
+	game.run_loop.goal = SessionDef.SURVIVE
+	game.run_loop.goal_value = 30.0
+	game.run_loop.goal_clock = 16.0
 	game.reactions.tick()
 	assert_eq(_ids(game), ["test_reaction"])
 	game.run_loop.goal_clock = 26.0
@@ -412,7 +419,8 @@ func test_the_same_events_and_seed_react_the_same() -> void:
 		Main.next_seed = 77
 		SaveGame.set_mascot(&"cursor")
 		var game := await _quiet_game(&"s1_04_level", true)
-		assert_gt(game.reactions._busy_until, 0.0, "the intro counts as being spoken")
+		# M47.6c1: S4 has no intro now (its first line is the walls' 0.3 s cue).
+		assert_eq(game.reactions._busy_until, -1.0, "nothing spoken before the first cue")
 		var r := game.reactions
 		var start := 1.0   # fixed: the test's frame waits may differ by one
 		# 40 s of scripted play at 60 Hz: kills in bursts, a hit at 12 s and 30 s, a dash.

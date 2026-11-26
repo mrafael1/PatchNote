@@ -87,6 +87,7 @@ var chapter := false
 var gate := false
 var chat_typed := 0             ## lines typed at gates that were not play (a count, never the text)
 var play_wait_s := 0.0          ## real seconds from the last gate's prompt to play
+var gate_typed := 0             ## M47.6c1: chat_typed at the last gate only (the session's telemetry)
 var _carry_play := false        ## a retry: the play already given carries over
 var _arming := false            ## the gate's lines still type; the input arms after them
 var _gate_usec := 0
@@ -459,6 +460,7 @@ func _open_gate() -> void:
 	gate = true
 	_arming = true
 	_hint_shown = false
+	gate_typed = 0
 	_gate_usec = Time.get_ticks_usec()
 	_activity_usec = _gate_usec
 	for line in gate_lines(RunState.session, terminal.is_chat()):
@@ -493,6 +495,7 @@ func _on_typed(text: String) -> void:
 	if not gate:
 		return
 	chat_typed += 1
+	gate_typed += 1
 	var chat := terminal.is_chat()
 	var reply := CampaignDB.campaign.chat_reply(text, chat) if CampaignDB.campaign != null else ""
 	# Review: a word that starts on a movement key lost that letter at the empty prompt

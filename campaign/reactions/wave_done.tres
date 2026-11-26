@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ReactionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/reaction_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"wave_done"
+trigger = "wave_done"
+lines = PackedStringArray("happy: That's all of them. Clean up.")
+priority = 2
+cooldown = 30.0
+once_per_session = true
+after = &"s1_03_shooting"
+until = &"s1_06_playground"

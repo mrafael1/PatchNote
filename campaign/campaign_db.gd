@@ -218,8 +218,6 @@ static func _unbuilt_problems(s: SessionDef) -> Array[String]:
 		out.append("%s: hud is not built yet (M51)" % where)
 	if s.boss != &"" or s.goal == SessionDef.BOSS:
 		out.append("%s: boss is not built yet (M49)" % where)
-	if not s.spawn_weights.is_empty():
-		out.append("%s: spawn_weights are not built yet (M50)" % where)
 	if s.checkpoint:
 		out.append("%s: checkpoint is not built yet (M49)" % where)
 	return out
@@ -675,6 +673,10 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"duration": run_record.get("duration", snappedf(RunState.game_time, 0.01)),
 		"real_duration": run_record.get("real_duration", snappedf(RunState.real_time(), 0.01)),
 		"goal": run_record.get("goal", {}),
+		# M47.6c1 (design 2.10, additive): why it ended and the fixed set it had.
+		"end": run_record.get("end", ""),
+		"enemy_total": run_record.get("enemy_total", -1),
+		"spawned": run_record.get("spawned", 0),
 		"deaths": 1 if outcome == &"died" else 0,
 		"kills": RunState.kills,
 		"hits_taken": hits,

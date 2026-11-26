@@ -10,13 +10,20 @@ title = "The wrong slider"
 basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits"])
 enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
 spawn_rate = 0.8
-goal = &"kills"
-goal_value = 20.0
-time_limit = 150.0
+spawn_weights = {
+"fork:fork_enemy": 0.4
+}
+goal = &"clear"
+goal_value = 10.0
+time_limit = 120.0
+ends = Array[StringName]([&"clear", &"script"])
+end_after = 4.5
+enemy_total = 10
 face = true
-intro = PackedStringArray("proud: New enemy's in. The one you picked.", "happy: Twenty this time. I'll keep tuning things as we go.")
-cues = PackedStringArray("at 6: spawn fork:fork_enemy 1", "at 15: add version", "at 15: say proud: See the number up there? That's my version.", "at 20: event wrong_variable")
-debrief = PackedStringArray("event:wrong_variable guilty: So. About the gravity thing.", "event:wrong_variable guilty: Let's never speak of it.", "died guilty: Ouch. That one's on me.", "won happy: Twenty. Made it.", "stopped thinking: Time's up. Close enough.", "hit_none proud: You didn't even get hit. Show-off.")
+intro = PackedStringArray("proud: New enemy's in. The one you picked.", "happy: Lots of them this time. I'll keep tuning things as we go.")
+cues = PackedStringArray("at 3: spawn fork:fork_enemy 2", "at 8: spawn fork:fork_enemy 2", "at 13: spawn fork:fork_enemy 2", "at 15: add version", "at 15: say proud: See the number up there? That's my version.", "at 18: spawn fork:fork_enemy 2", "at 20: event wrong_variable")
+debrief = PackedStringArray("event:wrong_variable guilty: So. About the gravity thing.", "event:wrong_variable guilty: Let's never speak of it.", "died guilty: Ouch. That one's on me.", "won happy: All of them. Made it.", "stopped happy: Gravity's back. Good enough.", "hit_none proud: You didn't even get hit. Show-off.")
+end_line = "happy: Okay. That's the test."
 before_play = PackedStringArray("proud: New enemy. Lots of them. Type play.")
 bump = &"minor"
 notes = PackedStringArray("Gravity fixed (mostly)")

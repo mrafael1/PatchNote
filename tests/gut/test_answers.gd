@@ -367,8 +367,8 @@ func test_every_stage_1_cue_parses_as_before() -> void:
 			var colon := t.find(":")
 			var head := t.left(colon).strip_edges().split(" ", false)
 			var body := t.substr(colon + 1).strip_edges().split(" ", false)
-			if s.stage > 1:
-				continue   # M47: Stage 2 cues carry answer: conditions (test_s8_day_one)
+			if s.stage > 1 or c.cond != "":
+				continue   # M47: Stage 2 cues carry answer: conditions (test_s8_day_one); M47.6c1: S4's dash lines
 			assert_eq([c.problem, c.cond, c.tag, c.at_seconds], ["", "", &"", -1.0], src)
 			assert_eq(c.when, StringName(head[0]), src)
 			assert_eq(c.value, head[1].to_float() if head.size() > 1 else 0.0, src)
@@ -414,11 +414,11 @@ func test_path_cues_need_a_tryout_and_new_things_are_not_built_yet() -> void:
 	s.hp_floor = 1
 	var text := "\n".join(CampaignDB.problems(_campaign([s])))
 	for expected in ["room is not built yet", "checkpoint is not built yet",
-			"stages are not built yet", "spawn_weights are not built yet",
+			"stages are not built yet", "spawn_weights must sum below 1",
 			"[laser] is not in the session's weapons or a path's offer_pool_extra"]:
 		assert_string_contains(text, expected)
-	# M45a: path auto, [tag], level and picked are built.
-	for gone in ["path is not built yet", "[tag] is not built yet", "level is not built yet", "path auto"]:
+	# M45a: path auto, [tag], level and picked are built. M47.6c1: spawn_weights too.
+	for gone in ["spawn_weights are not built yet", "path is not built yet", "[tag] is not built yet", "level is not built yet", "path auto"]:
 		assert_false(gone in text, gone)
 	s.cues = PackedStringArray(["at 3: path arsenal", "at 4: path survival", "at 5: path off", "picked 1: say x",
 			"at 6: drop shotgun", "at 7: drop ammo", "at 8: drop heal"])

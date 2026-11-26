@@ -1,3 +1,15 @@
+# Next playtest: M47.6c1, Stage 1's endings (Stage 1 rework, part 3)
+
+What is new since M47.6b (no extra steps; play as usual):
+- No goal text anywhere: a session ends when its set of enemies is dead, or a few seconds after the AI's script is done, or when you die. The AI calls it in its bubble.
+- S0 and S1 end about 5 s after the AI's last line. S3 is three enemies. S4's walls grow in from the middle after "Walls. Watch this.", and the dash line comes after them.
+- S5 brings the enemy you picked much more often (the rest of the crowd as before) and ends 4.5 s after the gravity ("Okay. That's the test."), or when all are dead. S6 ends when its 28 are dead.
+- When the last ones are left the AI says so ("That's all of them. Clean up.", "Two left. Finish it.", "Last one.") and the last three come to you.
+
+One-liners (defaults taken): S5's new enemy share (40 % plus 8): more or less? The walls' 2.5 s: too slow or fine? The last three coming to you: helpful or too easy?
+
+---
+
 # Next playtest: M47.6b, the dev desktop and the chat upgrade (Stage 1 rework, part 2)
 
 What is new since M47.6a (no extra steps; play as usual):

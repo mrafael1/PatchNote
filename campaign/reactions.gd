@@ -303,6 +303,12 @@ func _happened(d: ReactionDef, t: float, enemies: int) -> bool:
 			return _dashed_at >= 0.0 and not _count.has(d.id) and _free_time - _dashed_at <= PENDING
 		&"quiet":
 			return _edge(d, t - maxf(_busy_until, 0.0) >= n)
+		# M47.6c1 (design 2.6): a clear session's set is all out (RunState.wave_closed, never
+		# set elsewhere): more than 2 left, or exactly n left.
+		&"wave_done":
+			return _edge(d, RunState.wave_closed and enemies > 2)
+		&"last_few":
+			return _edge(d, RunState.wave_closed and enemies == int(n))
 	return false
 
 
@@ -389,6 +395,8 @@ func _progress() -> float:
 			return maxf(0.0, genre.session_progress()) / 100.0
 		SessionDef.KILLS:
 			return float(RunState.kills) / maxf(1.0, _kill_goal())
+		SessionDef.CLEAR:   # M47.6c1: kills against the fixed set (budget + cue spawns)
+			return float(RunState.kills) / maxf(1.0, maxf(session.enemy_total, 0) + session.cue_spawn_total())
 	return 0.0
 
 

@@ -246,29 +246,40 @@ func test_move_on_without_ended_lines_or_a_fork_moves_on_at_once() -> void:
 func test_s6_is_the_playground() -> void:
 	var s := CampaignDB.get_session(&"s1_06_playground")
 	assert_eq(s.problems(), [] as Array[String])
-	assert_eq([s.goal, s.goal_value, s.time_limit, s.spawn_rate, s.spawn_cap, s.bump, s.fork],
-			[SessionDef.KILLS, 40.0, 240.0, 1.3, 1.3, &"minor", &""])   # M43.2 (G13b): 60 -> 40
+	# M47.6c1 (PLAN v9.4 0.8): a fixed set of 28 (owner: 25-30), a hidden 180 s cap.
+	assert_eq([s.goal, s.enemy_total, s.time_limit, s.spawn_rate, s.spawn_cap, s.bump, s.fork],
+			[SessionDef.CLEAR, 28, 180.0, 1.3, 1.3, &"minor", &""])
 	assert_true(&"version" in s.basics, "the stamp from frame one")
 	var edits: Array = s.cue_list().map(func(c: Cue) -> Array: return [c.when, c.value, c.target, c.seconds, c.quiet])
-	assert_eq(edits, [[&"at", 10.0, &"edit_gift_explode", -1.0, false], [&"kills", 14.0, &"edit_big_enemies", -1.0, false],
-			[&"kills", 27.0, &"edit_inverted", -1.0, false], [&"kills", 27.0, &"edit_slowmo", 10.0, true]],
-			"M43.2: the gift, then big enemies, then the flip with slow-mo (no more hp 2 cue)")
-	assert_string_contains(s.intro[1], "Forty")
+	assert_eq(edits, [[&"at", 8.0, &"edit_gift_explode", -1.0, false], [&"kills", 10.0, &"edit_big_enemies", -1.0, false],
+			[&"kills", 18.0, &"edit_inverted", -1.0, false], [&"kills", 18.0, &"edit_slowmo", 10.0, true]],
+			"M47.6c1: the story re-keyed to 28: the gift, big enemies, then the flip with slow-mo (10 kills inverted)")
+	assert_false(s.intro[1].contains("Forty"), "no count in the lines")
 
 
-## M43.2 (G13b): S3 is ten kills, its praise comes before the end.
-func test_s3_is_ten_kills() -> void:
+## M47.6c1 (owner: S3 ends at 3 kills): a clear set of three, the third on the second kill.
+func test_s3_is_three_kills() -> void:
 	var s := CampaignDB.get_session(&"s1_03_shooting")
-	assert_eq([s.goal, s.goal_value], [SessionDef.KILLS, 10.0])
+	assert_eq([s.goal, s.enemy_total, s.time_limit], [SessionDef.CLEAR, 0, 120.0])
+	assert_eq(s.cue_spawn_total(), 3)
+	var spawns := s.cue_list().filter(func(c: Cue) -> bool: return c.action == &"spawn")
+	assert_eq(spawns.map(func(c: Cue) -> Array: return [c.when, c.value, c.count]), [[&"at", 0.5, 2], [&"kills", 2.0, 1]])
 	var says := s.cue_list().filter(func(c: Cue) -> bool: return c.when == &"kills" and c.action == &"say")
-	assert_eq(says.map(func(c: Cue) -> float: return c.value), [1.0, 7.0])
+	assert_eq(says.map(func(c: Cue) -> float: return c.value), [1.0, 2.0])
 	assert_eq(s.problems(), [] as Array[String])
 
 
-## M43.2 (G13b): S5 is a 20-kill goal; nothing it says counts seconds any more.
+## M43.2 (G13b): nothing S5 says counts seconds. M47.6c1: S5 clears or ends 4.5 s after its
+## script (the gravity); the owner's answer (design 10 Q1): only the new enemy comes more often.
 func test_s5_lines_fit_a_kill_goal() -> void:
 	var s := CampaignDB.get_session(&"s1_05_wrong")
-	assert_eq([s.goal, s.goal_value, s.time_limit], [SessionDef.KILLS, 20.0, 150.0])
+	assert_eq([s.goal, s.end_kinds(), s.end_after, s.time_limit], [SessionDef.CLEAR,
+			[SessionDef.CLEAR, SessionDef.SCRIPT] as Array[StringName], 4.5, 120.0])
+	assert_eq(s.spawn_rate, 0.8, "the crowd's base rate is not raised (owner)")
+	assert_true(s.spawn_weights.has(SessionDef.FORK_ENEMY), "the new enemy's share of the crowd")
+	assert_gt(s.cue_list().filter(func(c: Cue) -> bool: return c.action == &"spawn" and c.archetype == SessionDef.FORK_ENEMY).size(), 1)
+	assert_ne(s.end_line, "", "the AI calls the script's end")
+	assert_eq(s.problems(), [] as Array[String])
 	var texts: Array[String] = []
 	for l in s.intro_lines() + s.debrief_lines():
 		texts.append(l.text)
@@ -413,7 +424,7 @@ func test_a_broken_campaign_reports_each_problem() -> void:
 	for expected in ["unknown basic teleport", "enemies listed without the enemies basic",
 			"intro line cannot depend on the outcome", "unknown event no_such_event", "a cue line cannot depend on an event", "unknown edit edit_nope", "unknown cue time",
 			"cannot depend on the outcome", "ships unknown change no_such_change", "unknown goal dance",
-			"time_limit is for kills goals only", "no look neon", "bump must be patch or minor",
+			"time_limit is for kills and clear goals only", "no look neon", "bump must be patch or minor",
 			"listed twice", "goes back to stage 1", "fork fork_enemy is asked twice",
 			"fork fork_mascot is asked twice", "no fork no_such_fork", "fork fork_mascot is asked twice (a, d)"]:
 		assert_string_contains(text, expected)
@@ -493,7 +504,7 @@ func test_the_first_session_cannot_move_and_has_nothing() -> void:
 	assert_false(game.director.enabled, "no prompts in the campaign")
 	assert_eq(Unlocks.pool(), [] as Array[Mutation])
 	assert_eq(Unlocks.look(), {"tier": 0, "take": ""})
-	assert_eq(game.run_loop.goal, SessionDef.STOP)
+	assert_eq(game.run_loop.goal, SessionDef.SCRIPT, "M47.6c1: it ends 5 s after its script")
 	assert_eq(game.session_runner.said, ["go on. try the keys."], "the first intro line is said at once")
 	assert_string_contains(Main.boot_line(), "session s1_00_nothing")
 
@@ -503,15 +514,26 @@ func test_movement_comes_alone_for_five_seconds() -> void:
 	assert_false(game.player.movement_locked)
 	assert_true(game.player.shooting_locked)
 	assert_false(game.spawner.enabled, "no enemies basic: nothing spawns")
-	assert_eq(game.run_loop.goal, SessionDef.STOP)
+	# M47.6c1: a script ending: the last `at` cue (6 s) closes the script, 5 game seconds later
+	# it stops (about 11 s in all).
+	assert_eq(game.run_loop.goal, SessionDef.SCRIPT)
 	assert_eq(game.hud.goal_shown(), "", "no goal text (owner, 2026-11-23)")
-	assert_eq(game.run_loop.goal_value + Tuning.smoke_stop_read, 5.0, "5 s in all")
+	assert_eq(game.run_loop.end_after, 5.0)
 	game.run_loop.goal_clock = 3.0
 	await wait_physics_frames(3)
-	assert_eq(game.session_runner.fired_count(), 1, "the AI's 'ok!' at 3 s")
-	game.run_loop.goal_clock = 5.0
+	assert_eq(game.session_runner.fired_count(), 1, "the AI's line at 3 s")
+	assert_lt(game.run_loop.script_done_at, 0.0, "the 6 s line is still to come")
+	game.run_loop.goal_clock = 6.0
 	await wait_physics_frames(3)
+	assert_gte(game.run_loop.script_done_at, 0.0, "the script is done")
+	var done_at: float = game.run_loop.script_done_at
+	RunState.game_time = done_at + 4.9
+	await wait_physics_frames(1)
+	assert_false(game.run_loop.is_over(), "the quiet tail is 5 s of game time")
+	RunState.game_time = done_at + 5.0
+	await wait_physics_frames(2)
 	assert_eq(game.run_loop.outcome, RunLoop.STOPPED)
+	assert_eq(game.run_loop.end_reason, &"script")
 
 
 func test_enemies_overrun_you_and_dying_is_the_way_on() -> void:
@@ -552,18 +574,19 @@ func test_an_overrun_survived_to_the_end_is_stopped() -> void:
 	assert_eq(loop.outcome, RunLoop.STOPPED)
 
 
-func test_shooting_comes_with_a_kill_count() -> void:
+func test_shooting_comes_with_a_fixed_set_of_three() -> void:
 	var game := await _game(&"s1_03_shooting")
 	assert_false(game.player.shooting_locked)
 	assert_true(game.player.dash_locked, "the dash ships after this session")
-	assert_eq(game.run_loop.goal, SessionDef.KILLS)
-	assert_eq(game.hud.goal_shown(), "Kills 0/10")
+	assert_eq(game.run_loop.goal, SessionDef.CLEAR)
+	assert_eq(game.hud.goal_shown(), "", "M47.6c1: no goal text in a campaign session")
 	RunState.kills = 1
 	await wait_physics_frames(3)
 	assert_eq(game.session_runner.fired_count(), 1, "the first kill: 'Oh. That works.'")
 	RunState.kills = 15
 	await wait_physics_frames(3)
-	assert_eq(game.run_loop.outcome, &"win")
+	assert_false(game.run_loop.is_over(), "kills alone never end a clear session: its set is still to come")
+	assert_eq(game.session_runner.pending_spawns(), 2, "the two at 0.5 s (the kills 2 one fired on the kills)")
 
 
 func test_a_death_offers_retry_and_move_on() -> void:
@@ -621,7 +644,7 @@ func test_a_won_session_asks_its_fork_then_shows_its_notes() -> void:
 	assert_ne(game.debrief.big_body.id, MascotBody.CARET)
 	var texts := game.debrief.lines.map(func(l: Line) -> String: return l.text)
 	assert_false("Too many at once. My fault." in texts)
-	assert_true("Time's up. Close enough." in texts)
+	assert_true("Close enough." in texts, "M47.6c1: the hidden cap says no time")
 	game.debrief.input_delay = 0.0
 	# M42.1: the dash, in the owner's words, three cards.
 	assert_eq(RunState.session.asked_forks(), [&"fork_dash", &"fork_dash_aim"] as Array[StringName])
@@ -927,19 +950,27 @@ func test_reduce_flashing_halves_shake_and_drops_the_white_flash() -> void:
 ## Owner feedback (M39.1): S4 is 30 s, and the AI says what is new in it (the walls
 ## and the dash) before the player meets them, whatever its body. M42.2: and where the
 ## dash goes (in the dash's line; move while unanswered).
+## M47.6c1 (owner: walls spawn in visibly): S4 clears 14, its walls grow from 0.8 s, and the
+## dash line comes at 5 s (a cue), after the walls; the body lines are in the chat before play.
 func test_s4_is_short_and_its_intro_names_the_walls_and_the_dash() -> void:
 	var s := CampaignDB.get_session(&"s1_04_level")
-	assert_eq(s.goal, &"survive")
-	assert_eq(s.goal_value, 30.0)
-	assert_true(&"level" in s.basics and &"dash" in s.basics)
+	assert_eq([s.goal, s.enemy_total, s.time_limit, s.spawn_after], [SessionDef.CLEAR, 14, 90.0, 3.5])
+	assert_true(not &"level" in s.basics and &"dash" in s.basics, "the level is a cue: the walls grow in")
+	assert_true(s.cue_list().any(func(c: Cue) -> bool: return c.action == &"add" and c.target == &"level" and c.value == 0.8))
+	assert_eq(s.intro, PackedStringArray(), "the opening bubble is the walls' cue line")
+	assert_eq(s.problems(), [] as Array[String])
 	var words := {&"classic": "dash", &"grapple": "hook", &"teleport": "teleport"}
 	for style: StringName in Change.DASHES:
 		SaveGame.go_inert()
 		SaveGame.ship(StringName("dash_%s" % style), GameVersion.PATCH)
 		for mascot: StringName in Change.MASCOTS:
 			SaveGame.set_mascot(mascot)
-			var lines := Line.passing(s.intro_lines(), CampaignDB.line_context(s))
-			assert_eq(lines.size(), 3, "3 spoken lines: %s %s" % [mascot, style])
+			var ctx := CampaignDB.line_context(s)
+			var lines: Array = s.cue_list().filter(func(c: Cue) -> bool:
+				return c.action == &"say" and Line.condition_holds(c.cond, ctx)).map(func(c: Cue) -> Line: return c.line)
+			assert_eq(lines.size(), 2, "2 spoken cue lines (walls at 0.3 s, the dash at 5 s): %s %s" % [mascot, style])
+			var chat := Line.passing(s.before_play_lines(), ctx)
+			assert_eq(chat.size(), 2, "the body's line and the level's in the chat: %s" % mascot)
 			var said := " ".join(lines.map(func(l: Line) -> String: return l.text)).to_lower()
 			assert_string_contains(said, "walls", "%s talks about the walls" % mascot)
 			assert_string_contains(said, String(words[style]), "%s talks about the %s" % [mascot, style])

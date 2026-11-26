@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M47.6b"
+const BUILD := "M47.6c1"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
@@ -175,6 +175,11 @@ func _ready() -> void:
 		event_player.muted = session_runner.muted
 		add_child(event_player)
 		session_runner.event_player = event_player
+		# M47.6c1 (design 2.6): the endings read the script's cues; a script end window opens
+		# with the session's end_line in the bubble.
+		if run_loop != null:
+			run_loop.session_runner = session_runner
+			run_loop.script_window_opened.connect(_on_script_window)
 		debrief = DebriefScreen.new()
 		debrief.name = "Debrief"
 		if host != null:   # M47.5a: the session's end is a terminal beat beside the frozen arena
@@ -494,11 +499,25 @@ func _on_skin_row(target: StringName) -> void:
 
 ## M47.5b (PLAN v9.3 2.8): a hosted live line says so and how long its beat took (real
 ## seconds from the debrief opening; 0 for the pause menu's lines). Same line, same moment.
+## M47.6c1 (design 2.10, additive): and the play gate's wait, the lines typed at it that were
+## not play (a count, never the text) and which chat the player had.
 func _flow(rec: Dictionary, beat_s: float) -> Dictionary:
 	if host != null:
 		rec["flow"] = "always_on"
 		rec["beat_real_s"] = beat_s
+		rec["play_wait_s"] = host.play_wait_s
+		rec["chat_typed"] = host.gate_typed
+		rec["chat_style"] = String(CampaignDB.chat_style())
 	return rec
+
+
+## M47.6c1 (design 2.3): the script is done: the AI says the test is over (end_line, if any).
+func _on_script_window() -> void:
+	if session_runner == null or RunState.session == null:
+		return
+	var line := RunState.session.end_line_parsed()
+	if line != null and line.passes(CampaignDB.line_context(RunState.session)):
+		session_runner.say(line)
 
 
 ## M47.3 (PLAN 1.16): the pause menu's Restart session: the debrief's Retry from the middle

@@ -313,7 +313,8 @@ func test_the_bot_can_drop_and_inject_cues() -> void:
 	var runner := game.session_runner
 	runner.drop_cues(&"edit")
 	assert_true(runner._cues.all(func(c: Cue) -> bool: return c.action != &"edit"))
-	assert_eq(CampaignDB.get_session(&"s1_04_level").cue_list().size(), 1, "the session's own cues are untouched")
+	assert_eq(CampaignDB.get_session(&"s1_04_level").cue_list().filter(func(c: Cue) -> bool: return c.action == &"edit").size(), 1,
+			"the session's own cues are untouched")
 	assert_eq(runner.inject("at 3: edit edit_slowmo").problem, "")
 	assert_eq(runner._cues.size(), runner._fired.size())
 

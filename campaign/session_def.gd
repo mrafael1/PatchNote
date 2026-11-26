@@ -17,7 +17,17 @@ const OVERRUN := &"overrun"
 ## PLAN v9 1.2 (stubs in M43: never end on the clock; "not built yet" in campaign data).
 const STAGES := &"stages"     ## won when the stage set's last part clears (M50)
 const BOSS := &"boss"         ## won when the boss's HP reaches 0 (M49)
-const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN, STAGES, BOSS]
+## M47.6c1 (PLAN v9.4 0.8, design 2.6): endings instead of goals.
+## The session's fixed set is dead: the spawner spent `enemy_total`, no `at` / `kills` spawn
+## cue is still to fire and no enemy is alive (won). `time_limit` > 0 is a hidden cap (stopped).
+const CLEAR := &"clear"
+## The script is done (every `at` cue fired, no event running, no edit pending or timed-live),
+## then `end_after` game seconds pass (stopped). The spawner goes quiet for that tail when the
+## session has a budget.
+const SCRIPT := &"script"
+const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN, STAGES, BOSS, CLEAR, SCRIPT]
+## The kinds `ends` may list (M47.6c1).
+const ENDINGS: Array[StringName] = [CLEAR, SCRIPT]
 const FORK_ENEMY := &"fork:fork_enemy"
 ## M47.6b: `chat`'s one value (the session whose beat ships the dev-chat).
 const CHAT_UPGRADE := &"upgrade"
@@ -84,6 +94,14 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## path; S8 Survival survives 90 s). Not on a tryout (a swap never rescales) or a
 ## pathless session; a kills goal is still multiplied by the path's kill_goal_mult.
 @export var goal_by_path: Dictionary[StringName, float] = {}
+## M47.6c1 (design 2.6): more than one ending ([clear, script]: whichever comes first); empty =
+## the goal alone. `goal` stays the primary kind for older readers and must be listed.
+@export var ends: Array[StringName] = []
+## M47.6c1: a `script` ending's quiet tail, game seconds after the script is done.
+@export var end_after := 5.0
+## M47.6c1: a `clear` ending's spawner budget (the spawner's own draws; spawn cues add theirs on
+## top). -1 = unlimited (every session that does not clear).
+@export var enemy_total := -1
 
 @export_group("The AI")
 ## The mascot has a body (false before fork_mascot is answered).
@@ -144,6 +162,28 @@ var _parsed := false
 ## The campaign shows this session cooking instead of playing it (M43.2).
 func is_cooking() -> bool:
 	return not cooking.is_empty()
+
+
+## M47.6c1: the endings this session plays (ends, else [goal]).
+func end_kinds() -> Array[StringName]:
+	if not ends.is_empty():
+		return ends.duplicate()
+	var out: Array[StringName] = [goal]
+	return out
+
+
+func has_end(kind: StringName) -> bool:
+	return kind in end_kinds()
+
+
+## M47.6c1: the enemies the `at` / `kills` spawn cues add (no specimens): with enemy_total, the
+## fixed set a `clear` session's progress reads.
+func cue_spawn_total() -> int:
+	var n := 0
+	for c in cue_list():
+		if c.problem == "" and c.action == &"spawn" and not c.specimen and c.when in [&"at", &"kills"]:
+			n += c.count
+	return n
 
 
 ## M47.2: the goal value this session plays on path `path_id` (goal_by_path, else
@@ -402,10 +442,11 @@ func problems() -> Array[String]:
 		out.append("%s: stage %d is not 1-5" % [where, stage])
 	if not goal in GOALS:
 		out.append("%s: unknown goal %s" % [where, goal])
-	elif goal_value <= 0.0:
+	elif goal_value <= 0.0 and not goal in ENDINGS:
 		out.append("%s: goal_value must be > 0" % where)
-	if time_limit < 0.0 or (time_limit > 0.0 and goal != KILLS):
-		out.append("%s: time_limit is for kills goals only" % where)
+	if time_limit < 0.0 or (time_limit > 0.0 and goal != KILLS and not has_end(CLEAR)):
+		out.append("%s: time_limit is for kills and clear goals only" % where)
+	out.append_array(_ending_problems(where))
 	for b in basics:
 		if not b in Unlocks.CAMPAIGN_BASICS:
 			out.append("%s: unknown basic %s" % [where, b])
@@ -516,6 +557,43 @@ func problems() -> Array[String]:
 		for w in Line.condition_parts(String(l.when)):
 			if w.begins_with("event:") and EventDB.get_event(StringName(w.trim_prefix("event:"))) == null:
 				out.append("%s: unknown event %s" % [where, w.trim_prefix("event:")])
+	return out
+
+
+## M47.6c1 (design 2.6): ends lists clear / script once each and holds the goal; a clear
+## ending has a budget >= 0, a script one an end_after > 0; end_line needs a script ending;
+## a `kills N` spawn cue can fire (N enemies can exist before it: the budget and the other
+## spawn cues that do not wait on as many kills).
+func _ending_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	var seen := {}
+	for e in ends:
+		if not e in ENDINGS:
+			out.append("%s: ends: %s is not clear or script" % [where, e])
+		if seen.has(e):
+			out.append("%s: ends lists %s twice" % [where, e])
+		seen[e] = true
+	if not ends.is_empty() and not goal in ends:
+		out.append("%s: ends must list the goal %s" % [where, goal])
+	if has_end(CLEAR) and enemy_total < 0:
+		out.append("%s: a clear ending needs enemy_total >= 0" % where)
+	if not has_end(CLEAR) and enemy_total >= 0:
+		out.append("%s: enemy_total is for clear endings only" % where)
+	if has_end(SCRIPT) and end_after <= 0.0:
+		out.append("%s: end_after must be > 0" % where)
+	if end_line.strip_edges() != "" and not has_end(SCRIPT):
+		out.append("%s: end_line needs a script ending" % where)
+	if has_end(CLEAR):
+		for c in cue_list():
+			if c.problem != "" or c.action != &"spawn" or c.when != &"kills":
+				continue
+			var can := maxi(enemy_total, 0)
+			for o in cue_list():
+				if o != c and o.problem == "" and o.action == &"spawn" and not o.specimen \
+						and (o.when == &"at" or (o.when == &"kills" and o.value < c.value)):
+					can += o.count
+			if int(c.value) > can:
+				out.append("%s: cue '%s' can never fire (at most %d enemies before it)" % [where, c.source, can])
 	return out
 
 
@@ -740,11 +818,21 @@ func _field_problems(where: String) -> Array[String]:
 		out.append("%s: a boss needs goal boss" % where)
 	if hud != &"" and fork_of(hud) == &"":
 		out.append("%s: hud must be a fork (fork:<id>)" % where)
+	# M47.6c1: a weight is the chance a spawner pick is that enemy ("fork:<id>" = the answer's);
+	# the rest of the roll keeps today's Tuning chances, so the weights sum below 1.
+	var weight_sum := 0.0
 	for k: Variant in spawn_weights:
-		if not EnemyDB.has(StringName(String(k))):
+		var fk := fork_of(k)
+		if fk != &"" and ChangeDB.get_fork(fk) == null:
+			out.append("%s: spawn_weights: no fork %s" % [where, fk])
+		elif fk == &"" and not EnemyDB.has(StringName(String(k))):
 			out.append("%s: spawn_weights: unknown enemy %s" % [where, k])
 		elif not (spawn_weights[k] is float or spawn_weights[k] is int) or float(spawn_weights[k]) <= 0.0:
 			out.append("%s: spawn_weights: %s must be > 0" % [where, k])
+		else:
+			weight_sum += float(spawn_weights[k])
+	if weight_sum >= 1.0:
+		out.append("%s: spawn_weights must sum below 1 (%.2f)" % [where, weight_sum])
 	if hp_floor < 0:
 		out.append("%s: hp_floor must be >= 0" % where)
 	return out

@@ -49,23 +49,23 @@ func _flip(game: Main) -> void:
 
 # --- S6's data: one warning, two edits ---------------------------------------------------
 
-func test_s6_flips_and_slows_together_at_kill_27() -> void:
+func test_s6_flips_and_slows_together_at_kill_18() -> void:
 	var game := await _game()
 	game.session_runner.drop_cues(&"say")
 	var book := game.rule_book
-	RunState.kills = 26   # big enemies (14) warns and lands first
+	RunState.kills = 17   # big enemies (10) warns and lands first (M47.6c1: the story re-keyed to 28)
 	for f in 120:
 		await wait_physics_frames(1)
 		if book.is_live(&"edit_big_enemies"):
 			break
 	assert_true(book.is_live(&"edit_big_enemies"))
 	assert_false(book.is_pending(&"edit_inverted"))
-	RunState.kills = 27
+	RunState.kills = 18
 	for f in 10:
 		await wait_physics_frames(1)
 		if book.is_pending(&"edit_inverted"):
 			break
-	assert_true(book.is_pending(&"edit_inverted"), "the flip warns at 27")
+	assert_true(book.is_pending(&"edit_inverted"), "the flip warns at 18")
 	assert_false(book.is_pending(&"edit_slowmo"), "slow-mo waits for the warning")
 	var warn := RuleDB.get_edit(&"edit_inverted").warn()
 	assert_string_contains(warn.text, "controls flip")

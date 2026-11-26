@@ -28,6 +28,8 @@ signal report_ready(outcome: StringName)
 signal stage_cleared(index: int)                       ## stage `index` is over (not the last)
 signal stage_starting(index: int, stage: StageDef)     ## build stage `index` now
 signal exit_opened(index: int)                         ## an EXIT stage's gate: place it now
+## M47.6c1 (design 2.6): a `script` ending's window opened (the script is done; end_after to go).
+signal script_window_opened
 
 const PLAY := &"play"
 const RELEASE_CANDIDATE := &"release_candidate"
@@ -70,6 +72,18 @@ var _clock_holds := {}
 var _clock_last := 0.0
 var _goal_holds: Array[StringName] = []   ## M43.2: no goal ends while non-empty
 var _goal_waited := false
+## M47.6c1 (PLAN v9.4 0.8, design 2.6): the session's endings (set_endings). ends: the kinds
+## that end it (clear / script, or the goal alone); enemy_total: the spawner's budget (-1 none);
+## end_after: a script ending's quiet tail (game seconds); script_done_at: game time the script
+## was done (-1: not yet). end_reason: why the run ended (cleared / script / died / limit /
+## stopped / won; "" while it plays). session_runner: the cues the endings read (pending spawn
+## cues, `at` cues fired, edits); null outside a session.
+var ends: Array[StringName] = []
+var enemy_total := -1
+var end_after := 5.0
+var script_done_at := -1.0
+var end_reason: StringName = &""
+var session_runner: Node
 
 var _report_at := -1.0
 var _clear_until := -1.0
@@ -121,6 +135,50 @@ func set_goal(kind: StringName, value: float, limit := 0.0) -> void:
 	_goal_waited = false
 
 
+## M47.6c1: a session's endings (after set_goal). Empty kinds = the goal alone.
+func set_endings(kinds: Array[StringName], total := -1, after := 5.0) -> void:
+	ends = kinds.duplicate()
+	enemy_total = total
+	end_after = after
+	script_done_at = -1.0
+
+
+func has_end(kind: StringName) -> bool:
+	return kind in ends or (ends.is_empty() and goal == kind)
+
+
+## M47.6c1: a clear session's set is all out: its budget (>= 0) is spent and no `at` / `kills`
+## spawn cue is still to fire. False for every session that does not clear (S7-S9 today).
+func wave_closed() -> bool:
+	if not has_end(SessionDef.CLEAR) or enemy_total < 0 or spawner == null or not spawner.budget_spent():
+		return false
+	return session_runner == null or int(session_runner.call(&"pending_spawns")) == 0
+
+
+## M47.6c1: enemies alive or entering the tree (splitter children count).
+static func enemies_left() -> int:
+	return RunState.count(&"enemy") + RunState.pending_count(&"enemy")
+
+
+## M47.6c1: the set is dead.
+func cleared() -> bool:
+	return wave_closed() and enemies_left() == 0
+
+
+## M47.6c1: the script is done: every `at` cue fired, no event holds the goal, no edit pending
+## or timed-live. Condition cues never hold it.
+func script_done() -> bool:
+	if not _goal_holds.is_empty():
+		return false
+	return session_runner == null or bool(session_runner.call(&"script_cues_done"))
+
+
+## M47.6c1: the spawner goes quiet once a script ending's window is open, on a session with a
+## budget (S5); S7 (no budget) keeps spawning through its tail.
+func quiet_tail() -> bool:
+	return script_done_at >= 0.0 and has_end(SessionDef.SCRIPT) and enemy_total >= 0
+
+
 ## Holds (true) or releases the goal clock for `owner_id`; it counts while no one holds it.
 func hold_clock(owner_id: StringName, on: bool) -> void:
 	if on:
@@ -152,9 +210,13 @@ func _update_goal() -> void:
 		goal_clock += now - _clock_last
 	_clock_last = now
 	if not _goal_holds.is_empty():
-		if goal == SessionDef.KILLS and RunState.kills >= int(goal_value) and not _goal_waited:
+		var reached := (goal == SessionDef.KILLS and RunState.kills >= int(goal_value)) or cleared()
+		if reached and not _goal_waited:   # M47.6c1: a set cleared mid-event waits the same way
 			_goal_waited = true
 			RunState.log_event(&"goal_waited")
+		return
+	if goal in SessionDef.ENDINGS:
+		_update_endings(now)
 		return
 	match goal:
 		SessionDef.SURVIVE:
@@ -176,6 +238,57 @@ func _update_goal() -> void:
 				end(STOPPED)
 		SessionDef.STAGES, SessionDef.BOSS:
 			pass   # PLAN v9 1.2 stubs: never on the clock; won by later systems (M49, M50)
+
+
+## M47.6c1 (design 2.6): whichever ending comes first. A script window opens on the tick the
+## script is done (the spawner goes quiet, the bubble says end_line) and closes end_after game
+## seconds later; a clear set ends won; a clear session's time_limit is a hidden cap.
+func _update_endings(now: float) -> void:
+	if has_end(SessionDef.CLEAR) and enemy_total >= 0:
+		var closed := wave_closed()
+		RunState.wave_closed = closed
+		if closed and not RunState.survivors_chase and enemies_left() <= CHASE_AT:
+			RunState.survivors_chase = true   # the last few come to you (latched)
+			RunState.log_event(&"survivors_chase")
+		if closed and enemies_left() == 0:
+			if not (_goal_waited and has_end(SessionDef.SCRIPT)):
+				end_reason = &"cleared"
+				end(&"win")
+				return
+			# M47.6c1 review: a set cleared while an event held the goal (S5 under the gravity)
+			# does not end on the release tick: the script window opens there instead, so the
+			# event's last line and end_line are said and the quiet tail runs; it ends cleared.
+			if script_done_at < 0.0:
+				_open_script_window(now)
+	if has_end(SessionDef.SCRIPT):
+		if script_done_at < 0.0 and script_done():
+			_open_script_window(now)
+		if script_done_at >= 0.0 and now >= script_done_at + end_after:
+			if has_end(SessionDef.CLEAR) and cleared():
+				end_reason = &"cleared"
+				end(&"win")
+			else:
+				end_reason = &"script"
+				end(STOPPED)
+			return
+	if has_end(SessionDef.CLEAR) and time_limit > 0.0 and goal_clock >= time_limit:
+		# A set already cleared (its tail still running) is won, never cut as the cap.
+		if cleared():
+			end_reason = &"cleared"
+			end(&"win")
+		else:
+			end_reason = &"limit"
+			end(STOPPED)
+
+
+## M47.6c1: the survivors chase you once this few are left of a closed set.
+const CHASE_AT := 3
+
+
+func _open_script_window(now: float) -> void:
+	script_done_at = now
+	RunState.log_event(&"script_done")
+	script_window_opened.emit()
 
 
 ## 0..100 of a survive goal's time; -1 for other goals.
@@ -336,6 +449,8 @@ func end(result: StringName) -> void:
 		return
 	phase = OVER
 	outcome = result
+	if end_reason == &"":
+		end_reason = &"died" if result == &"lose" else (&"won" if result == &"win" else &"stopped")
 	if spawner:
 		spawner.enabled = false
 	if director:
@@ -355,6 +470,10 @@ func end(result: StringName) -> void:
 		"smoke_stopped": smoke_stopped,
 		"session": String(RunState.session.id) if RunState.session else "",
 		"goal": {"kind": String(goal), "value": goal_value, "clock": snappedf(goal_clock, 0.01)} if goal != &"" else {},
+		# M47.6c1 (design 2.10, additive): why it ended and the fixed set.
+		"end": String(end_reason),
+		"enemy_total": enemy_total,
+		"spawned": spawner.spawned if spawner else 0,
 		"missing_basics": Unlocks.missing_basics().map(func(b: StringName) -> String: return String(b)),
 		"bot": player != null and player.has_method(&"is_bot") and player.is_bot(),
 		"invincible": RunState.invincible,

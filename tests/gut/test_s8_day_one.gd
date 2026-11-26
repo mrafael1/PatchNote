@@ -159,7 +159,8 @@ func test_s8_survival_lasts_90_s_and_the_others_120() -> void:
 		await _s8(p)
 		var want := 90.0 if p == &"survival" else 120.0
 		assert_eq(game.run_loop.goal_value, want, "%s: the run plays %s s" % [p, want])
-		assert_eq(game.hud.goal_shown(), "Survive 1:30" if p == &"survival" else "Survive 2:00", String(p))
+		assert_eq(game.run_loop.goal_text(), "Survive 1:30" if p == &"survival" else "Survive 2:00", String(p))
+		assert_eq(game.hud.goal_shown(), "", "M47.6c1: no campaign HUD shows it")
 		await _at(want - 1.0)
 		assert_eq(game.run_loop.phase, RunLoop.PLAY, "%s: still playing 1 s before its end" % p)
 		if p == &"survival":   # the session-end telemetry line records the 90 s goal
@@ -215,8 +216,11 @@ func test_goal_by_path_problems() -> void:
 	tryout.goal_by_path = {&"auto": 100.0}
 	assert_string_contains(" ".join(tryout.problems()), "goal_by_path is not for a tryout")
 	for id: StringName in [&"s1_00_nothing", &"s1_01_move"]:
-		assert_eq(CampaignDB.get_session(id).problems(), [] as Array[String], "%s: a stop session's cue at its end still fires" % id)
+		assert_eq(CampaignDB.get_session(id).problems(), [] as Array[String], "%s: fine" % id)
+	# M47.6c1: S0 and S1 end on their script now (a late cue only moves it); a stop goal by hand.
 	var late := CampaignDB.get_session(&"s1_01_move").duplicate() as SessionDef
+	late.goal = SessionDef.STOP
+	late.end_after = 5.0
 	late.cues.append("at %d: say happy: Too late." % int(late.goal_value + Tuning.smoke_stop_read + 1.0))
 	late._parsed = false
 	assert_string_contains(" ".join(late.problems()), "after the goal's end")

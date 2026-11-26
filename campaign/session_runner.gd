@@ -373,6 +373,29 @@ func inject(text: String) -> Cue:
 	return c
 
 
+## M47.6c1 (design 2.6): enemies the unfired `at` / `kills` spawn cues will still add (both
+## always fire: time runs and kills only grow). A cue keyed on anything else never holds a
+## clear ending, nor does a specimen.
+func pending_spawns() -> int:
+	var n := 0
+	for i in _cues.size():
+		var c := _cues[i]
+		if not _fired[i] and c.action == &"spawn" and not c.specimen and c.when in [&"at", &"kills"]:
+			n += c.count
+	return n
+
+
+## M47.6c1: the script part a `script` ending waits for: every `at` cue fired (or expired), and
+## the rule book has no edit in its warning or timed-live. Condition cues never hold it.
+func script_cues_done() -> bool:
+	for i in _cues.size():
+		if not _fired[i] and _cues[i].when == &"at":
+			return false
+	if rule_book != null and rule_book.busy():
+		return false
+	return event_player == null or not event_player.is_playing()
+
+
 ## Lines said or waiting their turn: what the session gave the AI to say, whatever the
 ## wall clock (a bot plays faster than speech is paced).
 func line_count() -> int:

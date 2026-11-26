@@ -97,6 +97,8 @@ func _physics_process(_delta: float) -> void:
 	fire = true
 	if to_enemy.length() < keep_distance:
 		move = -aim_dir.rotated(0.6)
+	elif _hunting():
+		move = _hunt_dir(here, nearest)   # M47.6c1: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
 	if gate:
@@ -104,6 +106,29 @@ func _physics_process(_delta: float) -> void:
 	jump_pressed = _tick % 90 == 0
 	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12
+
+
+## M47.6c1 (design 4.2): the bot hunts only once a clear session's set is all out (budget
+## spent, no spawn cue to come: RunState.wave_closed, never set elsewhere) and its shots hurt
+## (`hits`). Then it walks the arena's tile field to the nearest enemy instead of orbiting.
+const HUNT_EVERY := 15
+var _hunt_field: PickupField
+var _hunt_tick := -1000000
+
+
+func _hunting() -> bool:
+	return RunState.wave_closed and RunState.session != null and Unlocks.has_basic(&"hits")
+
+
+func _hunt_dir(here: Vector2, target: Node2D) -> Vector2:
+	if _hunt_field == null:
+		_hunt_field = PickupField.new(RunState.session.arena_def())
+	if _tick - _hunt_tick >= HUNT_EVERY:
+		var sources: Array[Vector2] = [target.global_position]
+		_hunt_field.build(sources)
+		_hunt_tick = _tick
+	var dir := _hunt_field.direction_from(here)
+	return dir if dir != Vector2.ZERO else aim_dir
 
 
 ## Auto (PLAN v9 4, M45a): never holds fire (Auto fires by itself; today's bot always held

@@ -28,6 +28,10 @@ const TRIGGERS := {
 	&"last_seconds": "",            ## LAST_SECONDS left on a survive goal
 	&"first_dash": "",              ## the session's first dash
 	&"quiet": "n",                  ## nothing said by anyone for n seconds
+	## M47.6c1 (design 2.6): a clear session's fixed set is all out (budget spent, no spawn cue
+	## still to fire) with more than 2 alive; or exactly n alive.
+	&"wave_done": "",
+	&"last_few": "n",
 }
 const STREAK_WINDOW := 3.0
 const NEAR_MISS := 12.0

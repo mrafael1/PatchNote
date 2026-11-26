@@ -850,11 +850,13 @@ func test_one_telemetry_line_per_attempt_with_flow_and_beat_seconds() -> void:
 	assert_eq(rec.flow, "always_on")
 	assert_true(float(rec.beat_real_s) >= 0.0)
 	var plain := CampaignDB.telemetry_record(RunState.session, {}, &"died", 0, &"retry", Main.BUILD)
-	var keys: Array = rec.keys().filter(func(k: String) -> bool: return k != "flow" and k != "beat_real_s")
+	# M47.6c1 (design 2.10): the gate's wait, its typed count and the chat style are hosted only.
+	var hosted_only := ["flow", "beat_real_s", "play_wait_s", "chat_typed", "chat_style"]
+	var keys: Array = rec.keys().filter(func(k: String) -> bool: return not k in hosted_only)
 	keys.sort()
 	var want: Array = plain.keys()
 	want.sort()
-	assert_eq(keys, want, "the same keys as an unhosted line, plus flow and beat_real_s")
+	assert_eq(keys, want, "the same keys as an unhosted line, plus the hosted ones")
 	await wait_process_frames(30)
 	assert_true(h.swaps >= 1, "the restart swapped a new attempt in")
 	assert_false(is_instance_valid(g))

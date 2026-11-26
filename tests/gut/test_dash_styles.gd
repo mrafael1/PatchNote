@@ -48,6 +48,7 @@ func _game(style: StringName) -> Main:
 	game = load("res://main.tscn").instantiate()
 	add_child_autofree(game)
 	game.spawner.enabled = false
+	game.arena.grow_layout(0.0)   # M47.6c1: S4's walls grow in from a cue; here, all at once
 	await wait_physics_frames(2)
 	game.session_runner.set_physics_process(false)
 	player = game.player
@@ -477,6 +478,8 @@ func test_each_style_says_its_own_first_dash_and_s4_line() -> void:
 		SaveGame.ship(StringName("dash_%s" % style), GameVersion.PATCH)
 		var ctx := CampaignDB.line_context(CampaignDB.get_session(&"s1_04_level"))
 		assert_eq(ctx.dash, style)
-		var intro := Line.passing(CampaignDB.get_session(&"s1_04_level").intro_lines(), ctx)
+		# M47.6c1: the dash line is S4's 5 s cue (after the walls), one per style and direction.
+		var intro: Array = CampaignDB.get_session(&"s1_04_level").cue_list().filter(func(c: Cue) -> bool:
+			return c.action == &"say" and Line.condition_holds(c.cond, ctx)).map(func(c: Cue) -> Line: return c.line)
 		var word: String = {&"classic": "dash", &"grapple": "hook", &"teleport": "teleport"}[style]
 		assert_true(intro.any(func(l: Line) -> bool: return word in l.text.to_lower()), String(style))

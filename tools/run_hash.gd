@@ -18,8 +18,10 @@ extends SceneTree
 ## start to its debrief (at most --seconds, default 300 here). Every fork is answered by
 ## the tool itself before the jump (mascot, dash, dash aim, enemy, all picked from the
 ## seed), so a later change to how a jump answers forks cannot move the hash. Without
-## --session it plays s1_03_shooting, s1_04_level, s1_05_wrong and s1_06_playground. One
-## line per session and seed: {"session", "seed", "hashes"}.
+## --session it plays Stage 1, s1_00_nothing to s1_06_playground (M47.6c1: S0-S2 carry the
+## gate and the endings now; before, S3-S6). One line per session and seed: {"session",
+## "seed", "hashes"}. M47.6c1: a session with a `clear` ending that is still playing when
+## the loop stops (--seconds) is a failure line, not a silent pass.
 ##
 ## M47 (PLAN v9 5, C2.8): --frames=<n> hashes every n unpaused game ticks instead of once
 ## per second (ticks under an open pick panel or card never count), the loop then bounded
@@ -56,8 +58,8 @@ var _menu_opened := 0
 var shell := false                   ## --shell (M47.5a)
 var handoff_frames := 0              ## --handoff (M47.5a)
 var viewport_size := Vector2i.ZERO   ## --viewport (M47.5a)
-const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong",
-		&"s1_06_playground"]
+const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_00_nothing", &"s1_01_move", &"s1_02_enemies",
+		&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong", &"s1_06_playground"]
 const CAMPAIGN_SECONDS := 300
 
 
@@ -291,6 +293,9 @@ func _run_campaign(seeds: Array[int]) -> void:
 				failures += 1
 			lines.append(JSON.stringify({"session": String(id), "seed": run_seed, "hashes": hashes}))
 			var tag := "session=%s seed=%d" % [id, run_seed]
+			if not game.debrief.is_open() and run_state.session != null and run_state.session.has_end(&"clear"):
+				failures += 1   # M47.6c1: a fixed set the loop stopped before it cleared
+				print("[runhash] %s FAILED: still playing a clear session after %d s" % [tag, hashes.size()])
 			if compare_path != "":
 				var want: Array = expected.get("%s:%d" % [id, run_seed], [])
 				var diverged := -1
