@@ -266,9 +266,10 @@ func test_fuse_reopens_the_same_pack_for_the_new_hand_with_nothing_drawn() -> vo
 	panel.picked.disconnect(count)
 
 
-## M50.1b review (finding 2): S9's 86 s hand is Pistol ~17 + Shotgun ~5 when the laser waits.
-## A first play would let the low-rank shotgun go and dead-end the fusion; the replace step
-## keeps the laser's partner, and only the other card can go.
+## M50.1b review (finding 2): S9's 86 s hand is Pistol ~17 + Shotgun ~5 when the laser comes.
+## A first play would let the low-rank shotgun go and dead-end the fusion; on a pack's replace
+## step a NEW laser keeps its partner, and only the other card can go. (M50.2b: the give itself
+## opens the give step, test_give_step.gd; here the laser is a pack's NEW card.)
 func test_the_replace_step_keeps_the_new_cards_recipe_partner() -> void:
 	var r := await _arena()
 	var lo := _loadout()
@@ -278,16 +279,19 @@ func test_the_replace_step_keeps_the_new_cards_recipe_partner() -> void:
 	lo.active = 0
 	r.announce(&"pistol")
 	r.announce(&"shotgun")
-	assert_true(r.give(&"laser", 3), "a full hand: the laser waits (G4)")
-	r.want_pick()
-	r._open_offer()
+	r.announce(&"laser")
 	var panel := game.pick_panel
-	var offer := panel.offer
-	var at := -1
-	for i in offer.cards.size():
-		if offer.cards[i].id == &"laser" and offer.cards[i].kind == &"new":
-			at = i
-	assert_gte(at, 0, "the waiting laser is in the pack")
+	var offer := PickOffer.new()
+	offer.pack = true
+	offer.max_slots = 2
+	for w in lo.slots:
+		offer.hand.append({"id": w.def.id, "title": w.def.title, "rank": w.rank})
+	offer.cards.append(BoosterPack.card(lo, &"pistol", false))
+	offer.cards.append(BoosterPack.card(lo, &"laser", true))
+	BoosterPack.mark_keeps(offer, lo)
+	r.want_pick()
+	panel.open(offer)
+	var at := 1
 	assert_eq(int(offer.cards[at].get("keep", -1)), 1, "the shotgun is its partner")
 	panel.choose(at)
 	assert_eq(panel.replacing(), at, "the replace step")

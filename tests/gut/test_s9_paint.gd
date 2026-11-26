@@ -526,3 +526,21 @@ func test_s9_per_path_the_laser_at_80_and_novas_line_on_auto() -> void:
 		assert_true(&"laser" in game.path_runner.live_pool, "%s: the laser by 90 s" % p)
 		assert_eq(&"nova" in game.path_runner.live_pool, p == &"auto", "%s: nova announced on Auto only" % p)
 		game.free()
+
+
+## M50.2b (the give step): on Arsenal the 86 s laser asks "take it or keep your hand", each
+## give_choice branch has its line, the 94 s fusion line splits on `paired`, and the debrief
+## has a no-fusion line. (The step itself at 86 s: test_give_step.gd's S9 cases.)
+func test_s9_arsenal_give_step_lines() -> void:
+	var src := Array(CampaignDB.get_session(S9).cues)
+	for want: String in ["answer:path_arsenal at 86: give laser 3",
+			"answer:path_arsenal at 86: say happy: New gun: the laser. Gold, rank three. Take it, or keep your hand.",
+			"answer:path_arsenal give_choice 1: say give_kept thinking: Keeping your hand? Fair. The laser's in the packs now.",
+			"answer:path_arsenal give_choice 1: say give_taken&paired happy: Laser and shotgun. Those two go together.",
+			"answer:path_arsenal give_choice 1: say give_taken&!paired thinking: Laser and pistol. No recipe for those two. Yet.",
+			"answer:path_arsenal at 94: say paired thinking: Real fusion now. Two cards at rank four light a link.",
+			"answer:path_arsenal at 94: say !paired thinking: Real fusion now. The laser and the shotgun make something. Hold both."]:
+		assert_true(want in src, want)
+	assert_true("answer:path_arsenal&!fused thinking: No fusion today. The recipe's still there." in
+			Array(CampaignDB.get_session(S9).debrief))
+	assert_eq(CampaignDB.problems(), [] as Array[String])

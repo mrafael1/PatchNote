@@ -634,11 +634,13 @@ func test_give_under_arsenal_is_a_free_card() -> void:
 	assert_true(RunState.run_log.any(func(e: Dictionary) -> bool: return e.event == &"give_replaced"))
 	assert_true(lo.give(&"shotgun"))
 	assert_eq(lo.summary(), "pistol:2,shotgun:1")
-	# Once the packs are live a full hand never loses a card silently: G4.
+	# Once the packs are live a full hand never loses a card silently: M50.2b's give step
+	# (G4 retired).
 	RunState.add_basic(&"cards")
 	assert_true(r.give(&"laser", 3))
 	assert_eq(lo.summary(), "pistol:2,shotgun:1", "nothing replaced")
-	assert_eq(r.give_waiting(), &"laser")
+	assert_eq(r.give_pending(), &"laser", "the give step waits for a free tick")
+	assert_true(RunState.run_log.any(func(e: Dictionary) -> bool: return e.event == &"give_offered"))
 
 
 # --- 10. HandWidget --------------------------------------------------------------------------

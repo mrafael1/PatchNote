@@ -22,21 +22,25 @@ extends RefCounted
 ## "died&attempts:2". A leading "!" negates one condition ("!answer:path_auto"); it still
 ## fails when the context lacks that condition's key. M50.1b: fused / misfused (a fusion /
 ## the misfuse happened in this attempt, from the run log; Arsenal's S9). Cues and reactions share this
-## (condition_problem(), condition_holds()).
+## (condition_problem(), condition_holds()). M50.2b: give_kept / give_taken (a give step of this
+## attempt kept the hand / took the card, from the run log), paired (the hand is a built recipe
+## pair now: a live hand fact, cue lines only; never in a debrief) and made:<fusion id> (that
+## fusion was made in this attempt).
 
 const EXPRESSIONS: Array[StringName] = [&"idle", &"happy", &"proud", &"worried", &"surprised",
 		&"guilty", &"thinking", &"panic"]
 const OUTCOMES: Array[StringName] = [&"won", &"died", &"stopped"]
 const PLAIN_CONDITIONS: Array[StringName] = [&"won", &"died", &"stopped", &"hit_none", &"hit_lots",
-		&"first_try", &"retry", &"ended", &"fused", &"misfused"]
+		&"first_try", &"retry", &"ended", &"fused", &"misfused", &"give_kept", &"give_taken", &"paired"]
 const PREFIX_CONDITIONS: Array[String] = ["mascot:", "answer:", "event:", "dash:", "dash_aim:",
-		"attempts:", "died_in:"]
+		"attempts:", "died_in:", "made:"]
 ## The context key each condition reads (a "!" condition fails without it, too).
 const KEYS := {"won": "outcome", "died": "outcome", "stopped": "outcome", "ended": "outcome",
 		"hit_none": "hits", "hit_lots": "hits", "first_try": "attempt", "retry": "attempt",
 		"attempts:": "attempt", "answer:": "shipped", "mascot:": "mascot", "event:": "events",
 		"dash:": "dash", "dash_aim:": "dash_aim", "died_in:": "attempts_by_session",
-		"fused": "fused", "misfused": "misfused"}
+		"fused": "fused", "misfused": "misfused", "give_kept": "give_kept", "give_taken": "give_taken",
+		"paired": "paired", "made:": "made"}
 ## Hits taken at or above this are "hit_lots".
 const HIT_LOTS := 3
 
@@ -104,6 +108,10 @@ static func condition_problem(cond: String, source := "") -> String:
 			var n := c.trim_prefix("attempts:")
 			if not n.is_valid_int() or n.to_int() < 1:
 				return "attempts needs a whole number >= 1 in '%s'" % where
+		if c.begins_with("made:"):   # M50.2b: a fusion id
+			var f := WeaponDB.get_weapon(StringName(c.trim_prefix("made:")))
+			if f == null or not f.is_fusion():
+				return "made needs a fusion id in '%s' ('%s' is not one)" % [where, c.trim_prefix("made:")]
 	return ""
 
 
@@ -214,6 +222,10 @@ static func _holds(cond: StringName, ctx: Dictionary) -> bool:
 					or bool(ctx.get("moved_on", false)))
 		&"fused", &"misfused":   # M50.1b: a fusion / the misfuse happened this attempt
 			return bool(ctx.get(String(cond), false))
+		&"give_kept", &"give_taken", &"paired":   # M50.2b
+			return ctx.has(String(cond)) and bool(ctx.get(String(cond)))
+	if w.begins_with("made:"):   # M50.2b: that fusion was made this attempt
+		return ctx.has("made") and w.trim_prefix("made:") in (ctx.made as Array)
 	if w.begins_with("mascot:"):
 		return ctx.has("mascot") and String(ctx.mascot) == w.trim_prefix("mascot:")
 	if w.begins_with("answer:"):

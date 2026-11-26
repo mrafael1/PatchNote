@@ -52,9 +52,13 @@ extends RefCounted
 ##                                            with fewer than 2 cards, logged)
 ##   "fuse_ready 1: say ..."   the n-th time FUSE became available
 ##   "fused 1: say ..."        once n fusions were made this session
+## M50.2b (the give step):
+##   "answer:path_arsenal give_choice 1: say give_kept thinking: ..."   when the n-th give step
+##                                            of the attempt closed (any choice; held SAY_GAP
+##                                            after the previous say cue, like fused)
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
-		&"level", &"picked", &"fused", &"fuse_ready"]
+		&"level", &"picked", &"fused", &"fuse_ready", &"give_choice"]
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
 		&"drop", &"look", &"boss", &"skin", &"release", &"fuse"]
 ## The cue times that take no number (touch takes one or none: a deadline).
@@ -132,7 +136,7 @@ static func parse(p_source: String) -> Cue:
 			return c
 		c.value = head[1].to_int()
 		c.at_seconds = head[3].to_float() if head.size() == 4 else -1.0
-	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready"]:
+	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready", &"give_choice"]:
 		var low := 0 if c.when == &"boss_hp" else 1
 		var high := 100 if c.when == &"boss_hp" else 1000000
 		if head.size() != 2 or not head[1].is_valid_int() or head[1].to_int() < low or head[1].to_int() > high:
@@ -315,6 +319,8 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("fused", 0)) >= int(value)
 		&"fuse_ready":
 			return int(ctx.get("fuse_ready", 0)) >= int(value)
+		&"give_choice":   # M50.2b: give steps closed this attempt (PathRunner.give_steps)
+			return int(ctx.get("give_choices", 0)) >= int(value)
 	return false
 
 

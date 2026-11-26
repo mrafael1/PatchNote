@@ -545,11 +545,21 @@ func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: 
 	# M50.1b: the `fused` / `misfused` conditions (this attempt's run log; Arsenal only).
 	ctx.fused = false
 	ctx.misfused = false
+	# M50.2b: give_kept / give_taken (this attempt's give steps), made:<id> (its fusions).
+	ctx.give_kept = false
+	ctx.give_taken = false
+	ctx.made = []
 	for e: Dictionary in RunState.run_log:
 		if e.get("event") == &"fused":
 			ctx.fused = true
+			(ctx.made as Array).append(String(e.get("weapon", "")))
 		elif e.get("event") == &"fuse_fail":
 			ctx.misfused = true
+		elif e.get("event") == &"give_choice":
+			if String(e.get("choice", "")) == "keep":
+				ctx.give_kept = true
+			else:
+				ctx.give_taken = true
 	return ctx
 
 
@@ -705,6 +715,8 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		# M50.1b (additive): fusions made, the misfuse, the seconds FUSE sat available, the
 		# recipes the save knows.
 		out.fusions = (runner.get(&"fusions") as Array).duplicate(true)
+		# M50.2b (additive): each give step closed ({weapon, rank, choice, t}).
+		out.gives = (runner.get(&"gives") as Array).duplicate(true)
 		var mf: Dictionary = runner.get(&"misfuse")
 		out.misfuse = {"t": mf.t, "pair": mf.pair, "restored": mf.restored} if not mf.is_empty() else null
 		out.link_lit_s = snappedf(float(runner.get(&"link_lit_ticks")) / Engine.physics_ticks_per_second, 0.1)

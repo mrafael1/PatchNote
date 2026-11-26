@@ -16,7 +16,7 @@ extends RefCounted
 ## card, and when its own rarity roll says rare it upgrades the first shown common card to rare
 ## in place (a one-weapon pool shows 1 card, a two-weapon pool on a full hand 2); G3 with room
 ## in the hand card 2 is a new weapon when one exists; G4 a weapon a full-hand `give` queued is
-## card 2, a new card at the give's rarity.
+## card 2, a new card at the give's rarity (test-only since M50.2b, below).
 ##
 ## M50.1b (fusion): a held fusion's parent ids fold into the fused id (one candidate: a parent's
 ## card feeds the fusion). G1 prefers the lower-ranked half of a held recipe pair (one half
@@ -35,6 +35,7 @@ const COMMON := &"common"
 ## The pack for `loadout` on path `def`. `give` (G4): {} or {id, rare}. Card dictionaries:
 ## {id, rank (the rank it gives), from (the held rank, 0 for new), kind, rarity, title, gain,
 ## text}.
+## test-only (M50.2b: G4 retired, the runner passes {}): a full-hand give opens the give step.
 static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], give: Dictionary,
 		rng: RandomNumberGenerator, taste: Taste) -> PickOffer:
 	var rolls: Array[float] = []
@@ -292,6 +293,21 @@ static func card(loadout: Loadout, id: StringName, rare: bool) -> Dictionary:
 		gain2 += ": " + have
 	return {"id": id, "rank": rank, "from": 0, "kind": &"new", "rarity": rarity, "title": title2,
 			"gain": gain2, "text": "%s: %s" % [title2, gain2]}
+
+
+## M50.2b: the give step's card: weapon `id` NEW at the cue's `rank` (3+ is a gold card, as G4
+## read it). Never drawn: nothing touches pack_rng.
+static func give_card(loadout: Loadout, id: StringName, rank: int) -> Dictionary:
+	var c := card(loadout, id, rank >= 3)
+	var to := loadout.cap(rank)
+	if int(c.rank) != to:
+		var w := WeaponDB.get_weapon(id)
+		var have := WeaponCurve.have_text(w, to) if loadout.curve == WeaponCurve.DEEP else w.pitch
+		c.rank = to
+		c.title = "%s %d" % [w.title, to]
+		c.gain = "replaces a card" + (": " + have if have != "" else "")
+		c.text = "%s: %s" % [c.title, c.gain]
+	return c
 
 
 ## A card's tags: "NEW", "RARE +2", "NEW  RARE".

@@ -18,6 +18,12 @@ var max_slots := 0
 ## M50.1b: the pack's FUSE choice (BoosterPack.fuse_option; {} none). It is the choice after
 ## the cards (key choose_4 on a 3-card pack) and never replaces one.
 var fuse := {}
+## M50.2b (the give step): a `give` that landed on a full pack hand. `cards` is the one given
+## card (BoosterPack.give_card, plus `links`: the hand index it makes a built recipe with, -1
+## none; `recipe`: the fused title once the `fusion` basic is live, else ""). The panel opens it
+## straight on the replace step, whose last choice is "Keep your hand". It draws nothing and is
+## not a pack pick (`pack` is set only for the hand preview and the bot's chooser).
+var give_step := false
 
 const HP := &"hp"
 ## Auto leans to the weapons it holds (D7): an upgrade card weighs this much more.

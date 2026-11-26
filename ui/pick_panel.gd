@@ -28,12 +28,22 @@ extends CanvasLayer
 ## Pistol +1", gold when rare) for TOAST_TIME of real time, fading out at the end (a fade only,
 ## no shine, whatever reduce_flashing says). No pause, no input. A plain label until M50.2c
 ## dresses it as a small card face.
+##
+## M50.2b (the give step, PickOffer.give_step): a `give` on a full pack hand opens the replace
+## step straight on the given card: its face (gold frame when rare) under "A gold card: Laser
+## 3.", then "Replace Pistol 12" per hand card and "Keep your hand" (the choice after them,
+## where a pack's step has Back). No slot is locked: the hand card the given card makes a built
+## recipe with reads "(it links with the Laser)" in a lit frame, still a choice; the recipe's
+## name shows only once the `fusion` basic is live. Closing emits give_done (slot -1 = kept),
+## never `picked`. The same pause, input delay and keys as a pack.
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
 signal went_back(offer: PickOffer)
 ## M50.1b: the pack's FUSE was chosen (the PathRunner answers with after_fuse).
 signal fuse_requested(offer: PickOffer)
+## M50.2b: the give step closed: the hand slot the given card replaced, or -1 (hand kept).
+signal give_done(offer: PickOffer, slot: int)
 
 const PAUSE := &"pick"
 const INPUT_DELAY := 0.4
@@ -59,6 +69,8 @@ var _fusing := 0.0          ## M50.1b: seconds left of the fuse animation
 var _fused_title := ""
 var _dismissed := false   ## the run is over: never open again
 var _toast: Label         ## M50.2a: the 1-card pack's line
+var _give_face: PanelContainer   ## M50.2b: the given card's face (give step only)
+var _give_label: Label
 var _toast_left := 0.0
 
 
@@ -85,6 +97,16 @@ func _ready() -> void:
 	_line.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_line.add_theme_constant_override(&"outline_size", 6)
 	column.add_child(_line)
+	_give_face = PanelContainer.new()
+	_give_face.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_give_face.custom_minimum_size = Vector2(360, 0)
+	_give_face.visible = false
+	_give_label = Label.new()
+	_give_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_give_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_give_label.add_theme_font_size_override(&"font_size", 18)
+	_give_face.add_child(_give_label)
+	column.add_child(_give_face)
 	_cards = HBoxContainer.new()
 	_cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	_cards.add_theme_constant_override(&"separation", 20)
@@ -164,6 +186,28 @@ func open(p_offer: PickOffer) -> bool:
 	return true
 
 
+## M50.2b: opens the give step (PickOffer.give_step: one given card, a full hand). The caller
+## defers, as for open().
+func open_give(p_offer: PickOffer) -> bool:
+	if _dismissed or p_offer == null or not p_offer.give_step or p_offer.cards.is_empty():
+		return false
+	offer = p_offer
+	_replacing = 0
+	_fusing = 0.0
+	RunState.set_pause(PAUSE, true)
+	_build()
+	_locked_for = input_delay
+	_root.visible = true
+	if _locked_for <= 0.0:
+		_unlock()
+	return true
+
+
+## M50.2b: the give step is showing.
+func giving() -> bool:
+	return _root.visible and offer != null and offer.give_step
+
+
 ## The buttons for the offer (a pack's cards, or its replace step).
 func _build() -> void:
 	for b in _frames:
@@ -173,6 +217,24 @@ func _build() -> void:
 	for c in _hand_row.get_children():
 		c.queue_free()
 	var hints := Settings.key_hints()
+	_give_face.visible = offer.give_step
+	if offer.give_step:
+		var c: Dictionary = offer.cards[0]
+		var rare: bool = c.get("rarity") == BoosterPack.RARE
+		_line.text = offer.line
+		_give_label.text = "%s\n%s   %s\n%s" % ["GOLD CARD" if rare else "NEW CARD", c.get("title", ""),
+				BoosterPack.tags(c), c.get("gain", "")]
+		var box := StyleBoxFlat.new()
+		var edge := Palette.color(&"card_rare") if rare else Palette.INFO
+		box.bg_color = Color(Palette.SCRIM_PICK, 0.85)
+		box.border_color = edge
+		box.set_border_width_all(4)
+		box.set_corner_radius_all(8)
+		box.set_content_margin_all(12)
+		_give_face.add_theme_stylebox_override(&"panel", box)
+		for j in replace_count() + 1:
+			_add_button(give_text(offer, j, Callable(), hints), choose.bind(j), false, j == int(c.get("links", -1)))
+		return
 	if _replacing >= 0:
 		_line.text = "Your hand is full. %s replaces:" % offer.cards[_replacing].get("title", "")
 		var new_name := String(WeaponDB.get_weapon(offer.cards[_replacing].id).title)
@@ -298,6 +360,23 @@ static func replace_text(p_offer: PickOffer, j: int, to_label := Callable(), hin
 	return "[%s]  %s" % [InputSetup.expand_keys("{key:choose_%d}" % (j + 1), to_label), text]
 
 
+## M50.2b: the give step's choice j: "Replace Pistol 12" per hand card (the given card's
+## recipe partner adds "  (it links with the Laser)", ": Prism" once the `fusion` basic is
+## live), then "Keep your hand".
+static func give_text(p_offer: PickOffer, j: int, to_label := Callable(), hints := true) -> String:
+	var c: Dictionary = p_offer.cards[0]
+	var text := "Keep your hand"
+	if j < p_offer.hand.size():
+		text = "Replace %s %d" % [p_offer.hand[j].title, int(p_offer.hand[j].rank)]
+		if j == int(c.get("links", -1)):
+			var w := WeaponDB.get_weapon(c.id)
+			text += "\n(it links with the %s%s)" % [w.title if w != null else String(c.id),
+					": " + String(c.recipe) if String(c.get("recipe", "")) != "" else ""]
+	if not hints:
+		return text
+	return "[%s]  %s" % [InputSetup.expand_keys("{key:choose_%d}" % (j + 1), to_label), text]
+
+
 ## M50.1a: the replace step is showing (the pack card waiting, else -1).
 func replacing() -> int:
 	return _replacing if _root.visible else -1
@@ -316,7 +395,7 @@ func replace_count() -> int:
 
 ## M50.1a: Back from the replace step to the same pack (no draw, no `picked`).
 func back() -> void:
-	if not can_choose() or _replacing < 0:
+	if not can_choose() or _replacing < 0 or offer.give_step:
 		return
 	_replacing = -1
 	_build()
@@ -406,6 +485,15 @@ func _unhandled_input(event: InputEvent) -> void:
 ## the next one is Back.
 func choose(i: int) -> void:
 	if not can_choose():
+		return
+	if offer.give_step:   # M50.2b: replace slot i, or keep the hand (the last choice)
+		if i < 0 or i > replace_count():
+			return
+		var given := offer
+		_root.visible = false
+		_give_face.visible = false
+		RunState.set_pause(PAUSE, false)
+		give_done.emit(given, i if i < replace_count() else -1)
 		return
 	if _replacing >= 0:
 		if i == replace_count():

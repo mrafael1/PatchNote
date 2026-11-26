@@ -25,8 +25,7 @@ extends Node
 ##
 ## M50.1a (Arsenal depth): a path with PathDef.pack_every > 0 deals booster packs (PackMeter,
 ## BoosterPack on RunState.pack_rng) instead of the card meter's cards: no session cap, owed
-## packs queue and open at least PACK_GAP s apart, a full-hand `give` waits in the next packs
-## (G4) instead of replacing a card silently, and the pick counts feed the telemetry.
+## packs queue and open at least PACK_GAP s apart, and the pick counts feed the telemetry.
 ##
 ## M50.1b (fusion): once the `fusion` basic is live, a hand that is a built recipe pair with
 ## both cards at rank 4+ gets a FUSE choice in its packs (BoosterPack.fuse_option): FUSE melts
@@ -39,6 +38,13 @@ extends Node
 ## M50.2a (pack tuning): a 1-card pack (toast_pack: no choice to make) applies at once with no
 ## pause and shows as PickPanel.toast(); it still counts as a pack. packs_short / packs_toast /
 ## rares_shown feed the telemetry and the bot's line.
+##
+## M50.2b (the give step, Arcade through S10 design 2): a `give` on a full pack hand (packs
+## live) no longer queues in the next packs (G4 is retired here): it opens the give step on the
+## first free tick (can_open_now(), never on the misfuse's last tick, before an owed pack): the
+## replace step on the given card alone, "Replace <card>" per slot or "Keep your hand". It
+## draws nothing, is not a pack pick (no `picked`, no pick_offered, PackMeter untouched), and
+## an owed pack waits PACK_GAP after it. Keep leaves the weapon in the live pool.
 
 signal started(path_id: StringName)
 
@@ -53,8 +59,6 @@ const AmmoWidget := preload("res://paths/survival/ammo_widget.gd")
 const SWAP_WARN_SECONDS := 1.5
 ## M50.1a: owed packs never open back to back: at least this much game time between two.
 const PACK_GAP := 2.0
-## M50.1a (G4): a full-hand give's card waits in at most this many packs.
-const GIVE_PACKS := 3
 ## M50.1b: the misfuse lasts this much game time (the pause stops it).
 const MISFUSE_SECONDS := 6.0
 const MISFUSE_SKIN := &"shot_misfuse_player"
@@ -106,6 +110,8 @@ var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "
 var packs_short := 0
 var packs_toast := 0
 var rares_shown := 0
+## M50.2b: each give step closed: {weapon, rank, choice: "replace:<id>" | "keep", t}.
+var gives: Array[Dictionary] = []
 ## M50.1b: each fusion made: {id, t, from: ["shotgun:5", "laser:4"], rank}.
 var fusions: Array[Dictionary] = []
 ## M50.1b: the times FUSE became available (the `fuse_ready n` cues read it) and the ticks it
@@ -139,8 +145,9 @@ var _late_swept := 0
 var _fp_base := [0, 0, 0]   ## picks, switches, pickups when the taste started
 var _still_tick := -1
 var _pack_gap_until := -1        ## M50.1a: the tick the next owed pack may open
-## M50.1a (G4): {id, rare, packs} of a full-hand give waiting in the packs ({} none).
-var _give_wait := {}
+## M50.2b: full-hand gives waiting for their give step ({id, rank}, in cue order).
+var _gives: Array[Dictionary] = []
+var _misfuse_end_tick := -1      ## M50.2b: the tick the misfuse ended (the give step waits a tick)
 var _fuse_was_ready := false
 var _misfuse_left := 0           ## M50.1b: physics ticks the misfuse has left (0: none)
 var _misfuse_before := ""
@@ -153,6 +160,7 @@ func _ready() -> void:
 		panel.picked.connect(_on_picked)
 		panel.went_back.connect(_on_back)
 		panel.fuse_requested.connect(_on_fuse)
+		panel.give_done.connect(_on_give_done)
 
 
 func _exit_tree() -> void:
@@ -221,9 +229,20 @@ func pack_path() -> bool:
 	return _cards_growth() and def.pack_every > 0
 
 
-## M50.1a (G4): the weapon a full-hand give left waiting (&"" none).
-func give_waiting() -> StringName:
-	return _give_wait.get("id", &"")
+## M50.2b: the weapon whose give step is waiting to open (&"" none).
+func give_pending() -> StringName:
+	return _gives[0].id if not _gives.is_empty() else &""
+
+
+## M50.2b: the give steps closed so far (the `give_choice n` cues read it).
+func give_steps() -> int:
+	return gives.size()
+
+
+## M50.2b (`paired`, a hand fact): the hand is a built recipe pair, whatever the `fusion` basic.
+func paired() -> bool:
+	var lo := loadout()
+	return lo != null and not BoosterPack.recipe_pair(lo).is_empty()
 
 
 func meter() -> RefCounted:
@@ -510,7 +529,7 @@ func _clear_growth() -> void:
 		_widget.queue_free()
 	_widget = null
 	_want = 0
-	_give_wait = {}
+	_gives.clear()
 	_pack_gap_until = -1
 	_end_misfuse(false)
 	_fuse_was_ready = false
@@ -567,8 +586,8 @@ func announce(w: StringName) -> void:
 ## A `give` cue under a path: Auto offers it first at its next level-up (no slot is filled).
 ## False with no path live, and on Arsenal: the caller hands it over itself (M44's free
 ## slot: a free card, the weakest non-active card replaced when the hand is full; 1.3).
-## M50.1a (packs): a full hand never loses a card silently once the packs are live: the weapon
-## waits as card 2 of the next packs (G4, at the cue's rank: 3 = rare) and this returns true;
+## M50.1a (packs): a full hand never loses a card silently once the packs are live. M50.2b: it
+## opens the give step (logged `give_offered`; rank 3+ = a gold card) and this returns true;
 ## before the `cards` basic the old replace applies, logged `give_replaced`.
 func give(w: StringName, rank := 1) -> bool:
 	announce(w)
@@ -581,8 +600,8 @@ func give(w: StringName, rank := 1) -> bool:
 			return true   # M50.1b: a parent's give feeds the fusion
 		if lo != null and wd != null and not wd.is_passive() and lo.held(w) == null and lo.hand_full():
 			if _meter != null and not frozen and not _stopped:
-				_give_wait = {"id": w, "rare": rank >= 3, "packs": 0}
-				RunState.log_event(&"give_queued", {"weapon": String(w), "rare": rank >= 3})
+				_gives.append({"id": w, "rank": rank})
+				RunState.log_event(&"give_offered", {"weapon": String(w), "rank": rank})
 				return true
 			RunState.log_event(&"give_replaced", {"weapon": String(w)})
 		return false
@@ -668,6 +687,7 @@ func _physics_process(_delta: float) -> void:
 		_misfuse_left -= 1
 		if _misfuse_left == 0:
 			_end_misfuse(true)
+			_misfuse_end_tick = _tick
 	if fusion_live() and not _stopped:
 		var lo_f := loadout()
 		var ready := lo_f != null and BoosterPack.can_fuse(lo_f)
@@ -676,7 +696,11 @@ func _physics_process(_delta: float) -> void:
 			if not _fuse_was_ready:
 				fuse_ready_count += 1
 		_fuse_was_ready = ready
-	if _want > 0 and not _opening and _tick >= _pack_gap_until and can_open_now():
+	# M50.2b: a waiting give step opens first (never on the misfuse's last tick), then packs.
+	if not _gives.is_empty() and not _opening and _tick > _misfuse_end_tick and can_open_now():
+		_opening = true
+		_open_give.call_deferred()
+	elif _want > 0 and not _opening and _tick >= _pack_gap_until and can_open_now():
 		_opening = true
 		_open_offer.call_deferred()
 
@@ -690,12 +714,10 @@ func _open_offer() -> void:
 		return
 	var offer: PickOffer
 	if pack_path():
-		offer = BoosterPack.draw(lo, def, offer_pool(), _give_wait, RunState.pack_rng, taste)
+		offer = BoosterPack.draw(lo, def, offer_pool(), {}, RunState.pack_rng, taste)   # M50.2b: no G4
 		offer.fuse = fuse_option()
 		if &"fusion" in def.basics:
 			BoosterPack.mark_keeps(offer, lo)
-		if not _give_wait.is_empty():
-			_give_wait.packs = int(_give_wait.packs) + 1
 		if offer.cards.size() < 3:
 			packs_short += 1
 		for c: Dictionary in offer.cards:
@@ -720,6 +742,75 @@ func _open_offer() -> void:
 	EventBus.pick_offered.emit(offer)
 	fp.menu_open()
 	panel.open(offer)
+
+
+## M50.2b: the waiting give's step (deferred, like a pack; checks again). The hand may have
+## changed since the cue: a weapon now held (or fed into a fusion) ranks up, a hand with room
+## takes it at once; else the panel opens the give step on the given card alone.
+func _open_give() -> void:
+	_opening = false
+	var lo := loadout()
+	if _gives.is_empty() or lo == null or not can_open_now():
+		return
+	var g: Dictionary = _gives.pop_front()
+	var id: StringName = g.id
+	var rank := int(g.rank)
+	var fed := lo.holder(id)
+	if fed != null:   # as give() does: a fusion's parent feeds it, a held card ranks up
+		if fed.def.is_fusion():
+			lo.upgrade(fed.def.id)
+		else:
+			lo.give(id, rank)
+		return
+	if not lo.hand_full():
+		lo.give(id, rank)
+		return
+	var offer := PickOffer.new()
+	offer.pack = true
+	offer.give_step = true
+	offer.max_slots = lo.max_slots
+	for w in lo.slots:
+		offer.hand.append({"id": w.def.id, "title": w.def.title, "rank": w.rank})
+	var card := BoosterPack.give_card(lo, id, rank)
+	var links: Array[int] = []
+	for j in lo.slots.size():
+		var f := WeaponDB.recipe(id, lo.slots[j].def.id)
+		if not lo.slots[j].def.is_fusion() and f != &"" and WeaponDB.fusion_built(f):
+			links.append(j)
+	card["links"] = links[0] if links.size() == 1 else -1
+	card["recipe"] = ""
+	if links.size() == 1 and fusion_live():
+		card["recipe"] = String(WeaponDB.get_weapon(WeaponDB.recipe(id, lo.slots[links[0]].def.id)).title)
+	offer.cards.append(card)
+	offer.line = ("A gold card: %s." if card.rarity == BoosterPack.RARE else "A new card: %s.") % card.title
+	offers.append(offer)
+	fp.menu_open()
+	panel.open_give(offer)
+
+
+## M50.2b: the give step closed: `slot` replaced by the given card, or -1 (the hand kept; the
+## weapon stays in the live pool, so a later pack can show it as NEW). An owed pack waits
+## PACK_GAP.
+func _on_give_done(offer: PickOffer, slot: int) -> void:
+	fp.menu_close()
+	var p: Node = game.get(&"player") if game != null else null
+	if is_instance_valid(p) and p.get(&"input") != null:
+		(p.get(&"input") as PlayerInput).require_fresh_press()
+	var lo := loadout()
+	var card: Dictionary = offer.cards[0]
+	var choice := "keep"
+	if slot >= 0 and lo != null and slot < lo.slots.size():
+		var old: StringName = lo.slots[slot].def.id
+		if lo.replace_slot(slot, card.id, int(card.rank)):
+			choice = "replace:%s" % old
+	if choice == "keep":
+		pack_picks.give_kept = int(pack_picks.get("give_kept", 0)) + 1
+	var rec := {"weapon": String(card.id), "rank": int(card.rank), "choice": choice,
+			"t": snappedf(RunState.game_time, 0.1)}
+	gives.append(rec)
+	RunState.log_event(&"give_choice", rec.duplicate())
+	if _want > 0:
+		_pack_gap_until = _tick + roundi(PACK_GAP * Engine.physics_ticks_per_second)
 
 
 ## The held aimed card with the most shots that can still rank up (ties: slot order), or
@@ -785,8 +876,7 @@ func _pick(offer: PickOffer, index: int) -> void:
 
 
 ## M50.1a: a pack card goes to the hand: a held weapon ranks up (+1, rare +2), a new one joins
-## (rank 1, rare 3) or replaces the slot the panel's replace step chose. G4's weapon stops
-## waiting once taken or after GIVE_PACKS packs.
+## (rank 1, rare 3) or replaces the slot the panel's replace step chose.
 func _take_pack_card(lo: Loadout, card: Dictionary) -> void:
 	var rare: bool = card.get("rarity") == BoosterPack.RARE
 	if lo != null:
@@ -805,8 +895,6 @@ func _take_pack_card(lo: Loadout, card: Dictionary) -> void:
 			pack_picks.new += 1
 	if rare:
 		pack_picks.rare += 1
-	if not _give_wait.is_empty() and (card.id == _give_wait.id or int(_give_wait.packs) >= GIVE_PACKS):
-		_give_wait = {}
 
 
 ## M50.1a: the pack panel's Back (the replace step, back to the same pack).

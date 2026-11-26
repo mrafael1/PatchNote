@@ -93,7 +93,12 @@ extends SceneTree
 ##                                ~0.9 kills/s then gives a human's pack cadence)
 ##   --probe=human                (M50.1b review) human_pace, and a replace step that lets the
 ##                                lowest-rank card go that the step allows (a first play does
-##                                not know the recipes; the step's kept partner is never offered)
+##                                not know the recipes; the step's kept partner is never offered);
+##                                M50.2b: on a give step it follows the visible hint (as default)
+##   --probe=give_keep            (M50.2b) a give step always keeps the hand
+##   --probe=give_swap            (M50.2b) a give step replaces the given card's recipe partner
+##   (M50.2b) A give step is chosen by BotRuns.give_choice (shared with tools/run_hash.gd); the
+##   --only line adds give=<choice>@t at its end (pack paths), the fusion: summary give=.
 ##   (M50.1a) A booster pack (Arsenal) is chosen by BotRuns.pack_choice, one static rule with no
 ##   RNG shared with tools/run_hash.gd; the --only line ends with packs=n pack_gap_median=
 ##   rares= replaces= backs= max_rank= hand= cards_fired= shots=, and the "arsenal:" summary
@@ -198,7 +203,8 @@ var draft_arg := ""                          ## --draft (M45a)
 var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 no_switch, first_pick
 var fp_arg := false                          ## --fp (M46)
 var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
-const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human"]
+const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human",
+		"give_keep", "give_swap"]
 ## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
 const PACK_TARGETS := {"s2_02_day_one": [12, 25], "s2_03_paint": [15, 28]}
 ## M50.2a: human_pace deals a pack every pack_every + this many kills (6 + 3 = 9 today).
@@ -738,6 +744,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 						int(ar.max_rank), ar.hand, int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots)),
 						_join_or_dash(ar.fusions), ar.misfuse, int(ar.packs_short), int(ar.packs_toast),
 						int(ar.rares_shown)]
+				landed_text += " give=%s" % ar.give   # M50.2b: at the very end
 			else:
 				landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
 						_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),
@@ -844,11 +851,11 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		# M50.1b: fusions per seed (the S9 target: >= 12/16, median t <= 110 s) and the misfuse.
 		var fused_runs := arsenal_runs.filter(func(r: Dictionary) -> bool: return float(r.fuse_t) >= 0.0)
 		var mf_ok := arsenal_runs.filter(func(r: Dictionary) -> bool: return r.misfuse == "ok").size()
-		print("[botrun] fusion: %s fused %d/%d median_t=%.1f per_seed=%s misfuse_ok %d/%d" % [only,
+		print("[botrun] fusion: %s fused %d/%d median_t=%.1f per_seed=%s misfuse_ok %d/%d give=%s" % [only,
 			fused_runs.size(), arsenal_runs.size(),
 			_median(fused_runs.map(func(r: Dictionary) -> float: return float(r.fuse_t))) if not fused_runs.is_empty() else -1.0,
 			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return _join_or_dash(r.fusions))),
-			mf_ok, arsenal_runs.size()])
+			mf_ok, arsenal_runs.size(), ",".join(arsenal_runs.map(func(r: Dictionary) -> String: return String(r.give)))])
 		# M50.2a: rare cards shown per pack, packs under 3 cards and 1-card toasts per seed.
 		var shown := 0
 		var dealt := 0
@@ -939,7 +946,12 @@ static func _pack_run(run: Dictionary, runner: Node, lo: Node, session_id: Strin
 	elif (runner.get_tree().root.get_node("RunState").get(&"run_log") as Array).any(func(e: Dictionary) -> bool:
 			return e.get("event") == &"fuse_fail_skipped"):
 		misfuse = "skipped"
-	return {"offers": offers.size(), "gaps": gaps, "gap_median": med, "fired": fired,
+	# M50.2b: the give steps ("replace:pistol@86.0", "keep@86.0"; - none).
+	var give := "-"
+	var gv: Array = runner.get(&"gives")
+	if not gv.is_empty():
+		give = "+".join(gv.map(func(g: Dictionary) -> String: return "%s@%.1f" % [g.choice, float(g.t)]))
+	return {"give": give, "offers": offers.size(), "gaps": gaps, "gap_median": med, "fired": fired,
 			"rares": int(picks.get("rare", 0)), "replaces": int(picks.get("replace", 0)),
 			"backs": int(picks.get("back", 0)), "max_rank": max_rank,
 			"hand": String(lo.call(&"summary")) if lo != null else "-", "ok": ok,
@@ -1357,6 +1369,9 @@ func _choose_pick(game: Node) -> bool:
 static func choose_pack(panel: Node, game: Node, probe: String) -> void:
 	var p: Node = game.get(&"player")
 	var lo: Node = p.get_node_or_null(^"Loadout") if is_instance_valid(p) else null
+	if bool(panel.get(&"offer").get(&"give_step")):   # M50.2b
+		panel.call(&"choose", give_choice(panel, lo, probe))
+		return
 	var i := pack_choice(panel, lo, probe)
 	if i < 0:
 		panel.call(&"back")
@@ -1430,6 +1445,25 @@ static func pack_choice(panel: Node, lo: Node, probe: String) -> int:
 			best = i
 			best_shots = shots
 	return best if best >= 0 else 0
+
+
+## M50.2b (Arcade through S10 design 2.4): the bot's give step, no RNG. It replaces the held
+## card that is not the given card's recipe partner (the visible hint marks the partner), the
+## lowest rank when nothing links; give_keep keeps the hand (choice hand.size()); give_swap
+## replaces the partner (the lowest rank when nothing links). `human` follows the hint.
+static func give_choice(panel: Node, _lo: Node, probe: String) -> int:
+	var offer: RefCounted = panel.get(&"offer")
+	var hand: Array = offer.get(&"hand")
+	var links := int((offer.get(&"cards") as Array)[0].get("links", -1))
+	if probe == "give_keep" or hand.is_empty():
+		return hand.size()
+	if links >= 0 and hand.size() == 2:
+		return links if probe == "give_swap" else 1 - links
+	var low := 0
+	for j in hand.size():
+		if int(hand[j].rank) < int(hand[low].rank):
+			low = j
+	return low
 
 
 ## M50.1b: `a` and `b` make a built fusion (WeaponDB, loaded: see pack_choice).
