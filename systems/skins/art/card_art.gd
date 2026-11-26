@@ -178,6 +178,8 @@ const BAND := {
 	&"dot": ["#ffb35a", "#c98a2e"], &"fan": ["#ff6b5a", "#c0503c"], &"line": ["#ff6b8a", "#c23f6e"],
 	&"prism": ["#c79bff", "#8c5fd0"], &"ball": ["#ff9a6b", "#e0664f"], &"ring": ["#6cf0c2", "#3f8f78"],
 	&"burst": ["#ffd84a", "#c98a2e"], &"hole": ["#b84ee0", "#7a2ea0"], &"misfuse": ["#bfa9d9", "#6a5290"],
+	## M50.3a: the launcher's key is now `bomb` (keeps the old `ball` pair); `cluster` for M50.3b.
+	&"bomb": ["#ff9a6b", "#e0664f"], &"cluster": ["#ff8a4a", "#c95a2e"],
 }
 
 static var _skin: ArtSkin

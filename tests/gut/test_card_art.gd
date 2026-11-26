@@ -7,7 +7,9 @@ extends GutTest
 ## and the replace step are unchanged; the 1-card toast wears a small card.
 
 const CARD_DIGEST := "e4f73d1237c1bd698ccd3a18fb0e1b361a03140670999d6c277af4c4a12a8792"
-const ATLAS_DIGEST := "d07379b4045ff8a8ffe29f54f8ccb145a83e5bbeb4b683fc2f8fb00ba3d88857"
+## M50.3a moved the arena atlas once (the launcher's sprites and the card_rare role); the card
+## art's own digest did not move (it reads card_rare at draw time).
+const ATLAS_DIGEST := "5ccf24970fc438517bbeb4b7bd24a26be1b26656d1efe72162ccb59533005c54"
 
 var panel: PickPanel
 var picked_i: Array = []
@@ -271,3 +273,16 @@ func test_the_fuse_face_shows_every_kept_mechanic_and_the_losses() -> void:
 	var p := await _panel()
 	assert_true(p.open(o))
 	assert_eq(p._buttons[3].tooltip_text, String(f.text), "the FUSE button's tooltip is the full fuse text")
+
+
+## M50.3a review: the launcher's icon became `bomb`, and a key missing from BAND falls back to
+## the misfuse lilac, so every base weapon's icon and every glyph key must have its own band.
+func test_every_weapon_icon_and_glyph_key_has_a_band() -> void:
+	for w in WeaponDB.all():
+		assert_true(CardArt.BAND.has(w.icon), "%s's icon %s has a band" % [w.id, w.icon])
+	for key in WeaponGlyph.KEYS:
+		assert_true(CardArt.BAND.has(key), "glyph key %s has a band" % key)
+	var misfuse := CardArt.band(&"misfuse")
+	assert_ne(CardArt.band(WeaponDB.get_weapon(&"launcher").icon), misfuse, "the launcher is not lilac")
+	assert_eq(CardArt.band(&"bomb"), [Color.html("#ff9a6b"), Color.html("#e0664f")], "the launcher keeps its orange")
+	assert_ne(CardArt.band(&"cluster"), misfuse, "Cluster is not lilac")

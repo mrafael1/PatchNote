@@ -29,3 +29,9 @@ func hit_wall(_p: Node2D, _pos: Vector2, _normal: Vector2) -> bool:
 ## The projectile is going away (contact, wall, lifetime).
 func despawned(_p: Node2D) -> void:
 	pass
+
+
+## M50.3a: the projectile blew at `pos` (Projectile.explode), after the blast and its contact
+## event, before the despawn. Cluster's bomblets come from here.
+func blasted(_p: Node2D, _pos: Vector2) -> void:
+	pass

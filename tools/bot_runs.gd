@@ -99,6 +99,7 @@ extends SceneTree
 ##   --probe=give_swap            (M50.2b) a give step replaces the given card's recipe partner
 ##   (M50.2b) A give step is chosen by BotRuns.give_choice (shared with tools/run_hash.gd); the
 ##   --only line adds give=<choice>@t at its end (pack paths), the fusion: summary give=.
+##   M50.3a: then mines=<laid>/<blown> (the launcher's mine_layer).
 ##   (M50.1a) A booster pack (Arsenal) is chosen by BotRuns.pack_choice, one static rule with no
 ##   RNG shared with tools/run_hash.gd; the --only line ends with packs=n pack_gap_median=
 ##   rares= replaces= backs= max_rank= hand= cards_fired= shots=, and the "arsenal:" summary
@@ -745,6 +746,10 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 						_join_or_dash(ar.fusions), ar.misfuse, int(ar.packs_short), int(ar.packs_toast),
 						int(ar.rares_shown)]
 				landed_text += " give=%s" % ar.give   # M50.2b: at the very end
+				# M50.3a: the launcher's mines laid / blown (after give=).
+				var laid: int = (run_state.get(&"run_log") as Array).filter(func(e: Dictionary) -> bool: return e.get("event") == &"mine_laid").size()
+				var blown: int = (run_state.get(&"run_log") as Array).filter(func(e: Dictionary) -> bool: return e.get("event") == &"mine_blown").size()
+				landed_text += " mines=%d/%d" % [laid, blown]
 			else:
 				landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
 						_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),

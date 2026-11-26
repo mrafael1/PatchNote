@@ -99,7 +99,8 @@ func test_each_body_finds_its_sprite() -> void:
 	assert_eq(Skins.id_for(shot.get_node("Visual")), &"shot_dot_player", "no weapon: dot")
 	shot.free()
 	for w in [[&"laser", &"player", &"shot_line_player"], [&"shotgun", &"player", &"shot_fan_player"],
-			[&"launcher", &"player", &"shot_ball_player"], [&"", &"enemy", &"shot_dot_enemy"]]:
+			[&"launcher", &"player", &"shot_bomb_player"], [&"cluster", &"player", &"shot_cluster_player"],
+			[&"", &"enemy", &"shot_dot_enemy"]]:
 		assert_eq(Skins.shot_id(w[0], w[1]), w[2])
 
 
@@ -647,8 +648,26 @@ func test_the_atlas_hash_is_m48as() -> void:
 	var skin := Skins.pixel()
 	assert_not_null(skin.mosaic(&"chaser"))
 	assert_not_null(skin.outline(&"chaser"))
-	# M50.1b: + shot_prism_player and shot_misfuse_player.
-	assert_eq(skin.digest(), "d07379b4045ff8a8ffe29f54f8ccb145a83e5bbeb4b683fc2f8fb00ba3d88857")
+	# M50.1b: + shot_prism_player and shot_misfuse_player. M50.3a: + shot_bomb_player,
+	# shot_cluster_player, mine, mine_armed and the card_rare role (the one move for M50.3a/b).
+	assert_eq(skin.digest(), "5ccf24970fc438517bbeb4b7bd24a26be1b26656d1efe72162ccb59533005c54")
+
+
+## M50.3a: the launcher's bomb, Cluster's shell and the mine (dim, armed) are player-side
+## sprites in the `shots` reveal group; there is no enemy bomb or cluster.
+func test_the_launcher_sprites_are_player_shots() -> void:
+	var skin := Skins.pixel()
+	var sizes := {&"shot_bomb_player": Vector2(9, 7), &"shot_cluster_player": Vector2(9, 9),
+			&"mine": Vector2(7, 7), &"mine_armed": Vector2(7, 7)}
+	for id: StringName in sizes:
+		assert_true(skin.has(id), String(id))
+		assert_eq(skin.size_of(id), sizes[id], String(id))
+		assert_true(id in Skins.GROUPS[&"shots"], "%s is revealed with the shots" % id)
+	assert_false(skin.has(&"shot_bomb_enemy"), "player-only")
+	assert_false(skin.has(&"shot_cluster_enemy"), "player-only")
+	Skins.use(skin)
+	assert_eq(Skins.shot_id(&"launcher", &"enemy"), &"shot_dot_enemy", "an enemy launcher shot falls back")
+	assert_ne(skin.image(&"mine").get_data(), skin.image(&"mine_armed").get_data(), "armed is lit")
 
 
 ## A CLI / F10 / console swap reveals everything (M48a's behaviour); a manual reveal state

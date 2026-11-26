@@ -7,7 +7,7 @@ extends RefCounted
 ## (`shot_<key>_player`), so the card, the pickup and the shot itself show one picture.
 
 const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole",
-		&"prism", &"misfuse"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too)
+		&"prism", &"misfuse", &"bomb", &"cluster"]   ## M50.1b: Prism, the misfuse; M50.3a: the launcher's bomb, Cluster (each has a pixel shot; `link` draws too)
 
 static var skin_draws := 0   ## pictures drawn from a look's sprite (tests)
 
@@ -53,6 +53,14 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 				var c2 := centre + Vector2(-r * 0.15 + r * 0.3 * k, -r * 0.1 + r * 0.2 * k)
 				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 1.2, r * 0.3)), Color(color, 0.6 + 0.4 * k))
 				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 0.3, r * 0.7)), Color(color, 0.6 + 0.4 * k))
+		&"bomb":   # M50.3a: the launcher: a squat bomb with a fuse
+			ci.draw_rect(Rect2(centre + Vector2(-r * 0.3, -r * 0.45), Vector2(r * 0.95, r * 0.9)), color)
+			ci.draw_line(centre + Vector2(-r * 0.3, -r * 0.35), centre + Vector2(-r * 0.8, -r * 0.8), color, w, true)
+			ci.draw_circle(centre + Vector2(-r * 0.85, -r * 0.85), r * 0.14, color)
+		&"cluster":   # M50.3a: Cluster: a shell ringed by five bomblets
+			ci.draw_circle(centre, r * 0.36, color)
+			for i in 5:
+				ci.draw_circle(centre + Vector2.UP.rotated(TAU * i / 5.0) * r * 0.75, r * 0.15, color)
 		&"link":   # M50.1b: two rings chained
 			ci.draw_arc(centre - Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
 			ci.draw_arc(centre + Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)

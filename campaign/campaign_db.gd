@@ -707,6 +707,14 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		out.packs_short = int(runner.get(&"packs_short"))
 		out.packs_toast = int(runner.get(&"packs_toast"))
 		out.rares_shown = int(runner.get(&"rares_shown"))
+		# M50.3a (additive): the launcher's mines laid and blown (the run log's mine events).
+		var mines := {"laid": 0, "blown": 0}
+		for e: Dictionary in RunState.run_log:
+			if e.get("event") == &"mine_laid":
+				mines.laid = int(mines.laid) + 1
+			elif e.get("event") == &"mine_blown":
+				mines.blown = int(mines.blown) + 1
+		out.mines = mines
 		out.ranks_end = (out.weapons as Dictionary).duplicate()
 		var top := 0
 		for r: Variant in (out.weapons as Dictionary).values():

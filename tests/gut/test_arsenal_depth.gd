@@ -661,12 +661,13 @@ func test_pack_panel_text_and_the_rare_frame() -> void:
 	panel.choose(0)
 
 
-## CARD_RARE is a tier-0 role; a look that does not name it (Pixel today: its atlas hash is
-## pinned) falls back to it, so it resolves in every look, never to the unknown magenta.
+## CARD_RARE is a tier-0 role, so it resolves in every look, never to the unknown magenta.
+## M50.3a: Pixel names it (the elite gold already in the atlas), in the one atlas digest move.
 func test_card_rare_is_a_role_in_every_look() -> void:
 	assert_true(Palette.has(&"card_rare"))
 	assert_ne(Palette.tier_0(&"card_rare"), Color.MAGENTA)
-	assert_false(Grids.ROLES.has("card_rare"), "Pixel keeps tier 0's gold (no atlas change)")
+	assert_eq(Grids.ROLES.get("card_rare"), "#ffd84a", "Pixel names it: the elite gold")
+	assert_eq(Skins.pixel().role(&"card_rare"), Color.html("#ffd84a"))
 
 
 # --- 6. Hand widget, telemetry, bot -----------------------------------------------------------
