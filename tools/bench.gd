@@ -24,6 +24,10 @@ extends SceneTree
 ## to 116 minus the real weapons' live shots (never over 100), so the real weapons keep
 ## firing. One "[bench] auto" line. --weapons=all:<r> rides the orbit passive in every
 ## segment (picked by id, so M44's segment numbers stay comparable).
+##
+## M50.4c2 (Auto depth design 10, "Perf"): --auto --evolved swaps that loadout for the three
+## built evolutions at their launch numbers (Minigun, Thunderclap, Supernova: 3 shared slots)
+## with Haste 6 and Might 6; --evolved=minigun keeps only the Minigun (c1's bench).
 
 const ENEMIES := 75
 const PROJECTILES := 100
@@ -63,8 +67,14 @@ func _run() -> void:
 	var wdb: GDScript = load("res://weapons/weapon_db.gd")
 	var auto_enemies := -1
 	var passive_ids: Array[StringName] = [&"nova", &"well"]
+	var evolved: Array[StringName] = []
 	for arg in OS.get_cmdline_user_args():
-		if arg == "--auto":
+		if arg == "--evolved":
+			evolved = [&"minigun", &"thunderclap", &"supernova"]
+		elif arg.begins_with("--evolved="):
+			for id in arg.trim_prefix("--evolved=").split(",", false):
+				evolved.append(StringName(id))
+		elif arg == "--auto":
 			auto_enemies = 57
 		elif arg.begins_with("--auto="):
 			auto_enemies = int(arg.trim_prefix("--auto="))
@@ -95,7 +105,7 @@ func _run() -> void:
 	rng.seed = 1
 	var points: Array = game.arena.spawn_points
 	if auto_enemies > 0:
-		await _auto(run_state, game, rng, points, auto_enemies, passive_ids)
+		await _auto(run_state, game, rng, points, auto_enemies, passive_ids, evolved)
 		quit()
 		return
 	if segments.is_empty():
@@ -137,7 +147,7 @@ func _stats(ms: Array[float], fps: float) -> String:
 
 ## M45b: Auto at its cap (header). One "[bench] auto" line.
 func _auto(run_state: Node, game: Node, rng: RandomNumberGenerator, points: Array, enemies: int,
-		passive_ids: Array[StringName]) -> void:
+		passive_ids: Array[StringName], evolved: Array[StringName] = []) -> void:
 	run_state.session_path = &"auto"
 	var runner: Node = game.call(&"ensure_path_runner")
 	runner.call(&"freeze")   # before begin: no gems node, no meter, no pick panel
@@ -147,6 +157,8 @@ func _auto(run_state: Node, game: Node, rng: RandomNumberGenerator, points: Arra
 		loadout.set_weapon(id, 3)
 	for id in passive_ids:
 		loadout.set_weapon(id, 3)
+	if not evolved.is_empty():
+		_evolved(loadout, evolved)
 	var stats := {"weapon_shots": 0, "synthetic": 0, "pickups": 0, "enemy_shots": 0, "fields": 0, "most_fields": 0, "frames": 0}
 	var r: Array = await _segment(run_state, game, rng, points, enemies, stats)
 	var n := maxi(1, int(stats.frames))
@@ -157,6 +169,27 @@ func _auto(run_state: Node, game: Node, rng: RandomNumberGenerator, points: Arra
 			loadout.call(&"summary"), run_state.call(&"live_path"),
 			_counter(run_state, &"enemy_shots_refused"), _counter(run_state, &"player_shots_refused"),
 			_stats(r[0], int(r[1]) / float(r[2]))])
+
+
+## M50.4c2: the built evolutions `ids` at their launch numbers, each from its base at rank 6,
+## with Haste 6 and Might 6 held (Loadout.evolve does not ask for the catalyst).
+func _evolved(loadout: Node, ids: Array[StringName]) -> void:
+	var wdb: GDScript = load("res://weapons/weapon_db.gd")
+	loadout.call(&"clear")
+	for id in ids:
+		loadout.set_weapon(wdb.call(&"get_weapon", id).get(&"base"), 6)
+	for item: StringName in [&"haste", &"might"]:
+		loadout.add_item(item)
+		for k in 5:
+			loadout.level_item(item)
+	for id in ids:
+		var def: Resource = wdb.call(&"get_weapon", id)
+		if not loadout.evolve(def.get(&"base"), id):
+			push_warning("[bench] could not evolve %s" % id)
+			continue
+		var w: RefCounted = loadout.held(id)
+		w.set(&"launch", (def.get(&"launch_values") as Dictionary).duplicate())
+		loadout.reread(w)
 
 
 func _counter(run_state: Node, key: StringName) -> int:

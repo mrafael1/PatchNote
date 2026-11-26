@@ -17,6 +17,8 @@ var life := 1.5
 var dps := 1.0
 var gem_magnet := false
 var teeth := false
+## M50.4b: the Area item's multiplier on a new field's radius (Weapon.stat_mult; 1.0 without).
+var area := 1.0
 var fields := 0          ## tests: fields left
 var capped := 0          ## tests: kills over the cap (no field)
 ## The live list is kept on RunState.world (meta LIVE_META), not on this node: a rank-up
@@ -30,6 +32,15 @@ func configure(w: Weapon) -> void:
 	weapon_id = w.def.id
 	life = float(w.value(&"cooldown"))
 	dps = float(w.value(&"damage"))
+	area = w.stat_mult(&"area")
+
+
+## M50.4a review: the `boost` filler (Loadout._apply_mods) re-reads the numbers in place, the
+## node kept. Fields already on the ground keep the bite they were made with.
+func reconfigure(w: Weapon) -> void:
+	life = float(w.value(&"cooldown"))
+	dps = float(w.value(&"damage"))
+	area = w.stat_mult(&"area")
 
 
 func _ready() -> void:
@@ -59,6 +70,8 @@ func _on_enemy_killed(enemy: Node, info: RefCounted) -> void:
 	f.gem_pull = gem_magnet
 	f.teeth = teeth
 	f.bite = dps * Field.BITE_EVERY
+	if area != 1.0:
+		f.radius *= area
 	f.source = StringName("weapon:%s" % weapon_id)
 	f.position = (enemy as Node2D).global_position
 	RunState.world.add_child.call_deferred(f)

@@ -1,3 +1,26 @@
+# Next playtest: M50.6, stacked packs and weapon rarity (Arcade)
+
+What is new since M50.5a (Arcade path only; play S7 to S9 as usual):
+- **Packs wait for you.** Six kills still deal a pack, but it no longer opens by itself: it joins a stack in the HUD ("3 packs", or "PACK x3" on the rail). Press **F** (pad: X) when you want to open the top one; the game pauses and you pick 1 of 3 as before. Open the next with another press. The AI tells you the key at your first pack and reminds you once when three are waiting. Packs you did not open are still there in the next session.
+- **Every card is +1 rank.** No more "RARE +2".
+- **Rarity is the gun's:** Pistol, Shotgun and Launcher are common; the Laser is rare (gold frame, shows up less often); a fused gun is **epic** (violet frame). The ribbon on each card says which.
+- **Your own guns come up more often** in the second and third card.
+- **Epic cards (S9, after the AI adds fusion):** now and then a pack holds a ready-made fused gun (Prism), at rank 4. If you hold one of its parents it takes that card's slot (and keeps its rank if it was higher); if your hand is full and you hold neither, you choose which card it replaces.
+
+One-liners (defaults taken): F as the key: fine? Did you ever forget a pack was waiting? Did stacking and opening three in a row feel good or like a chore? Epic at rank 4 and about one pack in ten: right? Should the first pack open by itself to teach it? "COMMON" ribbon on plain cards: keep?
+
+---
+
+# Next playtest: M50.5a, card art and small-font letters (polish on M50.5)
+
+What is new since M50.5 (no extra steps; play as usual):
+- Arcade's pack cards now show the gun, as in the approved card mockup, not the bullet: Pistol, Shotgun, Laser, Launcher, and the fused Prism and Cluster (FUSE shows the new gun with both parents small below). The hand under a pack, the 1-card toast and the rail's HAND cards show the gun too. Both looks (flat before S9's "skin ui", pixel after).
+- The small pixel text no longer turns "fi" into an "A": "first", "fire rate", "five", "fifty" read right in the chat, on the cards and on the rail.
+
+One-liners (defaults taken): F, B and Z still look a little soft at the smallest sizes (10-12 px): still misread anywhere? Cluster's picture (a launcher with a bomb ring ahead; the mockup had none): reads as Cluster?
+
+---
+
 # Next playtest: M47.6d2, S8 and S9 endings (Stage 1 rework, part 6)
 
 What is new since M47.6d1 (no extra steps; play as usual):
@@ -90,6 +113,7 @@ One page. The G13 sheet is kept below for reference.
 | | Keyboard and mouse | Pad |
 |---|---|---|
 | Arsenal: switch card | Q / E, mouse wheel, 1-3 | Bumpers |
+| Arsenal: open the top stacked pack (M50.6) | F | X |
 | Survival: take a gun, ammo or a heal | Walk over it (your old gun drops at your feet) | Walk over it |
 
 ## Files to send back
@@ -107,6 +131,10 @@ One page. The G13 sheet is kept below for reference.
 8. G13's 7a-7j (the sheet below), one line each.
 
 ## Open one-liners
+- M50.4f (Auto, looks only): the level-up cards now follow the approved mockup: big guns in the card window, MAX cards in gold, tall pips for new mechanics, the mechanic named on the effect line, READY on the passive whose EVOLVE is offered, "focused" under the selected card, and the rail's slot that would change lifts (flat look: a slot bar under the cards). Does anything still read differently from the mockup?
+- M50.4c2 (Auto, F2 for now): two more evolutions. Nova 6 + Might becomes the Supernova (a bigger blast every 2 s with a 6-tile ring). Shotgun 6 + Area becomes the Thunderclap (each volley claps a blast ahead). Neither shows up in S9 on its own yet: try them from F2. Do their EVOLVE cards and pictures read right?
+- M50.4c1 (Auto, S9): at 84 s the AI adds EVOLVE. Pistol 6 + Haste turns into the Minigun (a sweeping stream), at 30 shots/s for 8 s, then the AI patches it to 15/s live ("Too strong. Patched it down live.") and the debrief changelog lists the change. Questions, one line each: (Q3) should EVOLVE be free like FUSE, instead of spending the level-up? (Q4) too easy with the passive at any level, or should it need the passive maxed? (Q5) did the nerf read as a joke, or did it feel like losing something? (Q6) too much in S9 (paint + evolve): move evolve to S10? (Q13) do the EVOLVE card and the level-up cards look right?
+- M50.4b (Auto): level-ups now show dressed cards and two passive slots (Haste, Area; Might in S9). Do the cards read at a glance, and does S8 offer the second passive soon enough after the 42 s line?
 - Arsenal's first card in S8 comes at 25 kills (the plan said 15): ok?
 - Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it; nothing offers it before S9.)
 - Path line budget (250 own lines per path): nova and well counted as shared code (Auto 182) or as Auto's own (315, over)? Survival is at 250 exactly (paths/survival/) on the first reading, or about 485 if its shared Loadout / Pickup / bot / pickup-field lines count as its own.

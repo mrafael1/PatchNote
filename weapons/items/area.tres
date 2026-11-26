@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"area"
+title = "Area"
+icon = &"area"
+stat = &"area"
+per_level = 0.1
+pairs = &"shotgun"
+pitch = "Blasts, fields and shotgun cones get bigger."
+card_text = "%s blast, field and cone size"
+built_in = ""

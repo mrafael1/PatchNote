@@ -146,6 +146,12 @@ var enemy_projectile_budget := 60
 var max_split_generation := 1   # enemies at this generation never split again
 var hard_max_pickups := 60       # PLAN v9 1.6 (M45a): pickups' own cap (gems merge first)
 
+# --- Booster packs (M50.6, Arsenal) ---
+var pack_rare_weight := 0.5       # a rare weapon's card weighs this much of a common one's
+var pack_held_weight := 2.0       # a held weapon's card weighs this much more (after card 1)
+var pack_nudge_at := 3            # the AI says the path's pack_stack_line at this many stacked
+var pack_stack_max := 99          # the stack never counts past this (the HUD's two digits)
+
 # --- Pickups (PLAN v9 1.6, M45a) ---
 var pickup_pull_gem := 3.0 * TILE      # gems fly to the player from this close
 var pickup_pull_other := 0.6 * TILE    # other pickups only from this close

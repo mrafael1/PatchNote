@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"haste"
+title = "Haste"
+icon = &"haste"
+stat = &"haste"
+per_level = -0.06
+pairs = &"pistol"
+pitch = "Every gun fires a little faster."
+card_text = "guns fire %s faster"
+built_in = ""

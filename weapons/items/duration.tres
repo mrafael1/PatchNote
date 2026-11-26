@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"duration"
+title = "Duration"
+icon = &"duration"
+stat = &"duration"
+per_level = 0.1
+pairs = &"laser"
+pitch = "Shots, lines and fields last longer."
+card_text = "%s duration"
+built_in = "not built yet (S10+/S11)"

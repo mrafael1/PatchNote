@@ -40,6 +40,8 @@ static func render() -> String:
 				continue
 			var cond := ("%s " % c.cond) if c.cond != "" else ""
 			var when := "%s %s" % [c.when, (str(int(c.value)) if c.value == floorf(c.value) else str(c.value))] if c.when != &"" else ""
+			if c.when == &"holds":
+				when = "holds %s" % c.held
 			var what := "path %s warning: " % c.target if c.action == &"path" else ""
 			out.append("- %s%s: %s%s" % [cond, when.strip_edges(), what, _line(c.line)])
 		if not s.reveal_lines.is_empty():
@@ -70,5 +72,7 @@ static func render() -> String:
 	for id: StringName in PathDB.ids():
 		var d := PathDB.get_def(id)
 		out.append("- %s: warn \"%s\" · full \"%s\" · pick \"%s\"" % [id, d.warn_line, d.full_line, d.pick_line])
+		if d.pack_first_line != "" or d.pack_stack_line != "":   # M50.6: the stacked packs
+			out.append("  - first pack \"%s\" · %d packs stacked \"%s\"" % [d.pack_first_line, Tuning.pack_nudge_at, d.pack_stack_line])
 	out.append("- Pick lines: %s" % " · ".join(PathRunner.PICK_LINES))
 	return "\n".join(out) + "\n"

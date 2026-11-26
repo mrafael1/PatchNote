@@ -56,10 +56,24 @@ extends RefCounted
 ##   "tried 1: say ..."        once the player pressed a direction n times while the build
 ##                             cannot move yet (counted in physics from the player's input)
 
+## M50.4b review (Auto's passive items):
+##   "holds haste: say ..."   once the player holds that item (a give only offers it first)
+## M50.4c1 (Auto's evolutions, Auto depth design 6):
+##   "evolve_ready 1: say ..."   the n-th time an EVOLVE choice became available (dropped once
+##                               n evolutions were made)
+##   "evolved 1: nerf 8"         once n evolutions were made; `nerf <s>` arms the evolution's
+##                               launch numbers and patches them down s seconds of game time later
+##   "nerfed 1: say ..."         once n nerfs landed
+
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
-		&"level", &"picked", &"fused", &"fuse_ready", &"tried"]
+		&"level", &"picked", &"fused", &"fuse_ready", &"tried", &"holds", &"evolve_ready", &"evolved", &"nerfed",
+		&"give_choice"]
+## M50.2b (the give step):
+##   "answer:path_arsenal give_choice 1: say give_kept thinking: ..."   when the n-th give step
+##                                            of the attempt closed (any choice; held SAY_GAP
+##                                            after the previous say cue, like fused)
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
-		&"drop", &"look", &"boss", &"skin", &"release", &"fuse"]
+		&"drop", &"look", &"boss", &"skin", &"release", &"fuse", &"nerf"]
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
@@ -94,6 +108,7 @@ var dummy := false             ## boss: the harmless one
 var specimen := false          ## spawn: stands still and harmless until a `release` (M48b)
 var morph := false             ## skin: morph in (M48b)
 var bug: StringName = &""      ## skin bug: swap / tiles / flip (M48b); target is then &"bug"
+var held: StringName = &""     ## holds: the item id (M50.4b review)
 var problem := ""
 var source := ""
 
@@ -135,7 +150,7 @@ static func parse(p_source: String) -> Cue:
 			return c
 		c.value = head[1].to_int()
 		c.at_seconds = head[3].to_float() if head.size() == 4 else -1.0
-	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready", &"tried"]:
+	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready", &"tried", &"evolve_ready", &"evolved", &"nerfed", &"give_choice"]:
 		var low := 0 if c.when == &"boss_hp" else 1
 		var high := 100 if c.when == &"boss_hp" else 1000000
 		if head.size() != 2 or not head[1].is_valid_int() or head[1].to_int() < low or head[1].to_int() > high:
@@ -143,6 +158,11 @@ static func parse(p_source: String) -> Cue:
 					"0-100" if c.when == &"boss_hp" else ">= 1"]
 			return c
 		c.value = head[1].to_int()
+	elif c.when == &"holds":
+		if head.size() != 2 or head[1].is_valid_float():
+			c.problem = "cue '%s': holds takes an item id" % p_source
+			return c
+		c.held = StringName(head[1])
 	elif c.when == &"touch":
 		if head.size() > 2 or (head.size() == 2 and not head[1].is_valid_float()):
 			c.problem = "cue '%s': 'touch' takes a deadline in seconds or nothing" % p_source
@@ -247,6 +267,11 @@ static func parse(p_source: String) -> Cue:
 		&"release":
 			if words.size() != 1:
 				c.problem = "cue '%s': release takes nothing" % p_source
+		&"nerf":
+			if words.size() != 2 or not words[1].is_valid_float() or words[1].to_float() <= 0.0:
+				c.problem = "cue '%s': nerf takes seconds (> 0)" % p_source
+			else:
+				c.seconds = words[1].to_float()
 		&"fuse":
 			if words.size() != 2 or words[1] != "fail":
 				c.problem = "cue '%s': fuse takes 'fail'" % p_source
@@ -320,6 +345,16 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("fuse_ready", 0)) >= int(value)
 		&"tried":
 			return int(ctx.get("tried", 0)) >= int(value)
+		&"evolve_ready":   # M50.4c1: PathRunner.evolve_ready_count
+			return int(ctx.get("evolve_ready", 0)) >= int(value)
+		&"evolved":
+			return int(ctx.get("evolved", 0)) >= int(value)
+		&"nerfed":
+			return int(ctx.get("nerfed", 0)) >= int(value)
+		&"holds":   # M50.4b review: the held item ids (PathRunner's Loadout; [] without one)
+			return held in (ctx.get("items", []) as Array)
+		&"give_choice":   # M50.2b: give steps closed this attempt (PathRunner.give_steps)
+			return int(ctx.get("give_choices", 0)) >= int(value)
 	return false
 
 
@@ -328,4 +363,6 @@ func due(ctx: Dictionary) -> bool:
 func expired(ctx: Dictionary) -> bool:
 	if when == &"fuse_ready":   # M50.1b review: the n-th link was already fused, so it is gone
 		return int(ctx.get("fused", 0)) >= int(value)
+	if when == &"evolve_ready":   # M50.4c1: the n-th EVOLVE was already taken
+		return int(ctx.get("evolved", 0)) >= int(value)
 	return when == &"touch" and value > 0.0 and float(ctx.get("clock", 0.0)) >= value

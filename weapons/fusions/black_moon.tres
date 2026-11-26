@@ -17,6 +17,7 @@ lifetime = -1.0
 size = 2.0
 blast_radius = 0.0
 icon = &"moon"
+rarity = &"epic"
 pitch = "One big dark shard that pulls things in."
 card_text = PackedStringArray("Black Moon: a shard that pulls.")
 mechanics = Array[StringName]([&"flare", &"slow", &"guard", &"teeth"])

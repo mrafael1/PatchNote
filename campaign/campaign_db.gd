@@ -583,11 +583,24 @@ func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: 
 	# M50.1b: the `fused` / `misfused` conditions (this attempt's run log; Arsenal only).
 	ctx.fused = false
 	ctx.misfused = false
+	ctx.evolved = false   # M50.4c1: an evolution this attempt (Auto only)
+	# M50.2b: give_kept / give_taken (this attempt's give steps), made:<id> (its fusions).
+	ctx.give_kept = false
+	ctx.give_taken = false
+	ctx.made = []
 	for e: Dictionary in RunState.run_log:
-		if e.get("event") == &"fused":
+		if e.get("event") == &"evolved":
+			ctx.evolved = true
+		elif e.get("event") == &"fused":
 			ctx.fused = true
+			(ctx.made as Array).append(String(e.get("weapon", "")))
 		elif e.get("event") == &"fuse_fail":
 			ctx.misfused = true
+		elif e.get("event") == &"give_choice":
+			if String(e.get("choice", "")) == "keep":
+				ctx.give_kept = true
+			else:
+				ctx.give_taken = true
 	return ctx
 
 
@@ -732,10 +745,55 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		out.fp_tastes = (runner.get(&"taste_fps") as Dictionary).duplicate()
 	elif String(out.path) != "":
 		out.fp = runner.call(&"fingerprint")
+	# M50.4a (additive, Auto's level-ups only, not a tryout): levels reached, what each
+	# level-up took, ranks at the end.
+	var pdef: PathDef = runner.get(&"def")
+	if not tryout and pdef != null and pdef.growth == &"levelups" and String(out.path) != "":
+		out.levels = int(runner.call(&"level"))
+		out.level_picks = (runner.get(&"level_picks") as Dictionary).duplicate()
+		out.ranks_end = (out.weapons as Dictionary).duplicate()
+		# M50.4b (additive): the passive items held at the end, id -> level.
+		var items_end := {}
+		if lo != null:
+			for it in lo.items:
+				items_end[String(it.def.id)] = it.level
+		out.items_end = items_end
+		# M50.4c1 (additive): the evolutions made, the nerf and when EVOLVE first lit (-1 never).
+		out.evolutions = (runner.get(&"evolutions") as Array).duplicate(true)
+		out.nerf = (runner.get(&"nerf") as Dictionary).duplicate()
+		out.evolve_ready_s = float(runner.get(&"evolve_ready_t"))
 	# M50.1a (additive, Arsenal's packs only): packs, what was taken, ranks at the end.
 	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
 		out.packs = int(runner.call(&"packs"))
 		out.pack_picks = (runner.get(&"pack_picks") as Dictionary).duplicate()
+		# M50.2a (additive): packs with fewer than 3 cards, 1-card toasts, rare cards shown.
+		out.packs_short = int(runner.get(&"packs_short"))
+		out.packs_toast = int(runner.get(&"packs_toast"))
+		out.rares_shown = int(runner.get(&"rares_shown"))
+		# M50.6 (additive): the stack: packs opened, left unopened, carried in, the most stacked,
+		# and the epic cards shown.
+		out.packs_opened = int(runner.get(&"packs_opened"))
+		out.packs_left = int(runner.call(&"pack_stack"))
+		out.packs_carried = int(runner.get(&"packs_carried"))
+		out.stack_peak = int(runner.get(&"stack_peak"))
+		out.epics_shown = int(runner.get(&"epics_shown"))
+		# M50.3a (additive): the launcher's mines laid and blown (the run log's mine events).
+		var mines := {"laid": 0, "blown": 0}
+		for e: Dictionary in RunState.run_log:
+			if e.get("event") == &"mine_laid":
+				mines.laid = int(mines.laid) + 1
+			elif e.get("event") == &"mine_blown":
+				mines.blown = int(mines.blown) + 1
+		out.mines = mines
+		# M50.3b (additive): Cluster's bomblets thrown and refused at the player budget.
+		var bomblets := 0
+		var bomblets_refused := 0
+		for e: Dictionary in RunState.run_log:
+			if e.get("event") == &"cluster_burst":
+				bomblets += int(e.get("bomblets", 0))
+				bomblets_refused += int(e.get("refused", 0))
+		out.bomblets = bomblets
+		out.bomblets_refused = bomblets_refused
 		out.ranks_end = (out.weapons as Dictionary).duplicate()
 		var top := 0
 		for r: Variant in (out.weapons as Dictionary).values():
@@ -744,6 +802,8 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		# M50.1b (additive): fusions made, the misfuse, the seconds FUSE sat available, the
 		# recipes the save knows.
 		out.fusions = (runner.get(&"fusions") as Array).duplicate(true)
+		# M50.2b (additive): each give step closed ({weapon, rank, choice, t}).
+		out.gives = (runner.get(&"gives") as Array).duplicate(true)
 		var mf: Dictionary = runner.get(&"misfuse")
 		out.misfuse = {"t": mf.t, "pair": mf.pair, "restored": mf.restored} if not mf.is_empty() else null
 		out.link_lit_s = snappedf(float(runner.get(&"link_lit_ticks")) / Engine.physics_ticks_per_second, 0.1)

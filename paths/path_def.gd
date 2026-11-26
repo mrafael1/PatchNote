@@ -7,7 +7,8 @@ extends Resource
 ##
 ## M45a adds data fields to 1.5's list: `basics` (the path's own campaign basics, for the
 ## "path basic under another path" problem), `level_thresholds` / `taste_thresholds`
-## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there),
+## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there;
+## M50.4a: 0 = no cap),
 ## `warn_line` (the `path` cue's fallback warning; M47 gives each S7 cue its own) and
 ## `max_passives`. M46 adds `full_line`, `pick_line` and `quick_draw_mult` (Arsenal). M47 adds
 ## Survival (paths/survival.tres: `manual_ammo`, `pickups`, one slot, no thresholds). M47.6d1
@@ -47,6 +48,8 @@ const THRESHOLD_STEP := 20
 @export var level_thresholds: PackedInt32Array = PackedInt32Array()
 ## In a tryout (S7's taste): the only levels, then the meter stops quietly.
 @export var taste_thresholds: PackedInt32Array = PackedInt32Array()
+## The session cap on picks (the meter stops there). M50.4a: 0 = no cap on a levelups path
+## (Auto: no level cap; a tryout still stops after its taste list).
 @export var max_picks := 10
 ## Line syntax: the mascot's warning before a `path` cue swaps to this path.
 @export var warn_line := ""
@@ -62,13 +65,26 @@ const THRESHOLD_STEP := 20
 ## and full_line are unused there); a tryout deals `pack_taste` packs, then stops quietly.
 @export var pack_every := 0
 @export var pack_taste := 0
-## Per pack card: rare (+2 ranks, a new card at rank 3) when its roll is under this.
-@export var rare_chance := 0.0
+## M50.6: per pack card slot after the first, the chance of an epic card (a ready-made fusion;
+## at most one a pack, BoosterPack). Rarity itself is the weapon's (WeaponDef.rarity).
+@export var epic_chance := 0.0
+## M50.6 (Line syntax, "" = none): said once a session when its first pack lands on the stack,
+## and once when the stack reaches Tuning.pack_nudge_at.
+@export var pack_first_line := ""
+@export var pack_stack_line := ""
 ## The top rank (0 = none). Classic paths keep Loadout.MAX_RANK (3).
 @export var rank_cap := 3
 ## &"classic" (WeaponDef.ranks 2-3) or &"deep" (WeaponCurve: odd ranks damage, even ranks
 ## mechanics, no top).
 @export var rank_curve: StringName = &"classic"
+
+## M50.4a (Auto depth design 2): weapons of every mode (aimed and passive-mode: nova, well,
+## orbit) share max_slots (Loadout.shared_slots; max_passives is then unused, 0). Auto only.
+@export var shared_slots := false
+## M50.4a: passive items held (Loadout items, built in M50.4b; 0 = none).
+@export var max_items := 0
+## M50.4a: every level threshold x this, rounded (a tool knob: --probe=human_pace, M50.4b).
+@export var threshold_mult := 1.0
 
 const RANK_CURVES: Array[StringName] = [&"classic", &"deep"]
 
@@ -78,13 +94,16 @@ const RANK_CURVES: Array[StringName] = [&"classic", &"deep"]
 func threshold(level: int, tryout := false) -> int:
 	var list := taste_thresholds if tryout and not taste_thresholds.is_empty() else level_thresholds
 	var i := level - 1
+	var need := -1
 	if i < list.size():
-		return list[i]
-	if tryout and not taste_thresholds.is_empty():
+		need = list[i]
+	elif tryout and not taste_thresholds.is_empty():
 		return -1
-	if list.is_empty():
+	elif list.is_empty():
 		return -1
-	return list[list.size() - 1] + THRESHOLD_STEP * (i - list.size() + 1)
+	else:
+		need = list[list.size() - 1] + THRESHOLD_STEP * (i - list.size() + 1)
+	return need if threshold_mult == 1.0 else roundi(need * threshold_mult)
 
 
 func warn() -> Line:
@@ -111,8 +130,8 @@ func problems(file_id: StringName = id) -> Array[String]:
 		if not WeaponDB.has(w):
 			out.append("%s: start: unknown weapon %s" % [where, w])
 	for w in offer_pool_extra:
-		if not WeaponDB.has(w):
-			out.append("%s: offer_pool_extra: unknown weapon %s" % [where, w])
+		if not WeaponDB.has(w) and not WeaponDB.has_item(w):   # M50.4b: items too
+			out.append("%s: offer_pool_extra: unknown weapon or item %s" % [where, w])
 	if max_slots < 1:
 		out.append("%s: max_slots must be >= 1" % where)
 	if max_passives < 0 or max_picks < 0:
@@ -130,7 +149,8 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: a levelups path needs level_thresholds" % where)
 	if growth == &"cards" and pack_every <= 0 and level_thresholds.size() < max_picks:
 		out.append("%s: a cards path needs a threshold for each of its %d picks" % [where, max_picks])
-	for pair: Array in [["warn_line", warn_line], ["full_line", full_line]]:
+	for pair: Array in [["warn_line", warn_line], ["full_line", full_line], ["pack_first_line", pack_first_line],
+			["pack_stack_line", pack_stack_line]]:
 		var text: String = pair[1]
 		if text != "" and Line.parse(text).problem != "":
 			out.append("%s: %s: %s" % [where, pair[0], Line.parse(text).problem])
@@ -142,12 +162,20 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: pack_every and pack_taste must be >= 0" % where)
 	if pack_every > 0 and growth != &"cards":
 		out.append("%s: pack_every needs the cards growth" % where)
-	if rare_chance < 0.0 or rare_chance >= 1.0:
-		out.append("%s: rare_chance must be in [0, 1)" % where)
+	if epic_chance < 0.0 or epic_chance >= 1.0:
+		out.append("%s: epic_chance must be in [0, 1)" % where)
 	if rank_cap < 0:
 		out.append("%s: rank_cap must be >= 0 (0 = none)" % where)
 	if not rank_curve in RANK_CURVES:
 		out.append("%s: unknown rank_curve %s (%s)" % [where, rank_curve, RANK_CURVES])
 	if rank_curve == &"classic" and (rank_cap == 0 or rank_cap > Loadout.MAX_RANK):
 		out.append("%s: the classic curve stops at rank %d" % [where, Loadout.MAX_RANK])
+	if max_items < 0:
+		out.append("%s: max_items must be >= 0" % where)
+	if threshold_mult <= 0.0:
+		out.append("%s: threshold_mult must be > 0" % where)
+	if shared_slots and max_passives != 0:
+		out.append("%s: shared_slots counts passive-mode weapons in max_slots: max_passives must be 0" % where)
+	if max_picks == 0 and growth == &"cards" and pack_every <= 0:
+		out.append("%s: max_picks 0 (no cap) needs packs or level-ups" % where)
 	return out

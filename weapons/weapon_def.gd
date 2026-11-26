@@ -8,6 +8,8 @@ extends Resource
 const MODES: Array[StringName] = [&"aimed", &"passive"]
 const TRAITS_DIR := "res://weapons/traits/"
 const RANK_KEYS_EXTRA: Array[String] = ["traits"]
+## M50.6: the rarity tiers, lowest first. A fused weapon is epic; nothing else is.
+const RARITIES: Array[StringName] = [&"common", &"rare", &"epic"]
 
 @export var id: StringName
 @export var title := ""
@@ -36,6 +38,10 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var color_role: StringName = &"player_shot"   ## used from M48 (Palette)
 @export var icon: StringName = &""                    ## a shape key; F2 label only in M44
 @export var sound: StringName = &"shoot"
+## M50.6 (stacked packs and weapon rarity): the weapon's tier, one of RARITIES. It sets how
+## often a booster pack offers it (Tuning.pack_rare_weight; an epic only as a ready-made fusion
+## card, PathDef.epic_chance) and its card's frame. It never changes what a card gives.
+@export var rarity: StringName = &"common"
 ## A passive's node script (M45b): "" = the orbit shards (M44's); else a script whose node
 ## has configure(weapon) and the flags its traits set (nova_pulse.gd, well_weapon.gd).
 @export var node_script := ""
@@ -61,6 +67,22 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var inherits: Array[StringName] = []
 ## M50.1b: "" = built; else the milestone that builds this fusion (a data row until then).
 @export var built_in := ""
+## M50.4b (Auto depth design 4): which field each item role scales on this weapon (role ->
+## field). Empty: Weapon.DEFAULT_FIELDS (haste: cooldown, might: damage, area: blast_radius).
+## The well sets {might: damage}: its `cooldown` is its field's life, never Haste's.
+@export var stat_fields: Dictionary = {}
+## M50.4c1 (Auto depth design 5): an evolved weapon (weapons/evolutions/<id>.tres) names its
+## base weapon and its catalyst item (ItemDef.pairs == base). It is held at rank 1 with all its
+## `mechanics` at level 1 (the base's A, B, C plus its signature), has no further ranks, and
+## `built_in` says when an unbuilt row plays. Empty `base`: not an evolution.
+@export var base: StringName = &""
+@export var catalyst: StringName = &""
+## M50.4c1: the "too strong" numbers of S9's first evolution (field -> value), read before the
+## item mods while Weapon.launch holds them (a `nerf` cue arms them, then patches them away).
+@export var launch_values: Dictionary = {}
+## M50.3b (Cluster): bomblets thrown on each blast of a player's shell (weapons/cluster_mod.gd,
+## attached by Weapon.attach from the Loadout, never in Shooter.fire). 0 = none.
+@export var burst := 0
 
 
 ## A field's value at `rank`: the rank's override, else the field.
@@ -96,6 +118,11 @@ func is_fusion() -> bool:
 	return not parents.is_empty()
 
 
+## M50.4c1: an evolved weapon (a base and a catalyst).
+func is_evolution() -> bool:
+	return base != &""
+
+
 ## M50.1b: `mechanics` covers inherited mechanic `name` (the same trait, or its variant).
 func covers(name: StringName) -> bool:
 	return mechanics.any(func(m: StringName) -> bool: return m == name or String(m).begins_with(String(name) + "_"))
@@ -119,6 +146,10 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: a magazine needs an aimed weapon and reload_s > 0" % where)
 	if title.strip_edges() == "":
 		out.append("%s: no title" % where)
+	if not rarity in RARITIES:
+		out.append("%s: unknown rarity %s (%s)" % [where, rarity, RARITIES])
+	elif is_fusion() != (rarity == &"epic"):
+		out.append("%s: rarity %s (epic is a fused weapon's, and only its)" % [where, rarity])
 	if is_fusion():
 		if parents.size() != 2 or parents[0] == parents[1]:
 			out.append("%s: a fusion needs two different parents (%s)" % [where, parents])
@@ -130,6 +161,15 @@ func problems(file_id: StringName = id) -> Array[String]:
 		for name in inherits:
 			if not covers(name):
 				out.append("%s: no trait covers the inherited %s" % [where, name])
+	if is_evolution():
+		if catalyst == &"":
+			out.append("%s: an evolution needs a catalyst item" % where)
+		if built_in != "":
+			out.append("%s: not built yet (%s)" % [where, built_in])
+			return out
+		for k: Variant in launch_values:
+			if not String(k) in ["cooldown", "damage", "pierce", "speed", "lifetime", "pellets", "spread_deg", "blast_radius"]:
+				out.append("%s: launch_values sets %s, not a launch field" % [where, k])
 	if node_script != "" and not is_passive():
 		out.append("%s: node_script on an aimed weapon" % where)
 	if node_script != "" and not ResourceLoader.exists(node_script):
@@ -167,6 +207,11 @@ func problems(file_id: StringName = id) -> Array[String]:
 			var k := String(key)
 			if not fields.has(k) or k in ["id", "mode", "ranks", "card_text", "pitch", "title", "damage"]:
 				out.append("%s: mechanic %d sets %s, not a rank field" % [where, i, k])
+	for role: Variant in stat_fields:
+		if not StringName(role) in [&"haste", &"area", &"might", &"duration", &"amount", &"speed", &"attract"]:
+			out.append("%s: stat_fields: unknown role %s" % [where, role])
+		elif not fields.has(String(stat_fields[role])):
+			out.append("%s: stat_fields: %s scales %s, not a field" % [where, role, stat_fields[role]])
 	if card_text.size() != max_rank():
 		out.append("%s: %d card lines for %d ranks" % [where, card_text.size(), max_rank()])
 	return out

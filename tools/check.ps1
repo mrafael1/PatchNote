@@ -285,12 +285,14 @@ if ($BotRuns) {
         if ($s9.Text -notmatch "outcome=win t=(\d+\.\d) .*path=$p .* end=cleared spawned=$n/$n " -or [double]$Matches[1] -lt 75.0) { $failures += "bot_s9_${p}: did not clear its $n on $p after the transformation" }
         if ($p -eq 'arsenal' -and $s9.Text -notmatch 'fusions=@[\d.]+:\w+') { $failures += 'bot_s9_arsenal: no fusion before the clear' }
         if ($s9.Text -notmatch '\[botrun\] summary: s2_03_paint x1, .* 0 failures') { $failures += "bot_s9_${p}: run failed" }
+        # M50.4c1: on Auto the one seed evolves the pistol, the live nerf lands and its line is said in the run.
+        if ($p -eq 'auto' -and $s9.Text -notmatch '\[botrun\] auto_depth: s2_03_paint evolved=1/1 .*nerf_landed=1/1 nerfed_before_clear=1/1 ') { $failures += "bot_s9_auto: no evolution, nerf or nerf line" }
     }
     # M47.5a (PLAN v9.3): the campaign hosted in the always-on GameHost hashes as the M43.3 refs,
     # and S8 hosted at a 1560x878 view with the handoff held matches the M50.1b ref (Arsenal's
     # packs moved it off M47's; merge). The refs are local (.check/ is ignored): a fresh clone
     # skips these two.
-    if (Test-Path (Join-Path $root '.check/ref_m50_1b/s8_arsenal_hash.jsonl')) {
+    if (Test-Path (Join-Path $root '.check/ref_m50_6/s8_arsenal_hash.jsonl')) {
     # M47.6c1: Stage 1's cold refs moved once (S0-S6, the endings): ref_m47_6c1.
     $shell =Invoke-Godot 'hash_shell_campaign' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --shell --compare=.check/ref_m47_6c1/campaign_hash.jsonl 1 2'
     Test-Errors 'hash_shell_campaign' $shell
@@ -301,8 +303,10 @@ if ($BotRuns) {
     Test-Errors 'hash_chain' $chainHash
     if ($chainHash.Text -notmatch '\[runhash\] summary: campaign chain, 14 runs, 0 failures') { $failures += 'hash_chain: the chained Stage 1 hashes differ' }
     }
-    # M47.6d2: S8's ref moved once (the clear endings): ref_m47_6d2.
-    $shellS8 = Invoke-Godot 'hash_shell_s8' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --session=s2_02_day_one --frames=10 --shell --viewport=1560x878 --handoff=120 --answer=fork_path=path_arsenal --compare=.check/ref_m47_6d2/s8_arsenal_hash.jsonl 1'
+    # M47.6d2: S8's ref moved once (the clear endings): ref_m47_6d2. M50.5: and again with
+    # Arcade's pack tuning (M50.2a) on the rework: ref_m50_5.
+    # M50.6: and again with the stacked packs and weapon rarity (Arsenal only): ref_m50_6.
+    $shellS8 = Invoke-Godot 'hash_shell_s8' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --session=s2_02_day_one --frames=10 --shell --viewport=1560x878 --handoff=120 --answer=fork_path=path_arsenal --compare=.check/ref_m50_6/s8_arsenal_hash.jsonl 1'
     Test-Errors 'hash_shell_s8' $shellS8
     if ($shellS8.Text -notmatch '\[runhash\] summary: campaign shell viewport=1560x878 handoff=120, 1 runs, 0 failures') { $failures += 'hash_shell_s8: hosted S8 hash differs' }
     }

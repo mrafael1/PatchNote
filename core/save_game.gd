@@ -25,6 +25,7 @@ const SCHEMA := 2
 ## Old change ids and what they became (PLAN v6 1.1); %s is the save's look take.
 const RENAMED := {"look_1": "look_1_%s"}
 const LOOK_PREFIX := "look:"   ## taste ids that name a look take, not a patch
+const PACKS_MAX := 99          ## M50.6: the most banked packs a save holds (Tuning.pack_stack_max)
 ## A genre's maturity steps (ROADMAP 1.3); v5 uses only the first two.
 const STEPS: Array[String] = ["mockup", "playable", "stages", "boss", "deep"]
 
@@ -263,6 +264,19 @@ static func unship(id: StringName) -> bool:
 
 
 # --- The campaign (PLAN v8) -----------------------------------------------------
+
+## M50.6 (stacked packs): the booster packs the last finished Arsenal session left unopened;
+## the path's next session starts with them on its stack. A sparse campaign key like `recipes`
+## (a save without it has none; new_campaign() leaves it out).
+static func packs_banked() -> int:
+	return clampi(int(campaign().get("packs", 0)), 0, PACKS_MAX)
+
+
+## M50.6: `n` packs wait for the next session. No write of its own: the caller's
+## campaign_done() writes (Main._end_session, then CampaignDB.complete).
+static func bank_packs(n: int) -> void:
+	campaign()["packs"] = clampi(n, 0, PACKS_MAX)
+
 
 static func campaign() -> Dictionary:
 	return state().campaign
@@ -560,7 +574,8 @@ static func _parse_campaign(src: Dictionary) -> Variant:
 		if not src.mascot is String:
 			return null
 		out.mascot = src.mascot
-	# M50.1b: the recipes learned (sparse; fusion ids only, once each).
+	# M50.1b: the recipes learned (sparse; fusion ids only, once each). M50.4c1: and evolution
+	# ids (same key; an older build drops the ids it cannot resolve, as here).
 	if src.has("recipes"):
 		if not src.recipes is Array:
 			return null
@@ -568,9 +583,15 @@ static func _parse_campaign(src: Dictionary) -> Variant:
 		for x: Variant in src.recipes:
 			if not x is String:
 				return null
-			if WeaponDB.get_weapon(StringName(x)) != null and WeaponDB.get_weapon(StringName(x)).is_fusion() and not x in known:
+			var rw := WeaponDB.get_weapon(StringName(x))
+			if rw != null and (rw.is_fusion() or rw.is_evolution()) and not x in known:
 				known.append(x)
 		out["recipes"] = known
+	# M50.6: the unopened packs waiting for the next Arsenal session (sparse).
+	if src.has("packs"):
+		if not _is_number(src.packs) or int(src.packs) < 0:
+			return null
+		out["packs"] = mini(int(src.packs), PACKS_MAX)
 	return out
 
 

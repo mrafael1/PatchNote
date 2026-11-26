@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"singularity"
+title = "Singularity"
+mode = &"passive"
+icon = &"singularity"
+pitch = "One vortex that drags the room in."
+card_text = PackedStringArray("Singularity: One vortex that drags the room in.")
+base = &"well"
+catalyst = &"attract"
+built_in = "S11"

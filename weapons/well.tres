@@ -12,7 +12,11 @@ damage = 1.0
 pellets = 1
 speed = 0.0
 icon = &"hole"
+rarity = &"rare"
 node_script = "res://weapons/well_weapon.gd"
 ranks = Array[Dictionary]([{"traits": [&"gem_magnet"]}, {"traits": [&"gem_magnet", &"teeth"]}])
 pitch = "When they die they leave a small hole. The others fall in."
 card_text = PackedStringArray("Well: kills leave a pull field.", "Well II: fields pull gems too.", "Well III: fields bite (1 dmg/s).")
+stat_fields = {
+&"might": &"damage"
+}

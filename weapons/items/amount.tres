@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"amount"
+title = "Amount"
+icon = &"amount"
+stat = &"amount"
+per_level = 0.5
+pairs = &"launcher"
+pitch = "One more shot per volley, every other level."
+card_text = "an extra shot every other level"
+built_in = "not built yet (S10+/S11)"

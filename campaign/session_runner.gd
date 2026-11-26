@@ -141,13 +141,18 @@ func _physics_process(_delta: float) -> void:
 			"level": path_runner.level() if path_runner != null else -1,
 			"picks": path_runner.picks_on_path if path_runner != null else 0,
 			"fused": path_runner.fusions.size() if path_runner != null else 0,
-			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0}
+			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0,
+			"items": _held_items(),
+			"evolve_ready": path_runner.evolve_ready_count if path_runner != null else 0,
+			"evolved": path_runner.evolutions.size() if path_runner != null else 0,
+			"nerfed": path_runner.nerfs_landed if path_runner != null else 0,
+			"give_choices": path_runner.give_steps() if path_runner != null else 0}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
 		if _cues[i].when == &"picked" and not _bound.has(i):
 			continue   # M47: not bound to a path yet
-		if _cues[i].when == &"fuse_ready" and _cues[i].expired(ctx):
+		if _cues[i].when in [&"fuse_ready", &"evolve_ready"] and _cues[i].expired(ctx):
 			_fired[i] = true   # M50.1b review: fused already; "the link's glowing" is stale
 			continue
 		if _cues[i].due(ctx) and not _waits(_cues[i]):
@@ -192,8 +197,10 @@ func on_path_started(_path_id: StringName) -> void:
 ## both priority 3, so the second would queue on the mascot and its edit land before
 ## its line is read.
 func _waits(cue: Cue) -> bool:
-	# M50.1b: a fusion cue's line waits SAY_GAP after the previous say cue.
-	if cue.when in [&"fused", &"fuse_ready"] and genre != null and _last_say >= 0.0 \
+	# M50.1b: a fusion cue's line waits SAY_GAP after the previous say cue (M50.2b: give_choice too).
+	# M50.4c1: an evolution cue's say too (its `nerf` lands at once).
+	if (cue.when in [&"fused", &"fuse_ready", &"give_choice"] or (cue.when in [&"evolve_ready", &"evolved", &"nerfed"]
+			and cue.action == &"say")) and genre != null and _last_say >= 0.0 \
 			and genre.session_clock() < _last_say + SAY_GAP:
 		return true
 	if rule_book == null:
@@ -201,6 +208,16 @@ func _waits(cue: Cue) -> bool:
 	if cue.when == &"hp":
 		return rule_book.busy()
 	return cue.action == &"edit" and rule_book.warning_pending()
+
+
+## M50.4b review: the item ids the player holds, for "holds <item>:" cues ([] off Auto).
+func _held_items() -> Array:
+	var out := []
+	var lo := path_runner.loadout() if path_runner != null else null
+	if lo != null:
+		for it in lo.items:
+			out.append(it.id())
+	return out
 
 
 ## The player's HP for "hp N:" cues; -1 without the health basic (nothing can hurt yet).
@@ -229,11 +246,13 @@ func _fire(cue: Cue, index: int) -> void:
 	RunState.log_event(&"cue", {"index": index, "action": String(cue.action)})
 	match cue.action:
 		&"say":
-			if genre != null:
-				_last_say = genre.session_clock()
 			if cue.tag != &"" and path_runner != null:
 				path_runner.announce(cue.tag)   # M45a, the pool rule: said, so it may be offered
-			if cue.line.passes(CampaignDB.line_context(session)):
+			if cue.line.passes(cue_context()):
+				# M50.2b: only a line actually said starts the SAY_GAP (a give_choice n has three
+				# lines, one per branch: the two silent ones must not hold the third back).
+				if genre != null:
+					_last_say = genre.session_clock()
 				say(cue.line)
 		&"path":
 			if path_runner == null or not path_runner.request_swap(cue.target, cue.line):
@@ -255,6 +274,10 @@ func _fire(cue: Cue, index: int) -> void:
 		&"release":
 			if genre.has_method(&"release_specimens"):
 				genre.call(&"release_specimens")
+		&"nerf":
+			# M50.4c1: the evolution just made starts too strong; the AI patches it later.
+			if path_runner == null or not path_runner.arm_nerf(cue.seconds):
+				push_warning("Session %s: nerf refused" % session.id)
 		&"fuse":
 			# M50.1b: the misfuse; skipped (logged by the runner) with fewer than 2 cards.
 			if path_runner != null:
@@ -274,6 +297,12 @@ func _fire(cue: Cue, index: int) -> void:
 		&"give":
 			# M44: with no path, a free slot (or a rank up). M45a: the weapon joins the live
 			# pool, and under Auto the next level-up offers it first instead (no slot filled).
+			# M50.4b: a passive item only means something on a level-ups path (Auto): anywhere
+			# else it is skipped and logged.
+			if WeaponDB.has_item(cue.target):
+				if path_runner == null or path_runner.def == null or path_runner.def.growth != &"levelups" 						or not path_runner.give(cue.target, cue.rank):
+					RunState.log_event(&"give_skipped", {"item": String(cue.target)})
+				return
 			if path_runner != null and path_runner.give(cue.target, cue.rank):
 				return
 			var loadout: Loadout = null
@@ -283,6 +312,15 @@ func _fire(cue: Cue, index: int) -> void:
 				push_warning("Session %s: give %s %d refused" % [session.id, cue.target, cue.rank])
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
+
+
+## A say cue's line context: CampaignDB.line_context plus M50.2b's live hand fact `paired`
+## (the hand is a built recipe pair, whatever the `fusion` basic; never in the debrief's).
+func cue_context() -> Dictionary:
+	var ctx := CampaignDB.line_context(session)
+	if path_runner != null and path_runner.pack_path():
+		ctx.paired = path_runner.paired()
+	return ctx
 
 
 ## M48b (PLAN 1.7.1): a `skin` cue. A morph lasts FIRST_MORPH on the session's first morph

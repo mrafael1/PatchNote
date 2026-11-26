@@ -17,6 +17,7 @@ lifetime = 0.45
 size = 1.0
 blast_radius = 0.0
 icon = &"prism"
+rarity = &"epic"
 pitch = "A fan of five thin beams. The middle one burns."
 card_text = PackedStringArray("Prism: five beams that go through things.")
 mechanics = Array[StringName]([&"knockback_cone", &"burn_line_prism", &"point_blank", &"ricochet"])

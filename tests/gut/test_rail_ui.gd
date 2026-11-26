@@ -326,10 +326,10 @@ func test_auto_items_follow_the_loadout() -> void:
 	var rail := _pixel(h)
 	assert_eq(rail.snap.path.kind, &"items")
 	var items: Dictionary = rail.snap.path.items
-	assert_eq(int(items.slots), 4, "auto.tres max_slots")
-	assert_eq(int(items.passive_slots), 2)
-	assert_eq(int(items.cap), Loadout.MAX_RANK)
-	assert_eq((items.weapons as Array).size(), h.game.path_runner.loadout().slots.size())
+	assert_eq(int(items.slots), 3, "auto.tres max_slots (M50.4a: 3 shared)")
+	assert_eq(int(items.passive_slots), 2, "M50.4a: the 2 item slots (max_items)")
+	assert_eq(int(items.cap), 6, "M50.4a: Auto ranks to 6")
+	assert_eq((items.weapons as Array).size(), h.game.path_runner.loadout().weapon_count())
 	assert_eq(int(items.level), h.game.path_runner.level())
 
 
@@ -610,3 +610,33 @@ func test_small_digits_are_whole_pixels_and_distinct() -> void:
 		assert_almost_eq(f.get_string_size("v0.2.0 12", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x,
 				base.get_string_size("v0.2.0 12", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, 2.0, "the same width at %d (whole-pixel advances: within 2 px)" % size)
 		assert_almost_eq(f.get_height(size), base.get_height(size), 0.5, "the same line height at %d" % size)
+
+
+## M50.5 (merge): the digits font has caches at whole sizes only, so it must not oversample: in
+## the game's SubViewport (Auto's Pixel level-up cards) an oversampled size found no glyph and
+## the card's numbers were blank.
+func test_the_digits_font_never_oversamples() -> void:
+	for bold in [false, true]:
+		var f := UiTheme.pixel_font(bold) as FontVariation
+		var digits := f.base_font as FontFile
+		assert_eq(digits.oversampling, 1.0, "bold=%s: the digit caches are drawn at their own size" % bold)
+
+
+## M50.5a (owner: "fifty" read "Aifty", "fire rate" "Are rate", "five pellets" "Awe pellets"):
+## Pixelify's ligatures joined "fi" (and fl, ff, ffi, st) into one glyph that reads as an A at
+## the small sizes. The pixel font shapes every letter on its own: "fi" is two glyphs, as wide
+## as its f and its i, in both weights and at every size the chat, cards and rail use.
+func test_the_pixel_font_never_joins_letters() -> void:
+	var ts := TextServerManager.get_primary_interface()
+	for bold in [false, true]:
+		var f := UiTheme.pixel_font(bold)
+		for size in [10, 11, 12, 13, 14, 16, 18]:
+			for word: String in ["fi", "fl", "ff", "ffi", "st", "first", "five pellets", "fire rate", "fifty"]:
+				var line := TextLine.new()
+				line.add_string(word, f, size)
+				assert_eq(ts.shaped_text_get_glyph_count(line.get_rid()), word.length(),
+						"bold=%s %d: \"%s\" is one glyph per letter" % [bold, size, word])
+			assert_almost_eq(f.get_string_size("fi", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x,
+					f.get_string_size("f", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+					+ f.get_string_size("i", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, 1.5,
+					"bold=%s %d: fi is an f then an i (kerning: within 1.5 px)" % [bold, size])

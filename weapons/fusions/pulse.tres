@@ -17,6 +17,7 @@ lifetime = -1.0
 size = 1.0
 blast_radius = 0.0
 icon = &"pulse"
+rarity = &"epic"
 pitch = "The pistol, and every hit pops a little nova."
 card_text = PackedStringArray("Pulse: every hit pops.")
 mechanics = Array[StringName]([&"heavy_round", &"shove", &"seeker", &"dash_nova"])

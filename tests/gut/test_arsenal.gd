@@ -147,10 +147,13 @@ func _frozen_chaser(tile: Vector2) -> Node2D:
 	return e
 
 
-## Opens a pick now (no waiting on the physics tick) and chooses card i.
+## Opens a pick now (no waiting on the physics tick) and chooses card i. M50.2a: a 1-card
+## pack applies as a toast (no panel): its offer is the runner's last.
 func _pick(runner: PathRunner, i := 0) -> PickOffer:
 	runner.want_pick()
 	runner._open_offer()
+	if not game.pick_panel.is_open():
+		return runner.offers[-1]
 	var offer := game.pick_panel.offer
 	game.pick_panel._unlock()
 	game.pick_panel.choose(mini(i, offer.cards.size() - 1))
@@ -189,7 +192,7 @@ func test_the_arsenal_data_is_valid() -> void:
 	assert_eq(a.quick_draw_mult, 2.0)
 	assert_eq(a.pick_line, "Pack. Pick one.")
 	assert_eq([a.pack_every, a.pack_taste, a.rank_cap, a.rank_curve], [6, 2, 0, &"deep"], "M50.1a: packs, deep ranks")
-	assert_almost_eq(a.rare_chance, 0.2, 0.0001)
+	assert_almost_eq(a.epic_chance, 0.05, 0.0001, "M50.6: the epic slot roll (the rare roll is gone)")
 	assert_eq(a.taste_thresholds, PackedInt32Array([10]))
 	assert_eq(a.level_thresholds.size(), a.max_picks, "one cumulative threshold per pick")
 	for i in range(1, a.level_thresholds.size()):
@@ -199,7 +202,7 @@ func test_the_arsenal_data_is_valid() -> void:
 	for b in a.basics:
 		assert_true(b in Unlocks.CAMPAIGN_BASICS, String(b))
 		assert_eq(PathDB.owner_of_basic(b), &"arsenal")
-	assert_eq(PathDB.get_def(&"auto").full_line, "thinking: That's enough levels for one test.")
+	assert_eq(PathDB.get_def(&"auto").full_line, "", "M50.4a: Auto has no level cap, so no stop line")
 
 
 func test_path_def_problems_bite_on_a_cards_path() -> void:
@@ -209,8 +212,8 @@ func test_path_def_problems_bite_on_a_cards_path() -> void:
 	a.pack_every = 0
 	assert_string_contains("\n".join(a.problems()), "a threshold for each of its 6 picks")
 	a = _arsenal().duplicate() as PathDef
-	a.rare_chance = 1.0
-	assert_string_contains("\n".join(a.problems()), "rare_chance")
+	a.epic_chance = 1.0
+	assert_string_contains("\n".join(a.problems()), "epic_chance")
 	a = _arsenal().duplicate() as PathDef
 	a.pack_taste = -1
 	assert_string_contains("\n".join(a.problems()), "pack_taste")
@@ -351,6 +354,7 @@ func test_a_pick_asks_the_player_input_for_a_fresh_press() -> void:
 	player.set_input(h)
 	await wait_physics_frames(1)
 	assert_false(h._wait_release)
+	r.announce(&"shotgun")   # M50.2a: a pool of two, so the pack is a choice (no toast)
 	_pick(r, 0)
 	assert_true(h._wait_release, "the runner asks for a fresh press after a pick")
 
@@ -531,7 +535,7 @@ func test_player_kills_fill_the_meter_in_a_game() -> void:
 	r.force_level()
 	assert_eq(r.cards(), 1, "F2's +1 deals one pack")
 	assert_eq(r.pending_picks(), 1)
-	assert_string_contains(r.state_text(), "path=arsenal packs=1 kills=0/6 hand=pistol:1")
+	assert_string_contains(r.state_text(), "path=arsenal packs=1 stack=1 kills=0/6 hand=pistol:1")
 	var meter := r.meter()
 	EventBus.basic_added.emit(&"cards")
 	EventBus.basic_added.emit(&"quick_draw")
@@ -630,11 +634,13 @@ func test_give_under_arsenal_is_a_free_card() -> void:
 	assert_true(RunState.run_log.any(func(e: Dictionary) -> bool: return e.event == &"give_replaced"))
 	assert_true(lo.give(&"shotgun"))
 	assert_eq(lo.summary(), "pistol:2,shotgun:1")
-	# Once the packs are live a full hand never loses a card silently: G4.
+	# Once the packs are live a full hand never loses a card silently: M50.2b's give step
+	# (G4 retired).
 	RunState.add_basic(&"cards")
 	assert_true(r.give(&"laser", 3))
 	assert_eq(lo.summary(), "pistol:2,shotgun:1", "nothing replaced")
-	assert_eq(r.give_waiting(), &"laser")
+	assert_eq(r.give_pending(), &"laser", "the give step waits for a free tick")
+	assert_true(RunState.run_log.any(func(e: Dictionary) -> bool: return e.event == &"give_offered"))
 
 
 # --- 10. HandWidget --------------------------------------------------------------------------
