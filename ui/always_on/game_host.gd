@@ -21,16 +21,27 @@ extends Control
 ## chains never gate (auto_play / auto_beats); tool hosts gate only their swaps (run_hash
 ## calls skip_handoff on frame 1).
 ##
-## Layout, in window pixels while live (the root's content scale off): game scale
-## k = min(H / 720, (W - 360) / 1280), the game column 1280k x 720k centred vertically on
-## black, the terminal the rest of the width at full height. The windowed base is 1760x720
-## (Settings.set_window_base); leaving restores the root and the 1280x720 base.
+## Layout, in window pixels while live (the root's content scale off). M47.6b (PLAN v9.4 0.8,
+## design 2.1): the dev desktop (DevDesktop) draws two windows and a taskbar; the game column
+## sits in the game window under its title bar, the terminal (or, after S2, the chat) fills
+## the chat window under its title bar. k = min((H - CHROME_H) / 720, (W - CHROME_W -
+## TERMINAL_MIN) / 1280); the windows' top edges align, MARGIN apart, the block centred
+## vertically above the taskbar; the chat window takes the rest of the width. The windowed
+## base is 1824x848 (k = 1; Settings.set_window_base); leaving restores the root and the
+## 1280x720 base. Chapter mode (a stage card) is the game alone, full window, as in M47.5b.
 
 const SCENE := "res://ui/always_on/game_host.tscn"
 const GAME_SCENE := "res://main.tscn"
 const GAME_SIZE := Vector2(1280, 720)
 const TERMINAL_MIN := 360.0
-const BASE := Vector2i(1760, 720)
+const BASE := Vector2i(1824, 848)
+## M47.6b: the dev desktop's chrome (window pixels at any k).
+const MARGIN := 16.0
+const TITLE_H := 30.0
+const STATUS_H := 22.0
+const TASKBAR_H := 36.0
+const CHROME_H := MARGIN + TITLE_H + STATUS_H + 24.0 + TASKBAR_H   ## 128: 848 - 720
+const CHROME_W := MARGIN * 3.0                                    ## left, the gap, right
 const PROJECT_BASE := Vector2i(1280, 720)
 const GLITCH_S := 0.25
 const HANDOFF := &"handoff"
@@ -54,6 +65,7 @@ var game: Main
 var view: GameView
 var viewport: SubViewport
 var terminal: TerminalPanel
+var desktop: DevDesktop           ## M47.6b: the dev desktop behind both windows
 var tools := false            ## host_for_tools(): never live, no window change
 var held := false             ## the handoff is held (the ready moment)
 var swaps := 0                ## sessions swapped in (tests)
@@ -84,19 +96,31 @@ var asking_first_run := false   ## the installer's question waits for 1 / 2
 var _chapter_rows := false      ## the session's rows wait (for the card to close, or the installer's answer)
 
 
-## The layout for a window of `window` pixels: {k, game: Rect2, terminal: Rect2, font: int}.
-## M47.5b, chapter mode: the game alone, 16:9, centred (k from the whole window), no terminal.
+## The layout for a window of `window` pixels: {k, game: Rect2, terminal: Rect2, font: int,
+## game_window, chat_window, taskbar: Rect2 (M47.6b: the desktop's windows, title and status
+## bars included; the terminal is the chat window under its title bar)}.
+## M47.5b, chapter mode: the game alone, 16:9, centred (k from the whole window), no terminal,
+## no desktop (its rects empty).
 static func layout_for(window: Vector2, p_chapter := false) -> Dictionary:
 	if p_chapter:
 		var kc := maxf(0.05, minf(window.y / GAME_SIZE.y, window.x / GAME_SIZE.x))
 		var gc := (GAME_SIZE * kc).round()
-		return {"k": kc, "game": Rect2(((window - gc) * 0.5).round(), gc), "terminal": Rect2(Vector2(window.x, 0), Vector2.ZERO),
-				"font": roundi(TerminalPanel.BASE_FONT * clampf(kc, 1.0, 2.0))}
-	var k := maxf(0.05, minf(window.y / GAME_SIZE.y, (window.x - TERMINAL_MIN) / GAME_SIZE.x))
+		var none := Rect2(Vector2(window.x, 0), Vector2.ZERO)
+		return {"k": kc, "game": Rect2(((window - gc) * 0.5).round(), gc), "terminal": none,
+				"font": roundi(TerminalPanel.BASE_FONT * clampf(kc, 1.0, 2.0)),
+				"game_window": none, "chat_window": none, "taskbar": none}
+	var k := maxf(0.05, minf((window.y - CHROME_H) / GAME_SIZE.y, (window.x - CHROME_W - TERMINAL_MIN) / GAME_SIZE.x))
 	var gs := (GAME_SIZE * k).round()
-	var game_rect := Rect2(Vector2(0, roundf((window.y - gs.y) * 0.5)), gs)
-	var term := Rect2(Vector2(gs.x, 0), Vector2(maxf(0.0, window.x - gs.x), window.y))
-	return {"k": k, "game": game_rect, "terminal": term, "font": roundi(TerminalPanel.BASE_FONT * clampf(k, 1.0, 2.0))}
+	var block_h := TITLE_H + gs.y + STATUS_H
+	var top := maxf(MARGIN, roundf((window.y - TASKBAR_H - block_h) * 0.5))
+	var game_window := Rect2(Vector2(MARGIN, top), Vector2(gs.x, block_h))
+	var game_rect := Rect2(Vector2(MARGIN, top + TITLE_H), gs)
+	var chat_x := MARGIN * 2.0 + gs.x
+	var chat_window := Rect2(Vector2(chat_x, top), Vector2(maxf(0.0, window.x - chat_x - MARGIN), block_h))
+	var term := Rect2(chat_window.position + Vector2(0, TITLE_H), Vector2(chat_window.size.x, block_h - TITLE_H))
+	return {"k": k, "game": game_rect, "terminal": term, "font": roundi(TerminalPanel.BASE_FONT * clampf(k, 1.0, 2.0)),
+			"game_window": game_window, "chat_window": chat_window,
+			"taskbar": Rect2(Vector2(0, window.y - TASKBAR_H), Vector2(window.x, TASKBAR_H))}
 
 
 ## A host for tools and tests around `p_game` (run_hash --shell): never live, no window
@@ -120,6 +144,8 @@ func _ready() -> void:
 	_back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_back)
+	desktop = DevDesktop.new()
+	add_child(desktop)
 	view = GameView.new()
 	view.name = "GameView"
 	view.stretch = false
@@ -157,6 +183,7 @@ func _ready() -> void:
 	terminal.chat_input.typed.connect(_on_typed)
 	terminal.chat_input.move_pressed.connect(_on_activity)
 	terminal.chat_input.pause_pressed.connect(_on_chat_pause)
+	terminal.upgraded.connect(_dress_desktop)   # M47.6b: the chat window's frame and title
 	if "--autostart" in OS.get_cmdline_user_args():
 		auto_play = true
 	if is_live():
@@ -243,6 +270,11 @@ func relayout(window := Vector2.ZERO) -> void:
 	terminal.visible = t.size.x >= 1.0 and not chapter
 	if terminal.font_size() != int(layout.font):
 		terminal.set_font_size(int(layout.font))
+	desktop.visible = not chapter   # M47.6b: a chapter is the game alone on black
+	desktop.position = Vector2.ZERO
+	desktop.size = window
+	desktop.layout = layout
+	_dress_desktop()
 
 
 ## The game column's rect in this host's coordinates.
@@ -258,6 +290,8 @@ func _attach(g: Main) -> void:
 	viewport.add_child(g)
 	game = g
 	terminal.dress()   # M47.5b: the look's ui group (S9's reveal on) recolours the terminal
+	# M47.6b (design 2.8): a save past S2 opens on the chat (derived, never saved).
+	terminal.set_style(CampaignDB.chat_style())
 	if g.stage_card != null and g.stage_card.is_open():
 		_enter_chapter(g.stage_card)
 		return
@@ -306,7 +340,8 @@ func _session_rows() -> void:
 	if s == null:
 		return
 	var body := DebriefScreen.body_for(s)
-	terminal.set_speaker(speaker_for(body), s.face)
+	terminal.set_speaker(speaker_for(body), s.face, body)
+	_dress_desktop()
 	if _reload_row != "":
 		terminal.close_cmd("ok")
 		_reload_row = ""
@@ -426,7 +461,7 @@ func _open_gate() -> void:
 	_hint_shown = false
 	_gate_usec = Time.get_ticks_usec()
 	_activity_usec = _gate_usec
-	for line in gate_lines(RunState.session):
+	for line in gate_lines(RunState.session, terminal.is_chat()):
 		terminal.type_line(line)
 	terminal.chat_input.open_gate()
 
@@ -438,14 +473,15 @@ func _close_gate() -> void:
 
 
 ## The lines a gate types for session `s`: its before_play (conditions passing), else the
-## campaign's before_play_default; {key:...} named for this keyboard.
-static func gate_lines(s: SessionDef) -> Array[Line]:
+## campaign's before_play_default (M47.6b: the chat's, capitalised, once it is up); {key:...}
+## named for this keyboard.
+static func gate_lines(s: SessionDef, chat := false) -> Array[Line]:
 	var out: Array[Line] = []
 	var lines: Array[Line] = []
 	if s != null:
 		lines = Line.passing(s.before_play_lines(), CampaignDB.line_context(s))
 	if lines.is_empty() and CampaignDB.campaign != null:
-		lines = Line.parse_all(CampaignDB.campaign.before_play_default)
+		lines = Line.parse_all(CampaignDB.campaign.before_play_default_for(chat))
 	for l in lines:
 		out.append(SessionRunner.with_keys(l))
 	return out
@@ -457,12 +493,13 @@ func _on_typed(text: String) -> void:
 	if not gate:
 		return
 	chat_typed += 1
-	var reply := CampaignDB.campaign.chat_reply(text) if CampaignDB.campaign != null else ""
+	var chat := terminal.is_chat()
+	var reply := CampaignDB.campaign.chat_reply(text, chat) if CampaignDB.campaign != null else ""
 	# Review: a word that starts on a movement key lost that letter at the empty prompt
 	# ("again" -> "gain" on QWERTY). If the text alone gets the fallback, try it with the letter.
 	var lead := terminal.chat_input.typed_lead
-	if lead != "" and CampaignDB.campaign != null and reply == CampaignDB.campaign.chat_replies.get("*", ""):
-		var with_lead := CampaignDB.campaign.chat_reply(lead + text)
+	if lead != "" and CampaignDB.campaign != null and reply == CampaignDB.campaign.chat_reply("", chat):
+		var with_lead := CampaignDB.campaign.chat_reply(lead + text, chat)
 		if with_lead != reply:
 			reply = with_lead
 			text = lead + text
@@ -547,7 +584,40 @@ func answer_first_run(reduce: bool) -> void:
 		_open_gate()   # M47.6a: the AI's first lines, then the input
 
 
+## M47.6b: the desktop's live texts: the version, the session and its newest basic, the chat's
+## style and name, which window is active (the chat at a gate or a beat), the clock.
+func _dress_desktop() -> void:
+	if desktop == null or terminal == null:
+		return
+	desktop.version = SaveGame.version().label()
+	desktop.stage_text = stage_text(RunState.session)
+	desktop.chat_style = terminal.style
+	desktop.chat_name = terminal.header_name()
+	desktop.chat_focus = _chat_focus()
+	desktop.clock = terminal.clock_text().trim_prefix("[").trim_suffix("]")
+	desktop.queue_redraw()
+
+
+## The chat window is the active one at a gate, a beat or the installer's question.
+func _chat_focus() -> bool:
+	return gate or asking_first_run or (game != null and is_instance_valid(game) and game.debrief != null
+			and game.debrief.is_open())
+
+
+## The status bar's session text: "S1 movement: ON" (its newest basic), "S0 empty build".
+static func stage_text(s: SessionDef) -> String:
+	if s == null:
+		return ""
+	var i := CampaignDB.index_of(s.id)
+	if s.basics.is_empty():
+		return "S%d empty build" % i
+	return "S%d %s: ON" % [i, s.basics[s.basics.size() - 1]]
+
+
 func _process(_delta: float) -> void:
+	if desktop != null and desktop.visible and (_chat_focus() != desktop.chat_focus
+			or terminal.style != desktop.chat_style or terminal.header_name() != desktop.chat_name):
+		_dress_desktop()
 	if asking_first_run:
 		if Input.is_action_just_pressed(&"choose_1"):
 			answer_first_run(false)

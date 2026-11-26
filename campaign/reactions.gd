@@ -64,6 +64,17 @@ var _close_shots := {}           ## projectile node -> game time it came close
 var _near_misses := 0
 
 
+## Sessions up to this one say nothing before their first kill (see _physics_process).
+const QUIET_UNTIL_KILL_THROUGH := &"s1_03_shooting"
+
+
+## True for a Stage 1 session up to S3, and for a session the campaign does not list (a
+## test's own, as `face = false` was).
+func _quiet_until_kill() -> bool:
+	var at := CampaignDB.index_of(session.id)
+	return at == -1 or at <= CampaignDB.index_of(QUIET_UNTIL_KILL_THROUGH)
+
+
 func _ready() -> void:
 	muted = muted or "--mute-ai" in OS.get_cmdline_user_args()
 	if session_id == &"" and session != null:
@@ -178,10 +189,11 @@ func _physics_process(_delta: float) -> void:
 	if slot == _last_slot:
 		return
 	_last_slot = slot
-	# Before its body (S3) the AI's first full sentence is the script's "Oh. That works."
-	# on the first kill: until then reactions follow what happens but say nothing, so no
-	# stale one (low HP) is left to go off at the kill (M39.2 review).
-	tick(session != null and not session.face and RunState.kills == 0)
+	# Through S3 the AI's first full sentence is the script's "Oh. That works." on the first
+	# kill: until then reactions follow what happens but say nothing, so no stale one (low HP)
+	# is left to go off at the kill (M39.2 review). M47.6b: S3 has its face now (the body is
+	# S2's pick), so this keys on the session's place, not on `face`.
+	tick(session != null and _quiet_until_kill() and RunState.kills == 0)
 
 
 ## Enemy shots that pass close: marked every frame (a shot crosses 12 px in a frame or

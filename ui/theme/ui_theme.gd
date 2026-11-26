@@ -113,6 +113,26 @@ static func mono_font() -> Font:
 	return _mono
 
 
+## M47.6b: the dev desktop's and the dev-chat's sans font, made in code like mono_font().
+static var _sans: SystemFont
+static var _sans_bold: SystemFont
+
+
+static func sans_font(bold := false) -> Font:
+	if bold:
+		if _sans_bold == null:
+			_sans_bold = SystemFont.new()
+			_sans_bold.font_names = PackedStringArray(["Segoe UI", "Inter", "DejaVu Sans", "Arial", "sans-serif"])
+			_sans_bold.font_weight = 700
+			_sans_bold.fallbacks = [ThemeDB.fallback_font]
+		return _sans_bold
+	if _sans == null:
+		_sans = SystemFont.new()
+		_sans.font_names = PackedStringArray(["Segoe UI", "Inter", "DejaVu Sans", "Arial", "sans-serif"])
+		_sans.fallbacks = [ThemeDB.fallback_font]
+	return _sans
+
+
 ## A key chip Label ("1", "Enter"): the KeyChip variation.
 static func key_chip(text: String) -> Label:
 	var l := Label.new()

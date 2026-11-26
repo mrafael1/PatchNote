@@ -170,7 +170,10 @@ if ($BotRuns) {
     # checks below run under the two new dashes, on purpose. M42.2: then fork_dash_aim,
     # index floor(pick_seed / 9) mod 2 = 0 for both (aim): grapple+aim and teleport+aim.
     # The forced S4 runs below play move (unanswered), plus one classic+aim.
-    if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=mascot_\w+,dash_(classic|grapple|teleport),dashdir_(aim|move)') { $failures += 'bot_campaign: S3 did not ask fork_mascot, fork_dash then fork_dash_aim' }
+    # M47.6b (owner, design 10 Q9): fork_mascot moved to S2's end (the chat's header names the
+    # body); the bot keeps the dash forks' divisors (3 and 9), so the dashes above still hold.
+    if ($camp.Text -notmatch '\[botrun\] session=s1_02_enemies .*pick=mascot_\w+ ') { $failures += 'bot_campaign: S2 did not ask fork_mascot' }
+    if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting .*pick=dash_(classic|grapple|teleport),dashdir_(aim|move)') { $failures += 'bot_campaign: S3 did not ask fork_dash then fork_dash_aim' }
     if ($camp.Text -notmatch '"mascot":"(cursor|window|blob)"') { $failures += 'bot_campaign: the save has no mascot' }
     if ($camp.Text -notmatch '"dash_(classic|grapple|teleport)"') { $failures += 'bot_campaign: the save shipped no dash' }
     if ($camp.Text -notmatch '"dashdir_(aim|move)"') { $failures += 'bot_campaign: the save shipped no dash direction' }

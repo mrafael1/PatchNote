@@ -1074,6 +1074,12 @@ func _event_report(game: Node, rec: Dictionary, cue_at: float, stats: Dictionary
 ## not tied to it; --dash= picks its option in fork_dash. M42.2: the third (fork_dash_aim)
 ## is posmod(floor(pick_seed / 9), 2), so chains 1i (seed 5) and 2 (seed 6) both play aim;
 ## --dash-aim= picks its option. Returns the picks' ids joined by "," or "".
+## M47.6b: fork_mascot moved to S2's end (owner, design 10 Q9). The dash forks keep the
+## divisors they had after it at S3 (FORK_DIV), so the chains still play the same dashes
+## (1i grapple+aim, 2 teleport+aim); the body is now picked from S2's pick_seed.
+const FORK_DIV := {&"fork_dash": 3, &"fork_dash_aim": 9}
+
+
 func _through_debrief(debrief: Node, pick_seed: int) -> String:
 	var picks: Array[String] = []
 	var div := 1
@@ -1081,9 +1087,11 @@ func _through_debrief(debrief: Node, pick_seed: int) -> String:
 		debrief.finish_lines()
 		if debrief.phase == &"fork":
 			var options: Array = debrief.fork_options()
+			var fork_id: StringName = options[0].fork if not options.is_empty() else &""
+			if FORK_DIV.has(fork_id):
+				div = FORK_DIV[fork_id]
 			var index := posmod(floori(float(pick_seed) / float(div)), options.size())
 			# --answer= (and --dash= / --dash-aim=): that fork picks its named option.
-			var fork_id: StringName = options[0].fork if not options.is_empty() else &""
 			if answers.has(fork_id):
 				for k in options.size():
 					if options[k].id == answers[fork_id]:

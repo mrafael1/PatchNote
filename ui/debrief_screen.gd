@@ -396,13 +396,14 @@ func death_expected() -> bool:
 
 
 ## The session's next fork still to ask here, in asked_forks() order: not answered in
-## the save nor picked in this debrief (null when none is left).
+## the save nor picked in this debrief (null when none is left). M47.6b: first any fork an
+## earlier finished session left unanswered (CampaignDB.late_forks: the body pick moved to S2).
 func fork() -> Fork:
 	if session == null:
 		return null
 	if outcome == &"died" and not death_expected() and not moved_on:
 		return null
-	for id in session.asked_forks():
+	for id in CampaignDB.late_forks(session) + session.asked_forks():
 		var f := ChangeDB.get_fork(id)
 		if f == null or f.is_answered():
 			continue
@@ -892,7 +893,7 @@ func pick(index: int) -> bool:
 			corner.setup(true, c.take.id)
 			corner.show_expression(&"surprised")
 			corner.glitch(0.35)
-		terminal.set_speaker(GameHost.speaker_for(c.take.id), true)
+		terminal.set_speaker(GameHost.speaker_for(c.take.id), true, c.take.id)
 	elif c.kind == &"mascot":
 		_set_body(c.take.id)
 		big_body.set_expression(&"surprised")
@@ -948,8 +949,26 @@ func _terminal_way_on() -> void:
 	terminal.cmd("build %s" % v, "ok")
 	terminal.cmd("patch apply %s" % v)
 	terminal.notes(changelog(session, picked, more_picks()))
+	if session.chat == SessionDef.CHAT_UPGRADE and not terminal.is_chat():
+		_chat_upgrade()
 	_auto_wait = auto_way_on
 	_auto_msec = Time.get_ticks_msec()
+
+
+## M47.6b (PLAN v9.4 0.8, design 2.8): S2's beat ships the dev-chat after its patch rows: a
+## line, the AI thinks, builds it, retires the terminal (collapsed, not deleted), the chat
+## opens in its place (TerminalPanel.upgrade, a 0.3 s crossfade) and says its first line. All
+## queued, so the way on waits for it.
+func _chat_upgrade() -> void:
+	var c := CampaignDB.campaign
+	for l in Line.parse_all(c.chat_upgrade_before if c != null else PackedStringArray()):
+		terminal.type_line(l)
+	terminal.think()
+	terminal.cmd("build dev_chat_ui", "ok (it has round corners now)")
+	terminal.cmd("retire terminal", "collapsed, not deleted")
+	terminal.upgrade()
+	for l in Line.parse_all(c.chat_upgrade_after if c != null else PackedStringArray()):
+		terminal.type_line(l)
 
 
 ## auto_way_on: AUTO_DELAY after the terminal is done typing, the first choice (Next).

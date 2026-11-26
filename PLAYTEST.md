@@ -1,3 +1,15 @@
+# Next playtest: M47.6b, the dev desktop and the chat upgrade (Stage 1 rework, part 2)
+
+What is new since M47.6a (no extra steps; play as usual):
+- The game now sits on a dev "desktop": the game window (title "Patch Notes - vX (debug)", a status bar) on the left, the AI's raw terminal window on the right, a taskbar at the bottom.
+- At the end of S2 the AI says the window is ugly, asks which body is it (the body pick moved here from S3), then builds itself a chat app: a short build, a crossfade, and the terminal becomes "dev-chat - <body name>" with its avatar, bubbles, a build.log strip and a "Talk to <name>..." input. The old terminal stays collapsed under "terminal (legacy)".
+- In the chat, `play` and every choice are quick-reply pills above the input (click, or keys 1-3 as before). A fork also posts each option as a card with its full description.
+- At 1920x1080 the game shows at 1512x851 with the chat 360 px wide.
+
+One-liners (defaults taken): legacy terminal rows not copied into the chat: ok? Game smaller at 1080p (k 1.18) for a 360 px chat: ok? The upgrade lines' wording ok? Option cards plus short pills: readable?
+
+---
+
 # Next playtest: M47.6a, the play gate and the voice (Stage 1 rework, part 1)
 
 What is new since the last build you played (no extra steps; play as usual):

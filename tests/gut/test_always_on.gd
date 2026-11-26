@@ -119,18 +119,33 @@ func _key(action: StringName) -> void:
 
 # --- Layout ------------------------------------------------------------------------------
 
+## M47.6b (PLAN v9.4 2.1): the dev desktop. The base is 1824x848 (k = 1): two windows MARGIN
+## apart, their title bars on one line, the taskbar under them; the game column sits under the
+## game window's title bar, the terminal fills the chat window under its own.
 func test_layout_at_the_base_and_at_1080p() -> void:
-	var a := GameHost.layout_for(Vector2(1760, 720))
+	assert_eq(GameHost.BASE, Vector2i(1824, 848))
+	var a := GameHost.layout_for(Vector2(GameHost.BASE))
 	assert_almost_eq(float(a.k), 1.0, 0.0001)
-	assert_eq(a.game, Rect2(0, 0, 1280, 720))
-	assert_eq(a.terminal, Rect2(1280, 0, 480, 720), "the terminal: 480 px at the base")
+	assert_eq(a.game, Rect2(16, 50, 1280, 720))
+	assert_eq(a.game_window, Rect2(16, 20, 1280, 772), "title bar 30 + 720 + status bar 22")
+	assert_eq(a.chat_window, Rect2(1312, 20, 496, 772), "top edges aligned, 16 px apart")
+	assert_eq(a.terminal, Rect2(1312, 50, 496, 742), "the chat window under its title bar")
+	assert_eq(a.taskbar, Rect2(0, 812, 1824, 36))
 	assert_eq(int(a.font), 16)
 	var b := GameHost.layout_for(Vector2(1920, 1080))
-	assert_almost_eq(float(b.k), 1.21875, 0.0001, "k = (1920 - 360) / 1280")
-	assert_eq((b.game as Rect2).size, Vector2(1560, 878))
-	assert_eq((b.game as Rect2).position.y, 101.0, "centred vertically")
-	assert_eq((b.terminal as Rect2).size, Vector2(360, 1080), "the terminal keeps its 360 px")
-	assert_eq(int(b.font), 20, "16 x 1.22")
+	assert_almost_eq(float(b.k), 1.18125, 0.0001, "k = (1920 - 48 - 360) / 1280: the width bounds it")
+	assert_eq((b.game as Rect2).size, Vector2(1512, 851))
+	assert_eq((b.game as Rect2).position, Vector2(16, 101), "the windows centred above the taskbar")
+	assert_eq((b.terminal as Rect2).size, Vector2(360, 873), "the chat keeps its 360 px")
+	assert_eq((b.game_window as Rect2).position.y, (b.chat_window as Rect2).position.y, "top edges aligned")
+	assert_eq(int(b.font), 19, "16 x 1.18")
+	for w: Vector2 in [Vector2(1280, 720), Vector2(2560, 1440), Vector2(3840, 2160)]:
+		var c := GameHost.layout_for(w)
+		var g: Rect2 = c.game
+		assert_almost_eq(g.size.x / g.size.y, 16.0 / 9.0, 0.01, "16:9 at %s" % w)
+		assert_true(Rect2(Vector2.ZERO, w).encloses(c.chat_window), "inside the window at %s" % w)
+		assert_false((c.game_window as Rect2).intersects(c.chat_window), "no overlap at %s" % w)
+		assert_lt((c.chat_window as Rect2).end.y, (c.taskbar as Rect2).position.y, "above the taskbar at %s" % w)
 
 
 func test_the_game_rect_is_1280x720_at_any_view_size_and_the_modes_hold() -> void:
@@ -190,12 +205,14 @@ func test_pause_reaches_the_pause_menu_through_the_container() -> void:
 	assert_false(g.pause_menu.is_open())
 
 
-func test_s3s_three_forks_take_one_key_each_and_land_on_the_corner() -> void:
-	var h := await _hosted(S3)
+## M47.6b (owner, design 10 Q9): the body pick is S2's (its beat then ships the chat, named
+## for the body); S3 asks the dash and its direction.
+func test_s2s_body_pick_and_s3s_two_forks_take_one_key_each_and_land_on_the_corner() -> void:
+	var h := await _hosted(S2)
 	var g := h.game
 	var d := g.debrief
 	d.input_delay = 0.0
-	g._on_report_ready(&"win")
+	g._on_report_ready(&"stop")
 	assert_true(d.is_open())
 	assert_null(d.big_body, "terminal view: no big body")
 	assert_true(g.mascot.visible, "the corner body stays for the beat")
@@ -214,18 +231,29 @@ func test_s3s_three_forks_take_one_key_each_and_land_on_the_corner() -> void:
 	assert_eq(h.terminal.speaker, GameHost.speaker_for(body_id), "the prompt renames itself")
 	assert_true(h.terminal.has_face)
 	assert_eq(d.box_count(), 0, "the boxes clear on the pick")
-	for i in 2:
-		d.finish_lines()
-		assert_eq(d.phase, DebriefScreen.FORK, "fork %d" % (i + 2))
-		_key(&"choose_1")
-		await wait_process_frames(1)
-		assert_eq(d.picks.size(), i + 2)
 	d.finish_lines()
 	assert_eq(d.choices(), [DebriefScreen.NEXT] as Array[String], "the labels stay")
 	var rows := h.terminal.rows()
 	assert_true(rows.has("you> 2"), "the answer is printed")
 	assert_true(rows.any(func(r: String) -> bool: return r.begins_with("[1] ")), "numbered choices")
 	d.close()
+
+
+func test_s3_asks_the_dash_then_its_direction() -> void:
+	var h3 := await _hosted(S3)
+	var d3 := h3.game.debrief
+	d3.input_delay = 0.0
+	h3.game._on_report_ready(&"win")
+	for i in 2:
+		d3.finish_lines()
+		assert_eq(d3.phase, DebriefScreen.FORK, "fork %d" % (i + 1))
+		assert_eq(d3.fork().id, [&"fork_dash", &"fork_dash_aim"][i])
+		_key(&"choose_1")
+		await wait_process_frames(1)
+		assert_eq(d3.picks.size(), i + 1)
+	d3.finish_lines()
+	assert_eq(d3.choices(), [DebriefScreen.NEXT] as Array[String])
+	d3.close()
 
 
 # --- The terminal --------------------------------------------------------------------------
@@ -306,7 +334,8 @@ func test_the_mascot_speaks_in_the_bubble_and_the_terminal_logs_it_dim() -> void
 	assert_true(m._bubble.visible, "the bubble during play")
 	assert_true(m.is_speaking(), "the corner keeps its queue and timing")
 	assert_true(h.terminal.rows().back().ends_with("Routed to the terminal."))
-	var last: Label = h.terminal._list.get_child(h.terminal._list.get_child_count() - 1).get_node(^"Text")
+	assert_true(h.terminal.is_chat(), "S4: a save past S2 opens on the chat (M47.6b)")
+	var last: Label = h.terminal._order.back()
 	assert_eq(last.visible_characters, -1, "logged whole, no typing")
 	assert_eq(last.get_meta(&"tone"), &"dim", "dim: history")
 	h.game._on_report_ready(&"win")
@@ -414,7 +443,7 @@ func test_reduce_flashing_turns_the_glitch_into_a_crossfade() -> void:
 func test_a_click_point_maps_to_the_same_world_point_at_k_1_and_1_22() -> void:
 	var h := await _hosted(S4)
 	var points: Array[Vector2] = []
-	for window: Vector2 in [Vector2(1760, 720), Vector2(1920, 1080)]:
+	for window: Vector2 in [Vector2(GameHost.BASE), Vector2(1920, 1080)]:
 		h.relayout(window)
 		await wait_process_frames(1)
 		var r := h.game_rect()
@@ -555,11 +584,16 @@ func test_choose_1_reaches_a_pick_panel_through_the_container() -> void:
 func test_real_mouse_events_map_through_the_container_and_clamp_over_the_terminal() -> void:
 	var h := await _hosted(S4)
 	RunState.set_pause(&"debrief", true)   # the camera holds still; the container still forwards
+	# M47.6b: the game column now starts under its title bar (16, 50); GUT's own output panel
+	# (its CanvasLayer, over everything) would take a motion there, so it hides for the test.
+	var gut_layer := get_tree().root.get_node_or_null(^"GutRunner/GutLayer") as CanvasLayer
+	if gut_layer != null:
+		gut_layer.visible = false
 	var probe := MotionProbe.new()
 	probe.process_mode = Node.PROCESS_MODE_ALWAYS
 	h.game.add_child(probe)
 	var world: Array[Vector2] = []
-	for window: Vector2 in [Vector2(1760, 720), Vector2(1920, 1080)]:
+	for window: Vector2 in [Vector2(GameHost.BASE), Vector2(1920, 1080)]:
 		h.relayout(window)
 		await wait_process_frames(1)
 		var r := h.game_rect()
@@ -575,11 +609,11 @@ func test_real_mouse_events_map_through_the_container_and_clamp_over_the_termina
 		world.append(h.game.get_global_mouse_position())
 	assert_almost_eq(world[0].x, world[1].x, 1.0, "same world x")
 	assert_almost_eq(world[0].y, world[1].y, 1.0, "same world y")
-	h.relayout(Vector2(1760, 720))
+	h.relayout(Vector2(GameHost.BASE))
 	await wait_process_frames(1)
-	assert_eq(h.game_rect(), Rect2(0, 0, 1280, 720), "back to the base column after 1080p")
+	assert_eq(h.game_rect(), Rect2(16, 50, 1280, 720), "back to the base column after 1080p")
 	probe.seen.clear()
-	_motion(Vector2(1500, 300))   # over the terminal
+	_motion(Vector2(1500, 350))   # over the chat window
 	await wait_process_frames(1)
 	assert_eq(probe.seen.size(), 1, "one motion reaches the game (the host's push, not the container)")
 	var at: Vector2 = probe.seen.back() if not probe.seen.is_empty() else Vector2.ZERO
@@ -587,6 +621,8 @@ func test_real_mouse_events_map_through_the_container_and_clamp_over_the_termina
 	assert_almost_eq(at.y, 300.0, 1.0)
 	assert_gt(h.viewport.get_mouse_position().x, 1279.0, "the aim still follows the real mouse")
 	RunState.set_pause(&"debrief", false)
+	if gut_layer != null:
+		gut_layer.visible = true
 
 
 ## A motion at `at` in the root's canvas pixels (the host's coordinates), sent in window pixels
@@ -707,6 +743,9 @@ func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
 	assert_eq(c.game, Rect2(0, 0, 1920, 1080))
 	var b := GameHost.layout_for(Vector2(1760, 720), true)
 	assert_eq(b.game, Rect2(240, 0, 1280, 720), "centred, k from the window")
+	var base := GameHost.layout_for(Vector2(GameHost.BASE), true)
+	assert_almost_eq(float(base.k), 848.0 / 720.0, 0.0001, "the windowed base: k from its height")
+	assert_eq((base.terminal as Rect2).size, Vector2.ZERO, "no chat window")
 	CampaignDB.active = true
 	assert_true(CampaignDB.jump_to(S7))
 	var g: Main = load("res://main.tscn").instantiate()
@@ -715,6 +754,7 @@ func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
 	assert_true(g.stage_card.is_open())
 	assert_true(h.chapter, "chapter mode")
 	assert_false(h.terminal.visible, "the terminal hides")
+	assert_false(h.desktop.visible, "M47.6b: the desktop too: the game alone on black")
 	h.terminal.finish()
 	assert_false(h.terminal.rows().has("$ run %s" % S7), "the session rows wait for the card")
 	h.hold()

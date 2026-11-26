@@ -163,7 +163,10 @@ func test_a_jump_answers_every_earlier_fork_with_option_0() -> void:
 	assert_eq(Unlocks.answer(&"fork_enemy").id, &"enemy_tank")
 	SaveGame.use_snapshot("", true)
 	CampaignDB.answer_earlier_forks(&"s1_03_shooting")
-	assert_eq(SaveGame.shipped(), [] as Array[StringName], "S3 asks them itself")
+	assert_eq(SaveGame.shipped(), [&"mascot_cursor"] as Array[StringName], "M47.6b: S2's body; S3 asks the dash itself")
+	SaveGame.use_snapshot("", true)
+	CampaignDB.answer_earlier_forks(&"s1_02_enemies")
+	assert_eq(SaveGame.shipped(), [] as Array[StringName], "S2 asks the body itself")
 
 
 func test_shelf_of_stage_1_is_the_unpicked_options() -> void:

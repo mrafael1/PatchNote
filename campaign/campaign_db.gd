@@ -129,6 +129,9 @@ func problems(c: CampaignDef = campaign) -> Array[String]:
 			if forks.has(f):
 				out.append("campaign: fork %s is asked twice (%s, %s)" % [f, forks[f], s.id])
 			forks[f] = s.id
+	var upgrades := c.sessions.filter(func(s: SessionDef) -> bool: return s != null and s.chat == SessionDef.CHAT_UPGRADE)
+	if upgrades.size() > 1:   # M47.6b: the chat ships once
+		out.append("campaign: %d sessions ship the chat (chat = upgrade); one at most" % upgrades.size())
 	for i in c.sessions.size() - 1:
 		var s := c.sessions[i]
 		var next := c.sessions[i + 1]
@@ -276,6 +279,43 @@ func _stub_era(camp: Dictionary = SaveGame.campaign()) -> bool:
 		if index_of(StringName(String(d))) > stub_at:
 			return false
 	return true
+
+
+## M47.6b (PLAN v9.4 0.8, design 2.8): the chat the always-on host opens on, derived (never
+## saved): &"chat" once the save is past the session whose `chat` is &"upgrade" (S2) by
+## `done`, or by its position (an M42.2-era save maps its index and may have an empty
+## `done`), else &"raw" (the terminal).
+func chat_style() -> StringName:
+	if campaign == null:
+		return &"raw"
+	for i in campaign.sessions.size():
+		var s := campaign.sessions[i]
+		if s != null and s.chat == SessionDef.CHAT_UPGRADE:
+			var done: Array = SaveGame.campaign().get("done", [])
+			if String(s.id) in done or current_index() > i:
+				return &"chat"
+			return &"raw"
+	return &"raw"
+
+
+## M47.6b (owner answer, design 10 Q9): the forks of earlier sessions the save finished
+## (`done`) without answering them, in campaign order. fork_mascot moved from S3's end to
+## S2's, so a save that finished S2 before the move gets the body pick at its next beat.
+func late_forks(s: SessionDef) -> Array[StringName]:
+	var out: Array[StringName] = []
+	var at := index_of(s.id) if s != null else -1
+	if at <= 0:
+		return out
+	var done: Array = SaveGame.campaign().get("done", [])
+	for j in at:
+		var earlier := session(j)
+		if earlier == null or not String(earlier.id) in done:
+			continue
+		for f in earlier.asked_forks():
+			var fork := ChangeDB.get_fork(f)
+			if fork != null and not fork.is_answered() and not f in out:
+				out.append(f)
+	return out
 
 
 ## Is the save stub-era (M47, D3)? Tests and the report read it.

@@ -15,16 +15,30 @@ extends Resource
 ## "kw1|kw2" -> a Line (a whole word, any case); the key "*" is everything else. No model,
 ## and the typed text is never logged.
 @export var chat_replies: Dictionary[String, String] = {}
+## M47.6b (PLAN v9.4 2.3, D6): the same two once the chat is up (the AI writes in capitals
+## from the chat upgrade on). Empty: the terminal's.
+@export var before_play_default_chat: PackedStringArray = ["thinking: Type play."]
+@export var chat_replies_chat: Dictionary[String, String] = {}
+## M47.6b (design 2.8): S2's beat, after its patch rows: the line before the build rows and
+## the first line in the new chat.
+@export var chat_upgrade_before: PackedStringArray = ["happy: one sec."]
+@export var chat_upgrade_after: PackedStringArray = ["proud: New window. Round corners. Proud of them."]
 
 
 ## The canned reply to `typed` (lower-cased, trimmed): the first key with a matching word,
-## else "*" ("" when none).
-func chat_reply(typed: String) -> String:
+## else "*" ("" when none). chat: the chat's replies (M47.6b), when it has any.
+func chat_reply(typed: String, chat := false) -> String:
+	var replies := chat_replies_chat if chat and not chat_replies_chat.is_empty() else chat_replies
 	var words := typed.to_lower().strip_edges().replace("?", " ? ").split(" ", false)
-	for key: String in chat_replies:
+	for key: String in replies:
 		if key == "*":
 			continue
 		for kw in key.split("|", false):
 			if kw in words:
-				return chat_replies[key]
-	return chat_replies.get("*", "")
+				return replies[key]
+	return replies.get("*", "")
+
+
+## The gate's default lines for the chat style in use (M47.6b).
+func before_play_default_for(chat: bool) -> PackedStringArray:
+	return before_play_default_chat if chat and not before_play_default_chat.is_empty() else before_play_default

@@ -19,6 +19,8 @@ const STAGES := &"stages"     ## won when the stage set's last part clears (M50)
 const BOSS := &"boss"         ## won when the boss's HP reaches 0 (M49)
 const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN, STAGES, BOSS]
 const FORK_ENEMY := &"fork:fork_enemy"
+## M47.6b: `chat`'s one value (the session whose beat ships the dev-chat).
+const CHAT_UPGRADE := &"upgrade"
 ## The path ids a `path` field may name (PLAN v9 1.5; PathDB has Auto from M45a).
 const PATHS: Array[StringName] = [&"arsenal", &"auto", &"survival"]
 const STAGE_SETS_DIR := "res://levels/stages/"
@@ -95,6 +97,10 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## M47.6a: said in the bubble the moment a `script` end window opens (used from M47.6c1).
 ## "" = nothing said.
 @export var end_line := ""
+## M47.6b (PLAN v9.4 0.8, design 2.8): &"upgrade" on the session whose beat ships the dev-chat
+## (S2): after its patch rows the terminal becomes the chat. &"" elsewhere. One session at most
+## (CampaignDB.problems); a save past it opens on the chat (CampaignDB.chat_style()).
+@export var chat: StringName = &""
 
 @export_group("After")
 @export var fork: StringName = &""
@@ -716,6 +722,8 @@ func _look_problems(where: String) -> Array[String]:
 ## The PLAN v9 1.2 fields, by shape (CampaignDB.problems() adds "not built yet").
 func _field_problems(where: String) -> Array[String]:
 	var out: Array[String] = []
+	if not chat in [&"", CHAT_UPGRADE]:
+		out.append("%s: chat must be \"\" or upgrade" % where)
 	for pair: Array in [[&"path", path], [&"stages", stages], [&"hud", hud], [&"boss", boss]]:
 		var f := fork_of(pair[1])
 		if f != &"" and ChangeDB.get_fork(f) == null:

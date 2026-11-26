@@ -36,6 +36,8 @@ var arm_at_msec := -1        ## when the empty Enter / `p` count (-1: not armed 
 var dim := Palette.TERM_DIM
 var bright := Palette.TERM_YOU
 var gentle := false          ## reduce flashing whatever the setting (tests)
+## M47.6b: the placeholder off a gate ("Talk to Blob..." once the chat is up).
+var idle_text := IDLE_TEXT
 var pulses := 0              ## ghost pulses shown (tests)
 ## M47.6a review: the character of the last movement key swallowed at the empty prompt, and
 ## the one the last `typed` text came after. "again" on QWERTY loses its `a` (move_left), so
@@ -88,6 +90,12 @@ func close_gate() -> void:
 	_set_closed()
 
 
+## M47.6b: the idle placeholder changed (the chat named the AI): shown now if no gate is up.
+func refresh_idle() -> void:
+	if not gate:
+		placeholder_text = idle_text
+
+
 func take_focus() -> void:
 	if not is_inside_tree() or not is_visible_in_tree():
 		return
@@ -104,7 +112,7 @@ func drop_focus() -> void:
 func _set_closed() -> void:
 	text = ""
 	editable = false
-	placeholder_text = IDLE_TEXT
+	placeholder_text = idle_text
 	arm_at_msec = -1
 	_underline = false
 	_tint_ghost(0.0)

@@ -129,11 +129,11 @@ func test_fork_mascot_is_for_the_campaign_only() -> void:
 	assert_true(f.campaign)
 	assert_eq(ChangeDB.fork_problems(f), [] as Array[String])
 	assert_false(f in DevSession.ready_forks(), "the v6 dev session never offers it")
-	assert_eq(CampaignDB.get_session(&"s1_03_shooting").fork, &"fork_mascot")
+	assert_eq(CampaignDB.get_session(&"s1_02_enemies").fork, &"fork_mascot", "M47.6b: S2's pick")
 
 
 func test_a_session_with_a_pick_logs_the_fork_and_the_mascot() -> void:
-	var s := CampaignDB.get_session(&"s1_03_shooting")
+	var s := CampaignDB.get_session(&"s1_02_enemies")
 	var pick := ChangeDB.get_change(&"mascot_window")
 	var rec := CampaignDB.telemetry_record(s, {}, &"won", 0, &"next", "test", pick)
 	assert_eq(rec.fork, {"id": "fork_mascot", "pick": "mascot_window", "shelved": ["mascot_cursor", "mascot_blob"]})
@@ -142,11 +142,12 @@ func test_a_session_with_a_pick_logs_the_fork_and_the_mascot() -> void:
 
 
 func test_completing_with_a_mascot_pick_sets_the_body() -> void:
-	var s := CampaignDB.get_session(&"s1_03_shooting")
+	var s := CampaignDB.get_session(&"s1_02_enemies")
 	CampaignDB.complete(s, ChangeDB.get_change(&"mascot_cursor"))
 	assert_eq(SaveGame.mascot(), &"cursor")
 	assert_true(SaveGame.has_shipped(&"mascot_cursor"))
-	assert_eq(DebriefScreen.body_for(s), MascotBody.CARET, "S3 itself has no face")
+	assert_eq(DebriefScreen.body_for(s), MascotBody.CARET, "S2 itself has no face")
+	assert_eq(DebriefScreen.body_for(CampaignDB.get_session(&"s1_03_shooting")), &"cursor", "M47.6b: S3 has it")
 	var with_face := SessionDef.new()
 	with_face.face = true
 	assert_eq(DebriefScreen.body_for(with_face), &"cursor")

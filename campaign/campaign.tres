@@ -27,3 +27,12 @@ chat_replies = Dictionary[String, String]({
 "again": "thinking: type play. the test runs again.",
 "*": "thinking: i only know 'play' so far. working on it."
 })
+before_play_default_chat = PackedStringArray("thinking: Type play.")
+chat_replies_chat = Dictionary[String, String]({
+"hi|hello|hey": "happy: Hi. Type play and we'll go.",
+"help|?": "thinking: Type play. It starts the next test.",
+"again": "thinking: Type play. The test runs again.",
+"*": "thinking: I only know 'play' so far. Working on it."
+})
+chat_upgrade_before = PackedStringArray("happy: one sec.")
+chat_upgrade_after = PackedStringArray("proud: New window. Round corners. Proud of them.")
