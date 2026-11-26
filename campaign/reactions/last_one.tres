@@ -11,4 +11,3 @@ priority = 2
 cooldown = 30.0
 once_per_session = true
 after = &"s1_03_shooting"
-until = &"s1_06_playground"

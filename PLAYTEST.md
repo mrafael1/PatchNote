@@ -1,3 +1,13 @@
+# Next playtest: M47.6d2, S8 and S9 endings (Stage 1 rework, part 6)
+
+What is new since M47.6d1 (no extra steps; play as usual):
+- S8 and S9 have no clock any more: each ends when its wave is dead (Arcade 100 then 120 enemies, Auto 180 then 220, Survival 55 then 70). No timer is shown; the AI calls the last ones ("That's all of them. Clean up.", "Last one."). The intro says "One wave." instead of "Two minutes" / "Ninety seconds".
+- S8 starts where you stood at the end of S7 (no reload); S9 always starts at the room's start (its first drawing is placed there).
+
+One-liners (defaults taken): S8 / S9 about 105-155 s by bot (bot numbers): too long on Auto? Survival's waves (55 / 70): enough?
+
+---
+
 # Next playtest: M47.6d1, path titles, a quicker S7 and the revolver (Stage 1 rework, part 5)
 
 What is new since M47.6c2 (no extra steps; play as usual):

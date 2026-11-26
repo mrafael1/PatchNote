@@ -130,7 +130,7 @@ func build(p_shell: Node) -> void:
 		spawner.hold = RunState.session.spawn_after   # M48b (D10): S9's quiet start
 		# M47.6c1 (design 2.6): a clear ending's budget, and the session's spawn weights.
 		if RunState.session.has_end(SessionDef.CLEAR):
-			spawner.budget = RunState.session.enemy_total
+			spawner.budget = enemy_total_now(RunState.session)   # M47.6d2: per path
 		spawner.weights = spawn_weights_for(RunState.session)
 	add_child(spawner)
 
@@ -165,11 +165,11 @@ func begin_run() -> void:
 			goal_value = roundf(goal_value * path.kill_goal_mult)
 		# M47.6c1 (design 2.6): clear / script are endings: the value is the set or the tail.
 		if session.goal == SessionDef.CLEAR:
-			goal_value = float(session.enemy_total)
+			goal_value = float(enemy_total_now(session))
 		elif session.goal == SessionDef.SCRIPT:
 			goal_value = session.end_after
 		run_loop.set_goal(session.goal, goal_value, session.time_limit)
-		run_loop.set_endings(session.end_kinds(), session.enemy_total if session.has_end(SessionDef.CLEAR) else -1,
+		run_loop.set_endings(session.end_kinds(), enemy_total_now(session) if session.has_end(SessionDef.CLEAR) else -1,
 				session.end_after)
 		run_loop.script_window_opened.connect(_sync_spawner)
 		shell.director.enabled = false
@@ -187,6 +187,13 @@ func begin_run() -> void:
 	run_loop.phase_changed.connect(func(phase: StringName) -> void:
 		if phase == RunLoop.RELEASE_CANDIDATE and shell.sound:
 			shell.sound.play(&"release_candidate", 0.0))
+
+
+## M47.6d2 (design 3, S8 / S9): the fixed set the session plays on the live path
+## (enemy_total_by_path, else enemy_total).
+static func enemy_total_now(session: SessionDef) -> int:
+	var path := RunState.path_def()
+	return session.enemy_total_for(path.id if path != null else &"")
 
 
 ## M47.6c1: a session's spawn_weights with each "fork:<id>" key read as that fork's enemy
@@ -258,6 +265,8 @@ func _on_stage_starting(_index: int, stage: StageDef) -> void:
 ## (the walls' own push-out, Arena.free_tile_near) when that one is reachable, so the room does
 ## not visibly jump; else the arena's player_start. A cold start (INF) reads nothing.
 func start_for(carried: Vector2) -> Vector2:
+	if RunState.session != null and RunState.session.fresh_start:
+		return arena.player_start   # M47.6d2: S9's specimen is placed from player_start
 	if not carried.is_finite() or not arena.bounds.has_point(carried):
 		return arena.player_start
 	if _clear_spot(carried) and arena.is_reachable(carried):

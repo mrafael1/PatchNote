@@ -396,7 +396,9 @@ func _progress() -> float:
 		SessionDef.KILLS:
 			return float(RunState.kills) / maxf(1.0, _kill_goal())
 		SessionDef.CLEAR:   # M47.6c1: kills against the fixed set (budget + cue spawns)
-			return float(RunState.kills) / maxf(1.0, maxf(session.enemy_total, 0) + session.cue_spawn_total())
+			# M47.6d2: the set the run plays (enemy_total_by_path on S8 / S9).
+			return float(RunState.kills) / maxf(1.0, maxf(TopdownGenre.enemy_total_now(session), 0)
+					+ session.cue_spawn_total())
 	return 0.0
 
 

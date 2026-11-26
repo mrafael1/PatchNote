@@ -116,12 +116,15 @@ func test_s9_is_data_and_matches_the_plan() -> void:
 	assert_eq(s.problems(), [] as Array[String])
 	assert_eq(CampaignDB.problems(), [] as Array[String])
 	assert_eq(CampaignDB.index_of(S9), 9, "after S8, the last playable session")
-	assert_eq([s.stage, s.path, s.goal, s.goal_value, s.skin, s.look_reveal, s.spawn_after, s.bump, s.fork, s.look],
-			[2, &"fork:fork_path", SessionDef.SURVIVE, 150.0, &"pixel", &"manual", 9.0, &"patch", &"", ""])
+	# M47.6d2 (PLAN v9.4 0.8, design 3): a fixed set per path, a hidden 210 s cap, always cold.
+	assert_eq([s.stage, s.path, s.goal, s.time_limit, s.skin, s.look_reveal, s.spawn_after, s.bump, s.fork, s.look],
+			[2, &"fork:fork_path", SessionDef.CLEAR, 210.0, &"pixel", &"manual", 9.0, &"patch", &"", ""])
+	assert_eq(s.enemy_total_by_path, {&"arsenal": 120, &"auto": 220, &"survival": 70} as Dictionary[StringName, int])
+	assert_true(s.fresh_start, "the specimen is placed from player_start: S9 never takes a carried spot")
 	assert_eq(s.weapons, [&"pistol", &"shotgun", &"laser"] as Array[StringName])
 	assert_eq(s.notes, PackedStringArray(["A new look: Pixel", "The laser"]))
 	assert_eq(s.basics, CampaignDB.get_session(&"s2_02_day_one").basics)
-	assert_true(s.goal_by_path.is_empty(), "survive 150 on every path")
+	assert_true(s.goal_by_path.is_empty(), "no clock on any path")
 	assert_eq(s.reveal_lines.size(), 4)
 	var want := {"at 1: spawn chaser 1 specimen": 1.0, "at 3: skin chaser morph": 3.0, "at 9: release": 9.0,
 			"at 14: skin player morph": 14.0, "at 20: skin shots": 20.0, "at 20: skin enemies": 20.0,
@@ -385,9 +388,21 @@ func test_after_s9_every_skinned_node_is_revealed() -> void:
 	await _s9()
 	await _at(1.0)
 	await _at(149.0)
-	await _at(150.0)
-	assert_true(game.run_loop.is_over(), "won at 150 s")
+	assert_false(game.run_loop.is_over(), "M47.6d2: no 150 s clock any more")
+	await _at(210.0)
+	assert_true(game.run_loop.is_over(), "the hidden cap ends a set never cleared")
 	_assert_all_revealed("after S9")
+
+
+## M47.6d2: each path plays its own set (the spawner's budget), the clear is the end.
+func test_s9_plays_its_set_per_path() -> void:
+	for p: StringName in [&"arsenal", &"auto", &"survival"]:
+		await _s9(p)
+		var want := CampaignDB.get_session(S9).enemy_total_for(p)
+		assert_eq([game.spawner.budget, game.run_loop.enemy_total], [want, want], String(p))
+		assert_eq(game.run_loop.goal_text(), "", "no goal text")
+		assert_eq(game.player.global_position, game.arena.player_start, "%s: a cold start" % p)
+		game.free()
 
 
 func test_a_death_at_30_s_ends_fully_revealed() -> void:

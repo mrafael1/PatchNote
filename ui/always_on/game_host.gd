@@ -408,10 +408,19 @@ func _session_rows() -> void:
 # --- No reload between sessions (M47.6c2, PLAN v9.4 0.8, design 2.7) -------------------------
 
 ## A session ending `outcome` (the debrief's: won / stopped / died) carries the player into
-## session `to`: both Stage 1 (M47.6d2 extends it to Stage 2), the same arena, no death and
-## no stage card before it.
+## session `to`: both in the same stage, Stage 1 or (M47.6d2) Stage 2, the same arena, no
+## death and `to` not a fresh_start session (S9). A stage card only ever plays before a
+## stage's first session, so the same-stage rule already keeps it cold (S6 -> S7); M47.6d2
+## dropped the old stage_card_due(to) test, which read true for S8 at S7's report (S7 not
+## done yet), so S7's leftovers would not have popped.
 static func carry_ok(from: SessionDef, to: SessionDef, outcome: StringName) -> bool:
-	return from != null and to != null and outcome != &"died" and from.stage == 1 and to.stage == 1 			and from.arena_def() == to.arena_def() and not CampaignDB.stage_card_due(to)
+	return from != null and to != null and outcome != &"died" and from.stage == to.stage \
+			and from.stage in CARRY_STAGES and not to.fresh_start \
+			and from.arena_def() == to.arena_def()
+
+
+## M47.6d2: the stages whose sessions carry the player (Stage 1, then Stage 2's S7 -> S8).
+const CARRY_STAGES: Array[int] = [1, 2]
 
 
 ## The one capture path (Main._end_session and run_hash --chain): where the next session

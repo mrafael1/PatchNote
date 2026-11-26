@@ -329,9 +329,9 @@ func test_no_campaign_hud_shows_goal_text() -> void:
 	var s8: Main = load("res://main.tscn").instantiate()
 	add_child_autofree(s8)
 	await wait_physics_frames(3)
-	assert_eq(s8.run_loop.goal, SessionDef.SURVIVE, "S8 still survives in M47.6c1")
-	assert_ne(s8.run_loop.goal_text(), "", "the run loop still has its text")
-	assert_eq(s8.hud.goal_shown(), "", "but no campaign HUD shows it (no survive timer)")
+	assert_eq(s8.run_loop.goal, SessionDef.CLEAR, "M47.6d2: S8 clears a fixed set")
+	assert_eq(s8.run_loop.goal_text(), "", "no text left even in the run loop")
+	assert_eq(s8.hud.goal_shown(), "", "and no campaign HUD shows one")
 
 
 # --- S4: the walls grow in --------------------------------------------------------------------

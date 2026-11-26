@@ -166,9 +166,11 @@ if ($BotRuns) {
     if ($camp.Text -match '\[botrun\] cooking:') { $failures += 'bot_campaign: a cooking screen played (nothing cooks after M47)' }
     if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_01_tryout attempt=1 \(invincible\) outcome=stopped t=117\.1 .*choice=next_session .*pick=path_arsenal version=v0\.7\.0->v0\.8\.0 card=2 .*swaps=arsenal@5\.5,survival@41\.5,auto@77\.5,off@111\.5 leftovers=0 end=script spawned=\S+ start=\S+\r?$') { $failures += 'bot_campaign: S7 did not play its three tastes with the Stage 2 card and fork_path' }
     # M48b: S8 now leads to S9 ("Fresh paint", the transformation), the last playable session.
-    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 \(invincible\) outcome=won t=120\.0 .*choice=next_session .*version=v0\.8\.0->v0\.8\.1 path=arsenal ') { $failures += 'bot_campaign: S8 did not play on Arsenal to v0.8.1' }
+    # M47.6d2 (PLAN v9.4 0.8): S8 and S9 clear a fixed set per path (Arcade 100 / 120), no clock;
+    # S8 starts where S7 ended (the carry reaches Stage 2), S9 always at player_start (fresh_start).
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 \(invincible\) outcome=won t=\d+\.\d .*choice=next_session .*version=v0\.8\.0->v0\.8\.1 path=arsenal .* end=cleared spawned=100/100 start=(?!1584\.00,672\.00)\d+\.\d\d,\d+\.\d\d\r?$') { $failures += 'bot_campaign: S8 did not clear its 100 on Arsenal to v0.8.1 from the carried spot' }
     if ($camp.Text -match '\[botrun\] session=s2_02_day_one .* card=') { $failures += 'bot_campaign: S8 showed a stage card' }
-    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_03_paint attempt=1 \(invincible\) outcome=won t=150\.0 .*choice=to_be_continued .*version=v0\.8\.1->v0\.8\.2 path=arsenal ') { $failures += 'bot_campaign: S9 did not play on Arsenal to v0.8.2' }
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_03_paint attempt=1 \(invincible\) outcome=won t=\d+\.\d .*choice=to_be_continued .*version=v0\.8\.1->v0\.8\.2 path=arsenal .* end=cleared spawned=120/120 start=1584\.00,672\.00\r?$') { $failures += 'bot_campaign: S9 did not clear its 120 on Arsenal to v0.8.2 from player_start' }
     if ($camp.Text -match '\[botrun\] session=s2_03_paint .* card=') { $failures += 'bot_campaign: S9 showed a stage card' }
     if ($camp.Text -notmatch "\[botrun\] chain: sessions=$playableCount ") { $failures += 'bot_campaign: no chain total' }
     Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
@@ -260,22 +262,28 @@ if ($BotRuns) {
     Select-String -Path $s7stub.Log -Pattern '^\[botrun\] session=s7_auto_stub' | ForEach-Object { Write-Host "    $($_.Line)" }
     if ($s7stub.Text -notmatch '(?m)outcome=win .* weapons=pistol:\d(,shotgun:\d)? path=auto level=2 picks=1 pickups=\d+ swaps=auto@14\.5 leftovers=0 end=\w+ spawned=\S+ start=\S+\r?$') { $failures += 'bot_s7_auto_stub: not won, or no Auto taste (path=auto level=2 picks=1)' }
     if ($s7stub.Text -notmatch '\[botrun\] summary: s7_auto_stub x1, .* 0 failures') { $failures += 'bot_s7_auto_stub: run failed' }
-    # M47: S8 on each path wins (invincible) on its own path. M47.2 (owner G14a): Survival
-    # survives 90 s (goal_by_path), Arsenal and Auto 120 s.
+    # M47: S8 on each path wins (invincible) on its own path. (M47.2's Survival 90 s and
+    # Arsenal / Auto 120 s clocks are gone since M47.6d2.)
     foreach ($p in @('arsenal', 'auto', 'survival')) {
         $s8 = Invoke-Godot "bot_s8_$p" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_02_day_one --answer=fork_path=path_$p --save=user://m47_check/s8_$p.json --log=user://m47_check/s8_$p.jsonl 3i"
         Test-Errors "bot_s8_$p" $s8
         Select-String -Path $s8.Log -Pattern '^\[botrun\] session=s2_02_day_one' | ForEach-Object { Write-Host "    $($_.Line)" }
-        $t = if ($p -eq 'survival') { '90\.0' } else { '120\.0' }
-        if ($s8.Text -notmatch "outcome=win t=$t .*path=$p ") { $failures += "bot_s8_${p}: not won on $p in $t s" }
+        # M47.6d2 (PLAN v9.4 0.8): no clock; each path clears its own fixed set (Arcade 100,
+        # Auto 180, Survival 55), the S9 teaser at 80 / 86 s (Survival 74 / 80) before the end.
+        $n = (@{ arsenal = 100; auto = 180; survival = 55 })[$p]
+        if ($s8.Text -notmatch "outcome=win t=(\d+\.\d) .*path=$p .* end=cleared spawned=$n/$n " -or [double]$Matches[1] -lt 87.0) { $failures += "bot_s8_${p}: did not clear its $n on $p after the teaser" }
         if ($s8.Text -notmatch '\[botrun\] summary: s2_02_day_one x1, .* 0 failures') { $failures += "bot_s8_${p}: run failed" }
     }
-    # M48b: S9 (the transformation) wins on each path in 150 s (survive 150, no goal_by_path).
+    # M48b: S9 (the transformation) wins on each path (M47.6d2: by clearing its set, not at 150 s).
     foreach ($p in @('arsenal', 'auto', 'survival')) {
         $s9 = Invoke-Godot "bot_s9_$p" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_03_paint --answer=fork_path=path_$p --save=user://m48b_check/s9_$p.json --log=user://m48b_check/s9_$p.jsonl 3i"
         Test-Errors "bot_s9_$p" $s9
         Select-String -Path $s9.Log -Pattern '^\[botrun\] session=s2_03_paint' | ForEach-Object { Write-Host "    $($_.Line)" }
-        if ($s9.Text -notmatch "outcome=win t=150\.0 .*path=$p ") { $failures += "bot_s9_${p}: not won on $p in 150 s" }
+        # M47.6d2: S9 clears its set per path (Arcade 120, Auto 220, Survival 70) after the
+        # transformation (74 s); on Arcade the fusion lands before the clear.
+        $n = (@{ arsenal = 120; auto = 220; survival = 70 })[$p]
+        if ($s9.Text -notmatch "outcome=win t=(\d+\.\d) .*path=$p .* end=cleared spawned=$n/$n " -or [double]$Matches[1] -lt 75.0) { $failures += "bot_s9_${p}: did not clear its $n on $p after the transformation" }
+        if ($p -eq 'arsenal' -and $s9.Text -notmatch 'fusions=@[\d.]+:\w+') { $failures += 'bot_s9_arsenal: no fusion before the clear' }
         if ($s9.Text -notmatch '\[botrun\] summary: s2_03_paint x1, .* 0 failures') { $failures += "bot_s9_${p}: run failed" }
     }
     # M47.5a (PLAN v9.3): the campaign hosted in the always-on GameHost hashes as the M43.3 refs,
@@ -293,7 +301,8 @@ if ($BotRuns) {
     Test-Errors 'hash_chain' $chainHash
     if ($chainHash.Text -notmatch '\[runhash\] summary: campaign chain, 14 runs, 0 failures') { $failures += 'hash_chain: the chained Stage 1 hashes differ' }
     }
-    $shellS8 = Invoke-Godot 'hash_shell_s8' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --session=s2_02_day_one --frames=10 --shell --viewport=1560x878 --handoff=120 --answer=fork_path=path_arsenal --compare=.check/ref_m50_1b/s8_arsenal_hash.jsonl 1'
+    # M47.6d2: S8's ref moved once (the clear endings): ref_m47_6d2.
+    $shellS8 = Invoke-Godot 'hash_shell_s8' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --session=s2_02_day_one --frames=10 --shell --viewport=1560x878 --handoff=120 --answer=fork_path=path_arsenal --compare=.check/ref_m47_6d2/s8_arsenal_hash.jsonl 1'
     Test-Errors 'hash_shell_s8' $shellS8
     if ($shellS8.Text -notmatch '\[runhash\] summary: campaign shell viewport=1560x878 handoff=120, 1 runs, 0 failures') { $failures += 'hash_shell_s8: hosted S8 hash differs' }
     }

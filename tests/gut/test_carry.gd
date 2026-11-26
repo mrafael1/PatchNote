@@ -83,14 +83,26 @@ func _mine(g: Main, group: StringName) -> Array:
 
 # --- The rule -------------------------------------------------------------------------------
 
-func test_only_a_stage_1_next_without_a_death_carries() -> void:
+func test_only_a_next_in_stage_1_or_2_without_a_death_carries() -> void:
 	var s3 := CampaignDB.get_session(S3)
 	var s4 := CampaignDB.get_session(S4)
 	assert_true(GameHost.carry_ok(s3, s4, &"won"))
 	assert_true(GameHost.carry_ok(s3, s4, &"stopped"))
 	assert_false(GameHost.carry_ok(s3, s4, &"died"), "a death reloads at player_start")
 	assert_false(GameHost.carry_ok(CampaignDB.get_session(S6), CampaignDB.get_session(S7), &"won"),
-			"Stage 2 (a chapter) starts cold until M47.6d2")
+			"Stage 2 starts on a chapter (the stage card): cold")
+	# M47.6d2 (design 2.7): the carry reaches Stage 2: S7 -> S8, but never into S9 (fresh_start).
+	var s7 := CampaignDB.get_session(S7)
+	var s8 := CampaignDB.get_session(&"s2_02_day_one")
+	var s9 := CampaignDB.get_session(&"s2_03_paint")
+	assert_true(GameHost.carry_ok(s7, s8, &"stopped"), "S7 -> S8 carries")
+	assert_true(GameHost.carry_ok(s7, s8, &"won"))
+	assert_false(GameHost.carry_ok(s7, s8, &"died"), "a death still reloads")
+	assert_false(GameHost.carry_ok(s8, s9, &"won"), "S9 is fresh_start: its specimen is placed from player_start")
+	var s9_carried := s9.duplicate() as SessionDef
+	s9_carried.fresh_start = false
+	assert_true(GameHost.carry_ok(s8, s9_carried, &"won"), "only fresh_start keeps S9 cold")
+	assert_false(GameHost.carry_ok(CampaignDB.get_session(S6), s8, &"won"), "never across stages")
 	assert_false(GameHost.carry_ok(null, s4, &"won"))
 	var other := s4.duplicate() as SessionDef
 	other.arena = ArenaDef.new()
@@ -119,6 +131,18 @@ func test_a_cold_start_is_player_start() -> void:
 	var g := await _game(S5)
 	assert_eq(g.run_loop.start_point, g.arena.player_start, "the record's start")
 	assert_eq(Main.next_start, Main.NO_START)
+
+
+## M47.6d2: a carried spot reaches S8 (Stage 2), but S9 (fresh_start) always starts at
+## player_start, even with a start handed to it.
+func test_s8_takes_a_carried_spot_and_s9_never_does() -> void:
+	var spot := Vector2(1590.25, 660.5)
+	var g8 := await _game(&"s2_02_day_one", spot)
+	assert_eq(g8.run_loop.start_point, spot, "S8 starts where S7 ended")
+	g8.free()
+	var g9 := await _game(&"s2_03_paint", spot)
+	assert_eq(g9.run_loop.start_point, g9.arena.player_start, "S9 starts cold")
+	assert_eq(Main.next_start, Main.NO_START, "still consumed")
 
 
 func test_a_carried_start_places_the_player_and_is_consumed() -> void:

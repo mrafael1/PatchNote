@@ -102,6 +102,13 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## M47.6c1: a `clear` ending's spawner budget (the spawner's own draws; spawn cues add theirs on
 ## top). -1 = unlimited (every session that does not clear).
 @export var enemy_total := -1
+## M47.6d2 (design 3, S8 / S9): path id -> the enemy_total on that path ({} = enemy_total on every
+## path), as goal_by_path: a clear session's fixed set per path. Not on a tryout or a pathless
+## session; each value >= 0.
+@export var enemy_total_by_path: Dictionary[StringName, int] = {}
+## M47.6d2 (design 2.7): this session always starts at the arena's player_start (S9: its
+## specimen is placed from it), never at a spot carried from the session before.
+@export var fresh_start := false
 
 @export_group("The AI")
 ## The mascot has a body (false before fork_mascot is answered).
@@ -190,6 +197,12 @@ func cue_spawn_total() -> int:
 ## goal_value; &"" = no path).
 func goal_for(path_id: StringName) -> float:
 	return float(goal_by_path.get(path_id, goal_value))
+
+
+## M47.6d2: the spawner budget this session plays on path `path_id` (enemy_total_by_path, else
+## enemy_total; &"" = no path).
+func enemy_total_for(path_id: StringName) -> int:
+	return int(enemy_total_by_path.get(path_id, enemy_total))
 
 
 func intro_lines() -> Array[Line]:
@@ -583,11 +596,26 @@ func _ending_problems(where: String) -> Array[String]:
 		out.append("%s: end_after must be > 0" % where)
 	if end_line.strip_edges() != "" and not has_end(SCRIPT):
 		out.append("%s: end_line needs a script ending" % where)
+	for k: Variant in enemy_total_by_path:
+		if typeof(k) != TYPE_STRING_NAME or not StringName(k) in PATHS:
+			out.append("%s: enemy_total_by_path: unknown path %s (%s)" % [where, k, PATHS])
+		elif int(enemy_total_by_path[k]) < 0:
+			out.append("%s: enemy_total_by_path: %s must be >= 0" % [where, k])
+	if not enemy_total_by_path.is_empty():
+		if not has_end(CLEAR):
+			out.append("%s: enemy_total_by_path is for clear endings only" % where)
+		if path == &"":
+			out.append("%s: enemy_total_by_path needs a path" % where)
+		if tryout:
+			out.append("%s: enemy_total_by_path is not for a tryout (a swap never rescales)" % where)
 	if has_end(CLEAR):
+		var least := enemy_total
+		for k: Variant in enemy_total_by_path:
+			least = mini(least, int(enemy_total_by_path[k]))
 		for c in cue_list():
 			if c.problem != "" or c.action != &"spawn" or c.when != &"kills":
 				continue
-			var can := maxi(enemy_total, 0)
+			var can := maxi(least, 0)
 			for o in cue_list():
 				if o != c and o.problem == "" and o.action == &"spawn" and not o.specimen \
 						and (o.when == &"at" or (o.when == &"kills" and o.value < c.value)):

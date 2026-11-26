@@ -56,7 +56,8 @@ extends SceneTree
 ##                                on a copy of it, exactly as the .tres would ship it. In
 ##                                the chain it applies to every session; <session id>.<key>
 ##                                applies to that one only. goal_value also clears the
-##                                copy's goal_by_path (M47.2: S8 Survival's 90 s)
+##                                copy's goal_by_path (M47.2: S8 Survival's 90 s), and
+##                                enemy_total its enemy_total_by_path (M47.6d2: S8 / S9)
 ##   --dash=<classic|grapple|teleport|none>   with --campaign (M42.1): the dash style.
 ##                                With --only, ships dash_<style> before the session (none:
 ##                                the player's dash stays locked, a control); in the chain,
@@ -1503,6 +1504,10 @@ static func set_session_field(copy: Resource, key: String, value: float) -> void
 	if key == "goal_value" and not (copy.get(&"goal_by_path") as Dictionary).is_empty():
 		copy.set(&"goal_by_path", Dictionary({}, TYPE_STRING_NAME, &"", null, TYPE_FLOAT, &"", null))
 		print("[botrun] %s: goal_value=%s replaces goal_by_path" % [copy.get(&"id"), value])
+	# M47.6d2: enemy_total likewise clears enemy_total_by_path (S8 / S9's per-path sets).
+	if key == "enemy_total" and not (copy.get(&"enemy_total_by_path") as Dictionary).is_empty():
+		copy.set(&"enemy_total_by_path", Dictionary({}, TYPE_STRING_NAME, &"", null, TYPE_INT, &"", null))
+		print("[botrun] %s: enemy_total=%s replaces enemy_total_by_path" % [copy.get(&"id"), value])
 
 
 ## Estimated seconds a player spends reading this attempt's lines (M42 "chain:"): the
