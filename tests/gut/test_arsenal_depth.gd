@@ -655,9 +655,9 @@ func test_pack_panel_text_and_the_rare_frame() -> void:
 	var t := PickPanel.pack_card_text(o, 0, Callable(), false)
 	assert_string_contains(t, "Pistol 1 -> ")
 	var rare_i := 0 if o.cards[0].rarity == &"rare" else 1
-	var frame: PanelContainer = panel._frames[rare_i]
-	var box := frame.get_theme_stylebox(&"panel") as StyleBoxFlat
-	assert_eq(box.border_color, Palette.color(&"card_rare"), "a rare card's gold frame")
+	var face: CardFace = panel._faces[rare_i]   # M50.2c: a card face, not a framed button
+	assert_eq(face.face.style, &"card_rare", "a rare card's gold frame")
+	assert_eq(face.face.ribbon, "RARE" if o.cards[rare_i].kind == &"new" else "RARE +2")
 	panel.choose(0)
 
 
