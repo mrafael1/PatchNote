@@ -50,8 +50,8 @@ extends CanvasLayer
 ## never `picked`. The same pause, input delay and keys as a pack.
 ##
 ## M50.2c (pack opening and card art, design 2.5): a pack's cards and its FUSE choice are card
-## faces (CardFace: a frame by rarity, the weapon's picture, rank badge and pips, the NEW / RARE
-## +2 / FUSE marks), each the visible part of a frameless Button (same keys, focus, click). They
+## faces (CardFace: a frame by rarity, the weapon's picture, rank badge and pips, the NEW / tier
+## / FUSE marks; M50.6: every card is +1), each the visible part of a frameless Button (same keys, focus, click). They
 ## are dealt face-down and flip in sequence inside the INPUT_DELAY (CardFace.reveal_at; a fade
 ## only under reduce_flashing), so no choice opens earlier or later. The give step and the
 ## replace step show their card's face over the choices; the hand under a pack and the 1-card

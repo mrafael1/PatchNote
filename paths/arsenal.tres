@@ -32,5 +32,6 @@ pack_taste = 2
 epic_chance = 0.05
 pack_first_line = "happy: A pack! {key:open_pack} opens it. No rush."
 pack_stack_line = "thinking: Three packs waiting. {key:open_pack} opens one."
+taste_auto_open = true
 rank_cap = 0
 rank_curve = &"deep"

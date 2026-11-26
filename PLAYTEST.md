@@ -1,3 +1,13 @@
+# Next playtest: M50.6a, readable ribbons (small fixes on M50.6)
+
+What changed since M50.6 (Arcade only):
+- **Card ribbons read right on Pixel.** "COMMON", "RARE" and "EPIC" are drawn letter by letter now ("DOMMON" and "EPID" are gone). The rail's small labels ("PACK", "CURSOR") no longer close their C on a 1280 px window.
+- **The try-out's pack opens by itself again.** In S7's Arcade taste a pack opens when you earn it, as before M50.6. From S8 on packs wait for F; the AI teaches the key at your first S8 pack.
+
+One-liners (defaults taken): any letter still misread on a card or the rail? Should the try-out teach F too?
+
+---
+
 # Next playtest: M50.6, stacked packs and weapon rarity (Arcade)
 
 What is new since M50.5a (Arcade path only; play S7 to S9 as usual):

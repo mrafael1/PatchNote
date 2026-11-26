@@ -347,3 +347,44 @@ func test_every_arsenal_card_draws_its_gun_on_both_looks() -> void:
 				icons.append(d[0])
 			var expect := [c.face.icon_a, c.face.icon_b, c.face.icon] if c.face.style == &"card_fuse" and c.mini == &"" else [c.face.icon]
 			assert_eq(icons, expect, "%s %s on %s: its pictures" % [c.face.title, c.mini, look])
+
+
+## M50.6a: on Pixel the ribbon's word is block capitals drawn as art (RailArt.DIGITS), since the
+## body font closed its C into a D at the ribbon's size ("DOMMON", "EPID"). Every ribbon word has
+## all its letters, C / D / O / G / Q are five different glyphs, and the word fits its box.
+func test_the_pixel_ribbon_is_block_capitals_that_tell_c_from_d() -> void:
+	var seen := {}
+	for ch: String in ["C", "D", "O", "G", "Q"]:
+		assert_true(RailArt.DIGITS.has(ch), "a block %s" % ch)
+		var g: Array = RailArt.DIGITS[ch]
+		assert_eq(g.size(), 7)
+		seen["".join(g)] = true
+	assert_eq(seen.size(), 5, "five different glyphs")
+	var c: Array = RailArt.DIGITS["C"]
+	for y in range(1, 6):
+		assert_eq(String(c[y])[4], ".", "the C is open on its right (row %d)" % y)
+	var f := _faces_all()
+	for word: String in ["COMMON", "RARE", "EPIC", "GOLD CARD"]:
+		for ch in word:
+			assert_true(RailArt.DIGITS.has(ch), "%s: a glyph for '%s'" % [word, ch])
+	for look: StringName in [&"off", &"pixel"]:
+		Skins.use(Skins.pixel() if look == &"pixel" else null)
+		for k: String in ["common", "rare", "epic", "give"]:
+			var card := CardFace.new()
+			card.face = f[k]
+			card.size = CardFace.SIZE
+			add_child_autofree(card)
+			await wait_process_frames(2)
+			var d := card.ribbon_drawn
+			assert_eq(d.get("text", ""), f[k].ribbon, "%s on %s" % [k, look])
+			if look == &"pixel":
+				var cell := float(d.cell)
+				assert_gte(cell, 1.0, "%s: drawn as block capitals" % k)
+				assert_eq(cell, roundf(cell), "whole pixels")
+				var r: Rect2 = d.rect
+				assert_lte(RailArt.digits_width(d.text, cell), r.size.x - 6.0, "%s: the word fits its box" % k)
+				assert_lte(7.0 * cell, r.size.y - 6.0)
+				assert_gte(r.position.x, 0.0, "the box stays on the card")
+			else:
+				assert_eq(float(d.cell), 0.0, "tier 0 keeps the look's font")
+	Skins.use(null)

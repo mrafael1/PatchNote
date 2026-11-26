@@ -84,5 +84,6 @@ static func font_px(s: float) -> int:
 
 
 ## A text size for design px `d` (12, 16, 24...) at scale s, never under 12 (or `d` itself).
+## M50.6a: never a size where the pixel font closes its C (UiTheme.pixel_size: 13 -> 12).
 static func text_px(d: float, s: float) -> int:
-	return maxi(roundi(d * s), mini(int(d), 12))
+	return UiTheme.pixel_size(maxi(roundi(d * s), mini(int(d), 12)))
