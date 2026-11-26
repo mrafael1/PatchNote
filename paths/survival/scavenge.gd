@@ -3,8 +3,8 @@ extends RefCounted
 # path:survival
 ## Survival's pickup rules (PLAN v9 1.5, 1.6, M47), static: what walking over a pickup does
 ## to the Loadout. Same weapon: +1 rank (cap 3) and full ammo. On the sidearm: that weapon at
-## the pickup's rank (a dropped weapon keeps its ammo). A pistol pickup always ranks up the
-## sidearm and never swaps. Another weapon: a swap, the held one drops at the player's feet,
+## the pickup's rank (a dropped weapon keeps its ammo). A pickup of the sidearm's own gun (M47.6d1:
+## the revolver, by the sidearm's id) always ranks up the sidearm and never swaps. Another weapon: a swap, the held one drops at the player's feet,
 ## untouchable until the player has left it. Ammo: +50% of the gun's ammo, capped. Battery:
 ## the passive's battery full again.
 
@@ -34,8 +34,8 @@ static func _weapon(lo: Loadout, p: Pickup, at: Vector2) -> Pickup:
 	var def := WeaponDB.get_weapon(p.weapon_id)
 	if def == null:
 		return null
-	if def.id == Loadout.PISTOL:
-		if lo.sidearm != null and lo.sidearm.rank < Loadout.MAX_RANK:
+	if lo.sidearm != null and def.id == lo.sidearm.def.id:
+		if lo.sidearm.rank < Loadout.MAX_RANK:
 			lo.sidearm.set_rank(lo.sidearm.rank + 1)
 			EventBus.weapon_changed.emit(def.id, lo.sidearm.rank)
 		return null

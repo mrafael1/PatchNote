@@ -6,13 +6,13 @@
 [sub_resource type="Resource" id="take"]
 script = ExtResource("2")
 id = &"arsenal"
-title = "Arsenal"
+title = "Arcade"
 line = "Cards it is. I'll start printing."
 
 [resource]
 script = ExtResource("1")
 id = &"path_arsenal"
-title = "Path: Arsenal (cards)"
+title = "Path: Arcade (cards)"
 pitch = "Cards. Every gun is a card; upgrade the card, upgrade the gun."
 kind = &"path"
 tags = Array[StringName]([&"path"])

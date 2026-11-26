@@ -28,6 +28,11 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var blast_radius := 0.0
 @export var ammo := -1
 @export var pickup_ammo := 0
+## M47.6d1 (PLAN v9.4 0.8, the revolver): rounds per load (0 = no magazine). Empty, the
+## weapon reloads on its own for `reload_s` seconds of game time (a rank field), then is full
+## again; no reload key, and the reserve is `ammo` (-1: endless).
+@export var magazine := 0
+@export var reload_s := 0.0
 @export var color_role: StringName = &"player_shot"   ## used from M48 (Palette)
 @export var icon: StringName = &""                    ## a shape key; F2 label only in M44
 @export var sound: StringName = &"shoot"
@@ -108,6 +113,10 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: cooldown must be > 0" % where)
 	if pellets < 1:
 		out.append("%s: pellets must be >= 1 (passive: the shard count)" % where)
+	if magazine < 0:
+		out.append("%s: magazine must be >= 0 (0 = none)" % where)
+	if magazine > 0 and (reload_s <= 0.0 or is_passive()):
+		out.append("%s: a magazine needs an aimed weapon and reload_s > 0" % where)
 	if title.strip_edges() == "":
 		out.append("%s: no title" % where)
 	if is_fusion():

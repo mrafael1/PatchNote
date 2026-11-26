@@ -11,18 +11,19 @@ const PATHS: Array[StringName] = [&"arsenal", &"auto", &"survival"]
 ## PLAN 3.5's audit for S7-S8: [session, path ("-" any), regex, what it covers]. Each row's
 ## regex must match one of that session's intro or cue strings (or its field, for hp_floor).
 const AUDIT := [
-	["s2_01_tryout", "arsenal", "^at 13: path arsenal ", "Arsenal hand"],
+	["s2_01_tryout", "arsenal", "^at 4: path arsenal ", "Arsenal hand"],
 	["s2_01_tryout", "arsenal", "\\{key:weapon_prev\\} and \\{key:weapon_next\\} to switch", "switching"],
-	["s2_01_tryout", "arsenal", "^at 15: add cards$", "card meter"],
-	["s2_01_tryout", "arsenal", "^at 15: give shotgun$", "weapons (shotgun)"],
-	["s2_01_tryout", "survival", "^at 56: path survival ", "Survival"],
-	["s2_01_tryout", "survival", "^at 58: add pickups$", "drops"],
-	["s2_01_tryout", "survival", "^at 61: drop shotgun$", "swap"],
+	["s2_01_tryout", "arsenal", "^at 6: add cards$", "card meter"],
+	["s2_01_tryout", "arsenal", "^at 6: give shotgun$", "weapons (shotgun)"],
+	["s2_01_tryout", "survival", "^at 40: path survival ", "Survival"],
+	["s2_01_tryout", "survival", "^at 42: add pickups$", "drops"],
+	["s2_01_tryout", "survival", "And a revolver\\. Six shots, then it reloads", "the revolver (M47.6d1)"],
+	["s2_01_tryout", "survival", "^at 45: drop shotgun$", "swap"],
 	["s2_01_tryout", "survival", "Ammo runs out", "sidearm fallback"],
-	["s2_01_tryout", "survival", "^at 74: add kill_heal$", "kill-heal"],
-	["s2_01_tryout", "auto", "^at 99: path auto ", "Auto auto-fire / fire button off"],
-	["s2_01_tryout", "auto", "^at 107: add crowd$", "crowd overlay"],
-	["s2_01_tryout", "auto", "^at 112: add levelups$", "gems / LV"],
+	["s2_01_tryout", "survival", "^at 58: add kill_heal$", "kill-heal"],
+	["s2_01_tryout", "auto", "^at 76: path auto ", "Auto auto-fire / fire button off"],
+	["s2_01_tryout", "auto", "^at 84: add crowd$", "crowd overlay"],
+	["s2_01_tryout", "auto", "^at 89: add levelups$", "gems / LV"],
 	["s2_01_tryout", "-", "hp_floor=1", "hp_floor 1"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 10: add cards$", "card meter"],
 	["s2_02_day_one", "arsenal", "ranks it up\\. Gold ones count twice", "weapon ranks (card text)"],
@@ -32,7 +33,7 @@ const AUDIT := [
 	["s2_02_day_one", "auto", "^answer:path_auto at 14: add crowd$", "crowd overlay"],
 	["s2_02_day_one", "survival", "^answer:path_survival at 10: add pickups$", "drops + crates"],
 	["s2_02_day_one", "survival", "Walk over another gun to swap", "swap"],
-	["s2_02_day_one", "survival", "pistol back", "sidearm fallback"],
+	["s2_02_day_one", "survival", "revolver back\\. It just reloads", "sidearm fallback (M47.6d1: the revolver)"],
 	["s2_02_day_one", "survival", "^answer:path_survival kills 5: add kill_heal$", "kill-heal"],
 	["s2_02_day_one", "-", "^at 30: give shotgun$", "weapons (shotgun)"],
 	["s2_02_day_one", "-", "^at 50: spawn splitter 2$", "splitter"],
@@ -238,7 +239,7 @@ func test_a_session_set_goal_value_replaces_goal_by_path() -> void:
 # --- Per path ------------------------------------------------------------------------------
 
 func test_the_conditioned_intro_and_cues_load_per_path() -> void:
-	var mine := {&"arsenal": "Cards. Today", &"auto": "Auto. Don't touch", &"survival": "Scavenger. You get a pistol"}
+	var mine := {&"arsenal": "Cards. Today", &"auto": "Auto. Don't touch", &"survival": "Scavenger. You get a revolver"}
 	var s := CampaignDB.get_session(S8)
 	for p in PATHS:
 		SaveGame.go_inert()
@@ -254,7 +255,8 @@ func test_the_conditioned_intro_and_cues_load_per_path() -> void:
 					or (c.cond.begins_with("!answer:path_") and c.cond != "!answer:path_%s" % p), "%s: %s" % [p, c.cond])
 		await _s8(p)
 		assert_eq(RunState.live_path(), p)
-		assert_eq(_lo().summary(), "pistol:1", "%s: power stays in its session (pistol:1)" % p)
+		var start := "revolver:1" if p == &"survival" else "pistol:1"   # M47.6d1: Survival's revolver
+		assert_eq(_lo().summary(), start, "%s: power stays in its session (%s)" % [p, start])
 		game.free()
 
 

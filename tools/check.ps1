@@ -162,8 +162,9 @@ if ($BotRuns) {
     # M47: S7 is real now (the cooking screen's asserts became S7's): the three tastes at their
     # seconds, nothing left behind, Stage 2's card (with the cook beat), fork_path asked
     # (Arsenal), v0.8.0; then S8 on Arsenal, the last playable session, v0.8.1, no card.
+    # M47.6d1: S7 quicker (tastes at 4 / 40 / 76 s), ended by its script at 117.1 s (was 152.0).
     if ($camp.Text -match '\[botrun\] cooking:') { $failures += 'bot_campaign: a cooking screen played (nothing cooks after M47)' }
-    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_01_tryout attempt=1 \(invincible\) outcome=stopped t=152\.0 .*choice=next_session .*pick=path_arsenal version=v0\.7\.0->v0\.8\.0 card=2 .*swaps=arsenal@14\.5,survival@57\.5,auto@100\.5,off@144\.5 leftovers=0 end=\w+ spawned=\S+ start=\S+\r?$') { $failures += 'bot_campaign: S7 did not play its three tastes with the Stage 2 card and fork_path' }
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_01_tryout attempt=1 \(invincible\) outcome=stopped t=117\.1 .*choice=next_session .*pick=path_arsenal version=v0\.7\.0->v0\.8\.0 card=2 .*swaps=arsenal@5\.5,survival@41\.5,auto@77\.5,off@111\.5 leftovers=0 end=script spawned=\S+ start=\S+\r?$') { $failures += 'bot_campaign: S7 did not play its three tastes with the Stage 2 card and fork_path' }
     # M48b: S8 now leads to S9 ("Fresh paint", the transformation), the last playable session.
     if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 \(invincible\) outcome=won t=120\.0 .*choice=next_session .*version=v0\.8\.0->v0\.8\.1 path=arsenal ') { $failures += 'bot_campaign: S8 did not play on Arsenal to v0.8.1' }
     if ($camp.Text -match '\[botrun\] session=s2_02_day_one .* card=') { $failures += 'bot_campaign: S8 showed a stage card' }
@@ -202,7 +203,7 @@ if ($BotRuns) {
         if ((Get-FileHash $fixturePath -Algorithm SHA256).Hash -ne $fixtureHash) { $failures += "campaign_door ($fixture): the fixture file changed" }
         $doorFirst = Select-String -Path $door.Log -Pattern '^\[botrun\] (session=|cooking:)' | Select-Object -First 1
         $doorVersion = if ($fixture -eq 'save_m43_owner_shape') { 'v0\.8\.0->v0\.8\.0' } else { 'v0\.7\.0->v0\.8\.0' }
-        if (-not $doorFirst -or $doorFirst.Line -notmatch ('^\[botrun\] session=s2_01_tryout attempt=1 \(invincible\) outcome=stopped t=152\.0 .*version=' + $doorVersion + ' card=2 ')) { $failures += "campaign_door ($fixture): the save did not play S7 with its card at $doorVersion" }
+        if (-not $doorFirst -or $doorFirst.Line -notmatch ('^\[botrun\] session=s2_01_tryout attempt=1 \(invincible\) outcome=stopped t=117\.1 .*version=' + $doorVersion + ' card=2 ')) { $failures += "campaign_door ($fixture): the save did not play S7 with its card at $doorVersion" }
         if ($door.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 .*version=v0\.8\.0->v0\.8\.1 path=') { $failures += "campaign_door ($fixture): S8 did not follow at v0.8.0->v0.8.1" }
         if ($door.Text -match '\[botrun\] session=s2_02_day_one .* card=') { $failures += "campaign_door ($fixture): S8 showed a stage card" }
         if ($door.Text -match '\[botrun\] cooking:') { $failures += "campaign_door ($fixture): a cooking screen played" }
@@ -248,7 +249,9 @@ if ($BotRuns) {
     $s7 = Invoke-Godot 'bot_s7' '--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_01_tryout 3i'
     Test-Errors 'bot_s7' $s7
     Select-String -Path $s7.Log -Pattern '^\[botrun\] (session=s2_01_tryout|tryout:)' | ForEach-Object { Write-Host "    $($_.Line)" }
-    if ($s7.Text -notmatch '(?m)outcome=stopped t=152\.0 .* swaps=arsenal@14\.5,survival@57\.5,auto@100\.5,off@144\.5 leftovers=0 end=\w+ spawned=\S+ start=\S+\r?$') { $failures += 'bot_s7: the three tastes did not swap in place, or something was left behind' }
+    # M47.6d1 (PLAN v9.4 0.8): a quicker S7 (tastes at 4 / 40 / 76 s, off at 110 s), ended by its
+    # script 5 s after the last line (was stop 150 + 2: t=152.0, swaps 14.5 / 57.5 / 100.5 / 144.5).
+    if ($s7.Text -notmatch '(?m)outcome=stopped t=117\.1 .* swaps=arsenal@5\.5,survival@41\.5,auto@77\.5,off@111\.5 leftovers=0 end=script spawned=\S+ start=\S+\r?$') { $failures += 'bot_s7: the three tastes did not swap in place, or something was left behind' }
     if ($s7.Text -notmatch '\[botrun\] summary: s2_01_tryout x1, .* 0 failures') { $failures += 'bot_s7: run failed' }
     # M44-M46's Auto-taste stub lives on as a draft (M47 D5): the same play as before (its
     # !answer:path_auto reactions now read the live path, D30, and the tryout fields follow).

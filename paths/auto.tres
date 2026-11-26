@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"auto"
+title = "AUTO"
 fire_mode = &"auto_all"
 growth = &"levelups"
 start = Array[StringName]([&"pistol"])

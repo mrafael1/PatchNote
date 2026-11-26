@@ -1,3 +1,13 @@
+# Next playtest: M47.6d1, path titles, a quicker S7 and the revolver (Stage 1 rework, part 5)
+
+What is new since M47.6c2 (no extra steps; play as usual):
+- S7 is quicker (about 117 s, was 152 s) and each taste opens with its name in big letters: ARCADE, SURVIVAL, AUTO. The Arsenal path is called "Arcade" on the fork card too (your old answer still counts).
+- Survival has fewer enemies (about two thirds) and you start with a revolver instead of the pistol: strong, slower, six shots, then it reloads by itself. The rounds left show above your square (a small arc while it reloads); a gun you pick up shows its ammo there.
+
+One-liners (defaults taken): the revolver: strong enough, too slow? Fewer enemies on Survival: enough? The title cards: too big, too short?
+
+---
+
 # Next playtest: M47.6c2, no reload between sessions (Stage 1 rework, part 4)
 
 What is new since M47.6c1 (no extra steps; play as usual):

@@ -93,7 +93,7 @@ func _draw_weapon() -> StringName:
 		var w := lo.held(id) if lo != null else null
 		if w != null and w.rank >= Loadout.MAX_RANK:
 			continue
-		if id == Loadout.PISTOL and lo != null and not lo.on_sidearm():
+		if lo != null and lo.sidearm != null and id == lo.sidearm.def.id and not lo.on_sidearm():
 			continue
 		pool.append(id)
 	if pool.is_empty():

@@ -37,6 +37,8 @@ extends Node
 ## locked, no pack opens), then the AI patches it (a patch-note line).
 
 signal started(path_id: StringName)
+## M47.6d1: a `path` cue landed (its warning starts): the title card (PathTitle) shows.
+signal swap_requested(path_id: StringName)
 
 const Gems := preload("res://paths/auto/gems.gd")
 const LevelMeter := preload("res://paths/auto/level_meter.gd")
@@ -46,6 +48,7 @@ const PackMeter := preload("res://paths/arsenal/pack_meter.gd")
 const HandWidget := preload("res://paths/arsenal/hand_widget.gd")
 const Drops := preload("res://paths/survival/drops.gd")
 const AmmoWidget := preload("res://paths/survival/ammo_widget.gd")
+const AmmoOverheadScript := preload("res://paths/survival/ammo_overhead.gd")
 const SWAP_WARN_SECONDS := 1.5
 ## M50.1a: owed packs never open back to back: at least this much game time between two.
 const PACK_GAP := 2.0
@@ -105,6 +108,9 @@ var fuse_ready_count := 0
 var link_lit_ticks := 0
 ## M50.1b: the misfuse ({} none): {t, pair, restored}.
 var misfuse := {}
+## M47.6d1: the last title card shown (PathTitle) and every title shown, in order (tests).
+var title_card: PathTitle
+var titles_shown: Array[String] = []
 
 var _gems: Node
 var _meter: RefCounted
@@ -119,6 +125,7 @@ var _opening := false
 var _stopped := false
 var _fade: CanvasLayer
 var _drops: Node
+var _overhead: Node2D       ## M47.6d1: Survival's rounds over the player (AmmoOverhead)
 var _sweep_tick := -1      ## the physics frame after a swap: the second sweep
 var _check_tick := -1      ## the frame after that: the leftovers check
 ## M47 review: what the swap's two sweeps removed (weak refs). The check a frame later
@@ -221,6 +228,11 @@ func meter() -> RefCounted:
 	return _meter
 
 
+## M47.6d1: Survival's ammo over the player (null on other paths).
+func overhead() -> Node2D:
+	return _overhead if is_instance_valid(_overhead) else null
+
+
 func widget() -> Control:
 	return _widget
 
@@ -252,7 +264,24 @@ func request_swap(target: StringName, warn: Line = null) -> bool:
 	_swap_target = target
 	_swap_tick = _tick + roundi(SWAP_WARN_SECONDS * Engine.physics_ticks_per_second)
 	RunState.log_event(&"path_requested", {"to": String(target)})
+	swap_requested.emit(target)
+	_show_title(to)
 	return true
+
+
+## M47.6d1: the target's title card on the HUD layer (none for `off`).
+func _show_title(to: PathDef) -> void:
+	if to == null or to.title == "":
+		return
+	if is_instance_valid(title_card):
+		title_card.queue_free()
+	title_card = PathTitle.make(to.title)
+	titles_shown.append(to.title)
+	var hud: Node = game.get(&"hud") if game != null else null
+	if hud != null:
+		hud.add_child(title_card)
+	else:
+		add_child(title_card)
 
 
 ## Swaps now (the cue's landing, F2): player shots and pickups go (enemies stay), the path
@@ -318,13 +347,15 @@ func leftovers() -> Array[String]:
 		out.append("gems")
 	if is_instance_valid(_drops) and growth != &"pickups":
 		out.append("drops")
+	if is_instance_valid(_overhead) and not _overhead.is_queued_for_deletion() and growth != &"pickups":
+		out.append("overhead")
 	if _meter != null and growth == &"":
 		out.append("meter")
 	if is_instance_valid(_widget) and (def == null or not _widget_fits()):
 		out.append("widget")
 	if EventBus.enemy_killed.is_connected(_on_enemy_killed) and growth != &"cards":
 		out.append("card_feed")
-	if RunState.ai_owner.values().has(&"path") and (def == null or not &"crowd" in def.basics):
+	if RunState.ai_owner.values().has(&"path") and not _crowd_wanted():
 		out.append("crowd")
 	var lo := loadout()
 	if lo != null:
@@ -333,6 +364,17 @@ func leftovers() -> Array[String]:
 		if lo.summary() != want:
 			out.append("loadout")
 	return out
+
+
+## The path's crowd numbers apply: Auto's once its `crowd` basic is live (D6, M46); M47.6d1: a
+## path with no crowd basic whose numbers differ from 1 (Survival's smaller crowd) from its
+## start. Arsenal (all 1.0) never has one.
+func _crowd_wanted() -> bool:
+	if def == null:
+		return false
+	if &"crowd" in def.basics:
+		return Unlocks.has_basic(&"crowd")
+	return def.spawn_rate_mult != 1.0 or def.max_enemies_mult != 1.0 or def.enemy_hp_mult != 1.0
 
 
 func _widget_fits() -> bool:
@@ -385,7 +427,7 @@ func _grow() -> void:
 			and Unlocks.has_basic(&"quick_draw"):
 		lo.quick_draw_mult = def.quick_draw_mult
 	# The crowd overlay only on its own path (D6, M46): outside a session every basic is on.
-	if _overlay == null and &"crowd" in def.basics and Unlocks.has_basic(&"crowd"):
+	if _overlay == null and _crowd_wanted():
 		_overlay = PathOverlay.make(def)
 		if not RunState.add_ai(_overlay, &"path"):
 			_overlay = null
@@ -408,6 +450,12 @@ func _grow_survival() -> void:
 			hud.set_path_widget(_widget)
 		else:
 			add_child(_widget)
+		var lo := loadout()
+		if lo != null and lo.get_parent() is Node2D:
+			_overhead = AmmoOverheadScript.new()
+			_overhead.name = "AmmoOverhead"
+			_overhead.set(&"loadout", lo)
+			lo.get_parent().add_child(_overhead)
 	if &"pickups" in def.basics and Unlocks.has_basic(&"pickups"):
 		_drops.arm_pickups()
 	if &"kill_heal" in def.basics and Unlocks.has_basic(&"kill_heal"):
@@ -496,6 +544,9 @@ func _clear_growth() -> void:
 		remove_child(_drops)   # its kill listener goes now (_exit_tree), not at frame end
 		_drops.queue_free()
 	_drops = null
+	if is_instance_valid(_overhead):
+		_overhead.queue_free()
+	_overhead = null
 	_meter = null
 	if is_instance_valid(_widget):
 		_widget.queue_free()
@@ -587,16 +638,23 @@ func give(w: StringName, rank := 1) -> bool:
 
 
 ## What offers draw from: the live pool, within the session's weapons and the path's extras.
+## M47.6d1: on a manual_ammo path whose sidearm is not the pistol (Survival's revolver), a
+## pistol in the pool is that sidearm (S7's Arcade taste put the pistol there), once.
 func offer_pool() -> Array[StringName]:
 	var allowed: Array[StringName] = []
 	if RunState.session != null:
 		allowed.append_array(RunState.session.weapons)
 	if def != null:
 		allowed.append_array(def.offer_pool_extra)
+	var side: StringName = &""
+	if def != null and def.fire_mode == &"manual_ammo" and not def.start.is_empty() and def.start[0] != Loadout.PISTOL:
+		side = def.start[0]
 	var out: Array[StringName] = []
 	for w in live_pool:
 		if RunState.session == null or w in allowed:
-			out.append(w)
+			var id := side if side != &"" and w == Loadout.PISTOL else w
+			if not id in out:
+				out.append(id)
 	return out
 
 

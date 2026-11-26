@@ -13,13 +13,17 @@ const OWNER_FIXTURE := "res://tests/gut/save_m43_owner_shape.json"
 const M42_FIXTURE := "res://tests/gut/save_m42_2_stage1_end.json"
 const S7 := &"s2_01_tryout"
 const S8 := &"s2_02_day_one"
-## D1: the cue times (the swap lands 1.5 s after its cue).
-const TIMES := [[13.0, &"path", &"arsenal"], [15.0, &"add", &"cards"], [15.0, &"give", &"shotgun"],
-		[17.0, &"say", &""], [52.0, &"say", &""], [56.0, &"path", &"survival"], [58.0, &"add", &"pickups"],
-		[61.0, &"drop", &"shotgun"], [61.0, &"say", &""], [74.0, &"add", &"kill_heal"], [74.0, &"say", &""],
-		[95.0, &"say", &""], [99.0, &"path", &"auto"], [103.0, &"say", &""], [107.0, &"add", &"crowd"],
-		[107.0, &"say", &""], [112.0, &"add", &"levelups"], [112.0, &"say", &""], [128.0, &"say", &""],
-		[143.0, &"path", &"off"], [145.0, &"say", &""]]
+## D1: the cue times (the swap lands 1.5 s after its cue). M47.6d1 (PLAN v9.4 0.8, "a bit
+## quicker"): the tastes at 4 / 40 / 76 s, off at 110 s, the last line at 112 s (was 13 / 56 /
+## 99 / 143 / 145); each cue keeps its place in its taste, except the two "Saving" lines at
+## 36 / 73 s (the design's 38 / 74 ran into the swap warnings, test_dash_aim) and the intro, now
+## said in the chat before play (12 s of intro could not fit before the 4 s cue).
+const TIMES := [[4.0, &"path", &"arsenal"], [6.0, &"add", &"cards"], [6.0, &"give", &"shotgun"],
+		[8.0, &"say", &""], [36.0, &"say", &""], [40.0, &"path", &"survival"], [42.0, &"add", &"pickups"],
+		[42.0, &"say", &""], [45.0, &"drop", &"shotgun"], [45.0, &"say", &""], [58.0, &"add", &"kill_heal"],
+		[58.0, &"say", &""], [73.0, &"say", &""], [76.0, &"path", &"auto"], [80.0, &"say", &""],
+		[84.0, &"add", &"crowd"], [84.0, &"say", &""], [89.0, &"add", &"levelups"], [89.0, &"say", &""],
+		[105.0, &"say", &""], [110.0, &"path", &"off"], [112.0, &"say", &""]]
 
 var game: Main
 
@@ -85,8 +89,9 @@ func test_s7_is_real_valid_and_playable() -> void:
 	assert_false(s.is_cooking())
 	assert_false(FileAccess.get_file_as_string("res://campaign/sessions/s2_01_tryout.tres").contains("cooking ="),
 			"the cooking line is deleted (M43.2 obligation)")
-	assert_eq([s.stage, s.goal, s.goal_value, s.hp_floor, s.tryout, s.face, s.bump, s.fork],
-			[2, SessionDef.STOP, 150.0, 1, true, true, &"minor", &"fork_path"])
+	assert_eq([s.stage, s.goal, s.end_after, s.hp_floor, s.tryout, s.face, s.bump, s.fork],
+			[2, SessionDef.SCRIPT, 5.0, 1, true, true, &"minor", &"fork_path"], "M47.6d1: a script ending")
+	assert_eq(s.enemy_total, -1, "no fixed set: the crowd belongs to each taste")
 	assert_eq(s.cook_beat, PackedStringArray(["Trying three kinds of shooter...", "Compiling... mostly.",
 			"One of them is on fire.", "Done. Mostly."]))
 	assert_eq(s.after_pick_lines().map(func(l: Line) -> String: return l.text),
@@ -113,7 +118,7 @@ func test_each_path_cue_carries_its_own_warning() -> void:
 		if c.action == &"path" and c.line != null:
 			warns[c.target] = c.line.text
 	assert_eq(warns, {&"arsenal": "Version one. Your guns are cards.",
-			&"survival": "Version two. No cards. Guns are lying around.",
+			&"survival": "Version two. Guns lying around.",
 			&"auto": "Version three. Hands off the trigger."})
 
 
@@ -122,13 +127,89 @@ func test_each_path_cue_carries_its_own_warning() -> void:
 func test_the_arsenal_cue_warns_with_its_line_and_lands_1_5_s_later() -> void:
 	await _game(S7)
 	var r := game.path_runner
-	game.run_loop.goal_clock = 12.99
+	game.run_loop.goal_clock = 3.99
 	await wait_physics_frames(2)
-	assert_true(r.swap_pending(), "the cue fired at 13 s")
+	assert_true(r.swap_pending(), "the cue fired at 4 s")
 	assert_true(r.said.has("Version one. Your guns are cards."), "its own warning")
 	assert_eq(RunState.live_path(), &"", "not yet")
 	await wait_physics_frames(roundi(PathRunner.SWAP_WARN_SECONDS * 60) + 1)
 	assert_eq(RunState.live_path(), &"arsenal")
+
+
+# --- M47.6d1: the path titles, Arcade, the revolver's pool --------------------------------------
+
+func test_each_path_has_its_title() -> void:
+	var got := {}
+	for id in PathDB.ids():
+		got[id] = PathDB.get_def(id).title
+	assert_eq(got, {&"arsenal": "ARCADE", &"auto": "AUTO", &"survival": "SURVIVAL"})
+	var bad := PathDB.get_def(&"auto").duplicate() as PathDef
+	bad.title = ""
+	assert_string_contains("\n".join(bad.problems(&"auto")), "no title")
+
+
+func test_each_taste_cue_shows_its_title_card_over_the_warning() -> void:
+	await _game(S7)
+	var r := game.path_runner
+	for c in CampaignDB.get_session(S7).cue_list():
+		if c.action == &"path":
+			game.run_loop.goal_clock = c.value - 0.01
+			await wait_physics_frames(2)
+			if c.target == &"off":
+				assert_eq(r.titles_shown.size(), 3, "off shows no title")
+				continue
+			assert_true(is_instance_valid(r.title_card), "%s: a card" % c.target)
+			assert_eq(r.title_card.text, PathDB.get_def(c.target).title)
+			assert_eq(r.title_card.get_parent(), game.hud, "on the HUD layer")
+			assert_lt(r.title_card.total(), PathRunner.SWAP_WARN_SECONDS, "inside the warning")
+			await wait_physics_frames(roundi(PathRunner.SWAP_WARN_SECONDS * 60) + 2)
+			assert_false(is_instance_valid(r.title_card) and not r.title_card.is_queued_for_deletion(), "gone by the swap")
+	assert_eq(r.titles_shown, ["ARCADE", "SURVIVAL", "AUTO"] as Array[String])
+
+
+func test_the_title_card_fades_and_pops_only_without_reduce_flashing() -> void:
+	var card := PathTitle.make("ARCADE")
+	add_child_autofree(card)
+	assert_almost_eq(card.alpha_at(0.0), 0.0, 0.001)
+	assert_almost_eq(card.alpha_at(0.5), 1.0, 0.001)
+	assert_almost_eq(card.alpha_at(card.total()), 0.0, 0.001)
+	card.t = 0.05
+	card._apply()
+	assert_gt(card.scale.x, 1.0, "a small settle")
+	var calm := PathTitle.make("AUTO")
+	calm.gentle = true
+	add_child_autofree(calm)
+	calm.t = 0.05
+	calm._apply()
+	assert_eq(calm.scale, Vector2.ONE, "reduce flashing: a fade, no scale pop")
+
+
+func test_the_fork_card_says_arcade_and_keeps_its_id() -> void:
+	var c := ChangeDB.get_change(&"path_arsenal")
+	assert_eq([c.id, c.title], [&"path_arsenal", "Path: Arcade (cards)"])
+	assert_eq([c.take.id, c.take.title], [&"arsenal", "Arcade"], "the pick matches the title the player saw")
+	SaveGame.go_inert()
+	assert_true(CampaignDB.answer_fork(&"fork_path", &"path_arsenal"))
+	assert_eq(CampaignDB.get_session(S8).resolve(&"path"), &"arsenal", "the answer still names arsenal")
+
+
+func test_no_revolver_in_arcade_or_auto_offers_after_the_survival_taste() -> void:
+	await _game(S7)
+	var r := game.path_runner
+	r.swap_now(&"arsenal")
+	await wait_physics_frames(2)
+	assert_true(&"pistol" in r.live_pool)
+	r.swap_now(&"survival")
+	await wait_physics_frames(2)
+	assert_eq(r.loadout().sidearm.def.id, &"revolver", "the revolver in the Survival taste")
+	assert_true(&"revolver" in r.offer_pool())
+	assert_false(&"pistol" in r.offer_pool(), "Survival never offers or drops a pistol")
+	for p: StringName in [&"auto", &"arsenal"]:
+		r.swap_now(p)
+		await wait_physics_frames(2)
+		assert_false(&"revolver" in r.offer_pool(), "%s after the Survival taste: no revolver" % p)
+		assert_eq(r.loadout().summary(), "pistol:1", "%s starts on the pistol" % p)
+	assert_eq(r.leftover_checks.filter(func(l: Array) -> bool: return not l.is_empty()), [], "nothing left behind")
 
 
 func test_nothing_is_left_behind_after_each_swap() -> void:
@@ -336,22 +417,24 @@ func test_the_tastes_level_on_their_taste_lists() -> void:
 	assert_eq(PathDB.get_def(&"auto").threshold(2, true), -1)
 
 
-func test_the_stop_ends_s7_at_152_s() -> void:
+## M47.6d1: the script ends S7 5 s of game time after its last `at` cue (112 s): about 117 s.
+func test_the_script_ends_s7_5_s_after_its_last_cue() -> void:
 	await _game(S7)
 	var loop := game.run_loop
-	assert_eq(loop.goal, SessionDef.STOP)
-	assert_eq(loop.goal_value, 150.0)
-	loop.goal_clock = 149.99
+	assert_eq(loop.goal, SessionDef.SCRIPT)
+	loop.goal_clock = 111.9
 	await wait_physics_frames(2)
-	assert_true(loop.stop_said, "the AI stops it at 150 s")
-	assert_eq(loop.phase, RunLoop.PLAY, "the read beat first")
-	loop.goal_clock = 151.9
-	await wait_physics_frames(1)
-	assert_eq(loop.phase, RunLoop.PLAY, "still reading just before 152")
-	loop.goal_clock = 152.0 - 0.5 / 60.0
-	await wait_physics_frames(1)
+	assert_false(loop.script_done(), "the 112 s line is still to come")
+	loop.goal_clock = 112.0
+	await wait_physics_frames(2)
+	assert_true(loop.script_done(), "every `at` cue fired")
+	assert_gt(loop.script_done_at, 0.0, "the window is open")
+	await wait_physics_frames(roundi(4.8 * 60))
+	assert_eq(loop.phase, RunLoop.PLAY, "the 5 s tail first (the crowd keeps coming: no budget)")
+	assert_gt(RunState.count(&"enemy"), 0, "S7 keeps spawning through its tail")
+	await wait_physics_frames(30)
 	assert_eq(loop.outcome, RunLoop.STOPPED, "it ends")
-	assert_almost_eq(loop.goal_clock, 152.0, 0.02, "at 152.0 s")
+	assert_eq(loop.end_reason, &"script")
 
 
 # --- The cook beat on the stage card (D2) -------------------------------------------------
@@ -515,7 +598,7 @@ func test_the_s7_debrief_asks_fork_path_then_the_take_and_the_drawer_line() -> v
 	assert_false(SaveGame.has_shipped(&"path_arsenal"), "nothing ships before the debrief closes")
 	assert_eq(d.choices(), [DebriefScreen.NEXT])
 	assert_string_contains(DebriefScreen.notes_text(d.session, d.picked), "The shooter, three ways")
-	assert_string_contains(DebriefScreen.notes_text(d.session, d.picked), "Path: Arsenal (cards)")
+	assert_string_contains(DebriefScreen.notes_text(d.session, d.picked), "Path: Arcade (cards)")
 
 
 # --- Telemetry (D18) -------------------------------------------------------------------------

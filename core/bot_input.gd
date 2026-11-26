@@ -322,7 +322,7 @@ static func _would_bounce(lo: Loadout, p: Pickup, dropped: StringName) -> bool:
 	if lo == null or p.pickup_kind != &"weapon" or lo.on_sidearm():
 		return false
 	var w := lo.current()
-	if w == null or w.def.id == p.weapon_id or p.weapon_id == Loadout.PISTOL:
+	if w == null or w.def.id == p.weapon_id or (lo.sidearm != null and p.weapon_id == lo.sidearm.def.id):
 		return false
 	var def := WeaponDB.get_weapon(p.weapon_id)
 	if def == null or def.is_passive():
