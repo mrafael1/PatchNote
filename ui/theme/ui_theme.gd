@@ -113,6 +113,32 @@ static func mono_font() -> Font:
 	return _mono
 
 
+## M48.5a: the version rail's pixel font (Pixelify Sans, SIL OFL 1.1, ui/rail/font/OFL.txt),
+## unsmoothed so its pixels stay square; "bold" is its wght 500 (600-700 smear a C into an O at
+## 16 px). Glyphs it lacks (· — ▌ ∞ ●) fall back to the mono font. Only the rail (and the
+## terminal it dresses) uses it.
+const PIXEL_FONT := "res://ui/rail/font/PixelifySans.ttf"
+static var _pixel := {}
+
+
+static func pixel_font(bold := false) -> Font:
+	if not _pixel.has(bold):
+		var base := load(PIXEL_FONT) as FontFile
+		if base == null:
+			return mono_font()
+		base.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+		base.hinting = TextServer.HINTING_NONE
+		base.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+		base.generate_mipmaps = false
+		var v := FontVariation.new()
+		v.base_font = base
+		if bold:
+			v.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 500}
+		v.fallbacks = [mono_font()]
+		_pixel[bold] = v
+	return _pixel[bold]
+
+
 ## A key chip Label ("1", "Enter"): the KeyChip variation.
 static func key_chip(text: String) -> Label:
 	var l := Label.new()

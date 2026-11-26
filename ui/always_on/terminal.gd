@@ -33,8 +33,12 @@ const SPINNER_ASCII: Array[String] = ["|", "/", "-", "\\"]
 const MARKER := "▌"
 const CUT := " —"
 
-## &"raw" now; M48.5's polished panel plugs in here.
+## &"raw", or &"rail" while the version rail's chat dresses it (M48.5a, set_dresser).
 var style: StringName = &"raw"
+## M48.5a: the version rail's chat (ui/rail/rail_chat.gd) while the rail shows: the colours, the
+## pixel font and an empty back (the rail draws the paper, the spine and the slips behind the
+## rows); null is the raw panel. Rows, their labels and every caller stay as they are.
+var dresser: RefCounted = null
 ## M47.5b (PLAN v9.3 2.9, D15): &"raw" or &"pixel" (S9's `ui` reveal on: colours only; the
 ## font, the layout and the frame stay raw until M48.5).
 var palette_name: StringName = &"raw"
@@ -133,10 +137,15 @@ static func pixel_colors() -> Dictionary:
 ## Every row already shown takes the new colours too.
 func dress() -> void:
 	var want: StringName = &"pixel" if Skins.is_on(&"ui_panel") else &"raw"
+	if dresser != null:
+		want = &"rail"
 	if want == palette_name:
 		return
 	palette_name = want
-	colors = pixel_colors() if want == &"pixel" else raw_colors()
+	if want == &"rail":
+		colors = dresser.call(&"chat_colors")
+	else:
+		colors = pixel_colors() if want == &"pixel" else raw_colors()
 	_style_back()
 	if _title != null:
 		_tint(_title, &"dim")
@@ -160,6 +169,9 @@ func col(tone: StringName) -> Color:
 
 
 func _style_back() -> void:
+	if dresser != null:
+		add_theme_stylebox_override(&"panel", dresser.call(&"back_style"))
+		return
 	var box := StyleBoxFlat.new()
 	box.bg_color = col(&"bg")
 	box.border_color = col(&"rule")
@@ -187,7 +199,7 @@ func _retint(l: Label) -> void:
 func set_font_size(px: int) -> void:
 	_font_size = px
 	var t := Theme.new()
-	t.default_font = UiTheme.mono_font()
+	t.default_font = UiTheme.mono_font() if dresser == null else dresser.call(&"font")
 	t.default_font_size = px
 	t.set_constant(&"line_spacing", &"Label", LINE_SPACING)
 	theme = t
@@ -195,6 +207,28 @@ func set_font_size(px: int) -> void:
 
 func font_size() -> int:
 	return _font_size
+
+
+## M48.5a: the rail's chat dresses (d) or undresses (null) this panel; the rows stay.
+func set_dresser(d: RefCounted) -> void:
+	if d == dresser:
+		return
+	if dresser != null:
+		dresser.call(&"detach", self)
+	dresser = d
+	style = &"rail" if d != null else &"raw"
+	palette_name = &""   # dress() re-applies: the rail's, the Pixel or the raw colours
+	dress()
+	set_font_size(_font_size)
+	if _title != null:
+		_title.visible = d == null
+	if d != null:
+		d.call(&"attach", self)
+
+
+## M48.5a: every row node, oldest first (the rail's chat and reply read them).
+func row_nodes() -> Array[Node]:
+	return _list.get_children() if _list != null else ([] as Array[Node])
 
 
 ## The first line: "patchnotes  dev console  v0.1.0".

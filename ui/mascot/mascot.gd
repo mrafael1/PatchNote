@@ -141,6 +141,18 @@ static func bubble_width(text: String, font_size := FONT_SIZE, max_w := BUBBLE_M
 	return clampf(w + 4.0, 24.0, max_w)
 
 
+## M48.5a: the version rail docks the corner body while it shows (the AI sits on the rail in
+## the chat instead, ui/rail/rail_blob.gd mirrors this body): only the corner hides; the queue,
+## the timing and the signals run on.
+func set_docked(on: bool) -> void:
+	if _corner != null:
+		_corner.visible = not on
+
+
+func docked() -> bool:
+	return _corner != null and not _corner.visible
+
+
 ## Body or caret: face false (before fork_mascot) shows the caret whatever the id.
 func setup(p_face: bool, p_body_id: StringName) -> void:
 	face = p_face

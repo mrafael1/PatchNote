@@ -63,6 +63,11 @@ var chapter := false
 ## M47.5b: a gameplay input since the last swap (the death countdown restarts only then).
 var played := false
 var asking_first_run := false   ## the installer's question waits for 1 / 2
+## M48.5a: the version rail (ui/rail/), the Pixel look's UI style: built on first need, shown
+## while the look's `ui` group is on and no stage card is up (RailFrame.wanted). Off, the raw
+## terminal and HUD stay exactly as before.
+var rail: RailFrame
+var rail_base_set := false        ## the window took the rail's base (once per host, rail_window)
 var _chapter_rows := false      ## the session's rows wait (for the card to close, or the installer's answer)
 
 
@@ -137,6 +142,7 @@ func _ready() -> void:
 	if is_live():
 		_set_window(true)
 	get_viewport().size_changed.connect(relayout.bind(Vector2.ZERO))
+	Skins.hub.skin_changed.connect(_on_rail_skin)
 	relayout()
 	if _pending != null:
 		var g := _pending
@@ -152,6 +158,8 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if Skins.hub.skin_changed.is_connected(_on_rail_skin):
+		Skins.hub.skin_changed.disconnect(_on_rail_skin)
 	if _window_set:
 		_set_window(false)
 	if held or RunState.is_paused_for(HANDOFF):   # M47.5a review: never leak to the next scene
@@ -178,7 +186,7 @@ func _set_window(on: bool) -> void:
 		_prev_aspect = root.content_scale_aspect
 		_prev_size = root.content_scale_size
 		root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
-		Settings.set_window_base(BASE)
+		Settings.set_window_base(RailLayout.BASE if rail != null and rail.on else BASE)
 		_window_set = true
 	else:
 		root.content_scale_mode = _prev_mode
@@ -195,7 +203,7 @@ func relayout(window := Vector2.ZERO) -> void:
 		return
 	if window == Vector2.ZERO:
 		window = get_viewport().get_visible_rect().size
-	layout = layout_for(window, chapter)
+	layout = rail.layout_for(window) if rail != null and rail.on else layout_for(window, chapter)
 	var g: Rect2 = layout.game
 	# The viewport first: with stretch off, the container's minimum size is the viewport's, so
 	# shrinking the window (1080p back to the base) would keep the old, larger column.
@@ -211,6 +219,35 @@ func relayout(window := Vector2.ZERO) -> void:
 	terminal.visible = t.size.x >= 1.0 and not chapter
 	if terminal.font_size() != int(layout.font):
 		terminal.set_font_size(int(layout.font))
+	if rail != null and rail.on:
+		rail.apply_layout(layout)
+
+
+# --- The version rail (M48.5a) ---------------------------------------------------------------
+
+func _sync_rail() -> void:
+	rail = RailFrame.sync(self, rail)
+
+
+func _on_rail_skin(_skin: ArtSkin) -> void:
+	_sync_rail()
+
+
+## The rail turned on or off. Review: a live, windowed host takes the rail's 16:9 base
+## (1600x900) once, the first time the rail shows, kept centred where the window was; after
+## that nothing moves or resizes the window (stage cards, S9's retries, F10 off): both layouts
+## letterbox into whatever size the player has. Tools and tests never resize.
+func rail_window(on: bool) -> void:
+	if not on or not _window_set or rail_base_set:
+		return
+	rail_base_set = true
+	var live := Settings.window_applies() and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED
+	var was_pos := DisplayServer.window_get_position() if live else Vector2i.ZERO
+	var was_size := DisplayServer.window_get_size() if live else Vector2i.ZERO
+	Settings.set_window_base(RailLayout.BASE)
+	Settings.apply()
+	if live:
+		DisplayServer.window_set_position(was_pos + (was_size - DisplayServer.window_get_size()) / 2)
 
 
 ## The game column's rect in this host's coordinates.
@@ -227,6 +264,7 @@ func _attach(g: Main) -> void:
 	game = g
 	played = false
 	terminal.dress()   # M47.5b: the look's ui group (S9's reveal on) recolours the terminal
+	_sync_rail()
 	if g.stage_card != null and g.stage_card.is_open():
 		_enter_chapter(g.stage_card)
 		return
@@ -248,6 +286,7 @@ func _enter_chapter(card: StageCard) -> void:
 		terminal.close_cmd("ok")
 		_reload_row = ""
 	card.closed.connect(_exit_chapter.bind(card), CONNECT_ONE_SHOT)
+	_sync_rail()
 	relayout()
 
 
@@ -255,6 +294,7 @@ func _exit_chapter(_card: StageCard) -> void:
 	if not chapter:
 		return
 	chapter = false
+	_sync_rail()
 	relayout()
 	var s := RunState.session
 	if s != null:
@@ -332,6 +372,8 @@ func _swap() -> void:
 		return
 	var old := game
 	game = null
+	if rail != null:
+		rail.unbind()
 	if old != null and is_instance_valid(old):
 		if old.get_parent() == viewport:
 			viewport.remove_child(old)
