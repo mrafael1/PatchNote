@@ -210,6 +210,19 @@ func goal_shown() -> String:
 var path_widget: Control
 
 
+## M48.5a: the version rail docks the HUD while it shows: its modules carry HP, the version,
+## the dash and the path widget, so the corner text and the widget hide (the widget keeps
+## running: the rail reads the hand's misfuse). The goal, the gauge and the banner stay.
+var docked := false
+
+
+func set_docked(on: bool) -> void:
+	docked = on
+	_label.visible = not on
+	if is_instance_valid(path_widget):
+		path_widget.visible = not on
+
+
 func set_path_widget(widget: Control) -> void:
 	if is_instance_valid(path_widget) and path_widget != widget:
 		path_widget.queue_free()
@@ -218,6 +231,8 @@ func set_path_widget(widget: Control) -> void:
 		if widget.get_parent() != null:
 			widget.get_parent().remove_child(widget)
 		add_child(widget)
+	if widget != null and docked:
+		widget.visible = false
 	if widget != null and is_inside_tree():
 		layout_path_widget(get_viewport().get_visible_rect().size)
 

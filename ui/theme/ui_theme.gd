@@ -113,6 +113,73 @@ static func mono_font() -> Font:
 	return _mono
 
 
+## M48.5a: the version rail's pixel font (Pixelify Sans, SIL OFL 1.1, ui/rail/font/OFL.txt),
+## unsmoothed so its pixels stay square; "bold" is its wght 500 (600-700 smear a C into an O at
+## 16 px). Glyphs it lacks (· — ▌ ∞ ●) fall back to the mono font. Only the rail (and the
+## terminal it dresses) uses it.
+const PIXEL_FONT := "res://ui/rail/font/PixelifySans.ttf"
+static var _pixel := {}
+
+
+static func pixel_font(bold := false) -> Font:
+	if not _pixel.has(bold):
+		var base := load(PIXEL_FONT) as FontFile
+		if base == null:
+			return mono_font()
+		base.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+		base.hinting = TextServer.HINTING_NONE
+		base.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+		base.generate_mipmaps = false
+		var v := FontVariation.new()
+		v.base_font = base
+		if bold:
+			v.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 500}
+		v.fallbacks = [mono_font()]
+		# M48.5b: 0-9 come first from the rail's own pixel digits (owner nit: Pixelify's 2 read
+		# as an 8 at the rail's sizes); every other glyph falls through to Pixelify.
+		var top := FontVariation.new()
+		top.base_font = pixel_digits(base, v, bold)
+		top.fallbacks = [v, mono_font()]
+		_pixel[bold] = top
+	return _pixel[bold]
+
+
+## M48.5b: the digits 0-9 as a code-drawn bitmap font (RailArt.small_digit: whole-pixel strokes
+## stretched to the font's digit height), one cache per size from DIGIT_SIZES (a size outside
+## it falls back to Pixelify's own digits). Ascent, descent and each digit's advance are
+## Pixelify's at that size, so every line height and text width stays the same.
+const DIGIT_SIZES := Vector2i(6, 96)
+
+
+static func pixel_digits(base: FontFile, metrics: Font, bold: bool) -> FontFile:
+	var ff := FontFile.new()
+	ff.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+	ff.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+	ff.generate_mipmaps = false
+	ff.fixed_size = 0
+	for size in range(DIGIT_SIZES.x, DIGIT_SIZES.y + 1):
+		var key := Vector2i(size, 0)
+		ff.set_cache_ascent(0, size, metrics.get_ascent(size))
+		ff.set_cache_descent(0, size, metrics.get_descent(size))
+		var h := RailArt.small_digit_h(size, bold)
+		var w := RailArt.small_digit_w(size, bold)
+		var img := Image.create(w * 10 + 20, h + 2, false, Image.FORMAT_RGBA8)
+		for i in 10:
+			var ch := str(i)
+			var x0 := 1 + i * (w + 2)
+			for r in RailArt.small_digit(ch, size, bold):
+				img.fill_rect(Rect2i(Vector2i(x0, 1) + Vector2i(r.position), Vector2i(r.size)), Color.WHITE)
+			var glyph := ch.unicode_at(0)
+			var adv := metrics.get_char_size(glyph, size).x
+			ff.set_glyph_advance(0, size, glyph, Vector2(adv, 0))
+			ff.set_glyph_offset(0, key, glyph, Vector2(roundf((adv - w) * 0.5), -h))
+			ff.set_glyph_size(0, key, glyph, Vector2(w, h))
+			ff.set_glyph_uv_rect(0, key, glyph, Rect2(x0, 1, w, h))
+			ff.set_glyph_texture_idx(0, key, glyph, 0)
+		ff.set_texture_image(0, key, 0, img)
+	return ff
+
+
 ## M47.6b: the dev desktop's and the dev-chat's sans font, made in code like mono_font().
 static var _sans: SystemFont
 static var _sans_bold: SystemFont

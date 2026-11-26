@@ -142,6 +142,18 @@ static func bubble_width(text: String, font_size := FONT_SIZE, max_w := BUBBLE_M
 	return clampf(w + 4.0, 24.0, max_w)
 
 
+## M48.5a: the version rail docks the corner body while it shows (the AI sits on the rail in
+## the chat instead, ui/rail/rail_blob.gd mirrors this body): only the corner hides; the queue,
+## the timing and the signals run on.
+func set_docked(on: bool) -> void:
+	if _corner != null:
+		_corner.visible = not on
+
+
+func docked() -> bool:
+	return _corner != null and not _corner.visible
+
+
 ## M47.6a (PLAN v9.4 2.3): how many rows `text` takes in the bubble (its width rule, its
 ## font). SessionDef.problems() keeps authored lines to SessionDef.BUBBLE_ROWS.
 static func bubble_rows(text: String) -> int:

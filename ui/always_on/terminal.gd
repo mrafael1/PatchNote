@@ -54,10 +54,18 @@ const SPINNER_ASCII: Array[String] = ["|", "/", "-", "\\"]
 const MARKER := "▌"
 const CUT := " —"
 
-## RAW (the terminal) or, after S2's chat upgrade, CHAT (M47.6b); M48.5's panel plugs in here.
+## RAW (the terminal) or, after S2's chat upgrade, CHAT (M47.6b). M48.5a's version rail dresses
+## either one (`dresser`) without changing it.
 var style: StringName = RAW
 var chat: ChatPanel               ## the dev-chat, once the style is CHAT
 var body_id: StringName = &"caret" ## the AI's body (the chat's header avatar)
+## M48.5a: the version rail's chat (ui/rail/rail_chat.gd) while the rail shows: the colours, the
+## pixel font and an empty back (the rail draws the paper, the spine and the slips behind the
+## rows); null is the raw panel. Rows, their labels and every caller stay as they are.
+## M48.5b: dressed after the chat upgrade, new rows are raw rows again (the rail draws them;
+## they keep their place in rows()), the ChatPanel hides under the rail and the input row
+## moves into the rail's reply box; undressed, the chat comes back as it was.
+var dresser: RefCounted = null
 ## M47.5b (PLAN v9.3 2.9, D15): &"raw" or &"pixel" (S9's `ui` reveal on: colours only; the
 ## font, the layout and the frame stay raw until M48.5).
 var palette_name: StringName = &"raw"
@@ -180,12 +188,17 @@ static func pixel_colors() -> Dictionary:
 ## Every row already shown takes the new colours too.
 func dress() -> void:
 	var want: StringName = &"pixel" if Skins.is_on(&"ui_panel") else &"raw"
+	if dresser != null:
+		want = &"rail"
 	if want == palette_name:
 		return
 	palette_name = want
-	colors = pixel_colors() if want == &"pixel" else raw_colors()
+	if want == &"rail":
+		colors = dresser.call(&"chat_colors")
+	else:
+		colors = pixel_colors() if want == &"pixel" else raw_colors()
 	if chat != null:
-		chat.recolor(ChatPanel.pixel_colors() if want == &"pixel" else ChatPanel.raw_colors())
+		chat.recolor(ChatPanel.pixel_colors() if Skins.is_on(&"ui_panel") else ChatPanel.raw_colors())
 	_style_back()
 	if _title != null:
 		_tint(_title, &"dim")
@@ -210,14 +223,16 @@ func _dress_input() -> void:
 	if _input_label == null or chat_input == null:
 		return
 	_tint(_input_label, &"you")
-	var c := chat != null
+	var c := _in_chat()
 	chat_input.dim = chat.col(&"dim") if c else col(&"dim")
 	chat_input.bright = chat.col(&"text") if c else col(&"you")
 	chat_input.add_theme_color_override(&"font_color", chat_input.bright)
 	chat_input.add_theme_color_override(&"font_uneditable_color", chat_input.dim)
 	chat_input.add_theme_color_override(&"caret_color", chat_input.bright)
-	if c:   # M47.6b: the chat's rounded input box is the frame; no square focus ring inside it
+	if c or dresser != null:   # M47.6b: the chat's rounded input box (M48.5b: the rail's well) is the frame
 		chat_input.add_theme_stylebox_override(&"focus", StyleBoxEmpty.new())
+	else:
+		chat_input.remove_theme_stylebox_override(&"focus")
 	chat_input._tint_ghost(0.0)
 
 
@@ -225,7 +240,21 @@ func col(tone: StringName) -> Color:
 	return colors.get(tone, Palette.TERM_TEXT)
 
 
+## M48.5b: new rows go to the ChatPanel (the chat upgrade landed and the rail is not dressing
+## this panel); else they are the terminal's raw rows.
+func _in_chat() -> bool:
+	return chat != null and dresser == null
+
+
+## M48.5b: `l` is a row the ChatPanel drew (it may have been made before the rail dressed it).
+func _chat_owns(l: Node) -> bool:
+	return chat != null and l != null and is_instance_valid(l) and chat.is_ancestor_of(l)
+
+
 func _style_back() -> void:
+	if dresser != null:
+		add_theme_stylebox_override(&"panel", dresser.call(&"back_style"))
+		return
 	var box := StyleBoxFlat.new()
 	if chat != null:   # M47.6b: the chat app's body, bottom corners rounded (DevDesktop draws the frame)
 		box.bg_color = chat.col(&"bg")
@@ -263,16 +292,101 @@ func _retint(l: Label) -> void:
 func set_font_size(px: int) -> void:
 	_font_size = px
 	var t := Theme.new()
-	t.default_font = UiTheme.mono_font()
+	t.default_font = UiTheme.mono_font() if dresser == null else dresser.call(&"font")
 	t.default_font_size = px
 	t.set_constant(&"line_spacing", &"Label", LINE_SPACING)
 	theme = t
 	if chat != null:
 		chat.set_font_px(px - 1)
+	if chat_input != null and chat_input.has_theme_font_size_override(&"font_size"):   # docked in the rail
+		chat_input.add_theme_font_size_override(&"font_size", px)
 
 
 func font_size() -> int:
 	return _font_size
+
+
+## M48.5a: the rail's chat dresses (d) or undresses (null) this panel; the rows stay.
+func set_dresser(d: RefCounted) -> void:
+	if d == dresser:
+		return
+	if dresser != null:
+		dresser.call(&"detach", self)
+	dresser = d
+	palette_name = &""   # dress() re-applies: the rail's, the Pixel or the raw colours
+	_show_body()
+	dress()
+	set_font_size(_font_size)
+	if d != null:
+		d.call(&"attach", self)
+	else:
+		dock_input(null)
+
+
+## M48.5b: which body shows: the raw rows (raw, or dressed by the rail) or the ChatPanel. The
+## raw rows from before the chat upgrade stay hidden while the rail dresses a chat (the rail's
+## log starts at its reveal; the chat keeps that history).
+func _show_body() -> void:
+	if _scroll == null:
+		return
+	var dressed := dresser != null
+	if _title != null:
+		_title.visible = not dressed and chat == null
+	if chat == null:
+		_scroll.visible = true
+		return
+	chat.visible = not dressed
+	_scroll.visible = dressed
+	for r in _list.get_children():
+		if r.has_meta(&"pre_chat"):
+			(r as CanvasItem).visible = not dressed
+
+
+## M48.5b: the input row (`you> ` + ChatInput) into `parent` (the rail's reply box, which lays
+## it in its well), or back home (null): the chat's input slot, or under the raw rows.
+func dock_input(parent: Control) -> void:
+	if _input_row == null:
+		return
+	var home: Node = chat.input_slot if chat != null else (_scroll.get_parent() if _scroll != null else null)
+	var want: Node = parent if parent != null else home
+	if want != null and _input_row.get_parent() != want:
+		_input_row.reparent(want, false)
+	var docked := parent != null
+	_input_label.visible = not docked and chat == null
+	if docked:
+		_input_row.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		chat_input.add_theme_font_override(&"font", dresser.call(&"font") if dresser != null else UiTheme.pixel_font())
+		chat_input.add_theme_font_size_override(&"font_size", _font_size)
+		for box: StringName in [&"normal", &"read_only"]:
+			chat_input.add_theme_stylebox_override(box, StyleBoxEmpty.new())
+	else:
+		chat_input.remove_theme_font_override(&"font")
+		chat_input.remove_theme_font_size_override(&"font_size")
+		for box: StringName in [&"normal", &"read_only"]:
+			chat_input.remove_theme_stylebox_override(box)
+		if chat != null:
+			_input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		elif home != null:
+			home.move_child(_input_row, home.get_child_count() - 1)
+	_dress_input()
+
+
+## M48.5b: the input row (the rail's reply box lays it out while docked).
+func input_row() -> Control:
+	return _input_row
+
+
+## M48.5a: every row node, oldest first (the rail's chat and reply read them).
+## M48.5b: after the chat upgrade, only the rows made since (the raw rows from before it are
+## the chat's history, not the rail's).
+func row_nodes() -> Array[Node]:
+	var out: Array[Node] = []
+	if _list == null:
+		return out
+	for r in _list.get_children():
+		if not r.has_meta(&"pre_chat"):
+			out.append(r)
+	return out
 
 
 ## The first line: "patchnotes  dev console  v0.1.0".
@@ -314,16 +428,18 @@ func set_style(want: StringName, animate := false) -> void:
 	if want != CHAT or chat != null or _scroll == null:
 		return
 	style = CHAT
+	for r in _list.get_children():   # M48.5b: the terminal's history, kept behind the chat
+		r.set_meta(&"pre_chat", true)
 	chat = ChatPanel.new()
 	chat.colors = ChatPanel.pixel_colors() if palette_name == &"pixel" else ChatPanel.raw_colors()
 	chat.gentle = gentle
 	var column := _scroll.get_parent()
 	column.add_child(chat)
-	_title.visible = false
-	_scroll.visible = false
 	_input_label.visible = false
-	_input_row.reparent(chat.input_slot, false)
-	_input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if dresser == null:   # M48.5b: dressed, the input row stays in the rail's well
+		_input_row.reparent(chat.input_slot, false)
+		_input_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_show_body()
 	chat.set_font_px(_font_size - 1)
 	chat.pill_pressed.connect(_on_pill)
 	chat.send_button().pressed.connect(func() -> void: chat_input.submit(true))
@@ -333,7 +449,7 @@ func set_style(want: StringName, animate := false) -> void:
 	chat_input.refresh_idle()
 	_style_back()
 	_dress_input()
-	if animate and is_inside_tree():
+	if animate and is_inside_tree() and dresser == null:
 		chat.modulate.a = 0.0
 		var tw := chat.create_tween().set_ignore_time_scale(true)
 		tw.tween_property(chat, ^"modulate:a", 1.0, FADE_S)
@@ -470,7 +586,7 @@ func _say_row_now(text: String, expression: StringName = &"idle", priority := 2)
 			head += " (%s)" % expr
 		_label_row(Row.HEAD, head, &"dim")
 	_last_head = {"speaker": speaker, "expression": expr, "usec": now}
-	if chat != null:   # M47.6b: a bubble on the left (chatter: small and dim)
+	if _in_chat():   # M47.6b: a bubble on the left (chatter: small and dim)
 		var b := chat.add_ai(text, priority < SessionRunner.PRIORITY)
 		b.set_meta(&"tone", &"dim" if priority < SessionRunner.PRIORITY else &"text")
 		b.set_meta(&"row_prefix", "  ")
@@ -578,7 +694,7 @@ func prompt() -> void:
 func answer(text: String) -> void:
 	_flush_queue()
 	if _you != null and is_instance_valid(_you):
-		if chat != null:
+		if _chat_owns(_you):
 			_you.set_meta(&"row_text", "you> " + text)
 			_you.text = answer_label(text)
 			_you.custom_minimum_size.x = chat._bubble_w(_you.text, chat.px)
@@ -613,7 +729,7 @@ func answer_label(text: String) -> String:
 ## nothing jumps): no second `you>` reading "the AI is watching...". A play gate always shows it.
 ## M47.6b: the chat draws no `you> _` row (the pills are the ask), so its input always shows.
 func input_row_shown() -> bool:
-	if chat != null:
+	if _in_chat():
 		return true
 	var asking := _you != null and is_instance_valid(_you)
 	return not asking or (chat_input != null and chat_input.gate)
@@ -660,7 +776,7 @@ func has_prompt() -> bool:
 func rows() -> Array[String]:
 	var out: Array[String] = []
 	for r in _list.get_children():
-		if r.is_queued_for_deletion():
+		if r.is_queued_for_deletion() or r.has_meta(&"ordered"):
 			continue
 		if r is Label:
 			out.append((r as Label).text)
@@ -672,7 +788,10 @@ func rows() -> Array[String]:
 			out.append(e)
 		elif is_instance_valid(e) and not (e as Node).is_queued_for_deletion():
 			var l := e as Label
-			if l.has_meta(&"row_text"):
+			if l == null:   # M48.5b: a raw said row made while the rail dressed the chat
+				var t := (e as Node).get_node_or_null(^"Text") as Label
+				out.append("  " + (t.text if t != null else ""))
+			elif l.has_meta(&"row_text"):
 				out.append(String(l.get_meta(&"row_text")))
 			else:
 				out.append(String(l.get_meta(&"row_prefix", "")) + l.text)
@@ -685,7 +804,11 @@ func touch() -> void:
 
 
 func row_count() -> int:
-	return _list.get_child_count() + _order.size()
+	var n := _order.size()
+	for r in _list.get_children():
+		if not r.has_meta(&"ordered"):
+			n += 1
+	return n
 
 
 # --- Inside ----------------------------------------------------------------------------------
@@ -699,7 +822,7 @@ func _order_add(e: Variant) -> void:
 
 
 func _label_row(kind: Row, text: String, tone: StringName) -> Label:
-	if chat != null:
+	if _in_chat():
 		return _chat_row(kind, text)
 	var l := Label.new()
 	l.text = text
@@ -712,6 +835,9 @@ func _label_row(kind: Row, text: String, tone: StringName) -> Label:
 
 func _add(row: Control) -> void:
 	_list.add_child(row)
+	if chat != null:   # M48.5b: a raw row after the upgrade (the rail dresses): in rows() order
+		row.set_meta(&"ordered", true)
+		_order_add(row)
 	while _list.get_child_count() > MAX_ROWS:
 		var first := _list.get_child(0)
 		_list.remove_child(first)
@@ -758,7 +884,7 @@ func _chat_row(kind: Row, text: String) -> Label:
 
 func _close_you(keep_pills := false) -> void:
 	if _you != null and is_instance_valid(_you):
-		if chat != null:
+		if _chat_owns(_you):
 			_you.set_meta(&"row_text", "you>")
 		else:
 			_you.text = "you>"
@@ -772,7 +898,7 @@ func _show(item: Dictionary) -> void:
 	var kind: Row = item.kind
 	if kind != Row.SAY and kind != Row.TYPE:
 		_last_head = {}   # a header is shared only by rows that follow it
-	if chat != null and kind == Row.NOTE:   # M47.6b: the patch card
+	if _in_chat() and kind == Row.NOTE:   # M47.6b: the patch card
 		var n := chat.add_note(item.get("section", "Added"), item.get("item", item.text))
 		n.set_meta(&"row_text", item.text)
 		_order_add(n)
@@ -780,14 +906,14 @@ func _show(item: Dictionary) -> void:
 	if kind == Row.UPGRADE:
 		set_style(CHAT, true)
 		return
-	if chat != null and kind == Row.THINK:
+	if _in_chat() and kind == Row.THINK:
 		_think_text = item.text
 		_think = _label_row(kind, _think_text + " . . .", &"dim")
 		return
-	if chat != null and kind == Row.CHOICE:
+	if _in_chat() and kind == Row.CHOICE:
 		_label_row(kind, item.text, &"choice")
 		return
-	if chat != null and kind == Row.YOU:
+	if _in_chat() and kind == Row.YOU:
 		_close_you(true)
 		_you = _label_row(kind, "you> _", &"you")
 		return
@@ -826,7 +952,7 @@ func _show(item: Dictionary) -> void:
 
 func _end_think() -> void:
 	if _think != null and is_instance_valid(_think):
-		if chat != null:
+		if _chat_owns(_think):
 			chat.end_think(_think)
 		else:
 			_think.text = _think_text + " . . ."
@@ -882,7 +1008,7 @@ func _process(_delta: float) -> void:
 			if item.kind == Row.THINK:
 				step = float(item.seconds)
 			_wait_until = now + int(step * 1000000.0)
-	if _think != null and chat == null:
+	if _think != null and is_instance_valid(_think) and not _chat_owns(_think):
 		var frames := spinner_frames()
 		var i := int((now - _start_usec) / 100000) % frames.size()   # 10 Hz
 		_think.text = _think_text + " " + frames[i] + " . . ."
@@ -896,7 +1022,7 @@ func _process(_delta: float) -> void:
 	_sync_input_row()   # a gate opening under an open ask shows the input again
 	_sync_pills()
 	# The prompt's caret (steady under reduce flashing).
-	if _you != null and is_instance_valid(_you) and chat == null:
+	if _you != null and is_instance_valid(_you) and not _chat_owns(_you):
 		_you.text = "you> _" if caret_on(now) else "you>  "
 	# A new row lands a frame before the list re-sorts: snap for a few frames.
 	if _snap:
@@ -912,7 +1038,7 @@ func _process(_delta: float) -> void:
 
 
 func _scroll_to_end() -> void:
-	if chat != null:
+	if _in_chat():
 		chat.scroll_to_end()
 		return
 	if _scroll != null and is_instance_valid(_scroll):
