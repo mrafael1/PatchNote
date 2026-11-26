@@ -759,6 +759,7 @@ Each milestone **ends playable**: the campaign plays from S0 to its last built s
 | M50.4a | **Auto depth: rank 6, 3 shared slots, no cap** (`.check/auto_depth/design.md` rev. 2) | Auto on the deep curve to rank 6 (`rank_cap 6`), 3 weapon slots shared by every mode (nova / well take one; `PathDef.shared_slots`, `Loadout._add` replaces the weakest non-active), no level cap (`max_picks 0`), two fillers (+1 max HP, +5% damage), nova's rank-6 `shockwave`, the raw LV rows and the rail's weapon row, S8's 18 / 60 s lines, telemetry `levels` / `level_picks` / `ranks_end`, a `[botrun] auto:` line. As built: 6.20. **Numbers (hard):** S7, Arsenal, Survival, v6, gauntlet, campaign, S4 refs unchanged; new `.check/ref_m50_4a/` (S8 / S9 Auto) replayed twice | the bot numbers in 6.20, next playtest |
 | M50.4b | **Auto depth: passives and the dressed pick panel** (`.check/auto_depth/design.md` rev. 2) | 7 item rows (`ItemDef` / `Item`, `weapons/items/`): Haste, Area, Might wired, Duration / Amount / Speed / Magnet are data-only "not built yet" rows; `WeaponDB.items()` / `has_item` / `item_problems`; `Loadout.items` (2 slots), `Weapon.mods` / `stat_fields`; item cards in the level-up offer; the dressed level-up panel (`ui/level_card.gd`, flat and Pixel, LEVEL n banner, 7 item glyphs); `auto_choice` bot rule; S8 38 / 42 s lines + debrief, S9 `give haste` at 9 s + a `holds haste` line and a 94 s line; telemetry `items_end`. As built: 6.21. **Numbers (hard):** every ref equal except S8 / S9 Auto (new refs `.check/ref_m50_4b/`, 2 replays, 0 failures). | built (not committed) |
 | M50.4c1 | **Auto depth: EVOLVE, the Minigun and the live nerf** (`.check/auto_depth/design.md` rev. 2) | 7 evolution rows (`weapons/evolutions/`; Minigun built, 6 "not built yet"), `WeaponDB.evolutions()` / `evolution_for` / `evolution_problems`; the EVOLVE choice after the cards (rank 6 + its item + the `evolve` basic; spends the level-up), the gold EVOLVE card; `Loadout.evolve`; the steering; `sweep`; `launch_values` + the `nerf <s>` action, `evolve_ready` / `evolved` / `nerfed` whens, the `evolved` condition, the patch note; recipes + `recipes_text()` "Evolutions:"; the evolve hint (raw HUD, rail); S9 `add evolve` at 84 s + 4 lines + debrief; bot rule 1 + `auto_depth` summary; check.ps1 assertion. As built: 6.22. **Numbers (hard):** every ref equal except S9 Auto (new ref `.check/ref_m50_4c1/`, 2 replays, 0 failures). | built (not committed) |
+| M50.4c2 | **Auto depth: Supernova, Thunderclap and the stress bench** (`.check/auto_depth/design.md` rev. 2) | Supernova (nova + Might, node: 2.0 s, 2.5 T, 8 dmg, ring to 6 T at 0.75x, shove 1.5 T; launch 1.2 s / 12) and Thunderclap (shotgun + Area: 7 pellets / 34 deg, cd 0.5, one clap blast 2.5 T ahead per volley, 1 T, 2 dmg, knockback 420; launch 1.5 T / 4) built; traits `supernova` / `clap`; nova's clocks kept on evolve; launch / nerf re-read node weapons; their pictures (tier 0 + Pixel); the 3-evolution caps bench + `bench --auto --evolved`. As built: 6.23. **Numbers (hard):** every ref equal (S9 Auto equal to `ref_m50_4c1`). | built (not committed) |
 | M51 | **S11 (without the event)** | *v9.1: the HUD build moved to M48.5;* `fork_hud` as data in S11's debrief (kept by the owner), the orbit and `well` lines; S11 as data with the three enemies mixed in, the orbit, `edit_enemies_flee`, the event cue as a no-op. **Numbers (hard):** the reversibility test for `edit_enemies_flee`; M48.5's no-overlap test still green. **Reported:** S11 mortal deaths per path | — |
 | M52 | **Gravity through the screen + look tier 2** | 1.11: the event, `GlassStack` (`PROCESS_MODE_ALWAYS`), the freeze on `set_pause` + `hold_clock`, `camera_push`, `crack` and its persistence, the sorry gift, the gentle variant; tier 2 for each look (1.7, v9.1: Pixel's CRT and HUD digits, Minimal's streaks and shatter, Splat's live heroes, mascot breathing and kill scatter, themed explosions; Splat's live instances ≤ 1000 and ≤ 0.5 ms). **Numbers (hard):** 16/16 S11 seeds per path play the event fully; **0 hits during it**; state hash before = after in 16/16; the same seed replays the event to the same hash twice; the 6 steps at fixed frames; the gentle variant creates no white node. **Windowed:** a `.check/glass_*.png` strip (grow, smack, pile, undo) per look; tier 2 sheets per look; bench ≥ 60 fps with tier 2. **Reported:** deaths in the 20 s after it against the control (`--events=none`) | — |
 | M53 | **S12 + S13 complete (v9.2)** | S12 as data (the HUD lands, the polish, `arena_boss`'s line, the Big Square dummy, no fork); S13 complete: both halves with every line of 3.2, the per-path tuning retuned after M50.1's depth pieces (they change DPS). **Numbers (hard):** the whole fight 120-200 s for the invincible bot on every path, max/min ≤ 1.4; M49a's and M49b's rules on every path; S13 replays to the same hash twice. **Reported:** mortal tries per path, deaths per half and per attack | — |
@@ -1789,6 +1790,110 @@ Built on `build/auto` (M50.4b), without the Stage 1 rework or Arcade. Source: se
 - **`BUILD = "M50.4c1"`.**
 - **Still open (defaults taken):** see section 9 (the `human_pace` EVOLVE share, mortal S9 Auto) and the design's Q3-Q6 and Q13 in PLAYTEST.
 
+### 6.23 As built (M50.4c2): Supernova, Thunderclap and the stress bench
+
+Built on `build/auto` (M50.4c1), without the Stage 1 rework or Arcade. Source: section 11 of `.check/auto_depth/design.md` rev. 2. For M50.4c2 it asks for the two defs built, the Supernova node (keeps the clock rule), `clap`, their glyphs and the 3-evolution caps bench.
+
+- **Supernova** (`weapons/evolutions/supernova.tres`, built). It is Nova + Might, a node weapon on `nova_pulse.gd`.
+  - Steady: a blast every 2.0 s, radius 2.5 T, 8 damage. The shockwave ring goes out to 6 T at 0.75x the damage, and the shove pushes 1.5 T.
+  - Launch values: every 1.2 s, 12 damage.
+  - Mechanics: shove, dash_nova, shockwave, and the signature `supernova` (`weapons/traits/supernova.gd`).
+    - The signature sets the node's new `ring_to`, `ring_mult` and `shove_impulse`.
+    - A plain nova keeps 4 T, 0.5x and 610 (`test_a_plain_nova_keeps_its_numbers`).
+  - **Clock rule.** `Loadout.evolve` carries nova's two clocks into the Supernova node: the time to the next blast and the dash wait.
+    - The blast clock is clamped to the new period (`nova_pulse.clocks()` / `keep_clocks()`).
+    - An item pick still calls `reconfigure`, which keeps the clock.
+- **Thunderclap** (`weapons/evolutions/thunderclap.tres`, built). It is Shotgun + Area, aimed.
+  - Steady:
+    - 7 pellets over 34 degrees, cooldown 0.5, 2 damage per pellet, speed 900, life 0.35 s.
+    - `mechanic_values` is empty, so point blank's 18 degrees do not apply.
+  - Launch values: blast radius 1.5 T (3 T across), 4 damage.
+  - `stat_fields`: Area scales `blast_radius`, Haste scales `cooldown`, Might scales `damage`.
+  - Mechanics: knockback_cone, point_blank, shrapnel, and the signature `clap` (`weapons/traits/clap.gd`).
+    - Once per volley (on pellet 0), `clap` pops one `Explosion.blast` 2.5 T ahead along the aim, or short of a wall in the way.
+    - The blast uses the weapon's `blast_radius` (1.0 T) and damage, with knockback 420. Its kind is `blast` and it never pushes the player.
+    - The pellets get `blast_radius` 0, so they never blast.
+    - The blast is not a projectile, and it uses no RNG.
+- **The nerf on a node weapon.** `arm_nerf`, `_land_nerf` and `_drop_nerf` now call `Loadout.reread(w)`.
+  - On a passive-mode weapon, its node runs `reconfigure` and keeps its clock. Aimed weapons are unchanged.
+  - The patch note for a node weapon reads "Balance: Supernova every 1.2 s -> every 2 s, damage 12.96 -> 8.64. It was too strong." The Minigun's note is unchanged. After the review the note names only the launch keys (see Review).
+- **The EVOLVE card.** The line "fire rate xN, a sweeping stream" now shows only for an evolution with `sweep` (the Minigun). The other two show their pitch:
+  - Supernova: "A bigger nova, a wider ring." (shortened after the Pixel capture: the longer line ran past the card's edge).
+  - Thunderclap: "Every volley claps a blast ahead."
+- **Pictures.**
+  - Tier 0 shapes in `ui/weapon_glyph.gd`: `supernova` (a star in a ring) and `thunderclap` (a fan and a blast).
+  - Pixel pictures `GUN_SUPERNOVA` and `GUN_THUNDERCLAP` in `CardArt.GUNS`, in the sheet's colours. The M50.4m sheet has neither picture.
+  - The two keys are not in `WeaponGlyph.KEYS` (they have no shot sprite), so the atlas digest does not move.
+- **A full hand keeps its evolutions.** `Loadout._drop_weakest` runs when a give, F2, `--loadout` or the bench adds a weapon to 3 full slots.
+  - It now counts an evolution's rank as past the cap (`_keep_rank`).
+  - Before, an evolution held at rank 1 was the first weapon to go.
+  - Play never reaches this, because offers never show a NEW weapon on a full hand.
+- **Stress bench.**
+  - `test_three_evolutions_at_launch_stay_in_the_budgets`: Minigun, Thunderclap and Supernova at launch with Haste 6 and Might 6, against 57 enemies for 10 s.
+    - Player shots peak at 36 (cap 140). Enemy shots stay at or under 60.
+    - Two shooters keep firing (14 windups), and a 16-shot ring spawns whole.
+    - `enemy_shots_refused` stays 0.
+  - `tools/bench.gd --auto --evolved[=ids]` is the windowed perf bench.
+- **Deviations.**
+  1. The gate script was copied from `.check/m50_4c1/gates.sh`, the newest one (the brief named `m48_5a`). It adds `g9_auto_vs_m50_4c1.log`, S9 Auto checked against the c1 ref.
+  2. This branch has no S10, so the Thunderclap can only be reached through F2, the bench or tests (design: S10).
+     - The Supernova needs nova 6 + Might in S9. No bot seed got there (nova 5 at most), so S9 shows no Supernova.
+     - The design expected this: "rare, reported".
+  3. `.check/ref_m50_4c2/s9_auto_hash.jsonl` was recorded, and it is byte-identical to `ref_m50_4c1`. S9 Auto is "equal", not a new ref (the design's cell: "new only if the bots reach Supernova").
+  4. The pictures live in `card_art.gd`, not `grids.gd` (as in M50.4b, deviation 1). So the atlas digest does not move, although the design's T17 expected it to.
+  5. The two pictures are not on the M50.4m sheet. They are drawn here in its colours.
+  6. `_drop_weakest` keeping evolutions is not in the design. It is a fix found while building the capture.
+- **Touch points for the merge (rework, Arcade).**
+  - `components/loadout.gd`: `evolve` clocks, `reread`, `_keep_rank`.
+  - `paths/path_runner.gd`: the nerf's `reread` and the note.
+  - `weapons/nova_pulse.gd`.
+  - `ui/level_card.gd` (one line), `ui/weapon_glyph.gd`, `systems/skins/art/card_art.gd`, `tools/bench.gd`.
+  - `main.gd` (BUILD).
+  - No session or line changes: `lines_stage2.md` is unchanged.
+- **Numbers.**
+  - **GUT**, one file at a time (no full suite): 21 files, 486/486 passing, 0 script errors (`.check/m50_4c2/gut_affected.txt`).
+    - The new `test_supernova_thunderclap.gd` passes 11/11.
+    - In `test_evolve.gd`, three pins were rewritten: 4 unbuilt rows; nova 6 + Might offers the Supernova; a held Shotgun + Area may now steer.
+  - **Gates** (`.check/m50_4c2/gates.sh`), run twice. Run 2 is on the final tree (`gates_run2.txt`; run 1 is in `run1/`).
+    - 86 summaries, 0 failures, sheet exit 0, and no script error in any log.
+  - **Refs: every one is equal.**
+    - S9 Auto against `ref_m50_4c1`.
+    - S8 Auto against `ref_m50_4b`.
+    - Arsenal against `ref_m50_1b`.
+    - S7, Survival, v6, gauntlet, campaign, S4, pixel and skins-off, shell, handoff and pause.
+  - **Perf**, windowed (`bench --auto --evolved`): 55 enemies, Minigun + Thunderclap + Supernova at launch, Haste 6, Might 6.
+    - Physics average 5.31 ms, p95 6.16 ms, max 6.16 ms (target: p95 <= 8 ms).
+    - 113 player shots (the bench's synthetic fill included), 0 refused on either side.
+    - For comparison: the Minigun alone, p95 4.38 ms; M45b's default loadout, p95 5.85 ms.
+- **Bots** (8 seeds; the design asks for 16; `.check/m50_4c2/bots/`). These are bot numbers; nothing was retuned.
+
+  | Set | Result | Against M50.4c1 |
+  |---|---|---|
+  | Invincible S9 Auto | 8/8 wins; evolved 8/8, median 91.8 s; nerf landed 8/8; `nerfed 1` before the end 8/8; max level 17 | 3 seeds pick differently (nova is steered once Might is held: nova up to 5); no Supernova |
+  | `human_pace` S9 Auto | evolved 8/8, median 90.4 s; EVOLVE in the first half of the kills 5/8 | 3 seeds differ; still 5/8 |
+  | Mortal S9 Auto | 7/8 deaths, median 69.9 s (evolved 4/8); with `no_evolve` 7/8 | equal |
+  | Mortal S9 Arsenal / Survival | 3/8 / 1/8 deaths | equal |
+  | Invincible S8 Auto | 8/8 wins, evolved 0/8 | equal |
+  | Mortal S8 Auto | 6/8 deaths | equal |
+
+- **Captures.** Windowed, inert save.
+  - The scripts:
+    - `.check/m50_4c2/capture_c2.gd`: S9 Auto, seed 1, the Pixel look.
+    - `card_preview.gd`: the panel on its own.
+  - `preview_{supernova,thunderclap}_{flat,pixel}.png`: the gold EVOLVE card.
+    - "NOVA 6 MAX + MIGHT -> SUPERNOVA", with a star in its ring.
+    - "SHOTGUN 6 MAX + AREA -> THUNDERCLAP", with the shotgun and its blast.
+    - The banners read "pick 1 of 3" and "pick 1 of 4".
+  - `evolve_supernova.png`: in play at 95 s, after the Minigun's nerf, with nova 6 + Might set (F2-style).
+    - LEVEL 10 with three cards plus the EVOLVE Supernova.
+    - The rail's bottom line reads "EVOLVE next level: nova lv 6 + might -> SUPERNOVA".
+    - This shot still has the old, long pitch.
+  - `supernova_ring.png`: the 6 T shockwave ring in flight. The rail shows EVO Minigun, Laser and EVO Supernova.
+  - `thunderclap_clap.png` and `rail_three_evo.png`: the Supernova's blast and a clap blast on screen, and three EVO slots in the rail. The name "THUNDERCLAP" fills its rail slot from edge to edge.
+- **`BUILD = "M50.4c2"`.**
+- **Still open (defaults taken):** section 9 (no Supernova in S9).
+- **Review (3 findings, 2 upheld, all fixed):** (1+2, one bug reported twice) the live-nerf note for an aimed evolution with no cooldown launch key read "Thunderclap 2 -> 2 shots/s, damage 4 -> 2" and left out the blast cut. `PathRunner.nerf_parts` now builds the note from the launch keys only (rate or period when `cooldown` is one, `damage`, and "blast a T -> b T" for `blast_radius`), and drops a part whose number did not move. The Thunderclap now reads "Balance: Thunderclap damage 4 -> 2, blast 1.65 T -> 1.1 T. It was too strong." (Area 1). The Minigun and Supernova notes are unchanged. Test `test_the_thunderclap_nerf_note_names_the_blast_not_the_rate` (test_supernova_thunderclap) fails without the fix. Not upheld: 1 finding.
+
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**
 1. **Length:** Stage 1 is ~7 min against ~20, Stage 2 is planned at 30–40 against 45, and the campaign target is ~2 h 30. Grow now (a session in a stage's middle) or later?
@@ -1851,6 +1956,7 @@ Built on `build/auto` (M50.4b), without the Stage 1 rework or Arcade. Source: se
 ---
 
 ## 9. Still open (each with a proposed default)
+- **M50.4c2, Supernova in S9 (6.23):** no bot seed reaches nova 6 + Might before S9 ends (nova 5 at most), so the second evolution is F2 / bench only for now, and Thunderclap waits for S10 (not in this branch). Default: no change (design Q9). Ask at the playtest: "Want a second evolution reachable in S9?"
 - **M50.4c1, `human_pace` EVOLVE share (6.22):** in 5/8 runs EVOLVE comes within the first half of the kills (design: 12/16 against `enemy_total`, which this branch does not have). Default: no change here. Re-measure on the rework's clear S9 after the merge, then apply the design's fallbacks (nerf 8 -> 6, `add evolve` at 0).
 - **M50.4c1, mortal S9 Auto (6.22):** 7/8 deaths with or without EVOLVE (Arsenal 3/8, Survival 1/8). Default: no retune from bot numbers (AGENTS 6), as in M50.4b.
 - **M50.4b, items by 60 s (6.21):** in 1/8 invincible S8 Auto runs the bot holds 2 items by 60 s (design: 14/16). The second item arrives at the first level-up after the 42 s line where the bot rule picks it over a rank. Default: no change. At the playtest, ask whether the 42 s Area line should come with an Area card (a `give area` at 42 s).

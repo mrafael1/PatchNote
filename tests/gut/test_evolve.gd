@@ -78,7 +78,7 @@ func _open(r: PathRunner) -> PickOffer:
 
 # --- Data -----------------------------------------------------------------------------------
 
-func test_seven_evolution_rows_minigun_built() -> void:
+func test_seven_evolution_rows_three_built() -> void:
 	var ids: Array[StringName] = []
 	for e in WeaponDB.evolutions():
 		ids.append(e.id)
@@ -89,9 +89,11 @@ func test_seven_evolution_rows_minigun_built() -> void:
 	assert_eq(WeaponDB.evolution_for(&"pistol"), &"minigun")
 	assert_eq(WeaponDB.evolution_for(&"nova"), &"supernova")
 	assert_true(WeaponDB.evolution_built(&"minigun"))
-	assert_false(WeaponDB.evolution_built(&"supernova"))
+	assert_true(WeaponDB.evolution_built(&"supernova"), "M50.4c2")
+	assert_true(WeaponDB.evolution_built(&"thunderclap"), "M50.4c2")
+	assert_false(WeaponDB.evolution_built(&"sunbeam"))
 	var problems := WeaponDB.evolution_problems()
-	assert_eq(problems.size(), 6, "the six unbuilt rows only: %s" % [problems])
+	assert_eq(problems.size(), 4, "the four unbuilt rows only (M50.4c2): %s" % [problems])
 	for p in problems:
 		assert_true("not built yet" in p, p)
 	for e in WeaponDB.evolutions():
@@ -197,9 +199,12 @@ func test_evolve_needs_rank_six_and_the_catalyst() -> void:
 	lo.apply_path(_auto())
 	lo.set_weapon(&"pistol", 6)
 	assert_eq(r.evolve_option(), {}, "no catalyst held")
-	lo.set_weapon(&"nova", 6)
+	lo.set_weapon(&"nova", 5)
 	lo.add_item(&"might")
-	assert_eq(r.evolve_option(), {}, "Supernova is not built: never offered")
+	assert_eq(r.evolve_option(), {}, "nova 5: not yet")
+	lo.set_weapon(&"nova", 6)   # M50.4c2: Supernova is built
+	ev = r.evolve_option()
+	assert_eq([ev.from, ev.into, ev.catalyst], [&"nova", &"supernova", &"might"])
 
 
 func test_evolve_is_not_live_without_the_basic() -> void:
@@ -286,7 +291,7 @@ func test_steering_offers_the_paired_weapon_first() -> void:
 		lo.set_weapon(&"pistol", 3)
 	assert_true(r.evolve_hint().begins_with("pistol lv 3/6 + haste -> MINIGUN"), r.evolve_hint())
 	lo.set_weapon(&"pistol", 6)
-	assert_eq(r.steer(lo), &"", "at the cap: EVOLVE instead")
+	assert_ne(r.steer(lo), &"pistol", "at the cap: EVOLVE instead (M50.4c2: a held Shotgun + Area may steer now)")
 	assert_eq(r.evolve_hint(), "EVOLVE next level: pistol lv 6 + haste -> MINIGUN")
 	lo.clear()
 

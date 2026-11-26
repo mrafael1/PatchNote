@@ -106,7 +106,7 @@ static func data_for_evolve(ev: Dictionary, key: String) -> Dictionary:
 	var before := PathRunner.fire_rate(float(WeaponCurve.value(base, &"cooldown", int(d.rank))))
 	var after := PathRunner.fire_rate(into.cooldown)
 	d.effect = "fire rate x%s, a sweeping stream" % WeaponCurve.num(snappedf(after / maxf(0.1, before), 0.5)) \
-			if after > before * 1.2 else into.pitch
+			if after > before * 1.2 and &"sweep" in into.mechanics else into.pitch   # M50.4c2: the others' pitch
 	return d
 
 

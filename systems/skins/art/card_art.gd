@@ -89,11 +89,26 @@ const GUN_MINIGUN := ["...LLLLLLL.....................", "...L.....L............
 const GUN_MINIGUN_LEGEND := {"C": &"cell", "L": &"metal_lo", "M": &"metal", "Y": &"gold", "b": &"crate_hi",
 		"d": &"crate_lo", "h": &"gold_hi", "m": &"metal_hi", "y": &"gold_lo"}
 
+## M50.4c2: the Supernova (a star with a white core inside its shockwave ring) and the
+## Thunderclap (the sheet's shotgun with the clap's blast ahead of the barrel). The sheet has
+## no picture for either: drawn in its style (warm, clean outline, the same colours).
+const GUN_SUPERNOVA := ["......OOOOO......", "....OO.....OO....", "...O....Y....O...", "..O.Y...Y...Y.O..",
+		".O...Y..Y..Y...O.", ".O....Y.Y.Y....O.", "O......YHY......O", "O..YYYYHHHYYYY..O",
+		"O.YYYYHHWHHYYYY.O", "O..YYYYHHHYYYY..O", "O......YHY......O", ".O....Y.Y.Y....O.",
+		".O...Y..Y..Y...O.", "..O.Y...Y...Y.O..", "...O....Y....O...", "....OO.....OO....", "......OOOOO......"]
+const GUN_SUPERNOVA_LEGEND := {"O": &"ring", "Y": &"core", "H": &"bolt_hi", "W": &"tip"}
+const GUN_THUNDERCLAP := ["...................O...O..", "...............L....OYO...",
+		"....mmmmmmmmmmmL.O.YYHYY.O", "bbbbMMMMMMMMMMML..OYHWHYO.", "yyyyMMM..bbbb..L.O.YYHYY.O",
+		"ddddMMM..ydyy.......OYO...", ".....L.............O...O.."]
+const GUN_THUNDERCLAP_LEGEND := {"L": &"metal_lo", "M": &"metal", "b": &"crate_hi", "d": &"crate_lo",
+		"m": &"metal_hi", "y": &"gold_lo", "O": &"ring", "Y": &"core", "H": &"bolt_hi", "W": &"tip"}
+
 ## Weapon icon -> [grid, legend].
 const GUNS := {
 	&"dot": [GUN_PISTOL, GUN_PISTOL_LEGEND], &"fan": [GUN_SHOTGUN, GUN_SHOTGUN_LEGEND],
 	&"line": [GUN_LASER, GUN_LASER_LEGEND], &"ball": [GUN_LAUNCHER, GUN_LAUNCHER_LEGEND],
 	&"minigun": [GUN_MINIGUN, GUN_MINIGUN_LEGEND],
+	&"supernova": [GUN_SUPERNOVA, GUN_SUPERNOVA_LEGEND], &"thunderclap": [GUN_THUNDERCLAP, GUN_THUNDERCLAP_LEGEND],
 }
 
 static var _cache := {}

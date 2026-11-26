@@ -911,6 +911,7 @@ func arm_nerf(seconds: float) -> bool:
 	for k: Variant in w.def.launch_values:
 		launch[StringName(k)] = w.def.launch_values[k]
 	w.launch = launch
+	lo.reread(w)   # M50.4c2: a node weapon (the Supernova) takes its launch numbers now
 	_nerf_left = maxi(1, roundi(seconds * Engine.physics_ticks_per_second))
 	nerf = {"id": String(w.def.id), "t_armed": snappedf(RunState.game_time, 0.1), "t_landed": -1.0, "text": ""}
 	RunState.log_event(&"nerf_armed", {"weapon": String(w.def.id), "seconds": seconds})
@@ -937,18 +938,48 @@ func _land_nerf() -> void:
 	nerf.t_landed = snappedf(RunState.game_time, 0.1)
 	if w == null:
 		return
-	var rate_before := fire_rate(float(w.value(&"cooldown")))
-	var dmg_before := float(w.value(&"damage"))
+	# M50.4c2 review: the note names only the launch keys (the Thunderclap has no cooldown one,
+	# and its blast radius is the cut the player sees), in a fixed order.
+	var keys: Array[StringName] = []
+	for k: Variant in w.launch:
+		keys.append(StringName(k))
+	var before := {}
+	for k in [&"cooldown", &"damage", &"blast_radius"]:
+		before[k] = float(w.value(k))
 	w.launch = {}
-	var rate_after := fire_rate(float(w.value(&"cooldown")))
-	var dmg_after := float(w.value(&"damage"))
-	nerf.text = "Balance: %s %s -> %s shots/s, damage %s -> %s. It was too strong." % [w.def.title,
-			WeaponCurve.num(rate_before), WeaponCurve.num(rate_after), WeaponCurve.num(snappedf(dmg_before, 0.01)),
-			WeaponCurve.num(snappedf(dmg_after, 0.01))]
+	lo.reread(w)   # M50.4c2: a node weapon re-reads its steady numbers, its clock kept
+	nerf.text = "Balance: %s %s. It was too strong." % [w.def.title, nerf_parts(w, keys, before)]
 	nerfs_landed += 1
 	RunState.log_event(&"patch_note", {"text": nerf.text})
 	RunState.log_event(&"nerfed", {"weapon": String(w.def.id)})
 	_pulse()
+
+
+## The changed numbers of a live nerf, from the launch `keys` and the effective `before` values
+## (cooldown, damage, blast_radius) to `w`'s now: "30 -> 15 shots/s" (aimed) or "every 1.2 s ->
+## every 2 s" (a node weapon, on its own clock), "damage a -> b", "blast a T -> b T". A part
+## whose number did not move is left out.
+static func nerf_parts(w: Weapon, keys: Array[StringName], before: Dictionary) -> String:
+	var parts: PackedStringArray = []
+	if &"cooldown" in keys:
+		var cd_before := float(before[&"cooldown"])
+		var cd_after := float(w.value(&"cooldown"))
+		if w.def.is_passive():
+			if not is_equal_approx(snappedf(cd_before, 0.01), snappedf(cd_after, 0.01)):
+				parts.append("every %s s -> every %s s" % [WeaponCurve.num(snappedf(cd_before, 0.01)), WeaponCurve.num(snappedf(cd_after, 0.01))])
+		elif not is_equal_approx(fire_rate(cd_before), fire_rate(cd_after)):
+			parts.append("%s -> %s shots/s" % [WeaponCurve.num(fire_rate(cd_before)), WeaponCurve.num(fire_rate(cd_after))])
+	for pair: Array in [[&"damage", "damage %s -> %s"], [&"blast_radius", "blast %s T -> %s T"]]:
+		var k: StringName = pair[0]
+		if not k in keys:
+			continue
+		var a := snappedf(float(before[k]), 0.01)
+		var b := snappedf(float(w.value(k)), 0.01)
+		if not is_equal_approx(a, b):
+			parts.append((pair[1] as String) % [WeaponCurve.num(a), WeaponCurve.num(b)])
+	if parts.is_empty():
+		return "patched down"
+	return ", ".join(parts)
 
 
 ## A path swap (or a new path) drops a pending nerf: the launch numbers go, no note.
@@ -959,7 +990,9 @@ func _drop_nerf() -> void:
 	var lo := loadout()
 	if lo != null:
 		for x in lo.weapons():
-			x.launch = {}
+			if not x.launch.is_empty():
+				x.launch = {}
+				lo.reread(x)
 	nerf = {}
 
 

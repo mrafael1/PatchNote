@@ -102,6 +102,18 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 				ci.draw_rect(Rect2(centre + Vector2(-r * 0.3, -r * 0.42 + r * 0.3 * k), Vector2(r * 1.25, r * 0.2)),
 						Color(color, 1.0 - 0.2 * k))
 			ci.draw_rect(Rect2(centre + Vector2(r * 0.05, -r * 0.5), Vector2(r * 0.14, r * 1.0)), color)
+		&"supernova":   # M50.4c2: an eight-ray star inside its shockwave ring
+			ci.draw_arc(centre, r * 0.92, 0.0, TAU, 28, Color(color, 0.7), w, true)
+			for i in 8:
+				var d := Vector2.RIGHT.rotated(TAU * i / 8.0)
+				ci.draw_line(centre + d * r * 0.15, centre + d * r * (0.7 if i % 2 == 0 else 0.45), color, w * 1.3, true)
+			ci.draw_circle(centre, r * 0.2, color)
+		&"thunderclap":   # M50.4c2: a short fan and the clap's blast ahead of it
+			for i in 3:
+				var d := Vector2.RIGHT.rotated(deg_to_rad(-17.0 + 17.0 * i))
+				ci.draw_line(centre + Vector2(-r * 0.9, 0), centre + Vector2(-r * 0.9, 0) + d * r * 0.8, color, w, true)
+			ci.draw_arc(centre + Vector2(r * 0.45, 0), r * 0.45, 0.0, TAU, 20, color, w * 1.3, true)
+			ci.draw_circle(centre + Vector2(r * 0.45, 0), r * 0.16, color)
 		&"link":   # M50.1b: two rings chained
 			ci.draw_arc(centre - Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
 			ci.draw_arc(centre + Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)

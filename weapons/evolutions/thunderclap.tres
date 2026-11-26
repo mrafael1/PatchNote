@@ -7,9 +7,26 @@ script = ExtResource("1")
 id = &"thunderclap"
 title = "Thunderclap"
 mode = &"aimed"
+cooldown = 0.5
+damage = 2.0
+pellets = 7
+spread_deg = 34.0
+speed = 900.0
+lifetime = 0.35
+blast_radius = 1.0
 icon = &"thunderclap"
 pitch = "Every volley claps a blast ahead."
 card_text = PackedStringArray("Thunderclap: Every volley claps a blast ahead.")
+mechanics = Array[StringName]([&"knockback_cone", &"point_blank", &"shrapnel", &"clap"])
+mechanic_values = Array[Dictionary]([])
+stat_fields = {
+&"area": &"blast_radius",
+&"haste": &"cooldown",
+&"might": &"damage"
+}
 base = &"shotgun"
 catalyst = &"area"
-built_in = "M50.4c2"
+launch_values = {
+&"blast_radius": 1.5,
+&"damage": 4.0
+}

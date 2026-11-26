@@ -238,11 +238,26 @@ func evolve(from: StringName, into: StringName) -> bool:
 		if j < 0:
 			return false
 		passives[j] = w
+		var was: Node = _passive_nodes.get(old.def.id)
+		var clocks: Array = was.call(&"clocks") if is_instance_valid(was) and was.has_method(&"clocks") else []
 		_free_node(old.def.id)
 		if def.is_passive():
 			_attach(w)
+			var now: Node = _passive_nodes.get(def.id)
+			if not clocks.is_empty() and is_instance_valid(now) and now.has_method(&"keep_clocks"):
+				now.call(&"keep_clocks", clocks)   # M50.4c2: the Supernova keeps nova's clocks
 	EventBus.weapon_changed.emit(def.id, w.rank)
 	return true
+
+
+## M50.4c2: a held passive-mode weapon's node re-reads its numbers (its launch values armed or
+## patched away), its clocks kept. Aimed weapons read value() on each shot: nothing to do.
+func reread(w: Weapon) -> void:
+	if w == null or not w.def.is_passive():
+		return
+	var node: Node = _passive_nodes.get(w.def.id)
+	if is_instance_valid(node) and node.has_method(&"reconfigure"):
+		node.call(&"reconfigure", w)
 
 
 ## M50.4c1: the held evolution of base weapon `id` (null: none).
@@ -551,14 +566,15 @@ func _add(def: WeaponDef, rank: int) -> void:
 
 ## M50.4a (shared slots full): the weakest weapon that is not the active one goes, across
 ## weapons() (lowest rank; ties: the last in weapons() order); a passive-mode one's node is
-## freed. The active slot never goes.
+## freed. The active slot never goes. M50.4c2: an evolution (held at rank 1) counts above any rank,
+## so a give or the bench on a full hand never drops it before a base weapon.
 func _drop_weakest() -> void:
 	var cur := current()
 	var victim: Weapon = null
 	for x in weapons():
 		if x == cur:
 			continue
-		if victim == null or x.rank <= victim.rank:
+		if victim == null or _keep_rank(x) <= _keep_rank(victim):
 			victim = x
 	if victim == null:
 		return
@@ -573,6 +589,11 @@ func _drop_weakest() -> void:
 		_free_node(victim.def.id)
 		_battery.erase(victim.def.id)
 	RunState.log_event(&"weapon_dropped", {"weapon": String(victim.def.id), "rank": victim.rank})
+
+
+## M50.4c2: a weapon's rank for _drop_weakest (an evolution: past the cap).
+func _keep_rank(w: Weapon) -> int:
+	return maxi(rank_cap, MAX_RANK) + 1 if w.def.is_evolution() else w.rank
 
 
 ## M47 (manual_ammo): an aimed weapon replaces slots[0] (the sidearm stays), a passive

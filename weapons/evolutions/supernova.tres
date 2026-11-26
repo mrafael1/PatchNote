@@ -7,9 +7,20 @@ script = ExtResource("1")
 id = &"supernova"
 title = "Supernova"
 mode = &"passive"
+cooldown = 2.0
+damage = 8.0
+pellets = 1
+speed = 0.0
+blast_radius = 2.5
 icon = &"supernova"
-pitch = "A bigger nova with a shockwave ring."
-card_text = PackedStringArray("Supernova: A bigger nova with a shockwave ring.")
+node_script = "res://weapons/nova_pulse.gd"
+pitch = "A bigger nova, a wider ring."
+card_text = PackedStringArray("Supernova: A bigger nova, a wider ring.")
+mechanics = Array[StringName]([&"shove", &"dash_nova", &"shockwave", &"supernova"])
+mechanic_values = Array[Dictionary]([])
 base = &"nova"
 catalyst = &"might"
-built_in = "M50.4c2"
+launch_values = {
+&"cooldown": 1.2,
+&"damage": 12.0
+}

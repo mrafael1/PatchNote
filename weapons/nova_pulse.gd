@@ -12,6 +12,9 @@ extends Node2D
 ## its radius out to RING_TO tiles over ShockwaveRing.SECONDS of game time, hitting each enemy
 ## it passes once for RING_MULT x the damage (at most ShockwaveRing.MAX_ALIVE rings at once).
 ## reconfigure(w) re-reads the numbers (a boost) and keeps both clocks.
+## M50.4c2 (Auto depth design 5): the Supernova runs on this node too. Its `supernova` trait
+## sets ring_to (6 T), ring_mult (0.75) and shove_impulse (1.5 T); evolving keeps nova's clocks
+## (Loadout.evolve: clocks() then keep_clocks(), the next blast never past the new period).
 
 const SHOVE_IMPULSE := 610.0   ## calibrated in test_auto_scale: a chaser moves ~1 T
 const DASH_WAIT := 3.0
@@ -27,6 +30,9 @@ var damage := 3.0
 var shove := false
 var dash_nova := false
 var shockwave := false  ## M50.4a: set by the shockwave trait
+var ring_to := RING_TO              ## M50.4c2: tiles (the supernova trait: 6)
+var ring_mult := RING_MULT          ## M50.4c2: the ring's share of the damage (supernova: 0.75)
+var shove_impulse := SHOVE_IMPULSE  ## M50.4c2: the shove (supernova: 1.5 T)
 var rings := 0          ## tests: shockwave rings sent
 var novas := 0          ## tests: blasts
 var dash_novas := 0     ## tests: blasts a dash set off
@@ -50,6 +56,17 @@ func reconfigure(w: Weapon) -> void:
 	radius = float(w.value(&"blast_radius")) * Tuning.TILE
 	damage = float(w.value(&"damage"))
 	_left = minf(_left, cooldown)
+
+
+## M50.4c2: the clocks, to carry over an evolution ([blast left, dash ready at]).
+func clocks() -> Array:
+	return [_left, _dash_ready_at]
+
+
+## M50.4c2: an evolution keeps the base's clocks: the next blast never past the new period.
+func keep_clocks(c: Array) -> void:
+	_left = minf(float(c[0]), cooldown)
+	_dash_ready_at = float(c[1])
 
 
 func _ready() -> void:
@@ -105,8 +122,8 @@ func _ring(pos: Vector2, skip: Array) -> void:
 	var ring: Node2D = ShockwaveRing.new()
 	ring.position = pos
 	ring.set(&"from_r", radius)
-	ring.set(&"to_r", RING_TO * Tuning.TILE)
-	ring.set(&"damage", damage * RING_MULT)
+	ring.set(&"to_r", ring_to * Tuning.TILE)
+	ring.set(&"damage", damage * ring_mult)
 	ring.set(&"source", source())
 	ring.call(&"skip", skip)
 	ring.add_to_group(ShockwaveRing.GROUP)
@@ -127,7 +144,7 @@ func _shove(pos: Vector2) -> void:
 			continue
 		var mover := Component.find(enemy, Mover) as Mover
 		if mover != null:
-			mover.knockback((away.normalized() if away.length() > 1.0 else Vector2.UP) * SHOVE_IMPULSE)
+			mover.knockback((away.normalized() if away.length() > 1.0 else Vector2.UP) * shove_impulse)
 
 
 func _on_dashed() -> void:
