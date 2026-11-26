@@ -155,6 +155,9 @@ if ($BotRuns) {
     if ($camp.Text -notmatch '\[botrun\] session=s1_03_shooting attempt=1 \(invincible\) outcome=won .*kills=3 .* end=cleared spawned=0/0 ') { $failures += 'bot_campaign: S3 did not clear its three' }
     # M47.6c1: S4 clears its 14 (the walls grow in at 0.8 s).
     if ($camp.Text -notmatch '\[botrun\] session=s1_04_level attempt=1 \(invincible\) outcome=won .* end=cleared spawned=14/14 ') { $failures += 'bot_campaign: S4 did not clear its 14' }
+    # M47.6c2 (PLAN v9.4 0.8): no reload between Stage 1 sessions: S3 starts where S2 ended
+    # (the chain's start= is the carried spot, not the arena's player_start 1584,672).
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s1_03_shooting attempt=1 \(invincible\) .* start=(?!1584\.00,672\.00)\d+\.\d\d,\d+\.\d\d\r?$') { $failures += 'bot_campaign: the chain did not carry the player into S3' }
     if ($camp.Text -notmatch '\[botrun\] session=s1_06_playground attempt=1 \(invincible\) outcome=won .*choice=next_session .*edits=4 .*landed=edit_gift_explode,edit_big_enemies,edit_inverted,edit_slowmo .*version=v0\.6\.0->v0\.7\.0 .*end=cleared spawned=28/28 ') { $failures += 'bot_campaign: S6 did not end Stage 1 with its 4 edits and its 28 cleared' }
     # M47: S7 is real now (the cooking screen's asserts became S7's): the three tastes at their
     # seconds, nothing left behind, Stage 2's card (with the cook beat), fork_path asked
@@ -281,6 +284,12 @@ if ($BotRuns) {
     $shell =Invoke-Godot 'hash_shell_campaign' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --shell --compare=.check/ref_m47_6c1/campaign_hash.jsonl 1 2'
     Test-Errors 'hash_shell_campaign' $shell
     if ($shell.Text -notmatch '\[runhash\] summary: campaign shell, 14 runs, 0 failures') { $failures += 'hash_shell_campaign: hosted campaign hashes differ' }
+    # M47.6c2: S0-S6 chained in one host with the carried start (the chain ref, born in M47.6c2).
+    if (Test-Path (Join-Path $root '.check/ref_m47_6c2/chain_hash.jsonl')) {
+    $chainHash = Invoke-Godot 'hash_chain' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --chain --compare=.check/ref_m47_6c2/chain_hash.jsonl 1 2'
+    Test-Errors 'hash_chain' $chainHash
+    if ($chainHash.Text -notmatch '\[runhash\] summary: campaign chain, 14 runs, 0 failures') { $failures += 'hash_chain: the chained Stage 1 hashes differ' }
+    }
     $shellS8 = Invoke-Godot 'hash_shell_s8' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --session=s2_02_day_one --frames=10 --shell --viewport=1560x878 --handoff=120 --answer=fork_path=path_arsenal --compare=.check/ref_m50_1b/s8_arsenal_hash.jsonl 1'
     Test-Errors 'hash_shell_s8' $shellS8
     if ($shellS8.Text -notmatch '\[runhash\] summary: campaign shell viewport=1560x878 handoff=120, 1 runs, 0 failures') { $failures += 'hash_shell_s8: hosted S8 hash differs' }

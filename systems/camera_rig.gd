@@ -78,6 +78,16 @@ func lead() -> Vector2:
 	return _lead
 
 
+## M47.6c2: a carried session starts with the view the last one ended on (`offset_now`: the
+## old view's centre minus the player; the lookahead then eases from there, no swing).
+func carry_lead(offset_now: Vector2) -> void:
+	_lead = offset_now
+	if is_instance_valid(target):
+		global_position = target.global_position + _lead
+		reset_smoothing()
+		force_update_scroll()
+
+
 func _aim_dir() -> Vector2:
 	var input: Variant = target.get(&"input")
 	if input is Object and is_instance_valid(input):

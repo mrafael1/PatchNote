@@ -41,6 +41,8 @@ const STOPPED := &"stopped"
 var director: AiDirector
 var spawner: Spawner
 var transition: Transition
+## M47.6c2 (design 2.7): where the player started (a carried spot or player_start).
+var start_point := Vector2.ZERO
 var build := ""              ## game build name written to telemetry
 
 var phase: StringName = PLAY
@@ -474,6 +476,8 @@ func end(result: StringName) -> void:
 		"end": String(end_reason),
 		"enemy_total": enemy_total,
 		"spawned": spawner.spawned if spawner else 0,
+		# M47.6c2 (design 2.10, additive): the start point, so a carried session replays.
+		"start": [snappedf(start_point.x, 0.01), snappedf(start_point.y, 0.01)],
 		"missing_basics": Unlocks.missing_basics().map(func(b: StringName) -> String: return String(b)),
 		"bot": player != null and player.has_method(&"is_bot") and player.is_bot(),
 		"invincible": RunState.invincible,

@@ -5,13 +5,22 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M47.6c1"
+const BUILD := "M47.6c2"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
 ## Survive scene reloads: F5 restarts the same seed, "New build" keeps the genre.
 static var next_seed := -1
 static var next_genre: StringName = &""
+## M47.6c2 (PLAN v9.4 0.8, design 2.7): no reload between Stage 1 sessions. The next session
+## starts where the player stood (GameHost.capture_start, snapped to 0.01 px) instead of at
+## the arena's player_start; NO_START = a cold start. Consumed and reset in _ready as
+## next_seed is, and cleared by a retry, Restart / F5, the title and a --session jump.
+const NO_START := Vector2.INF
+static var next_start := NO_START
+## Where the view stood from the player at the capture (lookahead, smoothing and the arena's
+## limits included; presentation only), carried with next_start so the room does not move.
+static var next_lead := Vector2.ZERO
 ## Tests: called with the scene path instead of changing scene (M47.5a review).
 static var leave_hook := Callable()
 
@@ -70,6 +79,9 @@ func _ready() -> void:
 	next_seed = -1
 	RunState.reset(run_seed, next_genre)
 	next_genre = &""
+	var carried := next_start   # M47.6c2: consumed here, whatever this run is
+	var carried_lead := next_lead
+	clear_start()
 	# PLAN v8 1.2: the campaign's session, when the campaign is active (else the v6 loop).
 	RunState.session = CampaignDB.session_for_game()
 	# PLAN v9 1.2: reset() recomputed with no session; a session's HP floor is base rules.
@@ -85,6 +97,8 @@ func _ready() -> void:
 	genre = def.genre_script.new() as Genre
 	genre.name = "Genre"
 	genre.def = def
+	genre.carried_start = carried
+	genre.carried_lead = carried_lead
 	add_child(genre)
 	genre.build(self)
 
@@ -316,6 +330,7 @@ func restart(same_seed := false) -> void:
 ## "New build": a fresh run. A negative seed picks a random one. Only works when this
 ## is the current scene (tests instance it as a child and never reload it).
 func start_new_build(run_seed := -1) -> void:
+	clear_start()   # M47.6c2: Restart / F5 starts at player_start
 	if not is_live_game():   # M47.5a review: hosted, the host is the current scene
 		return
 	save_notes()
@@ -423,6 +438,10 @@ func _on_report_ready(outcome: StringName) -> void:
 	if RunState.session != null:
 		if host != null:
 			mascot.bubble_enabled = false   # M47.6a: between sessions the chat talks, not the bubble
+			# M47.6c2 (design 2.7): a seamless next session: the room empties during the beat.
+			if GameHost.carry_ok(RunState.session, CampaignDB.session(CampaignDB.index_of(RunState.session.id) + 1),
+					DebriefScreen.outcome_name(outcome)):
+				host.clear_field(self)
 		mascot.silence(host == null)   # hosted: the body stays in the corner for the beat
 		debrief.open(RunState.session, outcome, session_runner.hits, event_player.played_ids())
 		return
@@ -453,6 +472,12 @@ func _end_session(choice: StringName) -> void:
 		leave = CookingScreen.after_campaign_scene()
 	if host != null and leave == "":
 		RunState.set_pause(GameHost.HANDOFF, true)   # M47.5a: the old arena stays frozen until the swap
+	# M47.6c2 (design 2.7): Next / Move on into a Stage 1 session carries the player's spot
+	# (the tool chain captures through the same GameHost.capture_start); a retry never does.
+	clear_start()
+	if host != null and leave == "" and choice != &"retry":
+		next_start = GameHost.capture_start(self, CampaignDB.current())
+		next_lead = camera.get_screen_center_position() - player.global_position 				if next_start.is_finite() and camera != null else Vector2.ZERO
 	debrief.close()
 	if leave != "":
 		_leave_to(leave)
@@ -464,6 +489,7 @@ func _end_session(choice: StringName) -> void:
 ## stays paused behind it (M47.5a review: the handoff pause leaked to the title).
 func _leave_to(path: String) -> void:
 	RunState.clear_pauses()
+	clear_start()   # M47.6c2: the title (or the cooking screen) starts cold
 	if leave_hook.is_valid():
 		leave_hook.call(path)
 		return
@@ -523,6 +549,7 @@ func _on_script_window() -> void:
 ## M47.3 (PLAN 1.16): the pause menu's Restart session: the debrief's Retry from the middle
 ## of a session (one `menu_retry` telemetry line, one attempt), then a reload.
 func menu_restart() -> void:
+	clear_start()   # M47.6c2: a retry starts at player_start
 	var s := RunState.session
 	# M47.6a review: at a play gate nothing was played yet: no attempt, no telemetry line
 	# (the new attempt gates again: GameHost.next_session carries only a play given).
@@ -536,6 +563,12 @@ func menu_restart() -> void:
 	if host != null:
 		RunState.set_pause(GameHost.HANDOFF, true)
 	_reload(-1, _restart_text(s) if s != null else "")
+
+
+## M47.6c2: no carried start (the next run starts at the arena's player_start).
+static func clear_start() -> void:
+	next_start = NO_START
+	next_lead = Vector2.ZERO
 
 
 ## M47.5a: the next scene plays `run_seed` (-1 = random): the host swaps the session in

@@ -1279,11 +1279,12 @@ func _insert_draft() -> bool:
 
 
 ## M47.6c1 (design 2.10): " end=<reason> spawned=<n>/<budget> start=<x>,<y>", the run's end
-## reason, the spawner's own draws against its budget (-1: none) and where the player started.
+## reason, the spawner's own draws against its budget (-1: none) and where the player started
+## (M47.6c2: the carried spot in a chain, else the arena's player_start).
 static func end_text(game: Node) -> String:
 	var rec: Dictionary = game.run_loop.record
 	var sp: Node = game.get(&"spawner")
-	var start: Vector2 = game.arena.player_start if game.get(&"arena") != null else Vector2.ZERO
+	var start: Vector2 = game.run_loop.start_point
 	return " end=%s spawned=%d/%d start=%.2f,%.2f" % [String(rec.get("end", "")) if String(rec.get("end", "")) != "" else "-",
 			int(sp.get(&"spawned")) if sp != null else 0, int(sp.get(&"budget")) if sp != null else -1, start.x, start.y]
 

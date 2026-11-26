@@ -26,6 +26,12 @@ var record: Dictionary = {}   ## telemetry record of the finished run (see run_r
 var camera: Camera2D
 var world: Node2D
 var player: Node2D
+## M47.6c2 (PLAN v9.4 0.8, design 2.7): set by the shell before build(): where the player
+## stood at the end of the previous session (Main.NO_START = INF: a cold start at the
+## arena's own start), and the camera's lookahead then (presentation only). A genre places
+## the player there when the spot is clear, else at its usual start.
+var carried_start := Vector2.INF
+var carried_lead := Vector2.ZERO
 
 
 func build(p_shell: Node) -> void:

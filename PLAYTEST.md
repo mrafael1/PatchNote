@@ -1,3 +1,13 @@
+# Next playtest: M47.6c2, no reload between sessions (Stage 1 rework, part 4)
+
+What is new since M47.6c1 (no extra steps; play as usual):
+- From S0 to S6 the next session starts where you stood: same room, same view, no glitch. What was left on the field pops out while the AI talks, and your HP refills.
+- A death, "again", Restart, a resume or S7's chapter still reload at the room's start, with the glitch.
+
+One-liners (defaults taken): the pop of the leftovers: visible enough? Standing against a wall at the end moves you to the nearest free tile: noticeable?
+
+---
+
 # Next playtest: M47.6c1, Stage 1's endings (Stage 1 rework, part 3)
 
 What is new since M47.6b (no extra steps; play as usual):

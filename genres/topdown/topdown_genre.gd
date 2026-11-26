@@ -91,7 +91,7 @@ func build(p_shell: Node) -> void:
 	RunState.world = world
 
 	player = PLAYER_SCENE.instantiate()
-	player.position = arena.player_start
+	player.position = start_for(carried_start)   # M47.6c2: the carried spot, else player_start
 	apply_basics()
 	EventBus.basic_added.connect(_on_basic_added)
 	world.add_child(player)
@@ -114,6 +114,8 @@ func build(p_shell: Node) -> void:
 	add_child(rig)
 	rig.make_current()
 	camera = rig
+	if player.position != arena.player_start:
+		rig.carry_lead(carried_lead)   # M47.6c2: the view the player had (presentation)
 
 	var tint := TimeTint.new()
 	tint.name = "TimeTint"
@@ -137,6 +139,7 @@ func build(p_shell: Node) -> void:
 	# M14 ran the loop after the Director and the Transition; the priority keeps that
 	# order now that the loop sits in the genre, ahead of the shell's nodes.
 	run_loop.process_physics_priority = 1
+	run_loop.start_point = player.position   # M47.6c2: the record's and the bot line's start
 	add_child(run_loop)
 
 
@@ -249,6 +252,22 @@ func _on_stage_starting(_index: int, stage: StageDef) -> void:
 
 
 ## Shifting keeps the player in place when the new layout leaves the spot free.
+## M47.6c2 (design 2.7): where the player starts: a carried spot (Main.next_start) when it
+## is inside the arena, clear of every block (half a tile) and reachable from player_start.
+## A spot hugging a wall (the player stood against it) moves to the nearest free tile centre
+## (the walls' own push-out, Arena.free_tile_near) when that one is reachable, so the room does
+## not visibly jump; else the arena's player_start. A cold start (INF) reads nothing.
+func start_for(carried: Vector2) -> Vector2:
+	if not carried.is_finite() or not arena.bounds.has_point(carried):
+		return arena.player_start
+	if _clear_spot(carried) and arena.is_reachable(carried):
+		return carried
+	var near := arena.free_tile_near(carried)
+	if near != carried and _clear_spot(near) and arena.is_reachable(near):
+		return near
+	return arena.player_start
+
+
 func _clear_spot(p: Vector2) -> bool:
 	return arena.distance_to_blocks(p) >= Tuning.TILE * 0.5
 

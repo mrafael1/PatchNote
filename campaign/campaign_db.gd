@@ -677,6 +677,7 @@ func telemetry_record(s: SessionDef, run_record: Dictionary, outcome: StringName
 		"end": run_record.get("end", ""),
 		"enemy_total": run_record.get("enemy_total", -1),
 		"spawned": run_record.get("spawned", 0),
+		"start": run_record.get("start", []),   # M47.6c2: where the player started
 		"deaths": 1 if outcome == &"died" else 0,
 		"kills": RunState.kills,
 		"hits_taken": hits,

@@ -21,6 +21,12 @@ extends Control
 ## chains never gate (auto_play / auto_beats); tool hosts gate only their swaps (run_hash
 ## calls skip_handoff on frame 1).
 ##
+## M47.6c2 (PLAN v9.4 0.8, design 2.7): no reload between Stage 1 sessions. The next session
+## is still a fresh instance (a clean RunState.reset), but the swap is invisible: no glitch,
+## the same arena, the player where it stood (capture_start -> Main.next_start), the room
+## emptied during the beat (clear_field: leftovers pop out, HP refills). A death, a retry, a
+## chapter, a restart, a resume or another arena still reloads visibly at player_start.
+##
 ## Layout, in window pixels while live (the root's content scale off). M47.6b (PLAN v9.4 0.8,
 ## design 2.1): the dev desktop (DevDesktop) draws two windows and a taskbar; the game column
 ## sits in the game window under its title bar, the terminal (or, after S2, the chat) fills
@@ -50,6 +56,10 @@ const IDLE_HINT_S := 10.0
 const IDLE_HINT := "(type play)"
 const IDLE_HINT_FROM := 2
 const GLITCH_SHADER := preload("res://systems/glitch.gdshader")
+## M47.6c2: a leftover's pop at the beat (presentation; reduce flashing: a plain fade).
+const PUFF_S := 0.3
+const PUFF_R := 14.0
+const CLEAR_GROUPS: Array[StringName] = [&"enemy", &"enemy_projectile", &"player_projectile", &"pickup"]
 
 ## False in bot runs (tools/bot_runs.gd): the debrief never chooses by itself there.
 static var auto_beats := true
@@ -95,6 +105,48 @@ var _activity_usec := 0
 var _hint_shown := false
 var asking_first_run := false   ## the installer's question waits for 1 / 2
 var _chapter_rows := false      ## the session's rows wait (for the card to close, or the installer's answer)
+var seamless := false           ## M47.6c2: the swap in flight carries the player (no glitch)
+var puffs: Puffs                ## M47.6c2: the leftovers' pops over the game column
+var cleared := 0                ## M47.6c2: leftovers popped at the last beat (tests)
+
+
+## M47.6c2: the pops over the game column, in host pixels; each fades over PUFF_S (real
+## time: the game is frozen under the beat). Reduce flashing: a dot that fades, no ring.
+class Puffs:
+	extends Control
+	var points: Array[Vector2] = []
+	var age := 0.0
+	var gentle := false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		process_mode = Node.PROCESS_MODE_ALWAYS
+		visible = false
+
+	func pop(at: Array[Vector2], p_gentle: bool) -> void:
+		points = at
+		age = 0.0
+		gentle = p_gentle
+		visible = not points.is_empty()
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if not visible:
+			return
+		age += delta
+		if age >= PUFF_S:
+			visible = false
+			points.clear()
+		queue_redraw()
+
+	func _draw() -> void:
+		var t := clampf(age / PUFF_S, 0.0, 1.0)
+		var a := 1.0 - t
+		for p in points:
+			if gentle:
+				draw_circle(p, PUFF_R * 0.4, Color(1, 1, 1, 0.5 * a))
+			else:
+				draw_arc(p, PUFF_R * (0.4 + t), 0.0, TAU, 16, Color(1, 1, 1, 0.8 * a), 2.0)
 
 
 ## The layout for a window of `window` pixels: {k, game: Rect2, terminal: Rect2, font: int,
@@ -176,6 +228,9 @@ func _ready() -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fade.visible = false
 	add_child(_fade)
+	puffs = Puffs.new()
+	puffs.name = "Puffs"
+	add_child(puffs)
 	terminal = TerminalPanel.new()
 	terminal.name = "Terminal"
 	add_child(terminal)
@@ -262,7 +317,7 @@ func relayout(window := Vector2.ZERO) -> void:
 	viewport.size = Vector2i(g.size) if _view_size_override == Vector2i.ZERO else _view_size_override
 	view.position = g.position
 	view.size = g.size
-	for r: Control in [_glitch, _fade]:
+	for r: Control in [_glitch, _fade, puffs]:
 		r.position = g.position
 		r.size = g.size
 	var t: Rect2 = layout.terminal
@@ -350,6 +405,60 @@ func _session_rows() -> void:
 	terminal.cmd("run %s" % s.id)
 
 
+# --- No reload between sessions (M47.6c2, PLAN v9.4 0.8, design 2.7) -------------------------
+
+## A session ending `outcome` (the debrief's: won / stopped / died) carries the player into
+## session `to`: both Stage 1 (M47.6d2 extends it to Stage 2), the same arena, no death and
+## no stage card before it.
+static func carry_ok(from: SessionDef, to: SessionDef, outcome: StringName) -> bool:
+	return from != null and to != null and outcome != &"died" and from.stage == 1 and to.stage == 1 			and from.arena_def() == to.arena_def() and not CampaignDB.stage_card_due(to)
+
+
+## The one capture path (Main._end_session and run_hash --chain): where the next session
+## `next` starts, the old game's player to 0.01 px (printed_start), or Main.NO_START when the
+## carry does not apply (read while the old game's debrief is open, before the swap).
+static func capture_start(main: Main, next: SessionDef) -> Vector2:
+	if main == null or not is_instance_valid(main) or main.player == null or main.debrief == null:
+		return Main.NO_START
+	if not carry_ok(RunState.session, next, main.debrief.outcome):
+		return Main.NO_START
+	return printed_start(main.player.global_position)
+
+
+## A start to 0.01 px exactly as its printed "%.2f" text reads back (run_hash --start, the
+## [botrun] and campaign lines): snapped() in single precision can land one ulp off the
+## parsed text, and one ulp moved S2's chained hashes against its cold replay.
+static func printed_start(p: Vector2) -> Vector2:
+	return Vector2(("%.2f" % p.x).to_float(), ("%.2f" % p.y).to_float())
+
+
+## The beat of a seamless next session: the old (frozen) instance's enemies, shots and pickups
+## pop out at their last screen points and the player's HP refills, so the swap frame shows
+## the same empty room. Presentation of a run already over (the next instance is fresh).
+func clear_field(main: Main) -> void:
+	cleared = 0
+	if main == null or not is_instance_valid(main) or not main.is_inside_tree():
+		return
+	var at: Array[Vector2] = []
+	var k := view.size / GAME_SIZE
+	var on_screen := Rect2(Vector2.ZERO, GAME_SIZE)   # Puffs does not clip: off-view leftovers draw no pop
+	for g in CLEAR_GROUPS:
+		for n in get_tree().get_nodes_in_group(g):
+			if not main.is_ancestor_of(n) or n.is_queued_for_deletion():
+				continue
+			if n is CanvasItem:
+				var o := (n as CanvasItem).get_global_transform_with_canvas().origin
+				if on_screen.has_point(o):
+					at.append(view.position + o * k)
+			n.queue_free()
+			cleared += 1
+	if main.player != null:
+		var hp := Component.find(main.player, Health) as Health
+		if hp != null:
+			hp.heal(hp.max_hp())
+	puffs.pop(at, SaveGame.reduce_flashing())
+
+
 ## The prompt's name for a body: "ai" for the caret, else the body's short name, lower case.
 static func speaker_for(body_id: StringName) -> String:
 	if body_id == MascotBody.CARET:
@@ -364,13 +473,16 @@ func next_session(restart := "") -> void:
 	if _swap_queued:
 		return
 	_swap_queued = true
+	# M47.6c2 (design 2.7): Next into a Stage 1 session with the player's spot carried is
+	# invisible: no glitch, the swap on the next frame. Restart / again never carry.
+	seamless = restart == "" and Main.next_start.is_finite()
 	# M47.6a: again / restart: the play already given carries over. Review: only a play that
 	# was given (released); a restart from the gate (still held) gates again.
 	_carry_play = restart != "" and not held
 	_close_gate()
 	_reload_row = restart if restart != "" else "hot-reload game"
 	terminal.cmd_open(_reload_row)
-	if is_live() and auto_beats:
+	if is_live() and auto_beats and not seamless:
 		_pulse()
 		get_tree().create_timer(GLITCH_S, true, false, true).timeout.connect(_swap)
 	else:
