@@ -9,7 +9,7 @@ extends GutTest
 const CARD_DIGEST := "68031465aa5208bba7dd7b238a67e8ce408c129130a8f9de08d29f5af82aed7a"   # M50.6: + the card_epic frame (e4f73d12... before)
 ## M50.3a moved the arena atlas once (the launcher's sprites and the card_rare role); the card
 ## art's own digest did not move (it reads card_rare at draw time).
-const ATLAS_DIGEST := "30a949100fbd5abb552ac28d889fe4ad40586b4c6af897100c84664524f10a43"   # M50.5: the merged atlas (revolver + minigun + launcher sprites; 5ccf2497... on build/arcade)
+const ATLAS_DIGEST := "db2c84518e7d82a873ca4e25d72e9e3b52cec842b029f950bf48992a19bd29ad"   # M50.6b: the projectile sheet redrew the shots (30a94910... before, M50.5's merged atlas)
 
 var panel: PickPanel
 var picked_i: Array = []

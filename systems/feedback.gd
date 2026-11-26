@@ -23,6 +23,9 @@ var screen: ScreenFx
 var kill_pops := 0   ## kill pops shown this run (tests)
 
 var _live := 0
+var _muzzle_fx: ShotFx           ## M50.6b: the drawn muzzle flash of this physics frame
+var _muzzle_frame := -1
+var _muzzle_dir := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -38,6 +41,7 @@ func _ready() -> void:
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 	EventBus.player_hit.connect(_on_player_hit)
 	EventBus.projectile_hit_wall.connect(_on_hit_wall)
+	EventBus.projectile_hit.connect(_on_projectile_hit)
 	EventBus.player_landed.connect(_on_player_landed)
 	EventBus.player_dashed.connect(_on_player_dashed)
 	EventBus.player_hooked.connect(_on_player_hooked)
@@ -177,14 +181,56 @@ func _on_player_died() -> void:
 
 
 func _on_projectile_fired(projectile: Node) -> void:
-	if not Look.preset.muzzle_flash or not is_instance_valid(projectile) \
-			or projectile.get(&"faction") != &"player":
+	if not is_instance_valid(projectile) or projectile.get(&"faction") != &"player":
 		return
 	var velocity: Variant = projectile.get(&"velocity")
 	if not projectile is Node2D or not velocity is Vector2:
 		return   # a test's stand-in shot: no direction to flash along
-	burst((projectile as Node2D).global_position, Palette.color(&"muzzle"), 4, 80.0, 200.0, 0.08, 5.0,
-			(velocity as Vector2).normalized(), 25.0)
+	var pos := (projectile as Node2D).global_position
+	var dir := (velocity as Vector2).normalized()
+	if _muzzle_sprite(pos, dir) or not Look.preset.muzzle_flash:
+		return
+	burst(pos, Palette.color(&"muzzle"), 4, 80.0, 200.0, 0.08, 5.0, dir, 25.0)
+
+
+## M50.6b: the Pixel look's drawn muzzle flash, in place of the particles: one per physics
+## frame (a shotgun's pellets share it, turned to their mean heading). False without the
+## sprite or under reduce flashing: today's path.
+func _muzzle_sprite(pos: Vector2, dir: Vector2) -> bool:
+	if Skins.on(ShotFx.MUZZLE) == null or SaveGame.reduce_flashing():
+		return false
+	var frame := Engine.get_physics_frames()
+	if frame == _muzzle_frame and is_instance_valid(_muzzle_fx):
+		_muzzle_dir += dir
+		_muzzle_fx.rotation = _muzzle_dir.angle()
+		return true
+	_muzzle_fx = _shot_fx(ShotFx.MUZZLE, pos)
+	if _muzzle_fx != null:
+		_muzzle_frame = frame
+		_muzzle_dir = dir
+		_muzzle_fx.rotation = dir.angle()
+	return true
+
+
+## M50.6b: the Pixel look's cyan spark where a player shot lands (dim under reduce flashing).
+func _on_projectile_hit(projectile: Node, _target: Node, pos: Vector2) -> void:
+	if not is_instance_valid(projectile) or projectile.get(&"faction") != &"player" \
+			or Skins.on(ShotFx.SPARK) == null:
+		return
+	var fx := _shot_fx(ShotFx.SPARK, pos)
+	if fx != null and SaveGame.reduce_flashing():
+		fx.fade = 0.5
+
+
+func _shot_fx(id: StringName, pos: Vector2) -> ShotFx:
+	if not is_instance_valid(effects_parent) or ShotFx.live >= ShotFx.MAX_LIVE:
+		return null
+	var fx := ShotFx.new()
+	fx.id = id
+	fx.position = pos
+	fx.z_index = 5   # over the shot that made it
+	effects_parent.add_child(fx)
+	return fx
 
 
 ## The kill confirmation, in every look: never skipped by the effect cap.
