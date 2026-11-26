@@ -301,7 +301,9 @@ func _card(cr: Rect2, c: Dictionary) -> void:
 	if c.fused:
 		sub = " + ".join(c.parents).to_lower()
 	RailFrame.text(self, Vector2(tx, cr.position.y + 30 * sc), sub, RailFrame.fit(sub, RailLayout.text_px(12, sc), tw, false, 6), RailArt.c(&"hi"))
-	WeaponGlyph.draw(self, c.icon, cr.position + Vector2(cr.size.x * 0.5, 76 * sc), roundf(44 * sc), Color.WHITE)
+	# M50.5a: the hand card shows its gun (CardArt, as Auto's rail slots do), not its shot.
+	WeaponGlyph.draw_card(self, c.icon, cr.position + Vector2(cr.size.x * 0.5, 76 * sc),
+			roundf((64.0 if Skins.current != null else 44.0) * sc), Color.WHITE)
 	# Rank pips: the classic curve to its top, the deep curve 8 then "+N".
 	var n := rank if c.deep else Loadout.MAX_RANK
 	var shown := mini(n, 8)

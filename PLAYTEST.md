@@ -1,3 +1,13 @@
+# Next playtest: M50.5a, card art and small-font letters (polish on M50.5)
+
+What is new since M50.5 (no extra steps; play as usual):
+- Arcade's pack cards now show the gun, as in the approved card mockup, not the bullet: Pistol, Shotgun, Laser, Launcher, and the fused Prism and Cluster (FUSE shows the new gun with both parents small below). The hand under a pack, the 1-card toast and the rail's HAND cards show the gun too. Both looks (flat before S9's "skin ui", pixel after).
+- The small pixel text no longer turns "fi" into an "A": "first", "fire rate", "five", "fifty" read right in the chat, on the cards and on the rail.
+
+One-liners (defaults taken): F, B and Z still look a little soft at the smallest sizes (10-12 px): still misread anywhere? Cluster's picture (a launcher with a bomb ring ahead; the mockup had none): reads as Cluster?
+
+---
+
 # Next playtest: M47.6d2, S8 and S9 endings (Stage 1 rework, part 6)
 
 What is new since M47.6d1 (no extra steps; play as usual):

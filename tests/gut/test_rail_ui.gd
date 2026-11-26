@@ -620,3 +620,23 @@ func test_the_digits_font_never_oversamples() -> void:
 		var f := UiTheme.pixel_font(bold) as FontVariation
 		var digits := f.base_font as FontFile
 		assert_eq(digits.oversampling, 1.0, "bold=%s: the digit caches are drawn at their own size" % bold)
+
+
+## M50.5a (owner: "fifty" read "Aifty", "fire rate" "Are rate", "five pellets" "Awe pellets"):
+## Pixelify's ligatures joined "fi" (and fl, ff, ffi, st) into one glyph that reads as an A at
+## the small sizes. The pixel font shapes every letter on its own: "fi" is two glyphs, as wide
+## as its f and its i, in both weights and at every size the chat, cards and rail use.
+func test_the_pixel_font_never_joins_letters() -> void:
+	var ts := TextServerManager.get_primary_interface()
+	for bold in [false, true]:
+		var f := UiTheme.pixel_font(bold)
+		for size in [10, 11, 12, 13, 14, 16, 18]:
+			for word: String in ["fi", "fl", "ff", "ffi", "st", "first", "five pellets", "fire rate", "fifty"]:
+				var line := TextLine.new()
+				line.add_string(word, f, size)
+				assert_eq(ts.shaped_text_get_glyph_count(line.get_rid()), word.length(),
+						"bold=%s %d: \"%s\" is one glyph per letter" % [bold, size, word])
+			assert_almost_eq(f.get_string_size("fi", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x,
+					f.get_string_size("f", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+					+ f.get_string_size("i", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, 1.5,
+					"bold=%s %d: fi is an f then an i (kerning: within 1.5 px)" % [bold, size])

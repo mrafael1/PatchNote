@@ -168,7 +168,7 @@ static func _draw_skin(ci: CanvasItem, icon: StringName, centre: Vector2, size: 
 
 ## M50.4f (the sheet's flat half): the flat cards' guns, in rounded blocks and polygons after the
 ## mockup's flat SVGs (Palette roles only: a grey body, a pink core, a gold muzzle, an orange grip).
-const FLAT_GUNS: Array[StringName] = [&"dot", &"fan", &"line", &"bomb", &"minigun"]   # M50.5: the launcher is `bomb` (M50.3a)
+const FLAT_GUNS: Array[StringName] = [&"dot", &"fan", &"line", &"bomb", &"minigun", &"prism", &"cluster"]   # M50.5: the launcher is `bomb` (M50.3a); M50.5a: Arcade's Prism, Cluster
 
 
 ## A flat card's picture: the flat gun of `icon` (FLAT_GUNS), the filled Haste bolt, else draw().
@@ -234,6 +234,26 @@ static func draw_gun_flat(ci: CanvasItem, icon: StringName, centre: Vector2, siz
 			_rr(ci, centre, u, Rect2(-2, -7, 2.5, 13), gold, 0.5)
 			_rr(ci, centre, u, Rect2(7, -7, 2.5, 13), gold, 0.5)
 			_poly(ci, centre, u, [Vector2(15, -3), Vector2(18, -0.5), Vector2(15, 2)], gold)
+		&"prism":   # M50.5a (the sheet's `ac-fl-prism`): the shotgun's stock, the body with both cores, the split head, three rays
+			_poly(ci, centre, u, [Vector2(-15.6, -0.7), Vector2(-9.2, -1.8), Vector2(-8.5, 3.5), Vector2(-13.8, 5.7), Vector2(-15.6, 4.2)], grip)
+			_rr(ci, centre, u, Rect2(-7.1, 1.4, 3.5, 6.4), dark, 1.4)
+			_rr(ci, centre, u, Rect2(-11.3, -2.8, 14.2, 5.0), body, 1.8)
+			_rr(ci, centre, u, Rect2(-8.5, -1.1, 4.2, 1.4), grip, 0.7)
+			_rr(ci, centre, u, Rect2(-3.9, -1.1, 5.0, 1.4), core, 0.7)
+			_poly(ci, centre, u, [Vector2(2.1, -7.1), Vector2(12.7, -0.35), Vector2(2.1, -0.35)], grip)
+			_poly(ci, centre, u, [Vector2(2.1, -0.35), Vector2(12.7, -0.35), Vector2(2.1, 6.4)], core)
+			for k in 3:
+				ci.draw_line(centre + Vector2(13.5, -0.35) * u, centre + Vector2(17, -4.2 + 3.85 * k) * u, gold, maxf(1.5, 0.9 * u), true)
+		&"cluster":   # M50.5a: the launcher's tube, its shell ahead, five bomblets round the shell
+			_rr(ci, centre, u, Rect2(-17, -4, 3, 8), dark, 1.0)
+			_rr(ci, centre, u, Rect2(-8, 3, 3, 6), dark, 1.0)
+			_rr(ci, centre, u, Rect2(-14, -4, 17, 7), grip, 2.5)
+			_rr(ci, centre, u, Rect2(-9, -4, 2, 7), gold, 0.5)
+			_rr(ci, centre, u, Rect2(3, -3, 3, 5), gold, 0.5)
+			ci.draw_circle(centre + Vector2(11, -0.5) * u, 3.0 * u, grip)
+			ci.draw_circle(centre + Vector2(11, -0.5) * u, 1.2 * u, core)
+			for i in 5:
+				ci.draw_circle(centre + (Vector2(11, -0.5) + Vector2.UP.rotated(TAU * i / 5.0) * 5.6) * u, 1.4 * u, gold)
 
 
 static func _rr(ci: CanvasItem, centre: Vector2, u: float, r: Rect2, color: Color, radius: float) -> void:

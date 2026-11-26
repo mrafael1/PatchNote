@@ -545,8 +545,9 @@ func test_m50_4f_max_mechanic_and_ready_card_data() -> void:
 		for row: String in grid:
 			for ch in row:
 				assert_true(ch == "." or (CardArt.MECHS[key][1] as Dictionary).has(ch), "%s: %s has a colour" % [key, ch])
-	for icon in WeaponGlyph.FLAT_GUNS:
-		assert_true(WeaponDB.ids().any(func(id: StringName) -> bool: return WeaponDB.get_weapon(id).icon == icon) or icon == &"minigun",
+	for icon in WeaponGlyph.FLAT_GUNS:   # M50.5a: Arcade's fusions (Prism, Cluster) have flat guns too
+		assert_true(WeaponDB.ids().any(func(id: StringName) -> bool: return WeaponDB.get_weapon(id).icon == icon)
+				or WeaponDB.fusions().any(func(w: WeaponDef) -> bool: return w.icon == icon) or icon == &"minigun",
 				"%s is a weapon's icon" % icon)
 
 

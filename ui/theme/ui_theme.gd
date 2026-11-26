@@ -134,14 +134,31 @@ static func pixel_font(bold := false) -> Font:
 		v.base_font = base
 		if bold:
 			v.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 500}
+		v.opentype_features = no_ligatures()   # M50.5a
 		v.fallbacks = [mono_font()]
 		# M48.5b: 0-9 come first from the rail's own pixel digits (owner nit: Pixelify's 2 read
 		# as an 8 at the rail's sizes); every other glyph falls through to Pixelify.
 		var top := FontVariation.new()
 		top.base_font = pixel_digits(base, v, bold)
+		top.opentype_features = no_ligatures()
 		top.fallbacks = [v, mono_font()]
 		_pixel[bold] = top
 	return _pixel[bold]
+
+
+## M50.5a (owner: "Fifty" read "Aifty", "Fire rate" "Are rate", "Five pellets" "Awe pellets"):
+## Pixelify's ligatures (liga: fi, fl, ff, ffi, ffl; dlig: st) swap "fi" for one joined glyph
+## whose pixels read as an A at the chat's and the cards' sizes ("first" -> "Arst", "fire" ->
+## "Are"). Every ligature feature off: one glyph per letter, Pixelify's own letters.
+const NO_LIGATURES: Array[String] = ["liga", "clig", "dlig", "hlig"]
+
+
+static func no_ligatures() -> Dictionary:
+	var ts := TextServerManager.get_primary_interface()
+	var out := {}
+	for tag in NO_LIGATURES:
+		out[ts.name_to_tag(tag)] = 0
+	return out
 
 
 ## M48.5b: the digits 0-9 as a code-drawn bitmap font (RailArt.small_digit: whole-pixel strokes

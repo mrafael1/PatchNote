@@ -90,17 +90,19 @@ func test_every_card_kind_has_a_face_on_tier_0_and_pixel() -> void:
 	for look: StringName in [&"off", &"pixel"]:
 		Skins.use(Skins.pixel() if look == &"pixel" else null)
 		assert_eq(CardFace.pixel(), look == &"pixel")
-		var before := WeaponGlyph.skin_draws
+		var cards: Array[CardFace] = []
 		for k: String in f:
 			var c := CardFace.new()
 			c.face = f[k]
 			c.size = CardFace.SIZE
 			add_child_autofree(c)
+			cards.append(c)
 		await wait_process_frames(2)
-		if look == &"pixel":
-			assert_gt(WeaponGlyph.skin_draws, before, "Pixel: the pictures are the look's sprites")
-		else:
-			assert_eq(WeaponGlyph.skin_draws, before, "tier 0: code-drawn pictures")
+		# M50.5a: the pictures are Auto's gun art on both looks (Pixel: CardArt, tier 0: flat guns).
+		for c in cards:
+			assert_false(c.art_drawn.is_empty(), "%s: a picture" % c.face.title)
+			for d: Array in c.art_drawn:
+				assert_eq(d[1], &"gun" if look == &"pixel" else &"flat", "%s on %s: %s" % [c.face.title, look, d[0]])
 
 
 func test_card_art_is_its_own_bake_and_the_atlas_does_not_move() -> void:
@@ -286,3 +288,59 @@ func test_every_weapon_icon_and_glyph_key_has_a_band() -> void:
 	assert_ne(CardFaceArt.band(WeaponDB.get_weapon(&"launcher").icon), misfuse, "the launcher is not lilac")
 	assert_eq(CardFaceArt.band(&"bomb"), [Color.html("#ff9a6b"), Color.html("#e0664f")], "the launcher keeps its orange")
 	assert_ne(CardFaceArt.band(&"cluster"), misfuse, "Cluster is not lilac")
+
+
+## M50.5a (the Arcade_Cards / Arcade_Pack sheets): every Arsenal card shows its gun, not its
+## shot: the common, RARE and NEW cards, the launcher, FUSE (the fused gun and both parents),
+## the give card, the hand under a pack and the toast, Pixel and tier 0. The Pixel guns are
+## CardArt's (Prism and Cluster added), the flat ones WeaponGlyph's (both added).
+func test_every_arsenal_card_draws_its_gun_on_both_looks() -> void:
+	var faces := [
+		CardFace.face_of(_card(&"pistol", &"upgrade", BoosterPack.COMMON, 7, 6), "[1]"),
+		CardFace.face_of(_card(&"shotgun", &"upgrade", BoosterPack.RARE, 4, 2), "[2]"),
+		CardFace.face_of(_card(&"laser", &"new", BoosterPack.COMMON, 1, 0), "[3]"),
+		CardFace.face_of(_card(&"launcher", &"new", BoosterPack.COMMON, 1, 0), "[1]"),
+		CardFace.fuse_face(_fuse(), "[4]"),
+		CardFace.fuse_face({"a": &"shotgun", "b": &"launcher", "id": &"cluster", "rank": 5,
+				"title": "FUSE: Shotgun 5 + Launcher 4 -> Cluster 5", "keeps": ["knockback cone"], "loses": []}, "[4]"),
+		CardFace.face_of(_card(&"laser", &"new", BoosterPack.RARE, 3, 0), "", true),
+	]
+	var minis := [[&"hand", CardFace.hand_face({"id": &"prism", "title": "Prism", "rank": 6})],
+			[&"hand", CardFace.hand_face({"id": &"cluster", "title": "Cluster", "rank": 5})],
+			[&"hand", CardFace.hand_face({"id": &"pistol", "title": "Pistol", "rank": 14})],
+			[&"toast", CardFace.face_of(_card(&"shotgun", &"upgrade", BoosterPack.RARE, 7, 5))]]
+	for icon: StringName in [&"prism", &"cluster"]:
+		assert_true(CardArt.GUNS.has(icon), "%s has a Pixel gun" % icon)
+		assert_true(icon in WeaponGlyph.FLAT_GUNS, "%s has a flat gun" % icon)
+		var grid: Array = CardArt.GUNS[icon][0]
+		for row: String in grid:
+			assert_eq(row.length(), String(grid[0]).length(), "%s: rows are one width" % icon)
+			for ch in row:
+				assert_true(ch == "." or (CardArt.GUNS[icon][1] as Dictionary).has(ch), "%s: %s has a colour" % [icon, ch])
+		for role: StringName in (CardArt.GUNS[icon][1] as Dictionary).values():
+			assert_ne(CardArt.c(role), Color.MAGENTA, "%s: %s is a card colour" % [icon, role])
+	for look: StringName in [&"off", &"pixel"]:
+		Skins.use(Skins.pixel() if look == &"pixel" else null)
+		var want := &"gun" if look == &"pixel" else &"flat"
+		var cards: Array[CardFace] = []
+		for fc: Dictionary in faces:
+			var c := CardFace.new()
+			c.face = fc
+			c.size = CardFace.SIZE
+			add_child_autofree(c)
+			cards.append(c)
+		for m: Array in minis:
+			var c := CardFace.new()
+			c.mini = m[0]
+			c.face = m[1]
+			c.size = CardFace.MINI_HAND if m[0] == &"hand" else CardFace.MINI_TOAST
+			add_child_autofree(c)
+			cards.append(c)
+		await wait_process_frames(2)
+		for c in cards:
+			var icons := []
+			for d: Array in c.art_drawn:
+				assert_eq(d[1], want, "%s %s on %s: %s is a gun" % [c.face.title, c.mini, look, d[0]])
+				icons.append(d[0])
+			var expect := [c.face.icon_a, c.face.icon_b, c.face.icon] if c.face.style == &"card_fuse" and c.mini == &"" else [c.face.icon]
+			assert_eq(icons, expect, "%s %s on %s: its pictures" % [c.face.title, c.mini, look])

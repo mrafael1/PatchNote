@@ -2,7 +2,7 @@ class_name CardFace
 extends Control
 ## M50.2c: one Arcade card drawn as a card (design `.check/arcade_s10/design.md` 2.5, the
 ## mockups `.check/mockups/cards/Arcade_Cards` / `Arcade_Pack`): a frame by rarity, the top
-## band in the weapon's colour, the art box with WeaponGlyph's picture, the rank badge, the
+## band in the weapon's colour, the art box with the weapon's gun (M50.5a: Auto's CardArt / flat guns), the rank badge, the
 ## NEW / "3 > 4" / FUSE tag, the name bar, rank pips with "+N", the gain line and the key.
 ## Kinds (`face.style`): card_common, card_rare (gold foil, "RARE +2" ribbon), card_fuse (the
 ## FUSE card: two-tone band, both parents' pictures, "Shotgun 5 + Laser 4" at its foot) and
@@ -40,6 +40,9 @@ var shine := -1.0       ## the rare shine's sweep 0..1, < 0 none
 var lit := false        ## the focused / hovered choice
 ## M50.2c review: the last drawn FUSE text box: {text, fs, height, box} (gain_fit). Read by tests.
 var fuse_drawn := {}
+## M50.5a: the pictures drawn in the last _draw, in order: [icon, how] with how = &"gun" (CardArt's
+## pixel gun), &"flat" (WeaponGlyph's flat gun) or &"glyph" (the shot glyph). Read by tests.
+var art_drawn: Array = []
 
 
 ## The face for a pack card c (BoosterPack.card's dict); `key` its hint ("[1]") or "".
@@ -123,6 +126,7 @@ static func pixel() -> bool:
 
 
 func _draw() -> void:
+	art_drawn.clear()
 	match mini:
 		&"hand":
 			_draw_hand()
@@ -336,14 +340,34 @@ func _pips(at: Vector2, square: bool) -> void:
 				CardFaceArt.px(&"red") if square else CardFaceArt.flat(&"red"), true)
 
 
-## The picture(s) in the art box.
+## The picture(s) in the art box. M50.5a (the Arcade_Cards sheet): the weapon's gun, Auto's
+## M50.4f art (CardArt's pixel guns, WeaponGlyph's flat guns), not its shot. FUSE: the fused gun
+## in the middle, both parents' small guns in the lower corners.
 func _art(art: Rect2) -> void:
 	var u := _u()
-	var c := art.get_center() + Vector2(0, -4 * u)
 	if face.get("style") == &"card_fuse":
-		WeaponGlyph.draw(self, face.get("icon_a", &""), art.position + Vector2(22, art.size.y / u - 22) * u, 30 * u, Color(1, 1, 1, 0.85))
-		WeaponGlyph.draw(self, face.get("icon_b", &""), art.end - Vector2(22, 22) * u, 30 * u, Color(1, 1, 1, 0.85))
-	WeaponGlyph.draw(self, face.get("icon", &""), c, 64 * u, Color.WHITE)
+		var pb := Vector2(40, 18) * u
+		_gun(face.get("icon_a", &""), art.position + Vector2(24, art.size.y / u - 12) * u, pb, 1.0)
+		_gun(face.get("icon_b", &""), art.end - Vector2(24, 12) * u, pb, 1.0)
+		_gun(face.get("icon", &""), art.get_center() + Vector2(0, -6 * u), Vector2(84, 30) * u, 1.0)
+		return
+	_gun(face.get("icon", &""), art.get_center() + Vector2(0, -3 * u), Vector2(art.size.x - 16 * u, art.size.y - 14 * u), 2.0)
+
+
+## M50.5a: the gun of `icon` centred at `centre`, filling `box`: Pixel draws CardArt's grid (the
+## shot glyph for a weapon without one), tier 0 WeaponGlyph's flat gun.
+func _gun(icon: StringName, centre: Vector2, box: Vector2, least: float) -> void:
+	if icon == &"":
+		return
+	if pixel():
+		if CardArt.draw_card_art(self, icon, centre, box, 7.0, least).has_area():
+			art_drawn.append([icon, &"gun"])
+			return
+		WeaponGlyph.draw(self, icon, centre, minf(box.x, box.y), Color.WHITE)
+		art_drawn.append([icon, &"glyph"])
+		return
+	WeaponGlyph.draw_card_flat(self, icon, centre, minf(box.x * 0.7, box.y * 1.4), Color.WHITE)
+	art_drawn.append([icon, &"flat" if icon in WeaponGlyph.FLAT_GUNS else &"glyph"])
 
 
 ## The rare shine: a light band crossing the card (no shine under reduce flashing: shine < 0).
@@ -461,7 +485,7 @@ func _draw_hand() -> void:
 		draw_rect(Rect2(inner.position, Vector2(inner.size.x, 3 * u)), CardFaceArt.band(icon)[0])
 		var art := Rect2(inner.position + Vector2(4, 7) * u, Vector2(40, 34) * u)
 		draw_rect(art, CardFaceArt.px(&"cell"))
-		WeaponGlyph.draw(self, icon, art.get_center(), 30 * u, Color.WHITE)
+		_gun(icon, art.get_center(), art.size - Vector2(4, 4) * u, 1.0)
 		var f := UiTheme.pixel_font(true)
 		var s := int(roundf(14 * u))
 		draw_string(f, Vector2(art.end.x + 6 * u, inner.position.y + 7 * u + f.get_ascent(s)), title.to_upper(),
@@ -478,7 +502,7 @@ func _draw_hand() -> void:
 		sb.set_border_width_all(2)
 		sb.set_corner_radius_all(int(8 * u))
 		draw_style_box(sb, r)
-		WeaponGlyph.draw(self, icon, r.position + Vector2(26, 25) * u, 32 * u, Color.WHITE)
+		_gun(icon, r.position + Vector2(26, 25) * u, Vector2(46, 34) * u, 1.0)
 		var f := UiTheme.font()
 		var s := int(roundf(15 * u))
 		draw_string(f, Vector2(52 * u, 8 * u + f.get_ascent(s)), title, HORIZONTAL_ALIGNMENT_LEFT, -1, s, CardFaceArt.flat(&"text"))
@@ -502,7 +526,7 @@ func _draw_toast() -> void:
 		draw_rect(Rect2(card.position + Vector2(10, 9) * u, Vector2(card.size.x - 20 * u, 4 * u)), CardFaceArt.band(icon)[0])
 		var art := Rect2(card.position + Vector2(10, 16) * u, Vector2(card.size.x - 20 * u, 44 * u))
 		draw_rect(art, CardFaceArt.px(&"cell"))
-		WeaponGlyph.draw(self, icon, art.get_center(), 32 * u, Color.WHITE)
+		_gun(icon, art.get_center(), art.size - Vector2(6, 6) * u, 1.0)
 	else:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = CardFaceArt.flat(&"face")
@@ -511,7 +535,7 @@ func _draw_toast() -> void:
 		sb.set_corner_radius_all(int(8 * u))
 		draw_style_box(sb, card)
 		draw_rect(Rect2(card.position + Vector2(14, 8) * u, Vector2(14, 3) * u), CardFaceArt.band(icon)[0])
-		WeaponGlyph.draw(self, icon, card.position + Vector2(card.size.x * 0.5, 38 * u), 32 * u, Color.WHITE)
+		_gun(icon, card.position + Vector2(card.size.x * 0.5, 38 * u), Vector2(card.size.x - 16 * u, 36 * u), 1.0)
 	var digits := str(int(face.get("rank", 1)))
 	var cellpx := maxf(1.0, roundf(2 * u))
 	var bw := RailArt.digits_width(digits, cellpx) + 8 * u

@@ -103,12 +103,32 @@ const GUN_THUNDERCLAP := ["...................O...O..", "...............L....OYO
 const GUN_THUNDERCLAP_LEGEND := {"L": &"metal_lo", "M": &"metal", "b": &"crate_hi", "d": &"crate_lo",
 		"m": &"metal_hi", "y": &"gold_lo", "O": &"ring", "Y": &"core", "H": &"bolt_hi", "W": &"tip"}
 
+## M50.5a (Arcade's cards, the Arcade_Cards sheet): the Prism (the sheet's `ac-px-prism`: the
+## shotgun's stock and body, the laser's pink core, the split prism head) and Cluster (the
+## launcher's tube, its shell ahead with five bomblets round it; the sheet has no picture: drawn
+## in its style).
+const GUN_PRISM := ["...................RR.........", "...................RpRR.......", "...................RpRRRR.....",
+		"...................RpRpRR.....", "mmmmmmmmmmmmmmmmmmmRRRRRRRR...", "MMMMMMRRRRRPPPPPPMMRRRRRRRR...",
+		"MMMMMMRRRRRPPPPPPMMPppppppPP..", "RRRRRMMMMMMMMMMMMMMPPPPPPPP...", "RRRRRLLLLLLLLLLLLLLPPPPPPPP...",
+		"RRRRR...CCC........PPPPPP.....", "RRRRR...CCC........PPPPPP.....", "RRRRR...CCC........PPPP.......",
+		"rrrrr...CCC........PP.........", "........CCC..................."]
+const GUN_PRISM_LEGEND := {"C": &"cell", "L": &"metal_lo", "M": &"metal", "P": &"pink", "R": &"might",
+		"m": &"metal_hi", "p": &"pink_hi", "r": &"warn_dk"}
+const GUN_CLUSTER := [".......LLL.................", ".......LLY.........hY..hY..", "MMM....LLL.........YY..YY..",
+		"LLwwwYYwwwwwYYw............", "LLWWWYYWWWWWYYhYh...OOO....", "LLWWWYYWWWWWYYWYY...OHO..hY",
+		"LLWWWYYWWWWWYYWYY...OHO..YY", "LLWWWYYWWWWWYYWYY...OOO....", "LLDDDYYDDDDDYYDyy..........",
+		"LL.....bby.............hY..", ".......bbyK........hY..YY..", ".......bby.........YY......",
+		".......bby................."]
+const GUN_CLUSTER_LEGEND := {"D": &"warn_dk", "H": &"bolt_hi", "K": &"ink", "L": &"metal_lo", "M": &"metal",
+		"O": &"ring", "W": &"warn", "Y": &"gold", "b": &"crate_hi", "h": &"gold_hi", "w": &"warn_hi", "y": &"gold_lo"}
+
 ## Weapon icon -> [grid, legend].
 const GUNS := {
 	&"dot": [GUN_PISTOL, GUN_PISTOL_LEGEND], &"fan": [GUN_SHOTGUN, GUN_SHOTGUN_LEGEND],
 	&"line": [GUN_LASER, GUN_LASER_LEGEND], &"bomb": [GUN_LAUNCHER, GUN_LAUNCHER_LEGEND],   # M50.5: Arcade renamed the launcher icon ball -> bomb
 	&"minigun": [GUN_MINIGUN, GUN_MINIGUN_LEGEND],
 	&"supernova": [GUN_SUPERNOVA, GUN_SUPERNOVA_LEGEND], &"thunderclap": [GUN_THUNDERCLAP, GUN_THUNDERCLAP_LEGEND],
+	&"prism": [GUN_PRISM, GUN_PRISM_LEGEND], &"cluster": [GUN_CLUSTER, GUN_CLUSTER_LEGEND],   # M50.5a: Arcade's fusions
 }
 
 static var _cache := {}
@@ -209,13 +229,14 @@ static func card_px(cols: int, rows: int, box: Vector2, least := 2.0, most := 7.
 ## M50.4f: the picture of `icon` (its gun, else its item glyph) centred at `centre`, at the
 ## cell size that fills `box` (card_px). Returns the drawn rect (outline excluded), or an empty
 ## Rect2 when the icon has no grid.
-static func draw_card_art(ci: CanvasItem, icon: StringName, centre: Vector2, box: Vector2, most := 7.0) -> Rect2:
+static func draw_card_art(ci: CanvasItem, icon: StringName, centre: Vector2, box: Vector2, most := 7.0,
+		least := 2.0) -> Rect2:
 	var row: Array = GUNS.get(icon, GLYPHS.get(icon, []))
 	if row.is_empty():
 		return Rect2()
 	var grid: Array = row[0]
 	var cols := String(grid[0]).length()
-	var px := card_px(cols, grid.size(), box, 2.0, most)
+	var px := card_px(cols, grid.size(), box, least, most)
 	var at := (centre - Vector2(cols, grid.size()) * px * 0.5).round()
 	_draw_grid_px(ci, grid, row[1], at, px)
 	return Rect2(at, Vector2(cols, grid.size()) * px)
