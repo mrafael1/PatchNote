@@ -610,3 +610,13 @@ func test_small_digits_are_whole_pixels_and_distinct() -> void:
 		assert_almost_eq(f.get_string_size("v0.2.0 12", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x,
 				base.get_string_size("v0.2.0 12", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, 2.0, "the same width at %d (whole-pixel advances: within 2 px)" % size)
 		assert_almost_eq(f.get_height(size), base.get_height(size), 0.5, "the same line height at %d" % size)
+
+
+## M50.5 (merge): the digits font has caches at whole sizes only, so it must not oversample: in
+## the game's SubViewport (Auto's Pixel level-up cards) an oversampled size found no glyph and
+## the card's numbers were blank.
+func test_the_digits_font_never_oversamples() -> void:
+	for bold in [false, true]:
+		var f := UiTheme.pixel_font(bold) as FontVariation
+		var digits := f.base_font as FontFile
+		assert_eq(digits.oversampling, 1.0, "bold=%s: the digit caches are drawn at their own size" % bold)

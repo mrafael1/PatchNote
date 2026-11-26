@@ -157,6 +157,10 @@ static func pixel_digits(base: FontFile, metrics: Font, bold: bool) -> FontFile:
 	ff.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	ff.generate_mipmaps = false
 	ff.fixed_size = 0
+	# M50.5 (merge): its caches exist only at whole sizes, so a viewport's oversampling (the game's
+	# 1280x720 SubViewport under the host: Auto's level-up cards) asked for sizes it never baked
+	# and drew no digits. Fixed at 1: the digits scale with the canvas like the rest of the art.
+	ff.oversampling = 1.0
 	for size in range(DIGIT_SIZES.x, DIGIT_SIZES.y + 1):
 		var key := Vector2i(size, 0)
 		ff.set_cache_ascent(0, size, metrics.get_ascent(size))
