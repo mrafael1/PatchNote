@@ -363,14 +363,14 @@ func _items(r: Rect2, d: Dictionary) -> void:
 	var slot_w := floorf((568.0 - 24.0 - divider) / float(n_w + n_p)) - 6.0
 	var x := 12.0
 	for i in n_w:
-		_slot(r, x, slot_w, weapons[i] if i < weapons.size() else {}, int(d.cap), false)
+		_slot(r, x, slot_w, weapons[i] if i < weapons.size() else {}, int(d.cap), false, int(d.get("new_slot", -1)) == i)
 		x += slot_w + 6.0
 	if n_p > 0:
 		draw_rect(Rect2(_d(r, Vector2(x + 2, 36)), Vector2(roundf(4 * sc), roundf(120 * sc))), RailArt.c(&"ink"))
 		draw_rect(Rect2(_d(r, Vector2(x + 6, 36)), Vector2(p, roundf(120 * sc))), RailArt.c(&"hi"))
 		x += divider
 		for i in n_p:
-			_slot(r, x, slot_w, passives[i] if i < passives.size() else {}, int(d.cap), true)
+			_slot(r, x, slot_w, passives[i] if i < passives.size() else {}, int(d.cap), true, int(d.get("new_passive", -1)) == i)
 			x += slot_w + 6.0
 	# The XP strip on the plate floor.
 	var floor_r := Rect2(_d(r, Vector2(0, 164)), Vector2(r.size.x, r.end.y - roundf(r.position.y + 164 * sc)))
@@ -381,7 +381,8 @@ func _items(r: Rect2, d: Dictionary) -> void:
 	var bx := maxf(92.0, 12.0 + lw / sc + 8.0)
 	var bar := Rect2(_d(r, Vector2(bx, 176)), (Vector2(472.0 - bx, 16) * sc).round())
 	RailArt.block(self, bar, RailArt.c(&"sunk"), p)
-	var xp: float = d.xp
+	var picking := bool(d.get("picking", false))   # M50.4f: a level-up is open: the bar is full
+	var xp: float = 1.0 if picking else float(d.xp)
 	var fill := Rect2(bar.position, Vector2(roundf(bar.size.x * xp), bar.size.y))
 	if fill.size.x > 0.0:
 		draw_rect(fill, RailArt.c(&"gold"))
@@ -391,21 +392,41 @@ func _items(r: Rect2, d: Dictionary) -> void:
 	while tick < bar.end.x - 2:
 		draw_rect(Rect2(Vector2(roundf(tick), bar.position.y), Vector2(p, bar.size.y)), Color(RailArt.c(&"ink"), 0.5))
 		tick += 38 * sc
-	_num(_d(r, Vector2(486, 177)), "%d%%" % roundi(100.0 * xp), 18, RailArt.c(&"text"))
+	if picking:
+		_num(_d(r, Vector2(486, 177)), "UP!", 18, RailArt.c(&"gold"))
+	else:
+		_num(_d(r, Vector2(486, 177)), "%d%%" % roundi(100.0 * xp), 18, RailArt.c(&"text"))
 	var hint := String(d.get("hint", ""))
-	if hint == "":
+	var legend := String(d.get("legend", ""))
+	if picking and legend != "":   # M50.4f: the open level-up's per-key legend
+		RailFrame.text(self, _d(r, Vector2(bx, 198)), legend,
+				RailFrame.fit(legend, RailLayout.text_px(12, sc), r.end.x - _d(r, Vector2(bx, 0)).x - 8 * sc, false, 7), RailArt.c(&"gold"))
+	elif hint == "":
 		_small(r, Vector2(bx, 198), "next level: pick 1 of 3", RailArt.c(&"gold"))
 	else:   # M50.4c1: the evolve hint (pink when EVOLVE is ready, dim while ranking up)
 		_small(r, Vector2(bx, 198), hint, RailArt.c(&"pink") if hint.begins_with("EVOLVE") else RailArt.c(&"dim"))
 
 
-func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bool) -> void:
+func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bool, new_well := false) -> void:
 	var sc: float = frame.s()
 	var p: float = frame.px()
 	var sr := Rect2(_d(r, Vector2(x, 36)), (Vector2(w, 120) * sc).round())
+	# M50.4f (the sheet's FOCUS): the slot the focused choice changes lifts in a gold ring.
+	var lift := bool(item.get("lift", false)) or new_well
+	if lift:
+		sr.position.y -= roundf(3 * sc)   # (a small lift: the ring stays under the cell's title)
+		draw_rect(sr.grow(4 * p), RailArt.c(&"ink"))
+		draw_rect(sr.grow(3 * p), RailArt.c(&"gold"))
 	if item.is_empty():
 		RailArt.bevel(self, sr, RailArt.c(&"sunk"), RailArt.c(&"ink"), RailArt.c(&"base"), p)
-		RailFrame.text(self, sr.position + Vector2(0, 46 * sc), "+", RailLayout.text_px(24, sc), RailArt.c(&"hi"), true, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x)
+		RailFrame.text(self, sr.position + Vector2(0, 46 * sc), "+", RailLayout.text_px(24, sc),
+				RailArt.c(&"gold") if new_well else RailArt.c(&"hi"), true, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x)
+		if new_well:
+			var fs0 := RailLayout.text_px(12, sc)
+			var nw := RailFrame.text_w("NEW", fs0, true) + 6 * sc
+			var nr := Rect2(Vector2(sr.position.x + 8 * sc, sr.position.y + 6 * sc), Vector2(nw, roundf(14 * sc)))
+			RailArt.block(self, nr, RailArt.c(&"pink"), p)
+			RailFrame.text(self, nr.position + Vector2(3 * sc, 0), "NEW", fs0, RailArt.c(&"ink"), true)
 		return
 	var rank := int(item.rank)
 	var evo := bool(item.get("evo", false))   # M50.4c1: an evolution: gold ring, "EVO", no pips
@@ -416,6 +437,11 @@ func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bo
 		for side: Rect2 in [Rect2(sr.position, Vector2(sr.size.x, 2 * p)), Rect2(sr.position, Vector2(2 * p, sr.size.y)),
 				Rect2(Vector2(sr.end.x - 2 * p, sr.position.y), Vector2(2 * p, sr.size.y))]:
 			draw_rect(side, RailArt.c(&"gold"))
+	if bool(item.get("evo_ring", false)):   # M50.4f: a focused EVOLVE would take this weapon
+		draw_rect(sr.grow(-p), RailArt.c(&"pink"), false, 2 * p)
+		draw_rect(sr.grow(4 * p), RailArt.c(&"pink"), false, 2 * p)
+	if bool(item.get("cat_tick", false)):   # ... with this catalyst
+		draw_rect(Rect2(sr.position + Vector2(0, -5 * p), Vector2(sr.size.x, 2 * p)), RailArt.c(&"pink"))
 	var fs := RailLayout.text_px(12, sc)
 	if evo:
 		for k in 2:
@@ -446,8 +472,12 @@ func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bo
 	for k in cap:
 		var on_pip := k < rank
 		var col := (RailArt.c(&"warn") if passive else RailArt.c(&"gold")) if on_pip else RailArt.c(&"pip_off")
-		RailArt.block(self, Rect2(Vector2(roundf(x0 + k * step), roundf(sr.position.y + 96 * sc)), Vector2(pip, pip)), col,
-				p if on_pip else roundf(p * 0.5))
+		var pr := Rect2(Vector2(roundf(x0 + k * step), roundf(sr.position.y + 96 * sc)), Vector2(pip, pip))
+		if bool(item.get("next", false)) and k == rank:   # M50.4f: the pip this pick lights (a steady glow)
+			draw_rect(pr.grow(3 * p), Color(RailArt.c(&"gold"), 0.45))
+			RailArt.block(self, pr, RailArt.c(&"gold_hi"), p)
+			continue
+		RailArt.block(self, pr, col, p if on_pip else roundf(p * 0.5))
 
 
 # --- Survival: AMMO ----------------------------------------------------------------------------

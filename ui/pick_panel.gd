@@ -64,6 +64,10 @@ var _fused_title := ""
 var _dismissed := false   ## the run is over: never open again
 var _banner: LevelCard.Banner   ## M50.4b: the dressed panel's "LEVEL n"
 var _cards_dressed: Array[LevelCard] = []   ## M50.4b: tests
+## M50.4f: the PathRunner (main.gd sets it), for the flat look's slot bar under the dressed cards.
+var runner: Node
+var _slot_bar: Control   ## M50.4f: the flat slot bar (null in the Pixel look: the rail shows it)
+var _gap: Control   ## M50.4f: the space under the cards (smaller under the flat slot bar)
 
 
 func _ready() -> void:
@@ -101,9 +105,9 @@ func _ready() -> void:
 	_hand_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_hand_row.add_theme_constant_override(&"separation", 12)
 	column.add_child(_hand_row)
-	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(0, 60)
-	column.add_child(gap)
+	_gap = Control.new()
+	_gap.custom_minimum_size = Vector2(0, 60)
+	column.add_child(_gap)
 
 
 func is_open() -> bool:
@@ -136,6 +140,8 @@ func _build() -> void:
 	for c in _hand_row.get_children():
 		c.queue_free()
 	_cards_dressed.clear()
+	_slot_bar = null
+	_gap.custom_minimum_size.y = 60.0
 	_banner.visible = false
 	_line.visible = true
 	var hints := Settings.key_hints()
@@ -214,8 +220,9 @@ func _build_dressed(hints: bool) -> void:
 		for style: StringName in [&"normal", &"hover", &"pressed", &"disabled", &"focus", &"hover_pressed"]:
 			b.add_theme_stylebox_override(style, StyleBoxEmpty.new())
 		b.pressed.connect(choose.bind(i))
+		b.focus_entered.connect(_on_focus_moved)
 		var card := LevelCard.new()
-		card.set_card(LevelCard.data_for(offer.cards[i], offer.cap, key), pixel)
+		card.set_card(LevelCard.data_for(offer.cards[i], offer.cap, key, offer.evolve), pixel)
 		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		b.add_child(card)
 		frame.add_child(b)
@@ -225,6 +232,11 @@ func _build_dressed(hints: bool) -> void:
 		_cards_dressed.append(card)
 	if has_evolve():
 		_add_evolve_card(hints)
+	if not pixel and runner != null and is_instance_valid(runner):   # M50.4f: the flat slot bar
+		_slot_bar = SlotBar.new()
+		_slot_bar.set(&"panel", self)
+		_hand_row.add_child(_slot_bar)
+		_gap.custom_minimum_size.y = 12.0
 
 
 ## M50.4c1: the dressed EVOLVE card, the choice after the cards.
@@ -241,6 +253,7 @@ func _add_evolve_card(hints: bool) -> void:
 	for style: StringName in [&"normal", &"hover", &"pressed", &"disabled", &"focus", &"hover_pressed"]:
 		b.add_theme_stylebox_override(style, StyleBoxEmpty.new())
 	b.pressed.connect(choose.bind(n))
+	b.focus_entered.connect(_on_focus_moved)
 	var card := LevelCard.new()
 	card.set_card(LevelCard.data_for_evolve(offer.evolve, key), Skins.is_on(&"ui_panel"))
 	card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -476,3 +489,183 @@ func choose(i: int) -> void:
 	_root.visible = false
 	RunState.set_pause(PAUSE, false)
 	picked.emit(from, i)
+
+
+# --- M50.4f: the focused choice, for the rail's slot bar (the sheet's "the slot that changes lifts") ---
+
+## The focused choice's index (0-based, the EVOLVE choice after the cards), -1 none.
+func focused_choice() -> int:
+	if not is_open():
+		return -1
+	for i in _buttons.size():
+		if _buttons[i].has_focus() and not _buttons[i].disabled:
+			return i
+	return -1
+
+
+## What the dressed level-up shows, for the rail's ITEMS module and the flat slot bar ({} when no
+## dressed level-up is open): {focus, choices: [{kind, id, from, to}], keys}. kind: weapon, item,
+## new_weapon, new_item, filler or evolve (id: the base weapon, with into and catalyst).
+## Presentation only.
+func preview() -> Dictionary:
+	if not is_open() or not dressed() or _replacing >= 0 or _fusing > 0.0:
+		return {}
+	var choices: Array[Dictionary] = []
+	for c: Dictionary in offer.cards:
+		var kind := "weapon"
+		var k: StringName = c.get("kind", &"")
+		if k == PickOffer.HP or k == PickOffer.BOOST:
+			kind = "filler"
+		elif c.get("item", false):
+			kind = "new_item" if k == &"new" else "item"
+		elif k == &"new":
+			kind = "new_weapon"
+		choices.append({"kind": kind, "id": StringName(c.get("id", &"")), "to": int(c.get("rank", 0)),
+				"from": 0 if k == &"new" else int(c.get("rank", 1)) - 1})
+	if has_evolve():
+		choices.append({"kind": "evolve", "id": StringName(offer.evolve.get("from", &"")),
+				"into": StringName(offer.evolve.get("into", &"")), "catalyst": StringName(offer.evolve.get("catalyst", &""))})
+	var keys: Array[String] = []
+	for i in choices.size():
+		keys.append(InputSetup.expand_keys("{key:choose_%d}" % (i + 1)) if Settings.key_hints() else str(i + 1))
+	return {"focus": focused_choice(), "choices": choices, "keys": keys}
+
+
+func _on_focus_moved() -> void:
+	if _slot_bar != null and is_instance_valid(_slot_bar):
+		_slot_bar.queue_redraw()
+
+
+## M50.4f (the sheet's flat half, "Items 3 + 2"): the flat look's slot bar under the dressed
+## cards, in Palette roles: one card per slot (LV, the flat gun or glyph, the name, the dots),
+## the focused choice's slot lifted with a cyan ring and its next dot glowing, EVOLVE's base
+## ringed in pink, then "LV n", the full bar, "Level up" and the per-key legend. Steady.
+class SlotBar:
+	extends Control
+	var panel: Node
+
+	const W := 600.0
+	const H := 128.0
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(W, H)
+
+	func _draw() -> void:
+		var runner: Node = panel.get(&"runner") if panel != null else null
+		if runner == null or not is_instance_valid(runner):
+			return
+		var d := RailState.items_for(runner)
+		if d.is_empty():
+			return
+		var font := ThemeDB.fallback_font
+		var text := Palette.color(&"ui_text")
+		var dim := Palette.color(&"ui_dim")
+		var info := Palette.color(&"info")
+		var back := StyleBoxFlat.new()
+		back.bg_color = Color(Palette.color(&"shadow"), 0.55)
+		back.set_corner_radius_all(14)
+		draw_style_box(back, Rect2(Vector2.ZERO, size))
+		var weapons: Array = d.weapons
+		var passives: Array = d.passives
+		var n_w := int(d.slots)
+		var n_p := int(d.passive_slots)
+		draw_string(font, Vector2(16, 24), "Items", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, text)
+		draw_string(font, Vector2(62, 24), "%d + %d" % [weapons.size(), passives.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, info)
+		draw_string(font, Vector2(130, 23), "%d weapons · cap lv %d" % [n_w, int(d.cap)], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, dim)
+		var slot_w := floorf((size.x - 32.0 - (14.0 if n_p > 0 else 0.0)) / float(maxi(1, n_w + n_p))) - 8.0
+		var x := 16.0
+		for i in n_w:
+			_slot(Rect2(Vector2(x, 32), Vector2(slot_w, 62)), weapons[i] if i < weapons.size() else {}, int(d.cap), false,
+					int(d.get("new_slot", -1)) == i)
+			x += slot_w + 8.0
+		if n_p > 0:
+			draw_string(font, Vector2(x + 6, 23), "%d passives" % n_p, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, dim)
+			draw_rect(Rect2(Vector2(x + 2, 36), Vector2(2, 54)), Color(dim, 0.3))
+			x += 14.0
+			for i in n_p:
+				_slot(Rect2(Vector2(x, 32), Vector2(slot_w, 62)), passives[i] if i < passives.size() else {}, int(d.cap), true,
+						int(d.get("new_passive", -1)) == i)
+				x += slot_w + 8.0
+		var picking := bool(d.get("picking", false))
+		var lv := "LV %d" % int(d.level)
+		draw_string(font, Vector2(16, 112), lv, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, info)
+		var bx := 16.0 + font.get_string_size(lv, HORIZONTAL_ALIGNMENT_LEFT, -1, 20).x + 12.0
+		var bar := Rect2(Vector2(bx, 102), Vector2(size.x - bx - 96.0, 6))
+		var bb := StyleBoxFlat.new()
+		bb.bg_color = Color(dim, 0.2)
+		bb.set_corner_radius_all(3)
+		draw_style_box(bb, bar)
+		var xp := 1.0 if picking else float(d.xp)
+		if xp > 0.0:
+			var fb := StyleBoxFlat.new()
+			fb.bg_color = info
+			fb.set_corner_radius_all(3)
+			draw_style_box(fb, Rect2(bar.position, Vector2(bar.size.x * xp, bar.size.y)))
+		draw_string(font, Vector2(bar.end.x + 12, 110), "Level up" if picking else "%d%%" % roundi(100.0 * xp),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 14, text)
+		var legend := String(d.get("legend", ""))
+		if legend != "":
+			draw_string(font, Vector2(bx, 124), legend, HORIZONTAL_ALIGNMENT_LEFT, size.x - bx - 12.0, 11, dim)
+
+	func _slot(r: Rect2, item: Dictionary, cap: int, passive: bool, new_well: bool) -> void:
+		var font := ThemeDB.fallback_font
+		var info := Palette.color(&"info")
+		var edge := Palette.color(&"card_item") if passive else info
+		var dim := Palette.color(&"ui_dim")
+		var lift := bool(item.get("lift", false)) or new_well
+		if lift:
+			r.position.y -= 6.0
+		var box := StyleBoxFlat.new()
+		box.bg_color = Color(Palette.color(&"shadow"), 0.4)
+		box.set_corner_radius_all(10)
+		if item.is_empty():
+			box.border_color = info if new_well else Color(dim, 0.25)
+			box.set_border_width_all(3 if new_well else 1)
+			draw_style_box(box, r)
+			draw_string(font, Vector2(r.position.x, r.get_center().y + 8), "+", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22,
+					info if new_well else Color(dim, 0.5))
+			if new_well:
+				draw_string(font, Vector2(r.position.x, r.position.y + 16), "NEW", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 11, info)
+			return
+		var rank := int(item.rank)
+		var evo := bool(item.get("evo", false))
+		var maxed := rank >= cap and not evo and not passive
+		box.border_color = Palette.color(&"card_evolve") if maxed or evo else Color(edge, 0.5)
+		box.set_border_width_all(2)
+		if lift:
+			box.border_color = info
+			box.set_border_width_all(3)
+		draw_style_box(box, r)
+		if bool(item.get("evo_ring", false)):   # EVOLVE would take this weapon
+			var ring := StyleBoxFlat.new()
+			ring.bg_color = Color(info, 0.0)
+			ring.border_color = Palette.color(&"hit")
+			ring.set_border_width_all(3)
+			ring.set_corner_radius_all(13)
+			draw_style_box(ring, r.grow(4))
+		draw_string(font, r.position + Vector2(8, 15), "EVO" if evo else "LV %d" % rank, HORIZONTAL_ALIGNMENT_LEFT, -1, 11,
+				info if lift else dim)
+		if maxed:
+			var mp := StyleBoxFlat.new()
+			mp.bg_color = Palette.color(&"card_evolve")
+			mp.set_corner_radius_all(6)
+			var mr := Rect2(Vector2(r.end.x - 38, r.position.y + 5), Vector2(32, 14))
+			draw_style_box(mp, mr)
+			draw_string(font, mr.position + Vector2(0, 11), "MAX", HORIZONTAL_ALIGNMENT_CENTER, mr.size.x, 10, Palette.color(&"shadow"))
+		var gun := StringName(item.icon) in WeaponGlyph.FLAT_GUNS
+		WeaponGlyph.draw_card_flat(self, item.icon, r.position + Vector2(r.size.x * 0.5, 28), 46.0 if gun else 20.0, edge)
+		draw_string(font, Vector2(r.position.x, r.position.y + 48), String(item.title), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12,
+				Palette.color(&"ui_text"))
+		if evo:
+			return
+		var step := minf(11.0, (r.size.x - 12.0) / maxf(1.0, cap))
+		var x0 := r.position.x + (r.size.x - (cap - 1) * step) * 0.5
+		for k in cap:
+			var c := Vector2(x0 + k * step, r.position.y + 55)
+			var lit := k < rank
+			if bool(item.get("next", false)) and k == rank:   # the dot this pick lights
+				draw_circle(c, 5.5, Color(info, 0.35))
+				draw_circle(c, 3.5, info)
+				continue
+			draw_circle(c, 3.0, edge if lit else Color(dim, 0.25))

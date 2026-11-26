@@ -512,6 +512,83 @@ func test_each_card_weapon_has_its_own_gun() -> void:
 			assert_ne(CardArt.c(role), Color.MAGENTA, "%s: %s is a card colour" % [id, role])
 
 
+## M50.4f (the sheet's VARIANTS panel): a card to the path's last rank is MAX (gold tag, gold
+## ring), a rank-up that brings a mechanic names it (the icon and the bold name), the tall pips
+## are the mechanic ranks, and an item reads READY when its EVOLVE is on offer.
+func test_m50_4f_max_mechanic_and_ready_card_data() -> void:
+	var top := LevelCard.data_for({"id": &"pistol", "rank": 6, "kind": &"upgrade", "text": "x"}, 6, "1")
+	assert_true(top.max, "5 > 6 on a cap-6 path is MAX")
+	var mid := LevelCard.data_for({"id": &"pistol", "rank": 5, "kind": &"upgrade", "text": "x"}, 6, "1")
+	assert_false(mid.max)
+	var fresh := LevelCard.data_for({"id": &"pistol", "rank": 1, "kind": &"new", "text": "x"}, 6, "1")
+	assert_false(fresh.max, "a NEW card is never MAX")
+	var four := LevelCard.data_for({"id": &"pistol", "rank": 4, "kind": &"upgrade", "text": "x"}, 6, "1")
+	var wd := WeaponDB.get_weapon(&"pistol")
+	assert_ne(four.mech, &"", "an even rank brings a mechanic")
+	assert_true(four.mech in WeaponCurve.mechanics(wd), String(four.mech))
+	assert_eq(four.mech_name, String(four.mech).replace("_", " ").capitalize())
+	assert_eq(mid.mech, &"", "an odd rank brings damage, not a mechanic")
+	var card := LevelCard.new()
+	autofree(card)
+	card.data = four
+	assert_eq([card.mechanic_rank(2), card.mechanic_rank(3), card.mechanic_rank(4), card.mechanic_rank(6)],
+			[true, false, true, true], "tall pips: the mechanic ranks")
+	card.data = LevelCard.data_for({"id": &"haste", "rank": 3, "kind": &"upgrade", "item": true, "paired": true}, 6, "2")
+	assert_false(card.mechanic_rank(2), "a passive has no tall pips")
+	assert_false(card.data.ready, "no EVOLVE on offer: no READY")
+	var ready := LevelCard.data_for({"id": &"haste", "rank": 3, "kind": &"upgrade", "item": true, "paired": true}, 6, "2",
+			{"from": &"pistol", "into": &"minigun", "catalyst": &"haste", "rank": 6})
+	assert_true(ready.ready, "its EVOLVE is on offer: READY")
+	assert_eq(ready.pair_icon, wd.icon, "the pair row shows the paired gun")
+	for key: StringName in CardArt.MECHS:
+		var grid: Array = CardArt.MECHS[key][0]
+		for row: String in grid:
+			for ch in row:
+				assert_true(ch == "." or (CardArt.MECHS[key][1] as Dictionary).has(ch), "%s: %s has a colour" % [key, ch])
+	for icon in WeaponGlyph.FLAT_GUNS:
+		assert_true(WeaponDB.ids().any(func(id: StringName) -> bool: return WeaponDB.get_weapon(id).icon == icon) or icon == &"minigun",
+				"%s is a weapon's icon" % icon)
+
+
+## M50.4f (the sheet's FOCUS and XP strip): the focused card reads "focused", and the rail's ITEMS
+## reading lifts the slot the focused choice changes (a free well for a NEW card), fills the bar
+## and carries the per-key legend while the level-up is open; the flat look adds its slot bar.
+func test_m50_4f_focus_lifts_the_slot_and_the_rail_reads_the_pick() -> void:
+	var r := await _auto_runner()
+	r.announce(&"haste")
+	r.announce(&"shotgun")
+	var offer := _open(r)
+	var panel := game.pick_panel
+	assert_not_null(panel._slot_bar, "the flat look: the slot bar under the cards")
+	var lo := r.loadout()
+	for i in panel._buttons.size():
+		panel._buttons[i].grab_focus()
+		assert_eq(panel.focused_choice(), i)
+		for j in panel._cards_dressed.size():
+			assert_eq(panel._cards_dressed[j].key_word(), "focused" if j == i else "choose", "card %d with %d focused" % [j, i])
+		var d := RailState._items(r, lo, _auto())
+		assert_true(bool(d.get("picking", false)), "the level-up is open")
+		assert_eq(String(d.legend).count("["), panel._buttons.size(), "one legend entry per choice: %s" % d.legend)
+		var c: Dictionary = offer.cards[i]
+		var lifted := 0
+		for s: Dictionary in (d.weapons as Array) + (d.passives as Array):
+			if s.get("lift", false):
+				lifted += 1
+				assert_true(s.get("next", false), "its next pip glows")
+		if c.get("kind") == &"new":
+			assert_eq(lifted, 0)
+			if c.get("item", false):
+				assert_eq(int(d.new_passive), (d.passives as Array).size(), "the free passive well lifts")
+			else:
+				assert_eq(int(d.new_slot), (d.weapons as Array).size(), "the free weapon well lifts")
+		elif c.get("kind") == &"upgrade":
+			assert_eq(lifted, 1, "the slot card %d changes lifts" % i)
+	panel.choose(0)
+	var after := RailState._items(r, lo, _auto())
+	assert_false(after.has("picking"), "closed: the rail's own XP strip")
+	r.loadout().clear()
+
+
 # --- The bot's rule ---------------------------------------------------------------------------
 
 class _Panel:

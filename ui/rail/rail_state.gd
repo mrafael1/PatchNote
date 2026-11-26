@@ -153,11 +153,87 @@ static func _items(runner: Node, lo: Loadout, def: PathDef) -> Dictionary:
 	var meter: RefCounted = runner.call(&"meter")
 	# M50.4c1: the bottom line's evolve hint ("" none: the rail's own "next level" line).
 	var hint := String(runner.call(&"evolve_hint")) if runner.has_method(&"evolve_hint") else ""
-	return {"weapons": weapons, "passives": passives, "slots": maxi(1, def.max_slots),
+	var d := {"weapons": weapons, "passives": passives, "slots": maxi(1, def.max_slots),
 			"passive_slots": passive_slots, "cap": cap, "hint": hint,
 			"level": int(meter.get(&"level")) if meter != null else 1,
 			"xp": float(meter.call(&"progress")) if meter != null and meter.has_method(&"progress") else 0.0}
+	if def.shared_slots:
+		_preview(d, runner, lo)   # M50.4f: the open level-up's focused choice
+	return d
 
+
+
+## M50.4f: Auto's ITEMS for `runner` ({} off a levelups path): the flat look's slot bar reads it.
+static func items_for(runner: Node) -> Dictionary:
+	if runner == null or not is_instance_valid(runner) or runner.get(&"def") == null:
+		return {}
+	var def: PathDef = runner.get(&"def")
+	var lo: Loadout = runner.call(&"loadout")
+	if lo == null or def.growth != &"levelups":
+		return {}
+	return _items(runner, lo, def)
+
+
+## M50.4f (the sheet's slot bar, "the slot that changes lifts"): while the dressed level-up is
+## open, `picking` (the bar full, "UP!"), the per-key `legend`, and on the slot the focused
+## choice changes `lift` and `next` (its next pip), or the free well (`new_slot`, `new_passive`);
+## a focused EVOLVE rings its base weapon (`evo_ring`) and ticks its catalyst (`cat_tick`).
+static func _preview(d: Dictionary, runner: Node, lo: Loadout) -> void:
+	var panel: Variant = runner.get(&"panel")
+	if panel == null or not is_instance_valid(panel) or not (panel as Object).has_method(&"preview"):
+		return
+	var pv: Dictionary = (panel as Object).call(&"preview")
+	if pv.is_empty():
+		return
+	d.picking = true
+	var parts: Array[String] = []
+	var choices: Array = pv.choices
+	var keys: Array = pv.keys
+	for i in choices.size():
+		var c: Dictionary = choices[i]
+		var key := String(keys[i]) if i < keys.size() else str(i + 1)
+		var what := ""
+		match String(c.kind):
+			"evolve":
+				var into := WeaponDB.get_weapon(c.into)
+				what = "%s -> %s" % [String(c.id), (into.title if into != null else String(c.into)).to_lower()]
+			"new_weapon", "new_item":
+				what = "%s new" % String(c.id)
+			"filler":
+				what = String(c.id)
+			_:
+				what = "%s %d > %d" % [String(c.id), int(c.from), int(c.to)]
+		parts.append("[%s] %s" % [key, what])
+	d.legend = " . ".join(parts)
+	var focus := int(pv.focus)
+	if focus < 0 or focus >= choices.size():
+		return
+	var f: Dictionary = choices[focus]
+	var ws := lo.weapons()
+	var wd: Array = d.weapons
+	var pd: Array = d.passives
+	match String(f.kind):
+		"weapon":
+			for i in mini(ws.size(), wd.size()):
+				if ws[i].def.id == f.id:
+					wd[i].lift = true
+					wd[i].next = true
+		"item":
+			for i in mini(lo.items.size(), pd.size()):
+				if lo.items[i].def.id == f.id:
+					pd[i].lift = true
+					pd[i].next = true
+		"new_weapon":
+			d.new_slot = wd.size()
+		"new_item":
+			d.new_passive = pd.size()
+		"evolve":
+			for i in mini(ws.size(), wd.size()):
+				if ws[i].def.id == f.id:
+					wd[i].evo_ring = true
+			for i in mini(lo.items.size(), pd.size()):
+				if lo.items[i].def.id == f.catalyst:
+					pd[i].cat_tick = true
 
 static func _ammo(runner: Node, lo: Loadout) -> Dictionary:
 	var w := lo.current()

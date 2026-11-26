@@ -159,3 +159,76 @@ static func _draw_grid(ci: CanvasItem, grid: Array, legend: Dictionary, centre: 
 		for x in row.length():
 			if row[x] != ".":
 				ci.draw_rect(Rect2(at + Vector2(x, y) * px, Vector2(px, px)), c(legend.get(row[x], &"ink")))
+
+
+## M50.4f (the sheet's effect line): the 8 x 8 mechanic icons drawn left of a card's effect, by
+## trait id (Arcade_Cards' vocabulary: heavy round, seeker, chain, burn line, ricochet,
+## overcharge, ...). A mechanic without a row draws MECH_SPARK.
+const MECH_OVERCHARGE := [".....Y..", "....YYY.", ".....Y..", "HHHHHYHH", "PPPPPYPP", ".....Y..", "....YYY.",
+		".....Y.."]
+const MECH_HEAVY := ["..YYYY..", ".YHHYYY.", "YHYYYYYO", "YYYYYYYO", "YYYYYYYO", "YYYYYYOO", ".YYYYOO.", "..OOOO.."]
+const MECH_SEEKER := ["...MM...", ".MM..MM.", ".M....M.", "M..PP..M", "M..PP..M", ".M....M.", ".MM..MM.", "...MM..."]
+const MECH_CHAIN := ["....YYY.", "...YYY..", "..YYY...", ".YYYYYY.", "...YYY..", "..YYY...", ".YYY....", ".YY....."]
+const MECH_BURN := ["...O....", "...OO...", "..OYO...", "..OYYO..", ".OYHYO..", ".OYHHYO.", "OOYYYYOO", "RRRRRRRR"]
+const MECH_RICOCHET := ["M.......", "MM....M.", ".M...MM.", ".MM..M..", "..M.MM..", "..MMM...", "...M....", "KKKKKKKK"]
+const MECH_CONE := ["......YY", "....YYY.", "..YYY...", "MMYY....", "MMYY....", "..YYY...", "....YYY.", "......YY"]
+const MECH_BLANK := ["Y..Y..Y.", ".Y.Y.Y..", "..YYY...", "YYYHYYY.", "..YYY...", ".Y.Y.Y..", "Y..Y..Y.", "........"]
+const MECH_SHRAPNEL := ["Y.....Y.", "..O.O...", ".O...O..", "...H....", ".O...O..", "..O.O...", "Y.....Y.", "........"]
+const MECH_SWEEP := ["...YYY..", ".YY...Y.", "Y.....Y.", "Y.....YH", "......YH", ".......H", ".....HH.", "........"]
+const MECH_SPARK := ["...Y....", "...Y....", "..YHY...", "YYHHHYY.", "..YHY...", "...Y....", "...Y....", "........"]
+const MECH_LEGEND := {"Y": &"gold", "H": &"gold_hi", "O": &"gold_lo", "P": &"pink", "M": &"mint", "R": &"warn",
+		"K": &"metal"}
+const MECH_PINK := {"Y": &"gold", "H": &"pink_hi", "P": &"pink", "O": &"gold_lo", "M": &"mint", "R": &"warn",
+		"K": &"metal"}
+const MECHS := {
+	&"overcharge": [MECH_OVERCHARGE, MECH_PINK], &"overcharge_beam": [MECH_OVERCHARGE, MECH_PINK],
+	&"heavy_round": [MECH_HEAVY, MECH_LEGEND], &"seeker": [MECH_SEEKER, MECH_LEGEND], &"chain": [MECH_CHAIN, MECH_LEGEND],
+	&"burn_line": [MECH_BURN, MECH_LEGEND], &"burn_line_prism": [MECH_BURN, MECH_LEGEND],
+	&"ricochet": [MECH_RICOCHET, MECH_LEGEND], &"knockback_cone": [MECH_CONE, MECH_LEGEND],
+	&"point_blank": [MECH_BLANK, MECH_LEGEND], &"shrapnel": [MECH_SHRAPNEL, MECH_LEGEND],
+	&"sweep": [MECH_SWEEP, MECH_LEGEND],
+}
+
+## The gun's muzzle row (a beam leaves there), per weapon icon; a missing icon has no beam.
+const MUZZLE_ROW := {&"line": 2}
+
+
+## M50.4f: mechanic `trait_id`'s 8 x 8 icon with its top-left at `at`, `px` per cell, outlined.
+static func draw_mech(ci: CanvasItem, trait_id: StringName, at: Vector2, px: float) -> void:
+	var row: Array = MECHS.get(trait_id, [MECH_SPARK, MECH_LEGEND])
+	_draw_grid_px(ci, row[0], row[1], at, px)
+
+
+## M50.4f (the sheet's card window): the cell size at which a grid of `cols` x `rows` (its
+## outline included) fills about 90 % of `box`, clamped to `least`..`most`.
+static func card_px(cols: int, rows: int, box: Vector2, least := 2.0, most := 7.0) -> float:
+	var fit := minf(floorf(box.y * 0.9 / (rows + 2)), floorf(box.x * 0.9 / (cols + 2)))
+	return clampf(fit, least, most)
+
+
+## M50.4f: the picture of `icon` (its gun, else its item glyph) centred at `centre`, at the
+## cell size that fills `box` (card_px). Returns the drawn rect (outline excluded), or an empty
+## Rect2 when the icon has no grid.
+static func draw_card_art(ci: CanvasItem, icon: StringName, centre: Vector2, box: Vector2, most := 7.0) -> Rect2:
+	var row: Array = GUNS.get(icon, GLYPHS.get(icon, []))
+	if row.is_empty():
+		return Rect2()
+	var grid: Array = row[0]
+	var cols := String(grid[0]).length()
+	var px := card_px(cols, grid.size(), box, 2.0, most)
+	var at := (centre - Vector2(cols, grid.size()) * px * 0.5).round()
+	_draw_grid_px(ci, grid, row[1], at, px)
+	return Rect2(at, Vector2(cols, grid.size()) * px)
+
+
+static func _draw_grid_px(ci: CanvasItem, grid: Array, legend: Dictionary, at: Vector2, px: float) -> void:
+	for y in grid.size():
+		var row: String = grid[y]
+		for x in row.length():
+			if row[x] != ".":
+				ci.draw_rect(Rect2(at + Vector2(x - 1, y - 1) * px, Vector2(px * 3.0, px * 3.0)), c(&"ink"))
+	for y in grid.size():
+		var row: String = grid[y]
+		for x in row.length():
+			if row[x] != ".":
+				ci.draw_rect(Rect2(at + Vector2(x, y) * px, Vector2(px, px)), c(legend.get(row[x], &"ink")))
