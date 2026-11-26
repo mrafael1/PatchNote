@@ -89,6 +89,12 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var intro: PackedStringArray = []
 @export var cues: PackedStringArray = []
 @export var debrief: PackedStringArray = []
+## M47.6a (PLAN v9.4, 0.8): what the AI types in the chat at the play gate, before the
+## session's sim starts (Line syntax). Empty: the campaign's before_play_default.
+@export var before_play: PackedStringArray = []
+## M47.6a: said in the bubble the moment a `script` end window opens (used from M47.6c1).
+## "" = nothing said.
+@export var end_line := ""
 
 @export_group("After")
 @export var fork: StringName = &""
@@ -124,6 +130,8 @@ var _debrief: Array[Line] = []
 var _after_pick: Array[Line] = []
 var _reveal_lines: Array[Line] = []
 var _door_beat: Array[Line] = []
+var _before_play: Array[Line] = []
+var _end_line: Line
 var _parsed := false
 
 
@@ -163,6 +171,18 @@ func reveal_line_list() -> Array[Line]:
 	return _reveal_lines
 
 
+## M47.6a: the play gate's chat lines (unfiltered; the host passes them with the line context).
+func before_play_lines() -> Array[Line]:
+	_parse()
+	return _before_play
+
+
+## M47.6a: the script end's bubble line, or null.
+func end_line_parsed() -> Line:
+	_parse()
+	return _end_line
+
+
 ## M47.4: the door beat's lines, parsed (DoorBeat says them at LINE_AT).
 func door_beat_lines() -> Array[Line]:
 	_parse()
@@ -179,6 +199,8 @@ func _parse() -> void:
 	_after_pick = Line.parse_all(after_pick)
 	_reveal_lines = Line.parse_all(reveal_lines)
 	_door_beat = Line.parse_all(door_beat)
+	_before_play = Line.parse_all(before_play)
+	_end_line = Line.parse(end_line) if end_line.strip_edges() != "" else null
 
 
 ## The arena this session plays.
@@ -424,6 +446,7 @@ func problems() -> Array[String]:
 	for l in intro_lines() + debrief_lines():
 		if l.problem != "":
 			out.append("%s: %s" % [where, l.problem])
+	out.append_array(_voice_problems(where))
 	for c in cue_list():
 		if c.problem != "":
 			out.append("%s: %s" % [where, c.problem])
@@ -449,6 +472,8 @@ func problems() -> Array[String]:
 		elif c.when == &"boss_hp" and goal != BOSS and not cue_list().any(
 				func(x: Cue) -> bool: return x.action == &"boss"):
 			out.append("%s: cue '%s': boss_hp needs a boss" % [where, c.source])
+		elif c.when == &"tried" and &"movement" in basics:
+			out.append("%s: cue '%s': tried needs a session without movement" % [where, c.source])
 		elif c.when == &"pct" and goal != SURVIVE:
 			out.append("%s: cue '%s': pct needs a survive goal" % [where, c.source])
 		elif c.when == &"hp" and not &"health" in basics and not cue_list().any(
@@ -485,6 +510,39 @@ func problems() -> Array[String]:
 		for w in Line.condition_parts(String(l.when)):
 			if w.begins_with("event:") and EventDB.get_event(StringName(w.trim_prefix("event:"))) == null:
 				out.append("%s: unknown event %s" % [where, w.trim_prefix("event:")])
+	return out
+
+
+## M47.6a (PLAN v9.4 2.3): before_play / end_line parse and read no outcome; every line
+## said in the bubble during play (intro, end_line, a cue's line) fits BUBBLE_ROWS rows of
+## the mascot's bubble (measured with its own font; the runtime clamp is only a net).
+const BUBBLE_ROWS := 2
+
+
+func _voice_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	for l in before_play_lines():
+		if l.problem != "":
+			out.append("%s: before_play: %s" % [where, l.problem])
+		elif reads_outcome(l.when) or reads_event(l.when) or reads_fusion(l.when):
+			out.append("%s: a before_play line cannot depend on the outcome, an event or a fusion" % where)
+	var spoken: Array[Line] = intro_lines().duplicate()
+	var el := end_line_parsed()
+	if el != null:
+		if el.problem != "":
+			out.append("%s: end_line: %s" % [where, el.problem])
+		elif reads_outcome(el.when):
+			out.append("%s: end_line cannot depend on the outcome" % where)
+		spoken.append(el)
+	for c in cue_list():
+		if c.problem == "" and c.line != null:
+			spoken.append(c.line)
+	for l in spoken:
+		if l.problem != "" or l.text == "":
+			continue
+		var rows := Mascot.bubble_rows(SessionRunner.with_keys(l).text)
+		if rows > BUBBLE_ROWS:
+			out.append("%s: '%s' takes %d bubble rows (max %d)" % [where, l.text, rows, BUBBLE_ROWS])
 	return out
 
 

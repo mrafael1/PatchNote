@@ -16,5 +16,6 @@ face = false
 intro = PackedStringArray("happy: things!")
 cues = PackedStringArray("at 1: spawn chaser 1", "at 4: spawn chaser 2", "at 7: spawn chaser 3", "at 10: spawn chaser 5", "at 13: spawn chaser 8", "at 16: spawn chaser 12", "at 19: spawn chaser 18", "at 22: spawn chaser 25", "at 25: spawn chaser 30", "at 30: spawn chaser 30", "at 35: spawn chaser 30", "at 40: spawn chaser 30", "touch 5: say surprised: ...?", "at 6.5: say guilty: no ouch. forgot ouch.", "at 9.3: say thinking: one sec.", "at 11.1: add health", "at 11.1: say happy: there. ouch.", "at 13.2: say worried: run.", "at 16: say surprised: more?", "at 19.5: say panic: no. stop. STOP.")
 debrief = PackedStringArray("died guilty: too many. my fault. sorry.", "died happy: ouch works, at least.", "stopped surprised: you... lived?", "thinking: you. things. no gun.", "happy: shoot things?")
+before_play = PackedStringArray("worried: they're in. you can't shoot yet. type play.")
 bump = &"minor"
 notes = PackedStringArray("Getting hurt (sorry)", "Shooting")

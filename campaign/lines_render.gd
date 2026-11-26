@@ -27,6 +27,10 @@ static func render() -> String:
 			out.append("### Cook beat (on the stage card)")
 			for k in s.cook_beat:
 				out.append("- %s" % k)
+		if not s.before_play.is_empty():   # M47.6a: typed in the chat at the play gate
+			out.append("### Before play (in the chat, at the play gate)")
+			for l in s.before_play_lines():
+				out.append("- %s" % _line(l))
 		out.append("### Intro")
 		for l in s.intro_lines():
 			out.append("- %s" % _line(l))

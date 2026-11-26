@@ -18,5 +18,6 @@ face = true
 intro = PackedStringArray("proud: Okay. I think I get it now.", "happy: Forty this time. And I brought ideas.")
 cues = PackedStringArray("at 10: edit edit_gift_explode", "kills 14: edit edit_big_enemies", "kills 27: edit edit_inverted", "kills 27: edit edit_slowmo 10 quiet")
 debrief = PackedStringArray("died guilty: That one's on me. Want another go, or should I just patch it?", "stopped thinking: Time's up. Close enough.", "hit_none surprised: Zero hits? I'll have to try harder.", "ended happy: Okay. It's a game. A small one.", "ended thinking: Next: what kind of shooter is it?")
+before_play = PackedStringArray("happy: Last one for Stage 1. Type play.")
 bump = &"minor"
 notes = PackedStringArray("A small game, start to finish")

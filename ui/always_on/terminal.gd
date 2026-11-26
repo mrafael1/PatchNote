@@ -15,11 +15,16 @@ extends PanelContainer
 ##
 ## Real time only (Time.get_ticks_usec): it never reads or steps game time, and it reads no
 ## keys (DebriefScreen and GameHost own them); a click on a choice row emits `chosen`.
+##
+## M47.6a (PLAN v9.4 2.4-2.5): during play the corner's lines come in the game's bubble and
+## log here at once, dim (log_say); between sessions lines type here (type_line rows queue
+## and type one after another). The `you>` input (ChatInput) sits under the rows; GameHost
+## opens it at the play gate.
 
 signal idle
 signal chosen(index: int)
 
-enum Row { SAY, CMD, NOTE, THINK, CHOICE, YOU, SYS, HEAD }
+enum Row { SAY, CMD, NOTE, THINK, CHOICE, YOU, SYS, HEAD, TYPE }
 
 const THINK_S := 1.2
 const THINK_S_INSTANT := 0.4
@@ -65,6 +70,14 @@ var _was_busy := false
 var _snap := false
 var _snap_frames := 0
 var _open_cmd: Label
+## M47.6a: the input row (`you> ` + ChatInput), the queued line typing now, the last logged line.
+var chat_input: ChatInput
+var _input_row: HBoxContainer
+var _input_label: Label
+var _typing: Label
+var _typing_chars := 0.0
+var _log: Label
+var _log_line: Line
 
 
 func _ready() -> void:
@@ -93,6 +106,17 @@ func _ready() -> void:
 	_list.add_theme_constant_override(&"margin_right", 0)
 	_scroll.get_v_scroll_bar().modulate.a = 0.35   # a quiet bar
 	_scroll.add_child(_list)
+	_input_row = HBoxContainer.new()
+	_input_row.name = "InputRow"
+	_input_row.add_theme_constant_override(&"separation", 0)
+	column.add_child(_input_row)
+	_input_label = Label.new()
+	_input_label.name = "You"
+	_input_label.text = "you> "
+	_input_row.add_child(_input_label)
+	chat_input = ChatInput.new()
+	_input_row.add_child(chat_input)
+	_dress_input()
 	set_font_size(_font_size)
 	set_version("")
 	_tint(_title, &"dim")
@@ -140,6 +164,7 @@ func dress() -> void:
 	_style_back()
 	if _title != null:
 		_tint(_title, &"dim")
+	_dress_input()
 	if _list == null:
 		return
 	for row in _list.get_children():
@@ -153,6 +178,19 @@ func dress() -> void:
 
 func _on_skin_changed(_skin: ArtSkin) -> void:
 	dress()
+
+
+## M47.6a: the input row in the terminal's colours.
+func _dress_input() -> void:
+	if _input_label == null or chat_input == null:
+		return
+	_tint(_input_label, &"you")
+	chat_input.dim = col(&"dim")
+	chat_input.bright = col(&"you")
+	chat_input.add_theme_color_override(&"font_color", col(&"you"))
+	chat_input.add_theme_color_override(&"font_uneditable_color", col(&"dim"))
+	chat_input.add_theme_color_override(&"caret_color", col(&"you"))
+	chat_input._tint_ghost(0.0)
 
 
 func col(tone: StringName) -> Color:
@@ -245,6 +283,37 @@ func live_say(line: Line, priority := 2) -> void:
 func live_cut(line: Line) -> void:
 	if line != null and line == _live_line:
 		_live_cut = true
+	elif line != null and line == _log_line and _log != null and is_instance_valid(_log):
+		_log.text += CUT   # M47.6a: a logged line the bubble cut short
+		_log_line = null
+
+
+## M47.6a (PLAN v9.4 2.4): a line the corner says in the game's bubble: logged now, whole and
+## dim, no typing (history, not a second reading task).
+func log_say(line: Line, priority := 2) -> void:
+	if line == null:
+		return
+	_complete_live()
+	var l := say_row(line.text, line.expression, priority)
+	l.visible_characters = -1
+	_tint(l, &"dim")
+	_log = l
+	_log_line = line
+
+
+## M47.6a: a line typed in the chat between sessions (before_play, a canned reply): queued
+## after the rows before it, typed at the text speed; the queue waits until it is typed.
+func type_line(line: Line) -> void:
+	if line != null:
+		queue({"kind": Row.TYPE, "text": line.text, "expression": line.expression})
+
+
+## M47.6a: a `you>` row with what the player said ("you> play").
+func you_said(text: String) -> void:
+	_flush_queue()
+	_close_you()
+	_last_head = {}
+	_label_row(Row.YOU, "you> " + text, &"you")
 
 
 func _complete_live() -> void:
@@ -267,6 +336,10 @@ func _complete_live() -> void:
 ## priority < 2 (reactions' chatter): dim and clipped to one row.
 func say_row(text: String, expression: StringName = &"idle", priority := 2) -> Label:
 	_flush_queue()
+	return _say_row_now(text, expression, priority)
+
+
+func _say_row_now(text: String, expression: StringName = &"idle", priority := 2) -> Label:
 	_close_you()
 	var expr := expression if has_face else &""
 	var now := Time.get_ticks_usec()
@@ -381,6 +454,20 @@ func answer(text: String) -> void:
 	if _you != null and is_instance_valid(_you):
 		_you.text = "you> " + text
 	_you = null
+	_sync_input_row()
+
+
+## M47.6a review: one prompt at a time. While an ask's `you> _` row waits (the installer's
+## question, the death ask), the input row under the rows is hidden (its space kept, so
+## nothing jumps): no second `you>` reading "the AI is watching...". A play gate always shows it.
+func input_row_shown() -> bool:
+	var asking := _you != null and is_instance_valid(_you)
+	return not asking or (chat_input != null and chat_input.gate)
+
+
+func _sync_input_row() -> void:
+	if _input_row != null and is_instance_valid(_input_row):
+		_input_row.modulate.a = 1.0 if input_row_shown() else 0.0
 
 
 func queue(row: Dictionary) -> void:
@@ -394,8 +481,20 @@ func finish() -> void:
 
 
 func is_busy() -> bool:
-	return not _queue.is_empty() or _think != null or (_live != null and is_instance_valid(_live)
+	return not _queue.is_empty() or _think != null or _typing_now() or (_live != null and is_instance_valid(_live)
 			and _live.visible_characters >= 0 and _live.visible_characters < _live.text.length())
+
+
+## M47.6a: a type_line row is still typing.
+func _typing_now() -> bool:
+	return _typing != null and is_instance_valid(_typing) and _typing.visible_characters >= 0 \
+			and _typing.visible_characters < _typing.text.length()
+
+
+func _complete_typing() -> void:
+	if _typing != null and is_instance_valid(_typing):
+		_typing.visible_characters = -1
+	_typing = null
 
 
 func has_prompt() -> bool:
@@ -450,11 +549,12 @@ func _close_you() -> void:
 	if _you != null and is_instance_valid(_you):
 		_you.text = "you>"
 	_you = null
+	_sync_input_row()
 
 
 func _show(item: Dictionary) -> void:
 	var kind: Row = item.kind
-	if kind != Row.SAY:
+	if kind != Row.SAY and kind != Row.TYPE:
 		_last_head = {}   # a header is shared only by rows that follow it
 	match kind:
 		Row.CMD:
@@ -477,9 +577,16 @@ func _show(item: Dictionary) -> void:
 		Row.YOU:
 			_close_you()
 			_you = _label_row(kind, "you> _", &"you")
+			_sync_input_row()
 		Row.THINK:
 			_think_text = item.text
 			_think = _label_row(kind, _think_text + " " + spinner_frames()[0] + " . . .", &"dim")
+		Row.TYPE:
+			_complete_typing()
+			_typing = _say_row_now(item.text, item.get("expression", &"idle"))
+			_typing_chars = 0.0
+			if Settings.type_cps() <= 0.0:
+				_complete_typing()
 
 
 func _end_think() -> void:
@@ -491,11 +598,14 @@ func _end_think() -> void:
 ## Shows every queued row now (a think ends at once).
 func _flush_queue() -> void:
 	_end_think()
+	_complete_typing()
 	while not _queue.is_empty():
 		var item: Dictionary = _queue.pop_front()
 		_show(item)
 		if item.kind == Row.THINK:
 			_end_think()
+		elif item.kind == Row.TYPE:
+			_complete_typing()
 	_wait_until = 0
 
 
@@ -509,8 +619,22 @@ func _process(_delta: float) -> void:
 	var now := Time.get_ticks_usec()
 	var dt := (now - _last_usec) / 1000000.0
 	_last_usec = now
+	# M47.6a: a queued line types itself; the queue waits for it.
+	if _typing != null:
+		if not is_instance_valid(_typing):
+			_typing = null
+		else:
+			var tcps := Settings.type_cps()
+			var tt := _typing.text.length()
+			_typing_chars = float(tt) if tcps <= 0.0 else minf(tt, _typing_chars + tcps * dt)
+			_typing.visible_characters = int(_typing_chars)
+			_snap = true
+			if int(_typing_chars) >= tt:
+				_typing.visible_characters = -1
+				_typing = null
+				_wait_until = now + int(STEP_S * 4.0 * 1000000.0)   # a breath between lines
 	# The queue: a row per step; a think holds it for its seconds.
-	if now >= _wait_until:
+	if _typing == null and now >= _wait_until:
 		if _think != null:
 			_end_think()
 		if not _queue.is_empty():
@@ -531,6 +655,7 @@ func _process(_delta: float) -> void:
 		_live_chars = float(total) if cps <= 0.0 else minf(total, _live_chars + cps * dt)
 		_live.visible_characters = -1 if int(_live_chars) >= total else int(_live_chars)
 		_snap = true
+	_sync_input_row()   # a gate opening under an open ask shows the input again
 	# The prompt's caret (steady under reduce flashing).
 	if _you != null and is_instance_valid(_you):
 		_you.text = "you> _" if caret_on(now) else "you>  "

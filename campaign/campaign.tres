@@ -20,3 +20,10 @@ stage_titles = Dictionary[int, String]({
 1: "The prototype",
 2: "The shooter"
 })
+before_play_default = PackedStringArray("thinking: type play.")
+chat_replies = Dictionary[String, String]({
+"hi|hello|hey": "happy: hi. type play and we'll go.",
+"help|?": "thinking: type play. it starts the next test.",
+"again": "thinking: type play. the test runs again.",
+"*": "thinking: i only know 'play' so far. working on it."
+})

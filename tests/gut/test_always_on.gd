@@ -148,7 +148,7 @@ func test_the_game_rect_is_1280x720_at_any_view_size_and_the_modes_hold() -> voi
 	assert_false(g.is_live_game(), "no telemetry, no reload")
 	assert_eq(g.debrief.view, DebriefScreen.TERMINAL)
 	assert_false(g.debrief.auto_way_on)
-	assert_false(g.mascot.bubble_enabled, "hosted: no bubble")
+	assert_true(g.mascot.bubble_enabled, "M47.6a: hosted, the bubble is on during play")
 
 
 func test_every_pause_reason_freezes_the_hosted_game_not_the_host() -> void:
@@ -296,14 +296,25 @@ func test_play_mode_completes_a_cut_line_at_once_and_marks_it() -> void:
 	assert_true(last.clip_text, "chatter is clipped to one row")
 
 
-func test_the_mascot_routes_its_lines_to_the_terminal_with_no_bubble() -> void:
+## M47.6a (PLAN v9.4 2.4; was "with no bubble"): during play the line is in the bubble and the
+## terminal logs it whole and dim at once; the beat hides the bubble.
+func test_the_mascot_speaks_in_the_bubble_and_the_terminal_logs_it_dim() -> void:
 	var h := await _hosted(S4)
 	var m := h.game.mascot
 	m.say(Line.make("Routed to the terminal.", &"happy"), 3, true)
 	m.step(0.016)
-	assert_false(m._bubble.visible, "no bubble while hosted")
+	assert_true(m._bubble.visible, "the bubble during play")
 	assert_true(m.is_speaking(), "the corner keeps its queue and timing")
 	assert_true(h.terminal.rows().back().ends_with("Routed to the terminal."))
+	var last: Label = h.terminal._list.get_child(h.terminal._list.get_child_count() - 1).get_node(^"Text")
+	assert_eq(last.visible_characters, -1, "logged whole, no typing")
+	assert_eq(last.get_meta(&"tone"), &"dim", "dim: history")
+	h.game._on_report_ready(&"win")
+	assert_false(m.bubble_enabled, "the beat: no bubble")
+	m.say(Line.make("In the beat.", &"happy"), 3, true)
+	m.step(0.016)
+	assert_false(m._bubble.visible)
+	h.game.debrief.close()
 
 
 func test_the_row_cap_the_spinner_and_the_steady_caret() -> void:
@@ -352,16 +363,21 @@ func test_the_swap_frees_the_old_game_later_and_the_handoff_waits_for_input() ->
 	assert_eq(RunState.session.id, S4)
 	assert_true(h.held and RunState.is_paused_for(GameHost.HANDOFF), "the ready moment holds")
 	assert_false(h.game.can_process())
-	assert_false(h.game.pause_menu.can_open(), "no pause menu during the handoff")
+	assert_true(h.game.pause_menu.can_open(), "M47.6a: Esc at the play gate opens the pause menu")
 	var t0 := RunState.game_time
 	await wait_process_frames(10)
 	assert_true(h.held, "no input: still held")
 	assert_eq(RunState.game_time, t0)
 	assert_true(h.terminal.rows().has("$ hot-reload game ... ok"))
+	# M47.6a (PLAN v9.4 2.5): a move no longer releases it; play does.
 	Input.action_press(&"move_right")
 	await wait_process_frames(2)
 	Input.action_release(&"move_right")
-	assert_false(h.held, "the first move releases it")
+	assert_true(h.held, "a move is not play (M47.6a)")
+	assert_eq(RunState.game_time, t0)
+	h.give_play()
+	await wait_process_frames(2)
+	assert_false(h.held, "play releases it")
 	assert_true(h.game.can_process())
 	assert_true(h.terminal.rows().has("you> play"))
 
@@ -712,8 +728,10 @@ func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
 	assert_true(rows.has(chapter_row), "the chapter's row")
 	var at := rows.find(chapter_row)
 	assert_gt(rows.find("$ run %s" % S7), at, "then the session's rows")
-	assert_eq(rows.back(), "you> _", "then the ready moment")
-	assert_true(h.held)
+	# M47.6a: then the play gate: its before_play line typed after the session's rows.
+	var bp := "  " + GameHost.gate_lines(RunState.session)[0].text
+	assert_gt(rows.find(bp), rows.find("$ run %s" % S7), "then the gate's lines")
+	assert_true(h.gate and h.held)
 	h.skip_handoff()
 
 
@@ -727,45 +745,44 @@ func _died(h: GameHost) -> DebriefScreen:
 	return d
 
 
-func test_the_death_countdown_starts_after_the_lines_and_restarts_once() -> void:
+## M47.6a (PLAN v9.4 2.5, D7; rewrites M47.5b's countdown tests): the death ask waits, with no
+## countdown; Enter counts only once armed (the lines typed + 0.4 s, a fresh press).
+func test_the_death_ask_has_no_countdown_and_enter_is_armed() -> void:
 	var h := await _hosted(S4)
-	h.played = true
 	var d := _died(h)
 	var retries := []
 	d.retry_requested.connect(func() -> void: retries.append(true))
 	var before := SaveGame.attempts(S4)
 	await wait_process_frames(2)
-	assert_true(h.terminal.rows().has("restarting in 3"), "after the died lines and the choices")
-	assert_eq(h.terminal.rows().find("restarting in 3"), h.terminal.rows().size() - 1)
-	d._count_msec -= 1100
-	await wait_process_frames(2)
-	assert_true(h.terminal.rows().has("restarting in 3 . 2"))
-	d._count_msec -= 2100
-	await wait_process_frames(2)
-	assert_true(h.terminal.rows().has("restarting in 3 . 2 . 1"))
-	assert_eq(retries.size(), 1, "again by itself")
+	assert_false(h.terminal.rows().any(func(r: String) -> bool: return r.begins_with("restarting in")), "no countdown")
+	assert_false(d.ask_enter_armed(), "not armed in its first 0.4 s")
+	_key(&"ui_accept")
+	await wait_process_frames(1)
+	assert_eq(retries.size(), 0, "an early Enter does not restart unread")
+	d._ask_arm_msec -= 1000
+	await wait_process_frames(30)
+	assert_eq(retries.size(), 0, "it waits; nothing restarts by itself")
+	assert_true(d.ask_enter_armed())
+	_key(&"ui_accept")
+	await wait_process_frames(1)
+	assert_eq(retries.size(), 1, "an armed Enter = again")
 	assert_eq(SaveGame.attempts(S4), before + 1, "one attempt")
 	assert_true(h.terminal.rows().has("you> 1"))
-	d._count_msec -= 5000
-	await wait_process_frames(2)
+	_key(&"ui_accept")
+	await wait_process_frames(1)
 	assert_eq(retries.size(), 1, "never twice")
 	d.close()
 
 
-func test_no_countdown_without_input_and_2_moves_on() -> void:
+func test_at_the_death_ask_1_is_again_at_once_and_2_moves_on() -> void:
 	var h := await _hosted(S4)
-	h.played = false
 	var d := _died(h)
 	var retries := []
 	d.retry_requested.connect(func() -> void: retries.append(true))
-	await wait_process_frames(2)
-	assert_false(d.countdown_due(), "nobody played since the last restart")
-	d._count_msec -= 5000
-	await wait_process_frames(2)
-	assert_eq(retries.size(), 0, "it waits at you> _")
-	assert_false(h.terminal.rows().any(func(r: String) -> bool: return r.begins_with(DebriefScreen.COUNTDOWN_LINE)))
+	_key(&"choose_1")
+	await wait_process_frames(1)
+	assert_eq(retries.size(), 1, "1 is again (no arming for the number key)")
 	d.close()
-	h.played = true
 	var d2 := _died(h)
 	var moved := []
 	d2.move_on_requested.connect(func() -> void: moved.append(true))
@@ -773,20 +790,18 @@ func test_no_countdown_without_input_and_2_moves_on() -> void:
 	_key(&"choose_2")
 	await wait_process_frames(1)
 	d2.finish_lines()
-	d2._count_msec -= 5000
 	await wait_process_frames(2)
-	assert_eq(retries.size(), 0, "2 stopped the countdown")
+	assert_eq(retries.size(), 1)
 	assert_true(d2.moved_on)
 	d2.close()
 
 
 func test_one_telemetry_line_per_attempt_with_flow_and_beat_seconds() -> void:
 	var h := await _hosted_live(S4)
-	h.played = true
 	var g := h.game
 	var d := _died(h)
 	await wait_process_frames(2)
-	d._count_msec -= 3200
+	_key(&"choose_1")   # M47.6a: again by key (no countdown)
 	await wait_process_frames(3)
 	var lines := FileAccess.get_file_as_string(TEST_LOG).strip_edges().split("\n")
 	assert_eq(lines.size(), 1, "one line for the attempt")
@@ -803,6 +818,7 @@ func test_one_telemetry_line_per_attempt_with_flow_and_beat_seconds() -> void:
 	await wait_process_frames(30)
 	assert_true(h.swaps >= 1, "the restart swapped a new attempt in")
 	assert_false(is_instance_valid(g))
+	assert_false(h.held, "M47.6a: again carries the play already given (no second gate)")
 	h.skip_handoff()
 
 

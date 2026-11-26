@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M50.1b"
+const BUILD := "M47.6a"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
@@ -134,8 +134,9 @@ func _ready() -> void:
 		mascot.setup(RunState.session.face, SaveGame.mascot())
 		add_child(mascot)
 		if host != null:   # M47.5a: the body stays in the corner, its words go to the terminal
-			mascot.bubble_enabled = false
-			mascot.line_started.connect(host.terminal.live_say)
+			# M47.6a (PLAN v9.4 2.4): during play the bubble is on again; the chat logs each line.
+			mascot.bubble_enabled = true
+			mascot.line_started.connect(host.terminal.log_say)
 			mascot.line_cut.connect(host.terminal.live_cut)
 		reactions = Reactions.new()
 		reactions.name = "Reactions"
@@ -221,6 +222,21 @@ func _ready() -> void:
 	debug = DebugOverlay.new()
 	debug.game = self
 	add_child(debug)
+
+	# M47.6a (PLAN v9.4 2.2): the movement keys under the square and its strain, while the
+	# build cannot move (presentation only: they never write the sim).
+	if RunState.session != null and hud != null:
+		var keys := MoveKeys.new()
+		keys.name = "MoveKeys"
+		keys.player = player
+		keys.show_for = MoveKeys.show_seconds(RunState.session)
+		hud.add_child(keys)
+	if player != null and player.get(&"movement_locked") != null and player.get_node_or_null(^"Visual") != null:
+		var strain := StrainFX.new()
+		strain.name = "StrainFX"
+		strain.player = player
+		strain.visual = player.get_node(^"Visual") as Node2D
+		player.add_child(strain)   # after the body in process order: it leans what the body drew
 
 	pause_menu = PauseMenu.new()
 	pause_menu.name = "PauseMenu"
@@ -400,6 +416,8 @@ func _on_run_ended(outcome: StringName) -> void:
 func _on_report_ready(outcome: StringName) -> void:
 	transition.clear_toast()
 	if RunState.session != null:
+		if host != null:
+			mascot.bubble_enabled = false   # M47.6a: between sessions the chat talks, not the bubble
 		mascot.silence(host == null)   # hosted: the body stays in the corner for the beat
 		debrief.open(RunState.session, outcome, session_runner.hits, event_player.played_ids())
 		return
@@ -487,7 +505,10 @@ func _flow(rec: Dictionary, beat_s: float) -> Dictionary:
 ## of a session (one `menu_retry` telemetry line, one attempt), then a reload.
 func menu_restart() -> void:
 	var s := RunState.session
-	if s != null:
+	# M47.6a review: at a play gate nothing was played yet: no attempt, no telemetry line
+	# (the new attempt gates again: GameHost.next_session carries only a play given).
+	var at_gate := host != null and is_instance_valid(host) and host.held
+	if s != null and not at_gate:
 		_menu_telemetry(s, &"menu_retry")
 		CampaignDB.retry(s)
 	RunState.clear_pauses()

@@ -1,3 +1,17 @@
+# Next playtest: M47.6a, the play gate and the voice (Stage 1 rework, part 1)
+
+What is new since the last build you played (no extra steps; play as usual):
+- Every session now waits for you in the chat on the right: the AI types a line or two, then the `you>` input is focused with a dim "play". Type `play` and Enter (or, once the lines are typed, just Enter or `p`). Esc still opens the pause menu.
+- While you are at the chat your movement keys never type: in S0 the square leans and stretches toward the key it cannot follow yet, and the "play" ghost pulses.
+- Keycaps at the bottom left (ZQSD on AZERTY) light up as you press them: in S0, and for the first 6 s of S1.
+- The AI talks again during play (its bubble is back, each line also shown dim in the chat). S0, S1 and S3 lines were rewritten.
+- A death no longer counts down: "[1] again" / "[2] move on" waits for you (`1` is again at once; Enter counts once the lines are typed).
+- Anything else you type gets a short canned reply (counted, never logged).
+
+One-liners (defaults taken): canned reply wording ok? Enter / `p` arm 0.4 s after the lines: too slow or fine?
+
+---
+
 # Patch Notes: G14a (M47.2 build, ~15 min): the three paths
 
 One page. The G13 sheet is kept below for reference.

@@ -109,6 +109,11 @@ const TERM_NOTE := Color(0.78, 0.79, 0.82)        ## the changelog rows
 const TERM_CHOICE := Color(1.0, 0.85, 0.35)       ## [1] [2] [3]
 const TERM_YOU := Color.WHITE                     ## you> _
 const TERM_ERR := Color(1.0, 0.42, 0.4)
+# --- M47.6a: the S0 movement keys (tier-0 constants, not look roles) ---
+const KEYCAP_FACE := Color(0.13, 0.14, 0.18, 0.85)  ## a keycap at rest
+const KEYCAP_EDGE := Color(0.5, 0.52, 0.56)         ## its outline
+const KEYCAP_LIT := Color(0.35, 0.85, 0.95)         ## a held key (the terminal's cmd cyan)
+const KEYCAP_TEXT := Color(0.93, 0.93, 0.95)
 
 ## 1.7's roles: every look must name each of these (test_pixel_skin).
 const CORE: Array[StringName] = [&"bg", &"grid", &"wall", &"player", &"player_shot", &"enemy",

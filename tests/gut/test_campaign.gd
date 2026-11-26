@@ -494,7 +494,7 @@ func test_the_first_session_cannot_move_and_has_nothing() -> void:
 	assert_eq(Unlocks.pool(), [] as Array[Mutation])
 	assert_eq(Unlocks.look(), {"tier": 0, "take": ""})
 	assert_eq(game.run_loop.goal, SessionDef.STOP)
-	assert_eq(game.session_runner.said, ["_"], "the first intro line is said at once")
+	assert_eq(game.session_runner.said, ["go on. try the keys."], "the first intro line is said at once")
 	assert_string_contains(Main.boot_line(), "session s1_00_nothing")
 
 
@@ -756,8 +756,8 @@ func test_a_dash_line_condition_reads_the_saves_answer() -> void:
 
 
 func test_debrief_lines_type_and_can_not_be_skipped_at_once() -> void:
-	var game := await _game(&"s1_03_shooting")
-	game.run_loop.end(&"lose")   # "Too many at once. My fault." first: a long line
+	var game := await _game(&"s1_04_level")   # M47.6a: S3 lost its second line
+	game.run_loop.end(&"lose")   # "Too many at once. My bad." first: a long line
 	await wait_physics_frames(int(Tuning.report_delay * 60) + 5)
 	var d: DebriefScreen = game.debrief
 	assert_eq(d.said.size(), 1, "one line at a time")

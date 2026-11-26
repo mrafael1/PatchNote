@@ -161,4 +161,4 @@ func test_the_campaign_game_speaks_through_the_mascot() -> void:
 	assert_not_null(game.mascot)
 	assert_eq(game.mascot.body.id, MascotBody.CARET)
 	await wait_seconds(0.1)
-	assert_eq(game.mascot.shown, ["m0ve"], "the intro's first line is in the bubble")
+	assert_eq(game.mascot.shown, ["there. it moves."], "the intro's first line is in the bubble")

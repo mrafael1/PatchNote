@@ -16,6 +16,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - Compiling... mostly.
 - One of them is on fire.
 - Done. Mostly.
+### Before play (in the chat, at the play gate)
+- (proud) Three games. You try each one. Type play.
 ### Intro
 - (happy) Stage two. I want to make a real shooter.
 - (thinking) But which kind? Let's try three. Quick ones.
@@ -43,6 +45,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - (happy) The other two go in a drawer. I never throw anything away.
 
 ## s2_02_day_one: Day one
+### Before play (in the chat, at the play gate)
+- (happy) Day one. You picked it, I built it. Type play.
 ### Intro
 - answer:path_arsenal (happy) Cards. Today it's you and one card: the pistol.
 - answer:path_auto (happy) Auto. Don't touch the trigger. I mean it.
@@ -54,7 +58,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal at 20: (thinking) Secret: the first shot after a switch hits twice as hard. Switch a lot.
 - answer:path_auto at 10: (happy) Remember the gems? Now they count. Real levels, a real bar.
 - answer:path_auto at 14: (worried) And I made the crowd bigger again. Sorry. You need it.
-- answer:path_survival at 10: (happy) Remember the guns on the floor? Now they come in crates. Two now, one every twenty seconds.
+- answer:path_survival at 10: (happy) Guns come in crates now. Two now, one every twenty seconds.
 - answer:path_survival at 22: (thinking) Walk over another gun to swap. Yours drops at your feet.
 - answer:path_survival at 36: (happy) Run dry and you get the pistol back. It never runs out.
 - answer:path_survival kills 5: (proud) And kills heal you. Like I promised.
@@ -75,6 +79,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - (thinking) Next time, I'll have something to show you. A drawing. My first.
 
 ## s2_03_paint: Fresh paint
+### Before play (in the chat, at the play gate)
+- (happy) Day two. Type play.
 ### Intro
 - (happy) I learned to draw. Watch this one.
 ### Cues
