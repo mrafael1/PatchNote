@@ -227,6 +227,23 @@ func fuse(a: StringName, b: StringName, fused_id: StringName, rank: int) -> bool
 	return true
 
 
+## M50.6 (an epic card with one parent held): aimed slot holding `parent` becomes the fused
+## card `fused_id` at `rank`, in place (an active slot stays active: no switch, no quick-draw),
+## its shots kept. False unless `parent` is a held aimed card and a parent of that fusion.
+func absorb(parent: StringName, fused_id: StringName, rank: int) -> bool:
+	var def := WeaponDB.get_weapon(fused_id)
+	if def == null or not def.is_fusion() or not parent in def.parents:
+		return false
+	for i in slots.size():
+		if slots[i].def.id == parent:
+			var w := Weapon.new(def, cap(rank), curve)
+			w.shots = slots[i].shots
+			slots[i] = w
+			EventBus.weapon_changed.emit(def.id, w.rank)
+			return true
+	return false
+
+
 ## M50.4c1 (Auto depth design 2.5): held weapon `from` becomes evolution `into` in place (the
 ## same aimed slot or passive-mode position; an active slot stays active), its shots kept, the
 ## item mods carried; a passive-mode one's node is rebuilt. The items stay. False unless `from`
@@ -316,7 +333,7 @@ func set_weapon(id: StringName, rank: int) -> bool:
 	return true
 
 
-## `by` ranks up (M50.1a: a rare card is 2); false at rank_cap or when not held.
+## `by` ranks up (M50.6: every pack card is 1); false at rank_cap or when not held.
 func upgrade(id: StringName, by := 1) -> bool:
 	var have := held(id)
 	if have == null or (rank_cap > 0 and have.rank >= rank_cap):

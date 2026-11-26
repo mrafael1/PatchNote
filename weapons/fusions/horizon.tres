@@ -17,6 +17,7 @@ lifetime = -1.0
 size = 1.5
 blast_radius = 0.0
 icon = &"horizon"
+rarity = &"epic"
 pitch = "The laser, and its path pulls enemies in."
 card_text = PackedStringArray("Horizon: a line that pulls.")
 mechanics = Array[StringName]([&"burn_line", &"slow", &"ricochet", &"teeth"])

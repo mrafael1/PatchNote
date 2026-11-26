@@ -13,6 +13,7 @@ pellets = 1
 speed = 0.0
 blast_radius = 1.5
 icon = &"burst"
+rarity = &"rare"
 node_script = "res://weapons/nova_pulse.gd"
 ranks = Array[Dictionary]([{"traits": [&"shove"]}, {"traits": [&"shove", &"dash_nova"]}])
 pitch = "Every few seconds, you go off. Politely."

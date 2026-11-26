@@ -770,6 +770,13 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		out.packs_short = int(runner.get(&"packs_short"))
 		out.packs_toast = int(runner.get(&"packs_toast"))
 		out.rares_shown = int(runner.get(&"rares_shown"))
+		# M50.6 (additive): the stack: packs opened, left unopened, carried in, the most stacked,
+		# and the epic cards shown.
+		out.packs_opened = int(runner.get(&"packs_opened"))
+		out.packs_left = int(runner.call(&"pack_stack"))
+		out.packs_carried = int(runner.get(&"packs_carried"))
+		out.stack_peak = int(runner.get(&"stack_peak"))
+		out.epics_shown = int(runner.get(&"epics_shown"))
 		# M50.3a (additive): the launcher's mines laid and blown (the run log's mine events).
 		var mines := {"laid": 0, "blown": 0}
 		for e: Dictionary in RunState.run_log:

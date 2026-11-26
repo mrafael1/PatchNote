@@ -193,7 +193,7 @@ func test_fuse_shotgun_4_and_launcher_5_is_cluster_5() -> void:
 	lo.fuse(&"shotgun", &"launcher", &"cluster", 6)
 	assert_eq(lo.summary(), "cluster:6")
 	# A parent's card feeds it.
-	var c := BoosterPack.card(lo, BoosterPack.fold(lo, &"launcher"), false)
+	var c := BoosterPack.card(lo, BoosterPack.fold(lo, &"launcher"))
 	assert_eq(c.kind, &"upgrade")
 	assert_eq(c.title, "Cluster 6 -> 7")
 	var cands := BoosterPack.candidates(lo, [&"pistol", &"shotgun", &"launcher"] as Array[StringName])

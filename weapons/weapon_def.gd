@@ -8,6 +8,8 @@ extends Resource
 const MODES: Array[StringName] = [&"aimed", &"passive"]
 const TRAITS_DIR := "res://weapons/traits/"
 const RANK_KEYS_EXTRA: Array[String] = ["traits"]
+## M50.6: the rarity tiers, lowest first. A fused weapon is epic; nothing else is.
+const RARITIES: Array[StringName] = [&"common", &"rare", &"epic"]
 
 @export var id: StringName
 @export var title := ""
@@ -36,6 +38,10 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var color_role: StringName = &"player_shot"   ## used from M48 (Palette)
 @export var icon: StringName = &""                    ## a shape key; F2 label only in M44
 @export var sound: StringName = &"shoot"
+## M50.6 (stacked packs and weapon rarity): the weapon's tier, one of RARITIES. It sets how
+## often a booster pack offers it (Tuning.pack_rare_weight; an epic only as a ready-made fusion
+## card, PathDef.epic_chance) and its card's frame. It never changes what a card gives.
+@export var rarity: StringName = &"common"
 ## A passive's node script (M45b): "" = the orbit shards (M44's); else a script whose node
 ## has configure(weapon) and the flags its traits set (nova_pulse.gd, well_weapon.gd).
 @export var node_script := ""
@@ -140,6 +146,10 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: a magazine needs an aimed weapon and reload_s > 0" % where)
 	if title.strip_edges() == "":
 		out.append("%s: no title" % where)
+	if not rarity in RARITIES:
+		out.append("%s: unknown rarity %s (%s)" % [where, rarity, RARITIES])
+	elif is_fusion() != (rarity == &"epic"):
+		out.append("%s: rarity %s (epic is a fused weapon's, and only its)" % [where, rarity])
 	if is_fusion():
 		if parents.size() != 2 or parents[0] == parents[1]:
 			out.append("%s: a fusion needs two different parents (%s)" % [where, parents])

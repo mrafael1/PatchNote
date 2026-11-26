@@ -31,6 +31,7 @@ const CONTROL_ROWS: Array = [
 	["Previous weapon", [&"weapon_prev"], "", ""],
 	["Next weapon", [&"weapon_next"], "", ""],
 	["Weapon 1 / 2 / 3", [&"weapon_1", &"weapon_2", &"weapon_3"], "", "LB / RB"],
+	["Open a pack", [&"open_pack"], "", ""],   # M50.6: Arsenal's stacked packs
 	["Build log", [&"patch_history"], "", ""],
 	["Pause", [&"pause"], "", ""],
 	["Choose a card", [&"choose_1", &"choose_2", &"choose_3", &"choose_4"], "", "D-pad + A"],

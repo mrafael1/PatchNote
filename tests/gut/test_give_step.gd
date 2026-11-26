@@ -185,19 +185,19 @@ func test_no_slot_is_locked_and_the_hint_names_the_recipe_only_after_fusion() ->
 	RunState.session = null
 
 
-func test_a_pending_give_opens_before_an_owed_pack_which_waits_pack_gap() -> void:
+func test_a_pending_give_opens_by_itself_before_a_stacked_pack_which_waits_to_be_asked() -> void:
 	var r := await _arena()
 	_full_hand(r)
 	r.want_pick()
-	var panel := await _give_laser(r)
+	var panel := await _give_laser(r)   # M50.6: the give step opens by itself (it is the AI's)
 	assert_true(panel.offer.give_step, "the give step first")
-	assert_eq(r.pending_picks(), 1, "the pack is still owed")
+	assert_eq(r.pack_stack(), 1, "the pack stays on the stack")
 	panel.choose(2)
-	var gap := roundi(PathRunner.PACK_GAP * 60.0)
-	await wait_physics_frames(gap - 10)
-	assert_false(panel.is_open(), "the owed pack waits PACK_GAP")
-	await wait_physics_frames(14)
-	assert_true(panel.is_open() and not panel.offer.give_step, "then the pack")
+	await wait_physics_frames(roundi(PathRunner.PACK_GAP * 60.0) + 20)
+	assert_false(panel.is_open(), "M50.6: the stacked pack never follows by itself")
+	assert_true(r.open_pack())
+	await wait_physics_frames(2)
+	assert_true(panel.is_open() and not panel.offer.give_step, "asked: the pack")
 	panel.choose(0)
 
 
@@ -330,8 +330,8 @@ func test_draw_with_a_give_still_puts_it_second_test_only() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var pool: Array[StringName] = [&"pistol", &"shotgun", &"laser"]
-	var o := BoosterPack.draw(lo, PathDB.get_def(&"arsenal"), pool, {"id": &"laser", "rare": true}, rng, Taste.new())
-	assert_eq([o.cards[1].id, o.cards[1].rarity], [&"laser", BoosterPack.RARE], "G4 still works for fixtures")
+	var o := BoosterPack.draw(lo, PathDB.get_def(&"arsenal"), pool, {"id": &"laser", "rank": 3}, rng, Taste.new())
+	assert_eq([o.cards[1].id, o.cards[1].rarity, int(o.cards[1].rank)], [&"laser", BoosterPack.RARE, 3], "G4 still works for fixtures")
 
 
 # --- S9 ---------------------------------------------------------------------------------------

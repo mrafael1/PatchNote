@@ -6,7 +6,7 @@ extends GutTest
 ## reduce flashing the deal is a fade only (no flip, flash or shine); the choices, their keys
 ## and the replace step are unchanged; the 1-card toast wears a small card.
 
-const CARD_DIGEST := "e4f73d1237c1bd698ccd3a18fb0e1b361a03140670999d6c277af4c4a12a8792"
+const CARD_DIGEST := "68031465aa5208bba7dd7b238a67e8ce408c129130a8f9de08d29f5af82aed7a"   # M50.6: + the card_epic frame (e4f73d12... before)
 ## M50.3a moved the arena atlas once (the launcher's sprites and the card_rare role); the card
 ## art's own digest did not move (it reads card_rare at draw time).
 const ATLAS_DIGEST := "30a949100fbd5abb552ac28d889fe4ad40586b4c6af897100c84664524f10a43"   # M50.5: the merged atlas (revolver + minigun + launcher sprites; 5ccf2497... on build/arcade)
@@ -67,7 +67,8 @@ func _faces_all() -> Dictionary:
 	var give := _card(&"laser", &"new", BoosterPack.RARE, 3, 0)
 	return {
 		"common": CardFace.face_of(_card(&"shotgun", &"upgrade", BoosterPack.COMMON, 4, 3), "[1]"),
-		"rare": CardFace.face_of(_card(&"pistol", &"upgrade", BoosterPack.RARE, 4, 2), "[2]"),
+		"rare": CardFace.face_of(_card(&"laser", &"upgrade", BoosterPack.RARE, 4, 3), "[2]"),
+		"epic": CardFace.face_of(_card(&"prism", &"absorb", BoosterPack.EPIC, 4, 0), "[3]"),
 		"new": CardFace.face_of(_card(&"laser", &"new", BoosterPack.COMMON, 1, 0), "[3]"),
 		"fuse": CardFace.fuse_face(_fuse(), "[4]"),
 		"give": CardFace.face_of(give, "", true),
@@ -76,15 +77,17 @@ func _faces_all() -> Dictionary:
 
 func test_every_card_kind_has_a_face_on_tier_0_and_pixel() -> void:
 	var f := _faces_all()
-	assert_eq([f.common.style, f.rare.style, f.new.style, f.fuse.style, f.give.style],
-			[&"card_common", &"card_rare", &"card_common", &"card_fuse", &"card_give"])
-	assert_eq([f.common.tag, f.rare.tag, f.new.tag, f.fuse.tag], ["3 > 4", "2 > 4", "NEW", "FUSE"])
-	assert_eq([f.common.ribbon, f.rare.ribbon, f.new.ribbon, f.give.ribbon], ["", "RARE +2", "", "GOLD CARD"])
+	assert_eq([f.common.style, f.rare.style, f.epic.style, f.new.style, f.fuse.style, f.give.style],
+			[&"card_common", &"card_rare", &"card_epic", &"card_common", &"card_fuse", &"card_give"])
+	assert_eq([f.common.tag, f.rare.tag, f.epic.tag, f.new.tag, f.fuse.tag], ["3 > 4", "3 > 4", "NEW", "NEW", "FUSE"])
+	# M50.6: the ribbon is the card's tier (never "RARE +2": every card is +1).
+	assert_eq([f.common.ribbon, f.rare.ribbon, f.epic.ribbon, f.new.ribbon, f.give.ribbon],
+			["COMMON", "RARE", "EPIC", "COMMON", "GOLD CARD"])
 	assert_eq([f.fuse.title, int(f.fuse.rank), f.fuse.icon_a, f.fuse.icon_b], ["Prism", 5, &"fan", &"line"],
 			"FUSE: both parents' pictures")
 	assert_string_contains(f.fuse.foot, "Shotgun 5 + Laser 4")
 	assert_eq([f.common.title, f.common.icon], ["Shotgun", &"fan"])
-	for id: StringName in [&"card_common", &"card_rare", &"card_fuse", &"card_give", &"card_back", &"ribbon"]:
+	for id: StringName in [&"card_common", &"card_rare", &"card_epic", &"card_fuse", &"card_give", &"card_back", &"ribbon"]:
 		assert_not_null(CardFaceArt.frame(id), "a Pixel frame: %s" % id)
 	# Drawn on each look: tier 0 (no look), then Pixel (its UI panel on).
 	for look: StringName in [&"off", &"pixel"]:
@@ -236,13 +239,13 @@ func test_the_give_step_shows_the_gold_card_and_the_toast_a_small_one() -> void:
 	# The toast.
 	var t := PickOffer.new()
 	t.pack = true
-	t.cards.append(_card(&"pistol", &"upgrade", BoosterPack.RARE, 7, 5))
+	t.cards.append(_card(&"laser", &"upgrade", BoosterPack.RARE, 6, 5))
 	p.toast(t)
 	assert_true(p.toasting())
 	assert_eq(p._toast_face.mini, &"toast")
 	assert_true(p._toast_face.get_parent() == p._toast, "it fades with the toast's line")
-	assert_eq([p._toast_face.face.title, p._toast_face.face.style], ["Pistol", &"card_rare"])
-	assert_eq(p._toast.text, "Pack: Pistol +2  RARE")
+	assert_eq([p._toast_face.face.title, p._toast_face.face.style], ["Laser", &"card_rare"])
+	assert_eq(p._toast.text, "Pack: Laser +1  RARE")
 
 
 ## M50.2c review: the FUSE face shows every kept mechanic and the whole "loses:" list (it is

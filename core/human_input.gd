@@ -26,6 +26,8 @@ func _physics_process(_delta: float) -> void:
 			if Input.is_action_just_pressed(SLOT_ACTIONS[i]):
 				select_slot = i
 				break
+	# M50.6: the top stacked pack, never while a panel (or anything) pauses play.
+	open_pack_pressed = Input.is_action_just_pressed(&"open_pack") and not RunState.is_paused_except(&"")
 	if _wait_release:
 		if fire or jump_held or Input.is_action_pressed(&"dash") or _slot_held():
 			fire = false

@@ -12,6 +12,7 @@ damage = 1.0
 pellets = 1
 speed = 0.0
 icon = &"hole"
+rarity = &"rare"
 node_script = "res://weapons/well_weapon.gd"
 ranks = Array[Dictionary]([{"traits": [&"gem_magnet"]}, {"traits": [&"gem_magnet", &"teeth"]}])
 pitch = "When they die they leave a small hole. The others fall in."

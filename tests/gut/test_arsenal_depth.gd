@@ -46,6 +46,9 @@ func _arena() -> PathRunner:
 	await wait_physics_frames(1)
 	player = game.player
 	player.set_input(load("res://tests/gut/fixtures.gd").ScriptedInput.new())
+	# M50.6: packs stack until asked. These tests play like the bot (a standing ask: each pack
+	# opens on the first free tick); the stack's own tests are in test_pack_stack.gd.
+	player.input.open_pack_pressed = true
 	await wait_physics_frames(1)
 	player.global_position = OPEN * T
 	player.velocity = Vector2.ZERO
@@ -125,27 +128,24 @@ func test_a_tryout_deals_two_packs_then_stops_quietly() -> void:
 	assert_eq(m.progress(), 1.0)
 
 
-func test_packs_need_player_kills_and_owed_packs_queue_two_seconds_apart() -> void:
+func test_packs_need_player_kills_and_stack_until_asked() -> void:
 	var r := await _arena()
+	player.input.open_pack_pressed = false   # M50.6: the player's hands are off the key
 	r.announce(&"shotgun")   # M50.2a: a pool of two, so each pack is a choice (no toast)
 	_kill(r, 5, &"enemy")
 	assert_eq(r.packs(), 0, "a bomber's own fuse kill does not count")
 	_kill(r, 12)
 	assert_eq(r.packs(), 2)
-	assert_eq(r.pending_picks(), 2, "owed packs queue")
-	r._physics_process(1.0 / 60.0)
-	await wait_physics_frames(1)
-	assert_true(game.pick_panel.is_open(), "the first opens on a free tick")
+	assert_eq(r.pending_picks(), 2, "the packs stack")
+	await wait_physics_frames(30)
+	assert_false(game.pick_panel.is_open(), "M50.6: a pack never opens by itself")
+	assert_true(r.open_pack())
+	await wait_physics_frames(2)
+	assert_true(game.pick_panel.is_open(), "asked: it opens on the next free tick")
 	game.pick_panel.choose(0)
 	assert_eq(r.pending_picks(), 1)
-	var from := r._tick
-	var opened_at := -1
-	for i in 400:
-		await wait_physics_frames(1)
-		if game.pick_panel.is_open():
-			opened_at = r._tick - from
-			break
-	assert_between(opened_at, 119, 124, "the queued one waits PACK_GAP (2 s of ticks)")
+	await wait_physics_frames(150)
+	assert_false(game.pick_panel.is_open(), "the next one waits to be asked too (no chain, no PACK_GAP timer)")
 
 
 # --- 2. The pack draw ------------------------------------------------------------------------
@@ -201,61 +201,46 @@ func test_g1_a_held_card_first_and_g2_never_shows_an_id_twice() -> void:
 			"M50.2a G2': a pool of two on a full hand: 2 cards, never a repeat")
 
 
-## M50.2a (G2'): a card slot with no unshown id left adds no card; its own rare roll upgrades
-## the first shown common card in place; all-rare stays as it is.
-func test_fallback_upgrades_first_common_on_a_rare_roll() -> void:
+## M50.2a (G2'): a card slot with no unshown id left adds no card. M50.6: and nothing else
+## happens there (the old rare roll that turned a shown card rare in place is gone: a card's
+## rarity is its weapon's and every card is +1).
+func test_an_empty_slot_adds_no_card_and_every_card_is_plus_one() -> void:
 	var lo := _deep([&"pistol", &"shotgun"], [5, 3])
-	var chance := _arsenal().rare_chance
-	var fresh := func(rarities: Array) -> PickOffer:
-		var o := PickOffer.new()
-		o.pack = true
-		o.cards.append(BoosterPack.card(lo, &"pistol", rarities[0]))
-		o.cards.append(BoosterPack.card(lo, &"shotgun", rarities[1]))
-		return o
+	var o := PickOffer.new()
+	o.pack = true
+	o.cards.append(BoosterPack.card(lo, &"pistol"))
+	o.cards.append(BoosterPack.card(lo, &"shotgun"))
 	var none: Array = []
-	var common: PickOffer = fresh.call([false, false])
-	BoosterPack._take(common, lo, none, none, chance + 0.01, 0.0, chance, null)
-	assert_eq(common.cards.map(func(c: Dictionary) -> String: return "%s:%s" % [c.id, c.rarity]),
-			["pistol:common", "shotgun:common"], "a common roll: nothing happens")
-	var rare: PickOffer = fresh.call([false, false])
-	BoosterPack._take(rare, lo, none, none, chance - 0.01, 0.0, chance, null)
-	assert_eq(rare.cards.map(func(c: Dictionary) -> String: return "%s:%s" % [c.id, c.rarity]),
-			["pistol:rare", "shotgun:common"], "a rare roll: the first common becomes rare in place")
-	assert_eq([rare.cards[0].from, rare.cards[0].rank], [5, 7], "a rare upgrade: +2")
-	var second: PickOffer = fresh.call([true, false])
-	BoosterPack._take(second, lo, none, none, 0.0, 0.0, chance, null)
-	assert_eq(second.cards.map(func(c: Dictionary) -> String: return String(c.rarity)), ["rare", "rare"],
-			"the first COMMON card, in card order")
-	var all_rare: PickOffer = fresh.call([true, true])
-	BoosterPack._take(all_rare, lo, none, none, 0.0, 0.0, chance, null)
-	assert_eq(all_rare.cards.size(), 2, "all rare: no change, no card added")
+	var no_epics: Array[StringName] = []
+	BoosterPack._take(o, lo, none, none, 0.0, 0.0, 0.99, no_epics, null)
+	assert_eq(o.cards.map(func(c: Dictionary) -> String: return "%s:%s:%d" % [c.id, c.rarity, c.rank]),
+			["pistol:common:6", "shotgun:common:4"], "no card added, none changed")
 	# Through draw(): a 2-weapon pool on a full hand never repeats an id, whatever the seed.
 	var pool: Array[StringName] = [&"pistol", &"shotgun"]
-	var rares := 0
 	for s in 200:
-		var o := BoosterPack.draw(lo, _arsenal(), pool, {}, _rng(s), Taste.new())
-		assert_eq(o.cards.size(), 2)
-		assert_ne(o.cards[0].id, o.cards[1].id, "never a repeated id (seed %d)" % s)
-		rares += o.cards.filter(func(c: Dictionary) -> bool: return c.rarity == &"rare").size()
-	# Worked: 0.15 + 0.15 + 0.15 x (1 - 0.15^2) ~ 0.45 rares a pack.
-	assert_between(rares / 200.0, 0.33, 0.57, "about 0.45 rares a pack")
+		var d := BoosterPack.draw(lo, _arsenal(), pool, {}, _rng(s), Taste.new(), true)
+		assert_eq(d.cards.size(), 2)
+		assert_ne(d.cards[0].id, d.cards[1].id, "never a repeated id (seed %d)" % s)
+		for c: Dictionary in d.cards:
+			assert_eq([c.rarity, int(c.rank) - int(c.from)], [&"common", 1], "common weapons, +1 (seed %d)" % s)
 
 
 func test_pool_of_one_is_one_card() -> void:
 	var lo := _deep([&"pistol"], [4])
 	var only: Array[StringName] = [&"pistol"]
-	var rares := 0
 	for s in 200:
 		var o := BoosterPack.draw(lo, _arsenal(), only, {}, _rng(s), Taste.new())
 		assert_eq(o.ids(), [&"pistol"] as Array[StringName], "1 card (seed %d)" % s)
-		if o.cards[0].rarity == &"rare":
-			rares += 1
-	# Worked: 1 - 0.85^3 ~ 39 % rare.
-	assert_between(rares / 200.0, 0.27, 0.51, "rare about 39 % of the time")
+		assert_eq([o.cards[0].rarity, int(o.cards[0].rank)], [&"common", 5], "M50.6: the pistol is common, +1")
 
 
-func test_rare_chance_is_0_15() -> void:
-	assert_almost_eq(_arsenal().rare_chance, 0.15, 0.0001, "M50.2a: owner, tune down from 0.2")
+## M50.6: the old per-card rare roll (rare_chance 0.15, +2 ranks) is gone; the numbers are the
+## epic chance on the path and two weights in Tuning.
+func test_the_pack_numbers_live_on_the_path_and_in_tuning() -> void:
+	assert_almost_eq(_arsenal().epic_chance, 0.05, 0.0001)
+	assert_false("rare_chance" in _arsenal(), "no rarity roll per card any more")
+	assert_almost_eq(Tuning.pack_rare_weight, 0.5, 0.0001)
+	assert_almost_eq(Tuning.pack_held_weight, 2.0, 0.0001)
 
 
 ## M50.2a (D3): a 1-card pack has no choice: it applies at once, with no pick pause and no
@@ -283,8 +268,8 @@ func test_one_card_pack_is_a_toast_not_a_pause() -> void:
 	assert_eq(lo.rank_of(&"pistol"), int(c.rank), "the card applied")
 	assert_gt(lo.rank_of(&"pistol"), from_rank)
 	assert_string_contains(panel._toast.text, "Pack: Pistol +")
-	assert_eq(PickPanel.toast_text({"id": &"pistol", "kind": &"upgrade", "rank": 7, "from": 5, "rarity": &"rare"}),
-			"Pack: Pistol +2  RARE")
+	assert_eq(PickPanel.toast_text({"id": &"laser", "kind": &"upgrade", "rank": 6, "from": 5, "rarity": &"rare"}),
+			"Pack: Laser +1  RARE", "M50.6: the tier, no bonus")
 	assert_eq(PickPanel.toast_text({"id": &"laser", "kind": &"new", "rank": 1, "rarity": &"common"}),
 			"Pack: Laser 1 joins")
 	panel._process(PickPanel.TOAST_TIME + 0.05)
@@ -306,26 +291,24 @@ func test_g3_a_new_weapon_with_room_and_g4_a_waiting_give() -> void:
 		var o := BoosterPack.draw(lo, _arsenal(), pool, {}, _rng(s), Taste.new())
 		assert_eq(o.cards[1].kind, &"new", "G3: card 2 is new while the hand has room")
 	var full := _deep([&"pistol", &"shotgun"])
-	var o := BoosterPack.draw(full, _arsenal(), pool, {"id": &"laser", "rare": true}, _rng(1), Taste.new())
+	var o := BoosterPack.draw(full, _arsenal(), pool, {"id": &"laser", "rank": 3}, _rng(1), Taste.new())
 	assert_eq([o.cards[1].id, o.cards[1].kind, o.cards[1].rarity, o.cards[1].rank], [&"laser", &"new", &"rare", 3])
 	assert_false(o.ids().slice(2).has(&"laser"), "not twice")
 
 
 func test_card_lines_name_breakpoints_and_mechanics() -> void:
 	var lo := _deep([&"pistol"], [6])
-	var c := BoosterPack.card(lo, &"pistol", false)
+	var c := BoosterPack.card(lo, &"pistol")
 	assert_eq(c.title, "Pistol 6 -> 7")
 	assert_eq(c.gain, "one-shots chasers and lancers, tank in 4")
-	var rare := BoosterPack.card(lo, &"pistol", true)
-	assert_eq(rare.title, "Pistol 6 -> 8")
-	assert_string_contains(rare.gain, "one-shots chasers")
-	assert_string_contains(rare.gain, "heavy every 4th shot")
-	assert_eq(BoosterPack.tags(rare), "RARE +2")
+	assert_eq(BoosterPack.tags(c), "COMMON", "M50.6: the tier, never a bonus")
+	assert_eq(int(c.rank) - int(c.from), 1)
 	lo.set_weapon(&"pistol", 5)
-	assert_string_contains(BoosterPack.card(lo, &"pistol", false).gain, "chain: a kill hops to the next enemy (3 hops)")
-	var n := BoosterPack.card(lo, &"laser", true)
-	assert_eq([n.kind, n.rank, BoosterPack.tags(n)], [&"new", 3, "NEW  RARE"])
-	assert_string_contains(n.gain, "burning line")
+	assert_string_contains(BoosterPack.card(lo, &"pistol").gain, "chain: a kill hops to the next enemy (3 hops)")
+	var n := BoosterPack.card(lo, &"laser")
+	assert_eq([n.kind, n.rank, n.rarity, BoosterPack.tags(n)], [&"new", 1, &"rare", "NEW  RARE"],
+			"M50.6: a rare weapon's card is rare, and still joins at rank 1")
+	assert_string_contains(n.gain, "goes through things")
 
 
 # --- 3. Ranks and the curve ------------------------------------------------------------------
@@ -392,12 +375,12 @@ func test_loadout_ranks_rare_and_no_cap_while_classic_clamps_at_3() -> void:
 	var lo := _deep([&"pistol"])
 	assert_eq(lo.rank_cap, 0)
 	assert_true(lo.upgrade(&"pistol", 2))
-	assert_eq(lo.rank_of(&"pistol"), 3, "a rare card is +2")
+	assert_eq(lo.rank_of(&"pistol"), 3, "upgrade(by) adds what it is asked (M50.6: a pack card asks 1)")
 	lo.set_weapon(&"pistol", 30)
 	assert_true(lo.upgrade(&"pistol"))
 	assert_eq(lo.rank_of(&"pistol"), 31, "no top")
 	lo.give(&"laser", 3)
-	assert_eq(lo.rank_of(&"laser"), 3, "a rare new card joins at 3")
+	assert_eq(lo.rank_of(&"laser"), 3, "a give at rank 3 joins at 3")
 	assert_true(lo.hand_full())
 	var classic := Loadout.new()
 	autofree(classic)
@@ -594,7 +577,7 @@ func test_a_full_hand_new_card_replaces_or_goes_back_to_the_same_pack() -> void:
 		if offer.cards[i].kind == &"new":
 			at = i
 	if at < 0:
-		offer.cards.append(BoosterPack.card(lo, &"laser", false))
+		offer.cards.append(BoosterPack.card(lo, &"laser"))
 		at = offer.cards.size() - 1
 	var state := RunState.pack_rng.state
 	panel.choose(at)
@@ -631,7 +614,7 @@ func test_the_replace_step_has_its_own_input_lock() -> void:
 	r.want_pick()
 	r._open_offer()
 	var panel := game.pick_panel
-	panel.offer.cards.append(BoosterPack.card(lo, &"laser", false))
+	panel.offer.cards.append(BoosterPack.card(lo, &"laser"))
 	panel._unlock()
 	panel.choose(panel.offer.cards.size() - 1)
 	assert_false(panel.can_choose(), "locked again for 0.4 s")
@@ -642,23 +625,22 @@ func test_the_replace_step_has_its_own_input_lock() -> void:
 
 func test_pack_panel_text_and_the_rare_frame() -> void:
 	var r := await _arena()
-	r.announce(&"shotgun")   # M50.2a: a pool of two (a pool of one is a toast)
-	var chance := _arsenal().rare_chance
-	_arsenal().rare_chance = 0.99   # every card rare: the gold frame shows
+	var lo := _loadout()
+	r.announce(&"laser")   # M50.6: a rare weapon (a pool of two: no toast)
 	r.want_pick()
 	r._open_offer()
-	_arsenal().rare_chance = chance
 	var panel := game.pick_panel
 	var o := panel.offer
-	assert_eq(o.cards.size(), 2, "the pistol and a NEW shotgun")
+	assert_eq(o.cards.map(func(c: Dictionary) -> String: return "%s:%s" % [c.id, c.rarity]),
+			["pistol:common", "laser:rare"], "the pistol and a NEW laser: each its weapon's tier")
 	assert_eq(panel._buttons.size(), 2)
-	var t := PickPanel.pack_card_text(o, 0, Callable(), false)
-	assert_string_contains(t, "Pistol 1 -> ")
-	var rare_i := 0 if o.cards[0].rarity == &"rare" else 1
-	var face: CardFace = panel._faces[rare_i]   # M50.2c: a card face, not a framed button
-	assert_eq(face.face.style, &"card_rare", "a rare card's gold frame")
-	assert_eq(face.face.ribbon, "RARE" if o.cards[rare_i].kind == &"new" else "RARE +2")
-	panel.choose(0)
+	assert_string_contains(PickPanel.pack_card_text(o, 0, Callable(), false), "Pistol 1 -> 2   COMMON")
+	assert_string_contains(PickPanel.pack_card_text(o, 1, Callable(), false), "Laser 1   NEW  RARE")
+	var face: CardFace = panel._faces[1]   # M50.2c: a card face, not a framed button
+	assert_eq([face.face.style, face.face.ribbon, face.face.tag], [&"card_rare", "RARE", "NEW"], "a rare card's gold frame")
+	assert_eq([panel._faces[0].face.style, panel._faces[0].face.ribbon], [&"card_common", "COMMON"])
+	panel.choose(1)
+	assert_eq(lo.rank_of(&"laser"), 1, "M50.6: no rare bonus")
 
 
 ## CARD_RARE is a tier-0 role, so it resolves in every look, never to the unknown magenta.
@@ -694,13 +676,27 @@ func test_the_bot_pack_rule() -> void:
 	r._open_offer()
 	var panel := game.pick_panel
 	var o := panel.offer
-	o.cards = [BoosterPack.card(lo, &"pistol", false), BoosterPack.card(lo, &"shotgun", false)] as Array[Dictionary]
+	o.cards = [BoosterPack.card(lo, &"pistol"), BoosterPack.card(lo, &"shotgun")] as Array[Dictionary]
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), 1, "(5) a NEW card while the hand has room")
 	assert_eq(BotRuns.pack_choice(panel, lo, "skip_new"), 0, "skip_new")
-	o.cards.append(BoosterPack.card(lo, &"pistol", true))
-	assert_eq(BotRuns.pack_choice(panel, lo, ""), 2, "(4) a rare card for a held weapon first")
+	# M50.6 (2): an EPIC card that melts a held parent is taken; one that needs a full hand's
+	# slot is not (6). Rarity alone decides nothing any more.
+	lo.give(&"shotgun")
+	o.hand = [{"id": &"pistol", "title": "Pistol", "rank": 1}, {"id": &"shotgun", "title": "Shotgun", "rank": 1}] as Array[Dictionary]
+	o.cards = [BoosterPack.card(lo, &"pistol"), BoosterPack.epic_card(lo, &"prism")] as Array[Dictionary]
+	assert_eq(o.cards[1].kind, &"absorb")
+	assert_eq(BotRuns.pack_choice(panel, lo, ""), 1, "(2) an epic that melts a held parent")
+	assert_eq(BotRuns.pack_choice(panel, lo, "no_fuse"), 0, "no_fuse: never an epic")
+	lo.slots.remove_at(1)
+	lo.give(&"launcher")
+	o.cards = [BoosterPack.card(lo, &"pistol"), BoosterPack.epic_card(lo, &"prism")] as Array[Dictionary]
+	assert_eq(o.cards[1].kind, &"new")
+	assert_eq(BotRuns.pack_choice(panel, lo, ""), 0, "(6) an epic NEW card on a full hand is never taken")
+	lo.slots.remove_at(1)
 	assert_eq(BotRuns.pack_choice(panel, lo, "first_pick"), 0)
-	panel.choose(0)
+	panel.dismiss()
+	panel._dismissed = false
+	r._want = 0
 	lo.give(&"launcher")
 	lo.held(&"launcher").shots = 9
 	r.want_pick()
@@ -708,16 +704,16 @@ func test_the_bot_pack_rule() -> void:
 	# M50.1b: a NEW card that is not a built recipe with a held card is never taken on a full
 	# hand. M50.3b (Cluster built): on Pistol + Launcher the laser makes no recipe; the shotgun
 	# (Cluster with the launcher) does.
-	panel.offer.cards = [BoosterPack.card(lo, &"pistol", false), BoosterPack.card(lo, &"laser", false),
-			BoosterPack.card(lo, &"launcher", false)] as Array[Dictionary]
+	panel.offer.cards = [BoosterPack.card(lo, &"pistol"), BoosterPack.card(lo, &"laser"),
+			BoosterPack.card(lo, &"launcher")] as Array[Dictionary]
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), 2, "(7) the most-fired held card; (6) no NEW on a full hand")
 	panel._replacing = 1
 	assert_eq(BotRuns.pack_choice(panel, lo, ""), -1, "Back on the replace step")
 	panel._replacing = -1
-	panel.offer.cards[1] = BoosterPack.card(lo, &"shotgun", false)
-	assert_eq(BotRuns.pack_choice(panel, lo, ""), 1, "(3) a NEW card that makes a recipe with a held card")
+	panel.offer.cards[1] = BoosterPack.card(lo, &"shotgun")
+	assert_eq(BotRuns.pack_choice(panel, lo, ""), 1, "(4) a NEW card that makes a recipe with a held card")
 	panel._replacing = 1
-	assert_eq(BotRuns.pack_choice(panel, lo, ""), 0, "(3) its replace step lets the non-partner (pistol) go")
+	assert_eq(BotRuns.pack_choice(panel, lo, ""), 0, "(4) its replace step lets the non-partner (pistol) go")
 	panel._replacing = -1
 	panel.choose(2)
 

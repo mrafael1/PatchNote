@@ -13,6 +13,7 @@ pellets = 2
 ammo = 20
 speed = 0.0
 icon = &"ring"
+rarity = &"rare"
 ranks = Array[Dictionary]([{"traits": [&"flare"]}, {"traits": [&"flare", &"guard"]}])
 pitch = "Two shards circle you and hurt what they touch."
 card_text = PackedStringArray("Orbit: two shards circle you.", "Orbit II: a dash flares them out.", "Orbit III: shards eat enemy shots.")

@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M50.5a"
+const BUILD := "M50.6"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
@@ -463,6 +463,8 @@ func _end_session(choice: StringName) -> void:
 	if choice == &"retry":
 		CampaignDB.retry(s)
 	else:
+		if path_runner != null:
+			path_runner.bank_packs()   # M50.6: unopened packs wait for the path's next session
 		CampaignDB.complete(s, debrief.picked, debrief.more_picks())
 	if not is_live_game():
 		return   # a test's copy: the save moved on, nothing reloads

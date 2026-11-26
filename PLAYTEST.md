@@ -1,3 +1,16 @@
+# Next playtest: M50.6, stacked packs and weapon rarity (Arcade)
+
+What is new since M50.5a (Arcade path only; play S7 to S9 as usual):
+- **Packs wait for you.** Six kills still deal a pack, but it no longer opens by itself: it joins a stack in the HUD ("3 packs", or "PACK x3" on the rail). Press **F** (pad: X) when you want to open the top one; the game pauses and you pick 1 of 3 as before. Open the next with another press. The AI tells you the key at your first pack and reminds you once when three are waiting. Packs you did not open are still there in the next session.
+- **Every card is +1 rank.** No more "RARE +2".
+- **Rarity is the gun's:** Pistol, Shotgun and Launcher are common; the Laser is rare (gold frame, shows up less often); a fused gun is **epic** (violet frame). The ribbon on each card says which.
+- **Your own guns come up more often** in the second and third card.
+- **Epic cards (S9, after the AI adds fusion):** now and then a pack holds a ready-made fused gun (Prism), at rank 4. If you hold one of its parents it takes that card's slot (and keeps its rank if it was higher); if your hand is full and you hold neither, you choose which card it replaces.
+
+One-liners (defaults taken): F as the key: fine? Did you ever forget a pack was waiting? Did stacking and opening three in a row feel good or like a chore? Epic at rank 4 and about one pack in ten: right? Should the first pack open by itself to teach it? "COMMON" ribbon on plain cards: keep?
+
+---
+
 # Next playtest: M50.5a, card art and small-font letters (polish on M50.5)
 
 What is new since M50.5 (no extra steps; play as usual):
@@ -100,6 +113,7 @@ One page. The G13 sheet is kept below for reference.
 | | Keyboard and mouse | Pad |
 |---|---|---|
 | Arsenal: switch card | Q / E, mouse wheel, 1-3 | Bumpers |
+| Arsenal: open the top stacked pack (M50.6) | F | X |
 | Survival: take a gun, ammo or a heal | Walk over it (your old gun drops at your feet) | Walk over it |
 
 ## Files to send back

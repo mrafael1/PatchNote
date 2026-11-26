@@ -65,8 +65,13 @@ const THRESHOLD_STEP := 20
 ## and full_line are unused there); a tryout deals `pack_taste` packs, then stops quietly.
 @export var pack_every := 0
 @export var pack_taste := 0
-## Per pack card: rare (+2 ranks, a new card at rank 3) when its roll is under this.
-@export var rare_chance := 0.0
+## M50.6: per pack card slot after the first, the chance of an epic card (a ready-made fusion;
+## at most one a pack, BoosterPack). Rarity itself is the weapon's (WeaponDef.rarity).
+@export var epic_chance := 0.0
+## M50.6 (Line syntax, "" = none): said once a session when its first pack lands on the stack,
+## and once when the stack reaches Tuning.pack_nudge_at.
+@export var pack_first_line := ""
+@export var pack_stack_line := ""
 ## The top rank (0 = none). Classic paths keep Loadout.MAX_RANK (3).
 @export var rank_cap := 3
 ## &"classic" (WeaponDef.ranks 2-3) or &"deep" (WeaponCurve: odd ranks damage, even ranks
@@ -144,7 +149,8 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: a levelups path needs level_thresholds" % where)
 	if growth == &"cards" and pack_every <= 0 and level_thresholds.size() < max_picks:
 		out.append("%s: a cards path needs a threshold for each of its %d picks" % [where, max_picks])
-	for pair: Array in [["warn_line", warn_line], ["full_line", full_line]]:
+	for pair: Array in [["warn_line", warn_line], ["full_line", full_line], ["pack_first_line", pack_first_line],
+			["pack_stack_line", pack_stack_line]]:
 		var text: String = pair[1]
 		if text != "" and Line.parse(text).problem != "":
 			out.append("%s: %s: %s" % [where, pair[0], Line.parse(text).problem])
@@ -156,8 +162,8 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: pack_every and pack_taste must be >= 0" % where)
 	if pack_every > 0 and growth != &"cards":
 		out.append("%s: pack_every needs the cards growth" % where)
-	if rare_chance < 0.0 or rare_chance >= 1.0:
-		out.append("%s: rare_chance must be in [0, 1)" % where)
+	if epic_chance < 0.0 or epic_chance >= 1.0:
+		out.append("%s: epic_chance must be in [0, 1)" % where)
 	if rank_cap < 0:
 		out.append("%s: rank_cap must be >= 0 (0 = none)" % where)
 	if not rank_curve in RANK_CURVES:

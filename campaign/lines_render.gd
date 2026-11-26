@@ -72,5 +72,7 @@ static func render() -> String:
 	for id: StringName in PathDB.ids():
 		var d := PathDB.get_def(id)
 		out.append("- %s: warn \"%s\" · full \"%s\" · pick \"%s\"" % [id, d.warn_line, d.full_line, d.pick_line])
+		if d.pack_first_line != "" or d.pack_stack_line != "":   # M50.6: the stacked packs
+			out.append("  - first pack \"%s\" · %d packs stacked \"%s\"" % [d.pack_first_line, Tuning.pack_nudge_at, d.pack_stack_line])
 	out.append("- Pick lines: %s" % " · ".join(PathRunner.PICK_LINES))
 	return "\n".join(out) + "\n"

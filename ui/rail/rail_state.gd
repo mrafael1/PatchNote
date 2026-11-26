@@ -121,9 +121,12 @@ static func _pack(runner: Node, def: PathDef) -> Dictionary:
 	var meter: RefCounted = runner.call(&"meter")
 	var every := maxi(1, def.pack_every)
 	var d := {"on": def.pack_every > 0 and meter != null and meter.has_method(&"kills_left"),
-			"x": 0, "every": every, "left": -1, "next": 1}
+			"x": 0, "every": every, "left": -1, "next": 1, "stack": 0, "key": ""}
 	if not d.on:
 		return d
+	# M50.6: the packs waiting on the stack and the key that opens the top one.
+	d.stack = int(runner.call(&"pack_stack")) if runner.has_method(&"pack_stack") else 0
+	d.key = PathRunner.open_key() if Settings.key_hints() else ""
 	var kills := int(meter.get(&"kills"))
 	var cards := int(meter.get(&"cards"))
 	d.x = clampi(kills - cards * every, 0, every)

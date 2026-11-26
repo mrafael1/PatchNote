@@ -24,7 +24,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 ### Intro
 ### Cues
 - at 4: path arsenal warning: (happy) Version one. Your guns are cards.
-- at 8: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack.
+- at 8: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack. {key:open_pack} opens it.
 - picked 1: (proud) See? Same card, stronger gun.
 - at 36: (proud) Okay. Saving that one.
 - at 40: path survival warning: (happy) Version two. Guns lying around.
@@ -54,7 +54,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_survival (happy) Scavenger. You get a revolver. The rest is out there.
 - (thinking) One wave. I'll build it properly this time.
 ### Cues
-- answer:path_arsenal at 10: (happy) Remember the cards? Now they come in packs. Six kills, one pack, take one card.
+- answer:path_arsenal at 10: (happy) Cards come in packs now. Six kills, one pack. {key:open_pack} opens it.
 - answer:path_arsenal at 20: (thinking) Secret: the first shot after a switch hits twice as hard. Switch a lot.
 - answer:path_auto at 10: (happy) Remember the gems? Now they count. Real levels, a real bar.
 - answer:path_auto at 14: (worried) And I made the crowd bigger again. Sorry. You need it.
@@ -68,7 +68,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - !answer:path_survival at 86: (happy) I'm going to learn to draw. Give me a session.
 - answer:path_survival at 74: (thinking) You know what? It still looks like a prototype.
 - answer:path_survival at 80: (happy) I'm going to learn to draw. Give me a session.
-- answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. Gold ones count twice. No top rank.
+- answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. No top rank. Gold cards are rarer.
 - answer:path_arsenal at 34: (worried) Two cards max. Anything new means letting one go.
 - answer:path_auto at 18: (thinking) New top: rank six. Every gun learns three tricks on the way.
 - answer:path_auto at 60: (worried) Three guns, two passives. That's the whole backpack.
@@ -103,7 +103,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - at 74: (proud) There. That's us now.
 - !answer:path_arsenal at 80: (happy) New gun: the laser. It goes through things.
 - answer:path_auto at 90: (happy) And a nova for you. It pops around you.
-- answer:path_arsenal at 11: (happy) Your shotgun's back. I drew it a gold card.
+- answer:path_arsenal at 11: (happy) Your shotgun's back. Rank three, on me.
 - answer:path_arsenal at 78: (happy) New trick. I can glue two cards into one.
 - answer:path_arsenal at 82: misfused (surprised) It's a pistol. That shoots pistols. Sideways.
 - answer:path_arsenal at 86: misfused (guilty) Undoing. Not every pair goes together.
@@ -149,6 +149,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 
 ## The paths
 - arsenal: warn "happy: New version. Your guns are cards." · full "thinking: That's enough cards for one test." · pick "Pack. Pick one."
+  - first pack "happy: A pack! {key:open_pack} opens it. No rush." · 3 packs stacked "thinking: Three packs waiting. {key:open_pack} opens one."
 - auto: warn "worried: New version. Hands off the trigger." · full "" · pick "Level up. Pick one."
 - survival: warn "happy: New version. Guns are lying around." · full "" · pick "Level up. Pick one."
 - Pick lines: happy: Ooh, that one. · proud: Good pick.

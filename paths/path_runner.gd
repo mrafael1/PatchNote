@@ -55,6 +55,20 @@ extends Node
 ## replace step on the given card alone, "Replace <card>" per slot or "Keep your hand". It
 ## draws nothing, is not a pack pick (no `picked`, no pick_offered, PackMeter untouched), and
 ## an owed pack waits PACK_GAP after it. Keep leaves the weapon in the live pool.
+##
+## M50.6 (stacked packs and weapon rarity): a pack no longer opens by itself. Each pack the
+## meter deals goes on the stack (pack_stack(); the same count as pending_picks()); the player's
+## open_pack action (PlayerInput.open_pack_pressed, or open_pack()) opens the top one on that
+## tick when can_open_now() holds, with the same panel and pause as before. One press, one
+## pack: nothing chains, and PACK_GAP is gone (the press is the gap). The bot asks every tick,
+## so its packs open on the first free tick and a seed replays. A waiting give step still opens
+## by itself, before a pack. Unopened packs carry to the path's next session (bank_packs() at a
+## session the player moves on from, SaveGame.packs_banked() when the pack meter is built; never
+## in a tryout or outside a session). The path's pack_first_line is said when a session's first
+## pack lands, its pack_stack_line once when the stack reaches Tuning.pack_nudge_at. An EPIC
+## card (BoosterPack.epic_card, only once `fusion` is live) is a ready-made fusion: taken, it
+## melts the held parents (Loadout.fuse / absorb) or joins / replaces like a new card, and is
+## recorded like a fusion made (`fusions` with epic: true, the recipe learned).
 
 signal started(path_id: StringName)
 ## M47.6d1: a `path` cue landed (its warning starts): the title card (PathTitle) shows.
@@ -70,7 +84,8 @@ const Drops := preload("res://paths/survival/drops.gd")
 const AmmoWidget := preload("res://paths/survival/ammo_widget.gd")
 const AmmoOverheadScript := preload("res://paths/survival/ammo_overhead.gd")
 const SWAP_WARN_SECONDS := 1.5
-## M50.1a: owed packs never open back to back: at least this much game time between two.
+## M50.1a: owed packs never opened back to back. M50.6: unused (the player opens each pack);
+## kept for the tools and tests that name it.
 const PACK_GAP := 2.0
 ## M50.1b: the misfuse lasts this much game time (the pause stops it).
 const MISFUSE_SECONDS := 6.0
@@ -119,7 +134,8 @@ var taste_fps := {}
 var leftover_checks: Array = []
 var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or the fade)
 ## M50.1a (packs): what was taken, for the telemetry and the bot's line.
-var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0}
+## M50.6: `rare` counts the rare-tier cards taken (no bonus any more), `epic` the epic ones.
+var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0, "epic": 0}
 ## M50.4a (levelups picks): what each level-up took, for the telemetry and the bot's line.
 ## item_new / item_up are the passive items (M50.4b); evolve stays 0 until M50.4c1.
 var level_picks := {"upgrade": 0, "new": 0, "item_new": 0, "item_up": 0, "evolve": 0, "filler": 0}
@@ -128,6 +144,14 @@ var level_picks := {"upgrade": 0, "new": 0, "item_new": 0, "item_up": 0, "evolve
 var packs_short := 0
 var packs_toast := 0
 var rares_shown := 0
+## M50.6: epic cards shown, packs opened (a toast counts), the packs carried in from the last
+## session, the most ever stacked, and whether the two pack lines were said.
+var epics_shown := 0
+var packs_opened := 0
+var packs_carried := 0
+var stack_peak := 0
+var first_pack_said := false
+var stack_nudged := false
 ## M50.2b: each give step closed: {weapon, rank, choice: "replace:<id>" | "keep", t}.
 var gives: Array[Dictionary] = []
 ## M50.1b: each fusion made: {id, t, from: ["shotgun:5", "laser:4"], rank}.
@@ -175,7 +199,7 @@ var late_sweep := true
 var _late_swept := 0
 var _fp_base := [0, 0, 0]   ## picks, switches, pickups when the taste started
 var _still_tick := -1
-var _pack_gap_until := -1        ## M50.1a: the tick the next owed pack may open
+var _open_req := false           ## M50.6: open_pack() was asked (read on the next tick)
 ## M50.2b: full-hand gives waiting for their give step ({id, rank}, in cue order).
 var _gives: Array[Dictionary] = []
 var _misfuse_end_tick := -1      ## M50.2b: the tick the misfuse ended (the give step waits a tick)
@@ -295,9 +319,36 @@ func overlay() -> PathOverlay:
 	return _overlay
 
 
-## Picks asked and not made yet.
+## Picks asked and not made yet (a pack path: the packs on the stack).
 func pending_picks() -> int:
 	return _want
+
+
+## M50.6: the booster packs waiting to be opened (0 off a pack path).
+func pack_stack() -> int:
+	return _want if pack_path() else 0
+
+
+## M50.6: asks for the top pack of the stack (the open_pack action; tests). It opens on the
+## next physics tick if it may. False with no pack stacked or when nothing may open now.
+func open_pack() -> bool:
+	if pack_stack() <= 0 or not can_open_now():
+		return false
+	_open_req = true
+	return true
+
+
+## M50.6: the stack's key on the player's layout ("F"), for the HUD.
+static func open_key() -> String:
+	return InputSetup.expand_keys("{key:open_pack}")
+
+
+## M50.6: the session is done and the player moves on: the unopened packs wait in the save for
+## the path's next session (not a tryout's, nothing outside a session). Main._end_session.
+func bank_packs() -> void:
+	if RunState.session == null or RunState.session.tryout or not pack_path() or SaveGame.in_replay():
+		return
+	SaveGame.bank_packs(pack_stack())
 
 
 func swap_pending() -> bool:
@@ -561,6 +612,11 @@ func _build_cards() -> void:
 	_meter.tryout = RunState.session != null and RunState.session.tryout
 	_meter.on_card = want_pick
 	_meter.on_full = _on_meter_full
+	if pack_path() and RunState.session != null and not RunState.session.tryout and not frozen and not SaveGame.in_replay():
+		# M50.6: the packs the last session left unopened.
+		packs_carried = SaveGame.packs_banked()
+		_want = mini(_want + packs_carried, Tuning.pack_stack_max)
+		stack_peak = maxi(stack_peak, _want)
 	_feed_cards(true)
 	_widget = HandWidget.new()
 	_widget.name = "HandWidget"
@@ -607,8 +663,8 @@ func _clear_growth() -> void:
 		_widget.queue_free()
 	_widget = null
 	_want = 0
+	_open_req = false
 	_gives.clear()
-	_pack_gap_until = -1
 	_end_misfuse(false)
 	_fuse_was_ready = false
 	_drop_nerf()
@@ -717,10 +773,22 @@ func offer_pool() -> Array[StringName]:
 
 # --- Picks --------------------------------------------------------------------------------
 
-## The meter levelled up: a pick is owed (opened on the first free tick).
+## The meter levelled up: a pick is owed (opened on the first free tick). M50.6: on a pack
+## path it is a pack on the stack, opened only when the player asks.
 func want_pick() -> void:
-	if not frozen:
+	if frozen:
+		return
+	if not pack_path():
 		_want += 1
+		return
+	_want = mini(_want + 1, Tuning.pack_stack_max)
+	stack_peak = maxi(stack_peak, _want)
+	if not first_pack_said and def.pack_first_line != "":
+		first_pack_said = true
+		_speak(SessionRunner.with_keys(Line.parse(def.pack_first_line)), SessionRunner.PRIORITY, true)
+	elif not stack_nudged and _want >= Tuning.pack_nudge_at and def.pack_stack_line != "":
+		stack_nudged = true
+		_speak(SessionRunner.with_keys(Line.parse(def.pack_stack_line)), SessionRunner.PRIORITY, true)
 
 
 func _on_meter_full() -> void:
@@ -794,11 +862,18 @@ func _physics_process(_delta: float) -> void:
 			if evolve_ready_t < 0.0:
 				evolve_ready_t = snappedf(RunState.game_time, 0.1)
 		_evolve_was_ready = ready_e
+	# M50.6: a stacked pack opens only when asked on this tick (the player's key, the bot's
+	# standing ask, open_pack()); any other pick opens by itself, as before.
+	var asked := _open_req or not pack_path()
+	_open_req = false
+	if not asked and is_instance_valid(p):
+		var input := p.get(&"input") as PlayerInput
+		asked = input != null and input.open_pack_pressed
 	# M50.2b: a waiting give step opens first (never on the misfuse's last tick), then packs.
 	if not _gives.is_empty() and not _opening and _tick > _misfuse_end_tick and can_open_now():
 		_opening = true
 		_open_give.call_deferred()
-	elif _want > 0 and not _opening and _tick >= _pack_gap_until and can_open_now():
+	elif _want > 0 and asked and not _opening and can_open_now():
 		_opening = true
 		_open_offer.call_deferred()
 
@@ -812,15 +887,19 @@ func _open_offer() -> void:
 		return
 	var offer: PickOffer
 	if pack_path():
-		offer = BoosterPack.draw(lo, def, offer_pool(), {}, RunState.pack_rng, taste)   # M50.2b: no G4
+		# M50.2b: no G4. M50.6: epic cards only once the `fusion` basic is live.
+		offer = BoosterPack.draw(lo, def, offer_pool(), {}, RunState.pack_rng, taste, fusion_live())
 		offer.fuse = fuse_option()
 		if &"fusion" in def.basics:
 			BoosterPack.mark_keeps(offer, lo)
+		packs_opened += 1
 		if offer.cards.size() < 3:
 			packs_short += 1
 		for c: Dictionary in offer.cards:
 			if c.get("rarity") == BoosterPack.RARE:
 				rares_shown += 1
+			elif BoosterPack.is_epic(c):
+				epics_shown += 1
 		if toast_pack(offer, lo):
 			# M50.2a (D3): a 1-card pack has no choice: it applies now, with no pause, and a
 			# short toast shows it. It still counts as a pack (the meter, `picked n`, the log).
@@ -914,8 +993,6 @@ func _on_give_done(offer: PickOffer, slot: int) -> void:
 			"t": snappedf(RunState.game_time, 0.1)}
 	gives.append(rec)
 	RunState.log_event(&"give_choice", rec.duplicate())
-	if _want > 0:
-		_pack_gap_until = _tick + roundi(PACK_GAP * Engine.physics_ticks_per_second)
 
 
 ## The held aimed card with the most shots that can still rank up (ties: slot order), or
@@ -939,7 +1016,7 @@ static func toast_pack(offer: PickOffer, lo: Loadout) -> bool:
 	if not offer.pack or offer.cards.size() != 1 or not offer.fuse.is_empty() or lo == null:
 		return false
 	var c: Dictionary = offer.cards[0]
-	return c.kind == &"upgrade" or (c.kind == &"new" and not lo.hand_full())
+	return c.kind == &"upgrade" or (c.kind == &"new" and not lo.hand_full())   # never an `absorb`
 
 
 func _on_picked(offer: PickOffer, index: int) -> void:
@@ -989,10 +1066,7 @@ func _pick(offer: PickOffer, index: int) -> void:
 			"pick": String(card.id)})
 	EventBus.pick_made.emit(card.id)
 	if offer.pack:
-		# M50.1a: a pack every ~6 s: no "good pick" each time (the `picked n` cues speak), and
-		# queued packs wait PACK_GAP.
-		if _want > 0:
-			_pack_gap_until = _tick + roundi(PACK_GAP * Engine.physics_ticks_per_second)
+		# M50.1a: no "good pick" each pack (the `picked n` cues speak).
 		return
 	_speak(Line.parse(PICK_LINES[(picks - 1) % PICK_LINES.size()]), 1)
 
@@ -1210,14 +1284,26 @@ func evolve_hint() -> String:
 	return "%s lv %d/%d + %s -> %s" % [s_id, lo.rank_of(s_id), lo.rank_cap, into.catalyst, into.title.to_upper()]
 
 
-## M50.1a: a pack card goes to the hand: a held weapon ranks up (+1, rare +2), a new one joins
-## (rank 1, rare 3) or replaces the slot the panel's replace step chose.
+## M50.1a: a pack card goes to the hand: a held weapon ranks up (M50.6: always +1), a new one
+## joins at the card's rank or replaces the slot the panel's replace step chose. M50.6: an epic
+## card melts the held parents into its fusion (`absorb`) or is a new card at rank 4.
 func _take_pack_card(lo: Loadout, card: Dictionary) -> void:
 	var rare: bool = card.get("rarity") == BoosterPack.RARE
+	var epic := BoosterPack.is_epic(card)
+	var from: Array[String] = []
 	if lo != null:
 		if card.kind == &"upgrade":
-			lo.upgrade(card.id, 2 if rare else 1)
+			lo.upgrade(card.id)
 			pack_picks.upgrade += 1
+		elif card.kind == &"absorb":
+			var ab: Array = card.get("absorbs", [])
+			for a: StringName in ab:
+				from.append("%s:%d" % [a, lo.rank_of(a)])
+			if ab.size() == 2:
+				lo.fuse(ab[0], ab[1], card.id, int(card.rank))
+			elif ab.size() == 1:
+				lo.absorb(ab[0], card.id, int(card.rank))
+			pack_picks.new += 1
 		elif card.kind == &"new":
 			if card.has("replace"):
 				var at := int(card.replace)
@@ -1230,6 +1316,15 @@ func _take_pack_card(lo: Loadout, card: Dictionary) -> void:
 			pack_picks.new += 1
 	if rare:
 		pack_picks.rare += 1
+	if epic:
+		# Recorded like a fusion made (the `fused n` cues, the debrief, the recipe book).
+		pack_picks.epic += 1
+		fusions.append({"id": String(card.id), "t": snappedf(RunState.game_time, 0.1), "from": from,
+				"rank": int(card.rank), "epic": true})
+		RunState.log_event(&"fused", {"weapon": String(card.id), "from": from, "rank": int(card.rank), "epic": true})
+		if SaveGame.learn_recipe(card.id):
+			RunState.log_event(&"patch_note", {"text": "New recipe: %s" % WeaponDB.get_weapon(card.id).title})
+		_fuse_was_ready = false
 
 
 ## M50.1a: the pack panel's Back (the replace step, back to the same pack).
@@ -1354,7 +1449,8 @@ func _one_more_hp() -> void:
 ## the build and log under the debrief).
 func stop() -> void:
 	_stopped = true
-	_want = 0
+	if not pack_path():
+		_want = 0   # M50.6: a pack path keeps its stack (nothing opens once stopped): bank_packs()
 	_swap_tick = -1
 	fp.menu_close()
 	if panel != null:
@@ -1433,8 +1529,8 @@ func state_text() -> String:
 		var lo := loadout()
 		var k := int(_meter.get(&"kills")) - int(_meter.get(&"cards")) * def.pack_every if _meter != null else 0
 		var fused := ",".join(fusions.map(func(f: Dictionary) -> String: return "%s@%d" % [f.id, roundi(float(f.t))]))
-		return "path=%s packs=%d kills=%d/%d hand=%s fusions=%s picks=%d pickups=%d" % [path_id, cards(), k,
-				def.pack_every, lo.summary() if lo != null else "-", fused if fused != "" else "-", picks,
+		return "path=%s packs=%d stack=%d kills=%d/%d hand=%s fusions=%s picks=%d pickups=%d" % [path_id, cards(),
+				pack_stack(), k, def.pack_every, lo.summary() if lo != null else "-", fused if fused != "" else "-", picks,
 				pickups_taken]
 	if _cards_growth():
 		var need := int(_meter.call(&"next_need")) if _meter != null else -1

@@ -17,6 +17,7 @@ lifetime = -1.0
 size = 1.0
 blast_radius = 1.2
 icon = &"cluster"
+rarity = &"epic"
 pitch = "A shell that bursts into five bomblets."
 card_text = PackedStringArray("Cluster: a shell full of bomblets.")
 mechanics = Array[StringName]([&"knockback_cone_cluster", &"sticky", &"point_blank_cluster", &"implode"])

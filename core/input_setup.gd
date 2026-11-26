@@ -8,7 +8,7 @@ const ACTIONS: Array[StringName] = [
 	&"move_left", &"move_right", &"move_up", &"move_down",
 	&"aim_left", &"aim_right", &"aim_up", &"aim_down",
 	&"shoot", &"dash", &"jump", &"wait", &"weapon_prev", &"weapon_next",
-	&"weapon_1", &"weapon_2", &"weapon_3",
+	&"weapon_1", &"weapon_2", &"weapon_3", &"open_pack",
 	&"patch_history", &"pause",
 	&"choose_1", &"choose_2", &"choose_3", &"choose_4",
 	&"debug_overlay", &"debug_console", &"debug_invincible", &"debug_spawn",
@@ -39,6 +39,9 @@ func _init() -> void:
 	_bind(&"weapon_1", [_key(KEY_1)])
 	_bind(&"weapon_2", [_key(KEY_2)])
 	_bind(&"weapon_3", [_key(KEY_3)])
+	# M50.6 (stacked packs): opens the top booster pack of Arsenal's stack. F and the pad's X
+	# were free; a no-op with no pack stacked or off a pack path.
+	_bind(&"open_pack", [_key(KEY_F), _pad(JOY_BUTTON_X)])
 	_bind(&"patch_history", [_key(KEY_TAB), _pad(JOY_BUTTON_BACK)])
 	_bind(&"pause", [_key(KEY_ESCAPE), _pad(JOY_BUTTON_START)])
 	_bind(&"choose_1", [_key(KEY_1)])

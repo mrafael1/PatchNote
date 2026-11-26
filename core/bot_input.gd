@@ -54,6 +54,9 @@ func _physics_process(_delta: float) -> void:
 	jump_pressed = false
 	wait_pressed = false
 	select_slot = -1   # M46: only the arsenal policy sets it
+	# M50.6: the bot opens a stacked pack as soon as it may (asked every tick; the PathRunner
+	# opens on its first free tick, so a seed replays). `afk` and `hoard` never open one.
+	open_pack_pressed = probe != &"afk" and probe != &"hoard"
 	if RunState.rules.turn_based:
 		_turn_policy()
 		return

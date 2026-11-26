@@ -96,6 +96,10 @@ extends SceneTree
 ##                                lowest-rank card go that the step allows (a first play does
 ##                                not know the recipes; the step's kept partner is never offered);
 ##                                M50.2b: on a give step it follows the visible hint (as default)
+##   --probe=hoard                (M50.6) the bot never opens a stacked pack (BotInput); by default
+##                                it asks every tick, so a pack opens on the first free tick.
+##                                The --only line adds opened= left= stack_peak= epics= after
+##                                rares_shown=, the "packs:" summary opened_per_seed= left_per_seed=
 ##   --probe=give_keep            (M50.2b) a give step always keeps the hand
 ##   --probe=give_swap            (M50.2b) a give step replaces the given card's recipe partner
 ##   (M50.2b) A give step is chosen by BotRuns.give_choice (shared with tools/run_hash.gd); the
@@ -219,7 +223,7 @@ var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 n
 var fp_arg := false                          ## --fp (M46)
 var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
 const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human",
-		"random_picks", "no_evolve", "give_keep", "give_swap"]
+		"random_picks", "no_evolve", "give_keep", "give_swap", "hoard"]
 ## M50.4b: human_pace's Auto level thresholds (PathDef.threshold_mult).
 const HUMAN_PACE_LEVELS := 1.5
 ## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
@@ -779,6 +783,10 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 						int(ar.max_rank), ar.hand, int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots)),
 						_join_or_dash(ar.fusions), ar.misfuse, int(ar.packs_short), int(ar.packs_toast),
 						int(ar.rares_shown)]
+				# M50.6: the stack: packs earned (the meter's), opened, left unopened, the most stacked,
+				# epic cards shown.
+				landed_text += " earned=%d opened=%d left=%d stack_peak=%d epics=%d" % [int(ar.earned), int(ar.opened),
+						int(ar.left), int(ar.stack_peak), int(ar.epics)]
 				landed_text += " give=%s" % ar.give   # M50.2b: at the very end
 				# M50.3a: the launcher's mines laid / blown (after give=).
 				var laid: int = (run_state.get(&"run_log") as Array).filter(func(e: Dictionary) -> bool: return e.get("event") == &"mine_laid").size()
@@ -932,6 +940,14 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			float(shown) / maxf(1.0, float(dealt)),
 			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.packs_short))),
 			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.packs_toast)))])
+		# M50.6: packs earned / opened / left unopened per seed, the top rank at the end, epics shown.
+		print("[botrun] stack: %s earned_per_seed=%s opened_per_seed=%s left_per_seed=%s stack_peak_per_seed=%s max_rank_per_seed=%s epics_per_seed=%s" % [only,
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.earned))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.opened))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.left))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.stack_peak))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.max_rank))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.epics)))])
 	elif not arsenal_runs.is_empty():
 		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
 		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
@@ -1023,7 +1039,10 @@ static func _pack_run(run: Dictionary, runner: Node, lo: Node, session_id: Strin
 			"hand": String(lo.call(&"summary")) if lo != null else "-", "ok": ok,
 			"fusions": fused, "fuse_t": float(runner.get(&"fusions")[0].t) if not fused.is_empty() else -1.0,
 			"misfuse": misfuse, "packs_short": int(runner.get(&"packs_short")),
-			"packs_toast": int(runner.get(&"packs_toast")), "rares_shown": int(runner.get(&"rares_shown"))}
+			"packs_toast": int(runner.get(&"packs_toast")), "rares_shown": int(runner.get(&"rares_shown")),
+			"earned": int(runner.call(&"packs")), "opened": int(runner.get(&"packs_opened")),
+			"left": int(runner.call(&"pack_stack")), "stack_peak": int(runner.get(&"stack_peak")),
+			"epics": int(runner.get(&"epics_shown"))}
 
 
 static func _shots_parts(shots: Dictionary) -> Array:
@@ -1626,9 +1645,11 @@ static func choose_pack(panel: Node, game: Node, probe: String) -> void:
 
 ## M50.1a (Arsenal depth design 8): the bot's pack choice, one static rule with no RNG (-1 =
 ## Back). In order: (1) FUSE (M50.1b; never with no_fuse; then it chooses again in the same
-## pack); (2) a card for the lower half of a held recipe pair; (3) on a full hand, a NEW card
-## that makes a recipe with a held card (the replace step then lets the other card go);
-## (4) a rare card for a held weapon; (5) a NEW card while the hand has room (never with
+## pack); (2) M50.6: an EPIC card that melts a held parent (`absorb`) or finds room in the hand
+## (never with no_fuse or skip_new; rarity gives no bonus any more, so the old "rare card for a
+## held weapon" rule is gone); (3) a card for the lower half of a held recipe pair; (4) on a
+## full hand, a NEW card that makes a recipe with a held card (the replace step then lets the
+## other card go); (5) a NEW card while the hand has room (never with
 ## skip_new); (6) any other NEW card on a full hand is never taken (on the replace step: Back);
 ## (7) the held card with the most shots. Ties: card order. first_pick: card 0 (always a
 ## held card, G1), Back on the replace step.
@@ -1660,6 +1681,11 @@ static func pack_choice(panel: Node, lo: Node, probe: String) -> int:
 		return 0
 	if probe != "no_fuse" and not (offer.get(&"fuse") as Dictionary).is_empty():
 		return cards.size()
+	if probe != "no_fuse" and probe != "skip_new":
+		for i in cards.size():
+			if cards[i].get("rarity") == &"epic" and (cards[i].kind == &"absorb"
+					or (cards[i].kind == &"new" and hand.size() < int(offer.get(&"max_slots")))):
+				return i
 	var low: StringName = bp.call(&"recipe_low_half", lo) if lo != null else &""
 	if low != &"":
 		for i in cards.size():
@@ -1672,9 +1698,6 @@ static func pack_choice(panel: Node, lo: Node, probe: String) -> int:
 			for h: Dictionary in hand:
 				if _built_recipe(db, cards[i].id, h.id):
 					return i
-	for i in cards.size():
-		if cards[i].kind == &"upgrade" and cards[i].get("rarity") == &"rare":
-			return i
 	if probe != "skip_new" and (offer.get(&"hand") as Array).size() < int(offer.get(&"max_slots")):
 		for i in cards.size():
 			if cards[i].kind == &"new":

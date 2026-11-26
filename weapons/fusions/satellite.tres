@@ -17,6 +17,7 @@ lifetime = -1.0
 size = 1.0
 blast_radius = 1.2
 icon = &"satellite"
+rarity = &"epic"
 pitch = "Two shells orbit you and blow on touch."
 card_text = PackedStringArray("Satellite: shells that orbit and blow.")
 mechanics = Array[StringName]([&"sticky", &"flare", &"implode", &"guard"])

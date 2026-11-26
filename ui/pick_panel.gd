@@ -9,8 +9,8 @@ extends CanvasLayer
 ## delay after opening (the debrief's, M42.1).
 ##
 ## M50.1a (Arsenal's booster packs, PickOffer.pack): each card shows its title with the rank
-## arrow, its tags (NEW, RARE +2) and its gain; a rare card sits in a frame of the look's
-## card_rare role. Under the cards the hand at 60% size. A NEW card on a full hand opens the
+## arrow, its tags (NEW, its tier; M50.6) and its gain; a rare card sits in a frame of the look's
+## card_rare role, an epic one (M50.6) in card_epic's. Under the cards the hand at 60% size. A NEW card on a full hand opens the
 ## replace step on the same panel: the hand's cards are choices 1-2 ("Replace Pistol 7"),
 ## Back is the next one (a key and a button; never Esc / ui_cancel, the pause menu's). Back
 ## returns to the same pack: nothing is drawn again and `picked` is not emitted. Each step
@@ -186,8 +186,12 @@ func toast(p_offer: PickOffer) -> void:
 		return
 	var c: Dictionary = p_offer.cards[0]
 	_toast.text = toast_text(c)
-	_toast.add_theme_color_override(&"font_color",
-			Palette.color(&"card_rare") if c.get("rarity") == BoosterPack.RARE else Palette.INFO)
+	var tone := Palette.INFO
+	if c.get("rarity") == BoosterPack.RARE:
+		tone = Palette.color(&"card_rare")
+	elif c.get("rarity") == BoosterPack.EPIC:
+		tone = Palette.color(&"card_epic")
+	_toast.add_theme_color_override(&"font_color", tone)
 	_toast_face.face = CardFace.face_of(c)
 	_toast_face.queue_redraw()
 	_toast.modulate = Color(1, 1, 1, 1)
@@ -200,17 +204,18 @@ func toasting() -> bool:
 	return _toast != null and _toast.visible
 
 
-## M50.2a: "Pack: Pistol +1", "Pack: Pistol +2  RARE", "Pack: Laser 1 joins".
+## M50.2a: "Pack: Pistol +1", "Pack: Laser +1  RARE", "Pack: Laser 1 joins  RARE" (M50.6: the
+## tier after it when it is not common).
 static func toast_text(c: Dictionary) -> String:
 	var w := WeaponDB.get_weapon(c.get("id", &""))
 	var title := String(w.title) if w != null else String(c.get("id", ""))
-	var rare: bool = c.get("rarity") == BoosterPack.RARE
+	var tier: StringName = c.get("rarity", BoosterPack.COMMON)
 	var text := ""
 	if c.get("kind") == &"upgrade":
 		text = "Pack: %s +%d" % [title, int(c.get("rank", 0)) - int(c.get("from", 0))]
 	else:
 		text = "Pack: %s %d joins" % [title, int(c.get("rank", 1))]
-	return text + ("  RARE" if rare else "")
+	return text + ("  " + String(tier).to_upper() if tier != BoosterPack.COMMON else "")
 
 
 ## Opens now (the caller defers: never pause the tree inside a physics callback). Refused
@@ -347,7 +352,7 @@ func _update_reveal() -> void:
 		var f := _faces[i]
 		if _reveal_t >= 0.0:
 			f.set_reveal(CardFace.reveal_at(_reveal_t, i, reduce))
-		var rare: bool = f.face.get("style") in [&"card_rare", &"card_give"]
+		var rare: bool = f.face.get("style") in [&"card_rare", &"card_give", &"card_epic"]   # M50.6: epic shines too
 		f.shine = CardFace.shine_at(_reveal_t, n, reduce) if rare and _reveal_t >= 0.0 else -1.0
 		var b := f.get_parent() as Button
 		f.lit = b != null and not b.disabled and (b.has_focus() or b.is_hovered())
@@ -472,7 +477,7 @@ func _add_hand_preview() -> void:
 		_hand_row.add_child(p)
 
 
-## M50.1a: a pack card's text: "[1]  Pistol 6 -> 7  RARE +2" then its gain.
+## M50.1a: a pack card's text: "[1]  Laser 6 -> 7   RARE" then its gain.
 static func pack_card_text(p_offer: PickOffer, i: int, to_label := Callable(), hints := true) -> String:
 	var c: Dictionary = p_offer.cards[i]
 	var head := String(c.get("title", c.get("id", "")))

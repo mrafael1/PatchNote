@@ -176,7 +176,26 @@ func text() -> String:
 		else:
 			out.append("[%s] %s %s" % [key_label(i), card_title(i), pips(card_rank(i))])
 	out.append(meter_text())
+	if stack_count() > 0:
+		out.append("%s %s" % [stack_text(), stack_hint()])
 	return "\n".join(out)
+
+
+## M50.6: the packs stacked ("2 packs", "" with none) and the key line under it ("[F] open",
+## "open one" with key hints off). A pack opens only when the player asks.
+func stack_count() -> int:
+	return int(runner.call(&"pack_stack")) if runner != null and is_instance_valid(runner) and runner.has_method(&"pack_stack") else 0
+
+
+func stack_text() -> String:
+	var n := stack_count()
+	return "" if n <= 0 else "%d pack%s" % [n, "" if n == 1 else "s"]
+
+
+func stack_hint() -> String:
+	if stack_count() <= 0:
+		return ""
+	return "[%s] open" % PathRunner.open_key() if Settings.key_hints() else "open one"
 
 
 ## "cards n/6", or on a pack path "pack in n" (the kills left).
@@ -359,6 +378,9 @@ func _draw() -> void:
 	var m := meter_rect(view)
 	m.position -= position
 	draw_string(font, m.position + Vector2(0, 14), meter_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, DIM)
+	if stack_count() > 0:   # M50.6: the stack, over the meter
+		draw_string(font, m.position + Vector2(0, -24), stack_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, LIT)
+		draw_string(font, m.position + Vector2(0, -6), stack_hint(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, LIT)
 	var bar_at := Rect2(m.position + Vector2(0, m.size.y - BAR.y), BAR)
 	draw_rect(bar_at, Color(1, 1, 1, 0.15))
 	draw_rect(Rect2(bar_at.position, Vector2(BAR.x * clampf(bar(), 0.0, 1.0), BAR.y)), BAR_FILL)

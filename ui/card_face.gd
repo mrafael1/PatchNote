@@ -4,7 +4,8 @@ extends Control
 ## mockups `.check/mockups/cards/Arcade_Cards` / `Arcade_Pack`): a frame by rarity, the top
 ## band in the weapon's colour, the art box with the weapon's gun (M50.5a: Auto's CardArt / flat guns), the rank badge, the
 ## NEW / "3 > 4" / FUSE tag, the name bar, rank pips with "+N", the gain line and the key.
-## Kinds (`face.style`): card_common, card_rare (gold foil, "RARE +2" ribbon), card_fuse (the
+## Kinds (`face.style`): card_common, card_rare (gold foil), card_epic (M50.6: a ready-made
+## fusion, lilac and mint), each under its tier's ribbon (COMMON / RARE / EPIC), card_fuse (the
 ## FUSE card: two-tone band, both parents' pictures, "Shotgun 5 + Laser 4" at its foot) and
 ## card_give (the give step's gold card). Small forms: MINI_HAND (the hand under a pack) and
 ## MINI_TOAST (the 1-card pack's toast, next to the rail's `pack` icon from RailArt).
@@ -48,16 +49,19 @@ var art_drawn: Array = []
 ## The face for a pack card c (BoosterPack.card's dict); `key` its hint ("[1]") or "".
 static func face_of(c: Dictionary, key := "", give := false) -> Dictionary:
 	var w := WeaponDB.get_weapon(c.get("id", &""))
-	var rare: bool = c.get("rarity") == BoosterPack.RARE
+	# M50.6: the frame and the ribbon are the weapon's tier (the card dict's `rarity`).
+	var tier: StringName = c.get("rarity", BoosterPack.COMMON)
 	var upgrade: bool = c.get("kind") == &"upgrade"
 	var rank := int(c.get("rank", 1))
 	var from := int(c.get("from", 0))
-	var style := &"card_give" if give else (&"card_rare" if rare else &"card_common")
-	var ribbon := ""
+	var style: StringName = &"card_common"
 	if give:
-		ribbon = "GOLD CARD"
-	elif rare:
-		ribbon = "RARE +2" if upgrade else "RARE"
+		style = &"card_give"
+	elif tier == BoosterPack.RARE:
+		style = &"card_rare"
+	elif tier == BoosterPack.EPIC:
+		style = &"card_epic"
+	var ribbon := "GOLD CARD" if give else String(tier).to_upper()
 	return {"style": style, "title": String(w.title) if w != null else String(c.get("id", "")),
 			"rank": rank, "from": from, "icon": w.icon if w != null else &"",
 			"tag": "%d > %d" % [from, rank] if upgrade else "NEW", "ribbon": ribbon,
@@ -219,6 +223,7 @@ func _draw_pixel() -> void:
 	# The gain line (two lines at most) and the foot. FUSE: no pips (its rank is the badge), the
 	# whole kept / lost text fitted from under the name bar down to the foot.
 	var rare := style == &"card_rare" or style == &"card_give"
+	var epic := style == &"card_epic"
 	if fuse:
 		_fuse_text(_r(12, 110, 152, 98), 12, CardFaceArt.px(&"text"), CardFaceArt.px(&"red"))
 	else:
@@ -227,10 +232,10 @@ func _draw_pixel() -> void:
 		var gf := int(roundf(12 * u))
 		draw_multiline_string(_font(), Vector2(12 * u, 174 * u + _font().get_ascent(gf)), gain, HORIZONTAL_ALIGNMENT_LEFT,
 				152 * u, gf, 2, CardFaceArt.px(&"text"))
-	_foot(Vector2(12, 211) * u, 13, 134 * u, CardFaceArt.px(&"rare_foot") if rare else CardFaceArt.px(&"foot"))
+	_foot(Vector2(12, 211) * u, 13, 134 * u, CardFaceArt.px(&"rare_foot") if rare else (CardFaceArt.px(&"epic_foot") if epic else CardFaceArt.px(&"foot")))
 	var gem := _r(152, 212, 12, 12)
 	draw_rect(gem.grow(2 * u), ink)
-	draw_rect(gem, Palette.color(&"card_rare") if rare else CardFaceArt.px(&"gem"))
+	draw_rect(gem, Palette.color(&"card_rare") if rare else (Palette.color(&"card_epic") if epic else CardFaceArt.px(&"gem")))
 	_badge(_r(-10, -10, 40, 40))
 	_ribbon()
 
@@ -295,26 +300,43 @@ func _badge(r: Rect2) -> void:
 		_text(Vector2(r.position.x, c.y - 11 * u), digits, 18, CardFaceArt.flat(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 
 
-## The ribbon on the top edge (RARE +2, RARE, GOLD CARD).
+## The ribbon on the top edge: the card's tier (M50.6: COMMON, RARE, EPIC) or GOLD CARD. The
+## rare and gold ones wear the baked pink strip, a common one a quiet plum box, an epic one violet.
 func _ribbon() -> void:
 	var t := String(face.get("ribbon", ""))
 	if t == "":
 		return
 	var u := _u()
 	var fs := 11.0
+	var style: StringName = face.get("style", &"card_common")
 	var tw := _font(true).get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(fs * u))).x + 20 * u
 	var r := Rect2(Vector2(size.x - tw - 10 * u, -14 * u), Vector2(tw, 24 * u))
 	if pixel():
-		var box := CardFaceArt.frame(&"ribbon")
-		if box != null:
-			draw_style_box(box, r)
+		if style == &"card_common" or style == &"card_epic":
+			draw_rect(r, CardFaceArt.px(&"ink"))
+			draw_rect(r.grow(-3 * u), CardFaceArt.px(&"epic") if style == &"card_epic" else CardFaceArt.px(&"common"))
+			if style == &"card_epic":
+				draw_rect(Rect2(r.position + Vector2(3, 3) * u, Vector2(r.size.x - 6 * u, 3 * u)), CardFaceArt.px(&"epic_hi"))
+		else:
+			var box := CardFaceArt.frame(&"ribbon")
+			if box != null:
+				draw_style_box(box, r)
 		_text(r.position + Vector2(0, 5 * u), t, fs, CardFaceArt.px(&"paper_hi"), true, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 	else:
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = CardFaceArt.flat(&"give") if face.get("style") == &"card_give" else CardFaceArt.flat(&"pink")
+		sb.bg_color = CardFaceArt.flat(&"pink")
+		var ink := CardFaceArt.flat(&"ink")
+		match style:
+			&"card_give":
+				sb.bg_color = CardFaceArt.flat(&"give")
+			&"card_epic":
+				sb.bg_color = CardFaceArt.flat(&"epic")
+			&"card_common":
+				sb.bg_color = CardFaceArt.flat(&"common")
+				ink = CardFaceArt.flat(&"text")
 		sb.set_corner_radius_all(int(12 * u))
 		draw_style_box(sb, r)
-		_text(r.position + Vector2(0, 4 * u), t, fs, CardFaceArt.flat(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+		_text(r.position + Vector2(0, 4 * u), t, fs, ink, true, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 
 
 ## Rank pips: the held ranks on, this card's new ranks in pink, then "+N".
@@ -392,6 +414,9 @@ func _draw_flat() -> void:
 		&"card_rare":
 			sb.border_color = Palette.color(&"card_rare")
 			sb.set_border_width_all(int(3 * u))
+		&"card_epic":   # M50.6: a double violet edge
+			sb.border_color = Palette.color(&"card_epic")
+			sb.set_border_width_all(int(5 * u))
 		&"card_fuse":
 			sb.border_color = CardFaceArt.flat(&"fuse")
 			sb.set_border_width_all(int(3 * u))
@@ -402,6 +427,13 @@ func _draw_flat() -> void:
 			sb.border_color = CardFaceArt.flat(&"edge")
 			sb.set_border_width_all(int(2 * u))
 	draw_style_box(sb, Rect2(Vector2.ZERO, size))
+	if style == &"card_epic":   # the inner line of the double edge
+		var inner := StyleBoxFlat.new()
+		inner.bg_color = Color(1, 1, 1, 0)
+		inner.border_color = CardFaceArt.flat(&"face")
+		inner.set_border_width_all(maxi(1, int(1.5 * u)))
+		inner.set_corner_radius_all(int(10 * u))
+		draw_style_box(inner, Rect2(Vector2.ZERO, size).grow(-2 * u))
 	var icon: StringName = face.get("icon", &"")
 	var line := _r(40, 12, 22, 3)
 	draw_rect(line, CardFaceArt.band(icon)[0])
@@ -530,8 +562,12 @@ func _draw_toast() -> void:
 	else:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = CardFaceArt.flat(&"face")
-		sb.border_color = Palette.color(&"card_rare") if style == &"card_rare" else CardFaceArt.flat(&"edge")
-		sb.set_border_width_all(int(3 * u) if style == &"card_rare" else 2)
+		sb.border_color = CardFaceArt.flat(&"edge")
+		if style == &"card_rare":
+			sb.border_color = Palette.color(&"card_rare")
+		elif style == &"card_epic":
+			sb.border_color = Palette.color(&"card_epic")
+		sb.set_border_width_all(int(3 * u) if style in [&"card_rare", &"card_epic"] else 2)
 		sb.set_corner_radius_all(int(8 * u))
 		draw_style_box(sb, card)
 		draw_rect(Rect2(card.position + Vector2(14, 8) * u, Vector2(14, 3) * u), CardFaceArt.band(icon)[0])

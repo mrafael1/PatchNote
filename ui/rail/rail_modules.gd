@@ -341,7 +341,8 @@ func _misfuse(r: Rect2, d: Dictionary) -> void:
 
 func _pack(r: Rect2, d: Dictionary) -> void:
 	var sc: float = frame.s()
-	_cell(r, "PACK")
+	var stack := int(d.get("stack", 0))
+	_cell(r, "PACK", "x%d" % stack if stack > 0 else "")   # M50.6: the stack's count
 	RailArt.draw_grid(self, RailArt.PACK, RailArt.PACK_LEGEND, _d(r, Vector2(16, 40)), roundf(5 * sc), true)
 	var pw := _num(_d(r, Vector2(84, 46)), str(int(d.x)), 56, RailArt.c(&"gold"))
 	_num(_d(r, Vector2(84, 46)) + Vector2(pw, 0), "/%d" % int(d.every), 56, RailArt.c(&"dim"))
@@ -351,7 +352,16 @@ func _pack(r: Rect2, d: Dictionary) -> void:
 	var left := int(d.left)
 	var line := "%d kill%s to pack %d" % [left, "" if left == 1 else "s", int(d.next)] if left >= 0 else "no more packs"
 	RailFrame.text(self, _d(r, Vector2(14, 146)), line, RailLayout.text_px(16, sc), RailArt.c(&"text"))
-	RailFrame.text(self, _d(r, Vector2(14, 174)), "pick 1 of 3", RailLayout.text_px(16, sc), RailArt.c(&"dim"))
+	if stack <= 0:
+		RailFrame.text(self, _d(r, Vector2(14, 174)), "pick 1 of 3", RailLayout.text_px(16, sc), RailArt.c(&"dim"))
+		return
+	# M50.6: packs wait until the player opens one: the key chip, then how many are stacked.
+	var at := _d(r, Vector2(14, 171))
+	var key := String(d.get("key", ""))
+	if key != "":
+		at.x += _key(at, key.to_upper(), true) + roundf(6 * sc)
+	RailFrame.text(self, Vector2(at.x, _d(r, Vector2(14, 174)).y), "open  -  %d stacked" % stack, RailLayout.text_px(16, sc),
+			RailArt.c(&"gold"))
 
 
 # --- Auto: ITEMS -------------------------------------------------------------------------------

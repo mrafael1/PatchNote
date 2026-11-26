@@ -69,6 +69,29 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#ffd84a", "S": "#c98a2e", "H": "#fff0a0", "A": "#ff8fb0"},
 	},
+	# M50.6, an epic card (a ready-made fusion): a pale lilac face inside violet insets, a mint
+	# outer ring with notched corners. Nothing gold, so it reads apart from a rare card.
+	"card_epic": {
+		"grid": [
+			"A.AAAAAAAAAAAA.A",
+			".KKKKKKKKKKKKKK.",
+			"AKSSSSSSSSSSSSKA",
+			"AKSHHHHHHHHHHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHPPPPPPPPHSKA",
+			"AKSHHHHHHHHHHSKA",
+			"AKSSSSSSSSSSSSKA",
+			"AKKKKKKKKKKKKKKA",
+			".KKKKKKKKKKKKKK.",
+			"A.AAAAAAAAAAAA.A",
+		],
+		"ramp": {"P": "#ece0ff", "S": "#7a4fd0", "H": "#b98cff", "A": "#6cf0c2"},
+	},
 	# FUSE: stepped prism bands (pink, orange, violet) round a cream face.
 	"card_fuse": {
 		"grid": [
@@ -153,7 +176,7 @@ const SPRITES := {
 
 ## The 9-slice margin (cells) of each frame.
 const MARGINS := {
-	&"card_common": 5, &"card_rare": 5, &"card_fuse": 5, &"card_give": 5, &"card_back": 5, &"ribbon": 2,
+	&"card_common": 5, &"card_rare": 5, &"card_epic": 5, &"card_fuse": 5, &"card_give": 5, &"card_back": 5, &"ribbon": 2,
 }
 
 ## The Pixel face's drawn parts (the mockup's ramp).
@@ -163,6 +186,8 @@ const PIXEL := {
 	&"gold": "#ffd84a", &"gold_lo": "#c98a2e", &"gold_hi": "#fff0a0",
 	&"pink": "#ff5d8f", &"red": "#c23f2e", &"text": "#1e1424", &"foot": "#6a5290",
 	&"rare_foot": "#8a4f12", &"gem": "#b9a6d1", &"name": "#f3e2b8", &"mint": "#6cf0c2",
+	## M50.6: the tier ribbons that are not the baked pink one (common: plum; epic: violet).
+	&"epic": "#7a4fd0", &"epic_hi": "#b98cff", &"epic_foot": "#5a3aa0", &"common": "#6a5290",
 }
 
 ## The tier-0 face (S7 / S8): the mockup's flat half, plain colours.
@@ -170,7 +195,7 @@ const FLAT := {
 	&"face": "#2c2538", &"face_hi": "#352d44", &"edge": "#4a4060", &"art": "#241e2e",
 	&"text": "#ece6f3", &"dim": "#8a809e", &"gold": "#e8c15a", &"pink": "#ff6b8a",
 	&"pip": "#3a3248", &"ink": "#1e1424", &"back": "#2a2236", &"fuse": "#ff8ac0",
-	&"give": "#ffd84a", &"red": "#ff6b5a",
+	&"give": "#ffd84a", &"red": "#ff6b5a", &"epic": "#b880ff", &"common": "#4a4060",
 }
 
 ## A card's top band by its weapon's icon key (keys, never weapon ids): [main, shade].

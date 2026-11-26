@@ -192,7 +192,7 @@ func test_the_arsenal_data_is_valid() -> void:
 	assert_eq(a.quick_draw_mult, 2.0)
 	assert_eq(a.pick_line, "Pack. Pick one.")
 	assert_eq([a.pack_every, a.pack_taste, a.rank_cap, a.rank_curve], [6, 2, 0, &"deep"], "M50.1a: packs, deep ranks")
-	assert_almost_eq(a.rare_chance, 0.15, 0.0001, "M50.2a: tuned down from 0.2")
+	assert_almost_eq(a.epic_chance, 0.05, 0.0001, "M50.6: the epic slot roll (the rare roll is gone)")
 	assert_eq(a.taste_thresholds, PackedInt32Array([10]))
 	assert_eq(a.level_thresholds.size(), a.max_picks, "one cumulative threshold per pick")
 	for i in range(1, a.level_thresholds.size()):
@@ -212,8 +212,8 @@ func test_path_def_problems_bite_on_a_cards_path() -> void:
 	a.pack_every = 0
 	assert_string_contains("\n".join(a.problems()), "a threshold for each of its 6 picks")
 	a = _arsenal().duplicate() as PathDef
-	a.rare_chance = 1.0
-	assert_string_contains("\n".join(a.problems()), "rare_chance")
+	a.epic_chance = 1.0
+	assert_string_contains("\n".join(a.problems()), "epic_chance")
 	a = _arsenal().duplicate() as PathDef
 	a.pack_taste = -1
 	assert_string_contains("\n".join(a.problems()), "pack_taste")
@@ -535,7 +535,7 @@ func test_player_kills_fill_the_meter_in_a_game() -> void:
 	r.force_level()
 	assert_eq(r.cards(), 1, "F2's +1 deals one pack")
 	assert_eq(r.pending_picks(), 1)
-	assert_string_contains(r.state_text(), "path=arsenal packs=1 kills=0/6 hand=pistol:1")
+	assert_string_contains(r.state_text(), "path=arsenal packs=1 stack=1 kills=0/6 hand=pistol:1")
 	var meter := r.meter()
 	EventBus.basic_added.emit(&"cards")
 	EventBus.basic_added.emit(&"quick_draw")

@@ -26,7 +26,7 @@ const AUDIT := [
 	["s2_01_tryout", "auto", "^at 89: add levelups$", "gems / LV"],
 	["s2_01_tryout", "-", "hp_floor=1", "hp_floor 1"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 10: add cards$", "card meter"],
-	["s2_02_day_one", "arsenal", "ranks it up\\. Gold ones count twice", "weapon ranks (card text)"],
+	["s2_02_day_one", "arsenal", "ranks it up\\. No top rank\\. Gold cards are rarer", "weapon ranks (card text)"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 20: add quick_draw$", "quick-draw"],
 	["s2_02_day_one", "auto", "Don't touch the trigger", "Auto fire button off"],
 	["s2_02_day_one", "auto", "^answer:path_auto at 10: add levelups$", "gems / LV"],
@@ -130,7 +130,7 @@ func test_quick_draw_comes_before_its_line() -> void:
 func test_the_card_line_reads_arsenals_first_card() -> void:
 	assert_eq(PathDB.get_def(&"arsenal").pack_every, 6, "a pack every 6 kills")
 	var said := "\n".join(CampaignDB.get_session(S8).cues)
-	assert_string_contains(said, "Six kills, one pack, take one card.")
+	assert_string_contains(said, "Six kills, one pack. {key:open_pack} opens it.")   # M50.6: packs stack
 	assert_string_contains(said, "Two cards max.")
 
 
