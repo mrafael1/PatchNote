@@ -74,6 +74,9 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 ## M50.4c1: the "too strong" numbers of S9's first evolution (field -> value), read before the
 ## item mods while Weapon.launch holds them (a `nerf` cue arms them, then patches them away).
 @export var launch_values: Dictionary = {}
+## M50.3b (Cluster): bomblets thrown on each blast of a player's shell (weapons/cluster_mod.gd,
+## attached by Weapon.attach from the Loadout, never in Shooter.fire). 0 = none.
+@export var burst := 0
 
 
 ## A field's value at `rank`: the rank's override, else the field.

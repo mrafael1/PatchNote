@@ -32,7 +32,7 @@ const GROUPS := {
 			&"shot_fan_enemy", &"shot_line_enemy", &"shot_ball_enemy", &"shot_ring_enemy",
 			&"shot_burst_enemy", &"shot_hole_enemy", &"gem", &"ammo", &"heal", &"battery", &"weapon",
 			&"crate", &"blast", &"pop", &"particle", &"orbit_shard", &"shot_prism_player",
-			&"shot_misfuse_player", &"shot_minigun_player"],
+			&"shot_misfuse_player", &"shot_minigun_player", &"shot_bomb_player", &"shot_cluster_player", &"mine", &"mine_armed"],
 	&"arena": [&"floor_a", &"floor_b", &"wall", &"standable", &"gate"],
 	&"ui": [&"ui_panel", &"ui_panel_lit"],
 	&"mascot": [&"mascot"],

@@ -584,13 +584,23 @@ func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: 
 	ctx.fused = false
 	ctx.misfused = false
 	ctx.evolved = false   # M50.4c1: an evolution this attempt (Auto only)
+	# M50.2b: give_kept / give_taken (this attempt's give steps), made:<id> (its fusions).
+	ctx.give_kept = false
+	ctx.give_taken = false
+	ctx.made = []
 	for e: Dictionary in RunState.run_log:
 		if e.get("event") == &"evolved":
 			ctx.evolved = true
 		elif e.get("event") == &"fused":
 			ctx.fused = true
+			(ctx.made as Array).append(String(e.get("weapon", "")))
 		elif e.get("event") == &"fuse_fail":
 			ctx.misfused = true
+		elif e.get("event") == &"give_choice":
+			if String(e.get("choice", "")) == "keep":
+				ctx.give_kept = true
+			else:
+				ctx.give_taken = true
 	return ctx
 
 
@@ -756,6 +766,27 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
 		out.packs = int(runner.call(&"packs"))
 		out.pack_picks = (runner.get(&"pack_picks") as Dictionary).duplicate()
+		# M50.2a (additive): packs with fewer than 3 cards, 1-card toasts, rare cards shown.
+		out.packs_short = int(runner.get(&"packs_short"))
+		out.packs_toast = int(runner.get(&"packs_toast"))
+		out.rares_shown = int(runner.get(&"rares_shown"))
+		# M50.3a (additive): the launcher's mines laid and blown (the run log's mine events).
+		var mines := {"laid": 0, "blown": 0}
+		for e: Dictionary in RunState.run_log:
+			if e.get("event") == &"mine_laid":
+				mines.laid = int(mines.laid) + 1
+			elif e.get("event") == &"mine_blown":
+				mines.blown = int(mines.blown) + 1
+		out.mines = mines
+		# M50.3b (additive): Cluster's bomblets thrown and refused at the player budget.
+		var bomblets := 0
+		var bomblets_refused := 0
+		for e: Dictionary in RunState.run_log:
+			if e.get("event") == &"cluster_burst":
+				bomblets += int(e.get("bomblets", 0))
+				bomblets_refused += int(e.get("refused", 0))
+		out.bomblets = bomblets
+		out.bomblets_refused = bomblets_refused
 		out.ranks_end = (out.weapons as Dictionary).duplicate()
 		var top := 0
 		for r: Variant in (out.weapons as Dictionary).values():
@@ -764,6 +795,8 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		# M50.1b (additive): fusions made, the misfuse, the seconds FUSE sat available, the
 		# recipes the save knows.
 		out.fusions = (runner.get(&"fusions") as Array).duplicate(true)
+		# M50.2b (additive): each give step closed ({weapon, rank, choice, t}).
+		out.gives = (runner.get(&"gives") as Array).duplicate(true)
 		var mf: Dictionary = runner.get(&"misfuse")
 		out.misfuse = {"t": mf.t, "pair": mf.pair, "restored": mf.restored} if not mf.is_empty() else null
 		out.link_lit_s = snappedf(float(runner.get(&"link_lit_ticks")) / Engine.physics_ticks_per_second, 0.1)

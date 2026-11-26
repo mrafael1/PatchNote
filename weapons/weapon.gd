@@ -86,6 +86,18 @@ func tick_reload(delta: float) -> void:
 	if reload_left <= 0.0:
 		reload_left = 0.0
 		mag_left = def.magazine
+## M50.3b (Cluster): after the Loadout fired `shots` for `faction`, a weapon with a burst gives
+## each player shell its ClusterMod (after the traits' mods, so it reads point blank's damage).
+## Only the Loadout calls this, and not for the misfuse: Shooter.fire (shared with enemies and
+## the misfuse) never attaches a burst.
+func attach(shots: Array[Node], faction: StringName) -> void:
+	if def.burst <= 0 or faction != &"player":
+		return
+	for p in shots:
+		var mod: ProjectileMod = (load("res://weapons/cluster_mod.gd") as GDScript).new()
+		mod.count = def.burst
+		mod.angle = (p.get(&"velocity") as Vector2).angle()
+		p.add_mod(mod)
 
 
 ## A field at this weapon's rank. The pistol with no path (Stage 1, the legacy loop)

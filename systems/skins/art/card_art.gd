@@ -106,7 +106,7 @@ const GUN_THUNDERCLAP_LEGEND := {"L": &"metal_lo", "M": &"metal", "b": &"crate_h
 ## Weapon icon -> [grid, legend].
 const GUNS := {
 	&"dot": [GUN_PISTOL, GUN_PISTOL_LEGEND], &"fan": [GUN_SHOTGUN, GUN_SHOTGUN_LEGEND],
-	&"line": [GUN_LASER, GUN_LASER_LEGEND], &"ball": [GUN_LAUNCHER, GUN_LAUNCHER_LEGEND],
+	&"line": [GUN_LASER, GUN_LASER_LEGEND], &"bomb": [GUN_LAUNCHER, GUN_LAUNCHER_LEGEND],   # M50.5: Arcade renamed the launcher icon ball -> bomb
 	&"minigun": [GUN_MINIGUN, GUN_MINIGUN_LEGEND],
 	&"supernova": [GUN_SUPERNOVA, GUN_SUPERNOVA_LEGEND], &"thunderclap": [GUN_THUNDERCLAP, GUN_THUNDERCLAP_LEGEND],
 }

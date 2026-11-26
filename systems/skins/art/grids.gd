@@ -31,6 +31,7 @@ const ROLES := {
 	"well_field": "#b84ee0", "burn": "#ff8a1c", "lancer_line": "#e63fc4", "dust": "#c8a8b8",
 	"hit": "#ff3a64", "muzzle": "#fff2a0", "dash": "#3ff2d2", "spark": "#ffc23a",
 	"pip_back": "#1e1424", "vignette": "#c4183a",
+	"card_rare": "#ffd84a",
 }
 
 const SPRITES := {
@@ -650,6 +651,62 @@ const SPRITES := {
 			"KKK.....",
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+	},
+	# M50.3a: the launcher's shell (player-only): a squat canister bomb, flat-sided (player shots
+	# are angular), in the player shots' cyan, its fuse trailing back with a warm spark.
+	"shot_bomb_player": {
+		"grid": [
+			"AA.......",
+			"AK.KKKKK.",
+			"..KKHHHPK",
+			"..KHPPPPK",
+			"..KPPPPSK",
+			"..KSPPSSK",
+			"...KKKKK.",
+		],
+		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffd84a"},
+	},
+	# M50.3a: Cluster's shell (player-only, built in M50.3b): an eight-sided shell with five dark
+	# bomblet dots.
+	"shot_cluster_player": {
+		"grid": [
+			"..KKKKK..",
+			".KHHHHPK.",
+			"KHEHPPEPK",
+			"KHHPPPPSK",
+			"KHPPEPPSK",
+			"KPPPPPPSK",
+			"KPEPPPESK",
+			".KSSSSSK.",
+			"..KKKKK..",
+		],
+		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+	},
+	# M50.3a: the launcher's mine: an eight-sided plate with a cyan rim (the player's side) and a
+	# dim light; armed, the light is lit (and blinks, steady under reduce flashing).
+	"mine": {
+		"grid": [
+			"..KKK..",
+			".KHPPK.",
+			"KHSSSPK",
+			"KPSASSK",
+			"KPSSSSK",
+			".KPPSK.",
+			"..KKK..",
+		],
+		"ramp": {"P": "#27c0e0", "S": "#2a1e38", "H": "#8ff8ff", "A": "#3a6f80"},
+	},
+	"mine_armed": {
+		"grid": [
+			"..KKK..",
+			".KHPPK.",
+			"KHSASPK",
+			"KPAWASK",
+			"KPSASSK",
+			".KPPSK.",
+			"..KKK..",
+		],
+		"ramp": {"P": "#27c0e0", "S": "#2a1e38", "H": "#8ff8ff", "A": "#8ff8ff"},
 	},
 	"gem": {
 		"grid": [

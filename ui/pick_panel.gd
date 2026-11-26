@@ -34,12 +34,38 @@ extends CanvasLayer
 ## cards (key choose_4 on 3 cards, choose_3 on 2): the dressed gold EVOLVE card, or a gold-framed
 ## button on the plain panel. Choosing it emits `picked` with index cards.size() (the PathRunner
 ## evolves; it spends the level-up).
+##
+## M50.2a (pack tuning, D3): a 1-card pack has no choice, so it never opens the panel: toast()
+## shows a short line at the game's bottom right, next to the rail's PACK module ("Pack:
+## Pistol +1", gold when rare) for TOAST_TIME of real time, fading out at the end (a fade only,
+## no shine, whatever reduce_flashing says). No pause, no input. A plain label until M50.2c
+## dresses it as a small card face.
+##
+## M50.2b (the give step, PickOffer.give_step): a `give` on a full pack hand opens the replace
+## step straight on the given card: its face (gold frame when rare) under "A gold card: Laser
+## 3.", then "Replace Pistol 12" per hand card and "Keep your hand" (the choice after them,
+## where a pack's step has Back). No slot is locked: the hand card the given card makes a built
+## recipe with reads "(it links with the Laser)" in a lit frame, still a choice; the recipe's
+## name shows only once the `fusion` basic is live. Closing emits give_done (slot -1 = kept),
+## never `picked`. The same pause, input delay and keys as a pack.
+##
+## M50.2c (pack opening and card art, design 2.5): a pack's cards and its FUSE choice are card
+## faces (CardFace: a frame by rarity, the weapon's picture, rank badge and pips, the NEW / RARE
+## +2 / FUSE marks), each the visible part of a frameless Button (same keys, focus, click). They
+## are dealt face-down and flip in sequence inside the INPUT_DELAY (CardFace.reveal_at; a fade
+## only under reduce_flashing), so no choice opens earlier or later. The give step and the
+## replace step show their card's face over the choices; the hand under a pack and the 1-card
+## toast use the small faces. Tier 0 before S9's `skin ui`, CardFaceArt's Pixel frames after it.
+## A level-up offer (not a pack: Auto, S7) is M50.4b's dressed LevelCard panel above (M50.5:
+## Arcade's CardArt is CardFaceArt, Auto's level-up art kept the CardArt name).
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
 signal went_back(offer: PickOffer)
 ## M50.1b: the pack's FUSE was chosen (the PathRunner answers with after_fuse).
 signal fuse_requested(offer: PickOffer)
+## M50.2b: the give step closed: the hand slot the given card replaced, or -1 (hand kept).
+signal give_done(offer: PickOffer, slot: int)
 
 const PAUSE := &"pick"
 const INPUT_DELAY := 0.4
@@ -47,6 +73,8 @@ const LAYER := 72   ## over the HUD (50) and the mascot (60), under the debrief 
 const CHOICES := 4  ## choose_1..4 (M50.1a: the replace step's Back, M50.1b's FUSE)
 const HAND_SCALE := 0.6
 const FUSE_TIME := 0.4   ## M50.1b: the fuse animation (real time)
+const TOAST_TIME := 1.6  ## M50.2a: the 1-card pack's toast (real time)
+const TOAST_FADE := 0.4  ## its fade-out at the end
 
 var offer: PickOffer
 var input_delay := INPUT_DELAY   ## tests set 0
@@ -68,6 +96,12 @@ var _cards_dressed: Array[LevelCard] = []   ## M50.4b: tests
 var runner: Node
 var _slot_bar: Control   ## M50.4f: the flat slot bar (null in the Pixel look: the rail shows it)
 var _gap: Control   ## M50.4f: the space under the cards (smaller under the flat slot bar)
+var _toast: Label         ## M50.2a: the 1-card pack's line
+var _give_face: CardFace   ## M50.2b: the given card's face (give step; M50.2c: also the replace step)
+var _toast_left := 0.0
+var _faces: Array[CardFace] = []   ## M50.2c: the pack's card faces, choice order
+var _reveal_t := -1.0              ## M50.2c: real seconds since the faces were dealt (-1: shown)
+var _toast_face: CardFace          ## M50.2c: the toast's small card
 
 
 func _ready() -> void:
@@ -97,6 +131,12 @@ func _ready() -> void:
 	_line.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	_line.add_theme_constant_override(&"outline_size", 6)
 	column.add_child(_line)
+	_give_face = CardFace.new()
+	_give_face.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_give_face.custom_minimum_size = CardFace.SIZE
+	_give_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_give_face.visible = false
+	column.add_child(_give_face)
 	_cards = HBoxContainer.new()
 	_cards.alignment = BoxContainer.ALIGNMENT_CENTER
 	_cards.add_theme_constant_override(&"separation", 20)
@@ -108,10 +148,69 @@ func _ready() -> void:
 	_gap = Control.new()
 	_gap.custom_minimum_size = Vector2(0, 60)
 	column.add_child(_gap)
+	_toast = Label.new()
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_toast.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_toast.offset_right = -28
+	_toast.offset_bottom = -24
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_toast.add_theme_font_size_override(&"font_size", 22)
+	_toast.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
+	_toast.add_theme_constant_override(&"outline_size", 6)
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast.visible = false
+	add_child(_toast)
+	_toast_face = CardFace.new()
+	_toast_face.mini = &"toast"
+	_toast_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast_face.anchor_left = 0.0
+	_toast_face.anchor_right = 0.0
+	_toast_face.anchor_top = 1.0
+	_toast_face.anchor_bottom = 1.0
+	_toast_face.offset_left = -CardFace.MINI_TOAST.x - 12.0
+	_toast_face.offset_right = -12.0
+	_toast_face.offset_top = -CardFace.MINI_TOAST.y
+	_toast_face.offset_bottom = 0.0
+	_toast.add_child(_toast_face)
 
 
 func is_open() -> bool:
 	return _root.visible
+
+
+## M50.2a: a 1-card pack, applied by the PathRunner without a pause: its line shows for
+## TOAST_TIME (a new toast replaces the one showing).
+func toast(p_offer: PickOffer) -> void:
+	if _dismissed or p_offer == null or p_offer.cards.is_empty():
+		return
+	var c: Dictionary = p_offer.cards[0]
+	_toast.text = toast_text(c)
+	_toast.add_theme_color_override(&"font_color",
+			Palette.color(&"card_rare") if c.get("rarity") == BoosterPack.RARE else Palette.INFO)
+	_toast_face.face = CardFace.face_of(c)
+	_toast_face.queue_redraw()
+	_toast.modulate = Color(1, 1, 1, 1)
+	_toast.visible = true
+	_toast_left = TOAST_TIME
+
+
+## M50.2a: the toast is showing (tests, captures).
+func toasting() -> bool:
+	return _toast != null and _toast.visible
+
+
+## M50.2a: "Pack: Pistol +1", "Pack: Pistol +2  RARE", "Pack: Laser 1 joins".
+static func toast_text(c: Dictionary) -> String:
+	var w := WeaponDB.get_weapon(c.get("id", &""))
+	var title := String(w.title) if w != null else String(c.get("id", ""))
+	var rare: bool = c.get("rarity") == BoosterPack.RARE
+	var text := ""
+	if c.get("kind") == &"upgrade":
+		text = "Pack: %s +%d" % [title, int(c.get("rank", 0)) - int(c.get("from", 0))]
+	else:
+		text = "Pack: %s %d joins" % [title, int(c.get("rank", 1))]
+	return text + ("  RARE" if rare else "")
 
 
 ## Opens now (the caller defers: never pause the tree inside a physics callback). Refused
@@ -123,12 +222,36 @@ func open(p_offer: PickOffer) -> bool:
 	_replacing = -1
 	_fusing = 0.0
 	RunState.set_pause(PAUSE, true)
+	_reveal_t = 0.0
 	_build()
 	_locked_for = input_delay
 	_root.visible = true
 	if _locked_for <= 0.0:
 		_unlock()
 	return true
+
+
+## M50.2b: opens the give step (PickOffer.give_step: one given card, a full hand). The caller
+## defers, as for open().
+func open_give(p_offer: PickOffer) -> bool:
+	if _dismissed or p_offer == null or not p_offer.give_step or p_offer.cards.is_empty():
+		return false
+	offer = p_offer
+	_replacing = 0
+	_fusing = 0.0
+	RunState.set_pause(PAUSE, true)
+	_reveal_t = 0.0
+	_build()
+	_locked_for = input_delay
+	_root.visible = true
+	if _locked_for <= 0.0:
+		_unlock()
+	return true
+
+
+## M50.2b: the give step is showing.
+func giving() -> bool:
+	return _root.visible and offer != null and offer.give_step
 
 
 ## The buttons for the offer (a pack's cards, or its replace step).
@@ -144,13 +267,28 @@ func _build() -> void:
 	_gap.custom_minimum_size.y = 60.0
 	_banner.visible = false
 	_line.visible = true
+	_faces.clear()
 	var hints := Settings.key_hints()
+	_give_face.visible = offer.give_step or _replacing >= 0
+	if offer.give_step:
+		var c: Dictionary = offer.cards[0]
+		_line.text = offer.line
+		_give_face.face = CardFace.face_of(c, "", c.get("rarity") == BoosterPack.RARE)   # M50.2c: the gold card
+		_faces.append(_give_face)
+		for j in replace_count() + 1:
+			_add_button(give_text(offer, j, Callable(), hints), choose.bind(j), false, j == int(c.get("links", -1)), true)
+		_update_reveal()
+		return
 	if _replacing >= 0:
 		_line.text = "Your hand is full. %s replaces:" % offer.cards[_replacing].get("title", "")
+		_give_face.face = CardFace.face_of(offer.cards[_replacing])   # M50.2c: the waiting card
+		_give_face.set_reveal(CardFace.reveal_at(1.0, 0, true))
+		_give_face.shine = -1.0
+		_give_face.queue_redraw()
 		var new_name := String(WeaponDB.get_weapon(offer.cards[_replacing].id).title)
 		for j in replace_count() + 1:
 			_add_button(replace_text(offer, j, Callable(), hints, kept_slot(), new_name), choose.bind(j), false,
-					j == kept_slot())
+					j == kept_slot(), true)
 		return
 	if _fusing > 0.0:
 		_line.text = "Fusing... %s" % _fused_title
@@ -160,17 +298,68 @@ func _build() -> void:
 		_build_dressed(hints)
 		return
 	for i in offer.cards.size():
-		var text := pack_card_text(offer, i, Callable(), hints) if offer.pack else card_text(offer, i, Callable(), hints)
-		_add_button(text, choose.bind(i), offer.pack and offer.cards[i].get("rarity") == BoosterPack.RARE)
+		if offer.pack:   # M50.2c: a card face
+			_add_card(CardFace.face_of(offer.cards[i], _key(i, hints)), choose.bind(i))
+		else:
+			_add_button(card_text(offer, i, Callable(), hints), choose.bind(i), false)
 	if has_fuse():
-		_add_button(fuse_text(offer, Callable(), hints), choose.bind(offer.cards.size()), false, true)
+		_add_card(CardFace.fuse_face(offer.fuse, _key(offer.cards.size(), hints)), choose.bind(offer.cards.size()),
+				fuse_text(offer, Callable(), false))
 	if has_evolve():
 		_add_button(evolve_text(offer, Callable(), hints), choose.bind(offer.cards.size()), false, true)
 	if offer.pack:
 		_add_hand_preview()
+	_update_reveal()
 
 
-func _add_button(text: String, on_press: Callable, rare: bool, fuse := false) -> void:
+## M50.2c: choice i's key hint on a card face ("[1]"; "" with key hints off).
+static func _key(i: int, hints: bool) -> String:
+	return "[%s]" % InputSetup.expand_keys("{key:choose_%d}" % (i + 1)) if hints else ""
+
+
+## M50.2c: a pack card (or FUSE) as a card face over a frameless Button (its keys, focus and
+## click; the face draws the focus).
+func _add_card(face: Dictionary, on_press: Callable, tip := "") -> void:
+	var b := Button.new()
+	b.custom_minimum_size = CardFace.SIZE
+	b.tooltip_text = tip   # M50.2c review: FUSE carries its full text (fuse_text) on hover too
+	var empty := StyleBoxEmpty.new()
+	for st: StringName in [&"normal", &"hover", &"pressed", &"focus", &"disabled", &"hover_pressed"]:
+		b.add_theme_stylebox_override(st, empty)
+	b.disabled = true
+	b.pressed.connect(on_press)
+	var f := CardFace.new()
+	f.face = face
+	f.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	f.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(f)
+	_cards.add_child(b)
+	_frames.append(b)
+	_buttons.append(b)
+	_faces.append(f)
+
+
+## M50.2c: the faces' reveal (flip or fade), shine and focus for the time since the deal.
+func _update_reveal() -> void:
+	var reduce := SaveGame.reduce_flashing()
+	var n := _faces.size()
+	for i in n:
+		var f := _faces[i]
+		if _reveal_t >= 0.0:
+			f.set_reveal(CardFace.reveal_at(_reveal_t, i, reduce))
+		var rare: bool = f.face.get("style") in [&"card_rare", &"card_give"]
+		f.shine = CardFace.shine_at(_reveal_t, n, reduce) if rare and _reveal_t >= 0.0 else -1.0
+		var b := f.get_parent() as Button
+		f.lit = b != null and not b.disabled and (b.has_focus() or b.is_hovered())
+		f.queue_redraw()
+
+
+## M50.2c: the faces are still turning over (tests, captures).
+func revealing() -> bool:
+	return _root.visible and _reveal_t >= 0.0 and _reveal_t < CardFace.reveal_end(_faces.size())
+
+
+func _add_button(text: String, on_press: Callable, rare: bool, fuse := false, small := false) -> void:
 	var frame := PanelContainer.new()
 	var box := StyleBoxFlat.new()
 	var edge := Palette.CARD_LIT if fuse else Palette.color(&"card_rare")
@@ -181,7 +370,7 @@ func _add_button(text: String, on_press: Callable, rare: bool, fuse := false) ->
 	box.set_content_margin_all(4 if rare or fuse else 0)
 	frame.add_theme_stylebox_override(&"panel", box)
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(300, 150)
+	b.custom_minimum_size = Vector2(280, 76) if small else Vector2(300, 150)   # M50.2c: under a card face
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	b.add_theme_font_size_override(&"font_size", 18)
 	b.text = text
@@ -274,16 +463,12 @@ func _add_hand_preview() -> void:
 	label.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
 	label.add_theme_constant_override(&"outline_size", 4)
 	_hand_row.add_child(label)
-	for h: Dictionary in offer.hand:
-		var p := PanelContainer.new()
-		p.custom_minimum_size = Vector2(300, 150) * HAND_SCALE * Vector2(1.0, 0.5)
-		Skins.dress_panel(p)
-		var l := Label.new()
-		l.text = "%s %d" % [h.title, int(h.rank)]
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		l.add_theme_font_size_override(&"font_size", roundi(18 * HAND_SCALE) + 2)
-		p.add_child(l)
+	for h: Dictionary in offer.hand:   # M50.2c: the small card faces
+		var p := CardFace.new()
+		p.mini = &"hand"
+		p.face = CardFace.hand_face(h)
+		p.custom_minimum_size = CardFace.MINI_HAND
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_hand_row.add_child(p)
 
 
@@ -360,6 +545,23 @@ static func replace_text(p_offer: PickOffer, j: int, to_label := Callable(), hin
 	return "[%s]  %s" % [InputSetup.expand_keys("{key:choose_%d}" % (j + 1), to_label), text]
 
 
+## M50.2b: the give step's choice j: "Replace Pistol 12" per hand card (the given card's
+## recipe partner adds "  (it links with the Laser)", ": Prism" once the `fusion` basic is
+## live), then "Keep your hand".
+static func give_text(p_offer: PickOffer, j: int, to_label := Callable(), hints := true) -> String:
+	var c: Dictionary = p_offer.cards[0]
+	var text := "Keep your hand"
+	if j < p_offer.hand.size():
+		text = "Replace %s %d" % [p_offer.hand[j].title, int(p_offer.hand[j].rank)]
+		if j == int(c.get("links", -1)):
+			var w := WeaponDB.get_weapon(c.id)
+			text += "\n(it links with the %s%s)" % [w.title if w != null else String(c.id),
+					": " + String(c.recipe) if String(c.get("recipe", "")) != "" else ""]
+	if not hints:
+		return text
+	return "[%s]  %s" % [InputSetup.expand_keys("{key:choose_%d}" % (j + 1), to_label), text]
+
+
 ## M50.1a: the replace step is showing (the pack card waiting, else -1).
 func replacing() -> int:
 	return _replacing if _root.visible else -1
@@ -378,7 +580,7 @@ func replace_count() -> int:
 
 ## M50.1a: Back from the replace step to the same pack (no draw, no `picked`).
 func back() -> void:
-	if not can_choose() or _replacing < 0:
+	if not can_choose() or _replacing < 0 or offer.give_step:
 		return
 	_replacing = -1
 	_build()
@@ -404,14 +606,25 @@ static func card_text(p_offer: PickOffer, i: int, to_label := Callable(), hints 
 
 
 func _process(delta: float) -> void:
+	if _toast_left > 0.0:
+		_toast_left -= delta / maxf(Engine.time_scale, 0.001)   # real time
+		_toast.modulate = Color(1, 1, 1, clampf(_toast_left / TOAST_FADE, 0.0, 1.0))
+		if _toast_left <= 0.0:
+			_toast_left = 0.0
+			_toast.visible = false
 	if not _root.visible:
 		return
 	if RunState.is_paused_for(RunState.MENU):   # M47.3: the pause menu holds the lock
 		return
+	if _reveal_t >= 0.0:   # M50.2c: the deal (presentation only; the lock below is unchanged)
+		_reveal_t += delta / maxf(Engine.time_scale, 0.001)
+	if not _faces.is_empty():
+		_update_reveal()
 	if _fusing > 0.0:
 		_fusing -= delta / maxf(Engine.time_scale, 0.001)   # real time
 		if _fusing <= 0.0:
 			_fusing = 0.0
+			_reveal_t = 0.0   # M50.2c: the new hand's pack is dealt again
 			_build()
 			_relock()
 		return
@@ -431,6 +644,9 @@ func dismiss() -> void:
 	_dismissed = true
 	if _root.visible:
 		_root.visible = false
+	_toast_left = 0.0
+	if _toast != null:
+		_toast.visible = false
 	RunState.set_pause(PAUSE, false)
 
 
@@ -459,6 +675,15 @@ func _unhandled_input(event: InputEvent) -> void:
 ## the next one is Back.
 func choose(i: int) -> void:
 	if not can_choose():
+		return
+	if offer.give_step:   # M50.2b: replace slot i, or keep the hand (the last choice)
+		if i < 0 or i > replace_count():
+			return
+		var given := offer
+		_root.visible = false
+		_give_face.visible = false
+		RunState.set_pause(PAUSE, false)
+		give_done.emit(given, i if i < replace_count() else -1)
 		return
 	if _replacing >= 0:
 		if i == replace_count():

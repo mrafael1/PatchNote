@@ -109,6 +109,7 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 		shots = s.fire(w, dir, auto, m, misfuse_turn(misfuse_shots), misfuse_skin)
 	else:
 		shots = s.fire(w, dir, auto, m)
+		w.attach(shots, s.faction)   # M50.3b: Cluster's burst (never on the misfuse)
 	if shots.is_empty():
 		return false   # refused at the cap: still armed, nothing logged
 	if misfuse_skin != &"":
@@ -445,8 +446,10 @@ func auto_tick() -> int:
 		var target := AutoFire.target_for(host, w)
 		if target == null:
 			continue
-		if s.fire(w, target.global_position - host.global_position, true).is_empty():
+		var shots := s.fire(w, target.global_position - host.global_position, true)
+		if shots.is_empty():
 			continue
+		w.attach(shots, s.faction)   # M50.3b: a burst weapon (none on Auto today)
 		w.ready_in = float(w.value(&"cooldown"))
 		w.shots += 1
 		fired += 1

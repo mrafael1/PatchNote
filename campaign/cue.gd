@@ -66,7 +66,12 @@ extends RefCounted
 ##   "nerfed 1: say ..."         once n nerfs landed
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
-		&"level", &"picked", &"fused", &"fuse_ready", &"tried", &"holds", &"evolve_ready", &"evolved", &"nerfed"]
+		&"level", &"picked", &"fused", &"fuse_ready", &"tried", &"holds", &"evolve_ready", &"evolved", &"nerfed",
+		&"give_choice"]
+## M50.2b (the give step):
+##   "answer:path_arsenal give_choice 1: say give_kept thinking: ..."   when the n-th give step
+##                                            of the attempt closed (any choice; held SAY_GAP
+##                                            after the previous say cue, like fused)
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
 		&"drop", &"look", &"boss", &"skin", &"release", &"fuse", &"nerf"]
 ## The cue times that take no number (touch takes one or none: a deadline).
@@ -145,7 +150,7 @@ static func parse(p_source: String) -> Cue:
 			return c
 		c.value = head[1].to_int()
 		c.at_seconds = head[3].to_float() if head.size() == 4 else -1.0
-	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready", &"tried", &"evolve_ready", &"evolved", &"nerfed"]:
+	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready", &"tried", &"evolve_ready", &"evolved", &"nerfed", &"give_choice"]:
 		var low := 0 if c.when == &"boss_hp" else 1
 		var high := 100 if c.when == &"boss_hp" else 1000000
 		if head.size() != 2 or not head[1].is_valid_int() or head[1].to_int() < low or head[1].to_int() > high:
@@ -348,6 +353,8 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("nerfed", 0)) >= int(value)
 		&"holds":   # M50.4b review: the held item ids (PathRunner's Loadout; [] without one)
 			return held in (ctx.get("items", []) as Array)
+		&"give_choice":   # M50.2b: give steps closed this attempt (PathRunner.give_steps)
+			return int(ctx.get("give_choices", 0)) >= int(value)
 	return false
 
 

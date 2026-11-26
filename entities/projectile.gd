@@ -30,6 +30,11 @@ var weapon_id: StringName = &""  ## the weapon that fired it (source_patch is "w
 var blast_radius := 0.0          ## px; > 0: a blast on contact instead of a hit
 var knockback := -1.0            ## the hit's impulse; -1 = Tuning.projectile_knockback
 var origin := Vector2.ZERO       ## the muzzle (point blank, burn line)
+## M50.3a: a blast's knockback (spawn param &"blast_knockback"); 0.0 is every blast so far.
+var blast_knockback := 0.0
+## M50.3b: at the end of its lifetime the shot blows (explode) instead of going quietly
+## (Cluster's bomblets; spawn param &"pop_at_end"). false is every shot so far.
+var pop_at_end := false
 
 var _pierced: Array[RID] = []    ## entities already passed through (skipped by every ray)
 var _mods: Array[ProjectileMod] = []
@@ -63,7 +68,10 @@ func _physics_process(delta: float) -> void:
 		return   # B2 moves an enemy shot tile by tile and resolves its hit
 	_age += delta
 	if _age >= (lifetime if lifetime > 0.0 else Tuning.projectile_lifetime) and not _held:
-		_despawn()
+		if pop_at_end and blast_radius > 0.0:
+			explode(global_position)
+		else:
+			_despawn()
 		return
 	var rules := RunState.rules
 	var is_player := faction == &"player"
@@ -114,9 +122,7 @@ func _physics_process(delta: float) -> void:
 		if _mods_hit_wall(pos, normal):
 			return
 		if blast_radius > 0.0:
-			Explosion.blast(pos, blast_radius, damage, 0.0, &"blast", source_patch, false)
-			EventBus.projectile_hit_wall.emit(self, pos, normal)
-			_despawn()
+			explode(pos, -1.0, null, normal, true)
 			return
 		EventBus.projectile_hit_wall.emit(self, pos, normal)
 		if _dead:
@@ -141,9 +147,7 @@ func _hit_entity(target: Node, pos: Vector2, dir: Vector2, rid := RID()) -> bool
 		if m.hit_entity(self, target, pos):
 			return false   # a mod took the hit (sticky)
 	if blast_radius > 0.0:
-		Explosion.blast(pos, blast_radius, damage, 0.0, &"blast", source_patch, false)
-		EventBus.projectile_hit.emit(self, target, pos)
-		_despawn()
+		explode(pos, -1.0, target)
 		return false
 	var health := Component.find(target, Health) as Health
 	var applied := false
@@ -211,6 +215,24 @@ func is_held() -> bool:
 
 
 func despawn() -> void:
+	_despawn()
+
+
+## M50.3a: the shot blows at `pos` (radius -1: its blast_radius), in today's order plus one
+## call: the blast, then the contact event (`target`: projectile_hit; `wall`: projectile_hit_wall;
+## neither: none, as sticky's timed blast), then each mod's blasted(), then the despawn.
+## M50.3b: each mod's blasting() runs first (Cluster's point blank sets the damage there).
+func explode(pos: Vector2, radius := -1.0, target: Node = null, normal := Vector2.ZERO, wall := false) -> void:
+	for m in _mods:
+		m.blasting(self, pos)
+	Explosion.blast(pos, blast_radius if radius < 0.0 else radius, damage, blast_knockback, &"blast",
+			source_patch, false)
+	if target != null:
+		EventBus.projectile_hit.emit(self, target, pos)
+	elif wall:
+		EventBus.projectile_hit_wall.emit(self, pos, normal)
+	for m in _mods:
+		m.blasted(self, pos)
 	_despawn()
 
 

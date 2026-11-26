@@ -1,6 +1,6 @@
 extends GutTest
 ## M50.1b (Arsenal depth design, .check/arsenal_depth/design.md, sections 4-8): the fusions
-## (WeaponDB.fusions() / recipe(), Prism built, 5 unbuilt rows), FUSE (free: the same pack
+## (WeaponDB.fusions() / recipe(), Prism and (M50.3b) Cluster built, 4 unbuilt rows), FUSE (free: the same pack
 ## reopens for the new hand, nothing drawn), fused levels from the rank, a parent's card
 ## feeding the fusion, the link, Prism's centre-beam burn, the misfuse overlay, the cue
 ## grammar (fuse fail, fused, fuse_ready, the fused / misfused conditions), S9's timeline,
@@ -96,13 +96,14 @@ func test_the_six_recipes_load_and_the_base_list_is_unchanged() -> void:
 	assert_eq(WeaponDB.recipe(&"shotgun", &"launcher"), &"cluster")
 	assert_eq(WeaponDB.recipe(&"pistol", &"shotgun"), &"", "the misfuse pair has no recipe")
 	assert_true(WeaponDB.fusion_built(&"prism"))
-	for id: StringName in [&"cluster", &"satellite", &"pulse", &"horizon", &"black_moon"]:
+	assert_true(WeaponDB.fusion_built(&"cluster"), "M50.3b")
+	for id: StringName in [&"satellite", &"pulse", &"horizon", &"black_moon"]:
 		assert_false(WeaponDB.fusion_built(id), String(id))
 
 
 func test_fusion_problems_mark_the_unbuilt_rows_and_check_inherits() -> void:
 	var probs := WeaponDB.fusion_problems()
-	assert_eq(probs.size(), 5, str(probs))
+	assert_eq(probs.size(), 4, str(probs))
 	for p in probs:
 		assert_string_contains(p, "not built yet")
 	assert_eq(WeaponDB.problems(), [] as Array[String], "the base weapons stay clean")
@@ -174,6 +175,29 @@ func test_a_parent_card_feeds_the_fusion_and_never_shows_twice() -> void:
 			assert_false(card.id in [&"shotgun", &"laser"], "a parent is never its own card")
 
 
+## M50.2a review (finding 1): a common parent card and a rare one fold into ONE fused card,
+## the rare one (G2': never the same id twice, never a dominated card); either order.
+func test_recompute_folds_a_common_and_a_rare_parent_into_one_rare_card() -> void:
+	for order in 2:
+		var lo := _deep([&"shotgun", &"laser"], [4, 4])
+		var a := BoosterPack.card(lo, &"shotgun", order == 1)
+		var b := BoosterPack.card(lo, &"laser", order == 0)
+		var o := PickOffer.new()
+		o.pack = true
+		o.cards = [a, b] as Array[Dictionary]
+		assert_true(lo.fuse(&"shotgun", &"laser", &"prism", 4))
+		var out := BoosterPack.recompute(o, lo)
+		assert_eq(out.cards.size(), 1, "one fused card, not two")
+		assert_eq(out.cards[0].id, &"prism")
+		assert_eq(out.cards[0].rarity, BoosterPack.RARE, "the rare one stays")
+		assert_eq(int(out.cards[0].rank), lo.cap(4 + 2))
+		var c := BoosterPack.card(lo, &"shotgun", false)
+		var o2 := PickOffer.new()
+		o2.pack = true
+		o2.cards = [c, BoosterPack.card(lo, &"laser", false)] as Array[Dictionary]
+		assert_eq(BoosterPack.recompute(o2, lo).cards.size(), 1, "two commons: one card too")
+
+
 func test_g1_steers_to_the_lower_recipe_half() -> void:
 	var lo := _deep([&"shotgun", &"laser"], [7, 3])
 	lo.slots[0].shots = 50
@@ -231,7 +255,7 @@ func test_fuse_reopens_the_same_pack_for_the_new_hand_with_nothing_drawn() -> vo
 		if panel.offer.cards[i].kind == &"new":
 			new_at = i
 	assert_eq(panel.offer.cards.map(func(c: Dictionary) -> String: return "%s/%s" % [c.id, c.rarity]),
-			["pistol/common", "prism/common", "prism/rare"], "parents fold into the fusion")
+			["pistol/common", "prism/rare"], "parents fold into one fusion card (M50.2a review: G2')")
 	assert_eq(new_at, 0, "the pistol is still NEW")
 	assert_string_contains(String(panel.offer.cards[new_at].gain), "joins your hand", "the freed slot")
 	panel.choose(new_at)
@@ -243,9 +267,10 @@ func test_fuse_reopens_the_same_pack_for_the_new_hand_with_nothing_drawn() -> vo
 	panel.picked.disconnect(count)
 
 
-## M50.1b review (finding 2): S9's 86 s hand is Pistol ~17 + Shotgun ~5 when the laser waits.
-## A first play would let the low-rank shotgun go and dead-end the fusion; the replace step
-## keeps the laser's partner, and only the other card can go.
+## M50.1b review (finding 2): S9's 86 s hand is Pistol ~17 + Shotgun ~5 when the laser comes.
+## A first play would let the low-rank shotgun go and dead-end the fusion; on a pack's replace
+## step a NEW laser keeps its partner, and only the other card can go. (M50.2b: the give itself
+## opens the give step, test_give_step.gd; here the laser is a pack's NEW card.)
 func test_the_replace_step_keeps_the_new_cards_recipe_partner() -> void:
 	var r := await _arena()
 	var lo := _loadout()
@@ -255,16 +280,19 @@ func test_the_replace_step_keeps_the_new_cards_recipe_partner() -> void:
 	lo.active = 0
 	r.announce(&"pistol")
 	r.announce(&"shotgun")
-	assert_true(r.give(&"laser", 3), "a full hand: the laser waits (G4)")
-	r.want_pick()
-	r._open_offer()
+	r.announce(&"laser")
 	var panel := game.pick_panel
-	var offer := panel.offer
-	var at := -1
-	for i in offer.cards.size():
-		if offer.cards[i].id == &"laser" and offer.cards[i].kind == &"new":
-			at = i
-	assert_gte(at, 0, "the waiting laser is in the pack")
+	var offer := PickOffer.new()
+	offer.pack = true
+	offer.max_slots = 2
+	for w in lo.slots:
+		offer.hand.append({"id": w.def.id, "title": w.def.title, "rank": w.rank})
+	offer.cards.append(BoosterPack.card(lo, &"pistol", false))
+	offer.cards.append(BoosterPack.card(lo, &"laser", true))
+	BoosterPack.mark_keeps(offer, lo)
+	r.want_pick()
+	panel.open(offer)
+	var at := 1
 	assert_eq(int(offer.cards[at].get("keep", -1)), 1, "the shotgun is its partner")
 	panel.choose(at)
 	assert_eq(panel.replacing(), at, "the replace step")
@@ -292,12 +320,14 @@ func test_mark_keeps_only_for_one_built_partner_on_a_full_non_pair_hand() -> voi
 		return o
 	var o1: PickOffer = cards.call(_deep([&"pistol", &"shotgun"], [9, 2]), [&"laser", &"launcher", &"pistol"])
 	assert_eq(int(o1.cards[0].get("keep", -1)), 1, "laser: keep the shotgun")
-	assert_false(o1.cards[1].has("keep"), "launcher: Cluster is unbuilt")
+	assert_eq(int(o1.cards[1].get("keep", -1)), 1, "launcher: keep the shotgun (M50.3b: Cluster is built)")
 	assert_false(o1.cards[2].has("keep"), "an upgrade is never marked")
 	var o2: PickOffer = cards.call(_deep([&"shotgun", &"laser"], [4, 2]), [&"pistol"])
 	assert_false(o2.cards[0].has("keep"), "a recipe pair already: the choice stays free")
 	var o3: PickOffer = cards.call(_deep([&"shotgun"], [4]), [&"laser"])
 	assert_false(o3.cards[0].has("keep"), "room in the hand: no replace step")
+	var o4: PickOffer = cards.call(_deep([&"pistol", &"launcher"], [9, 2]), [&"laser"])
+	assert_false(o4.cards[0].has("keep"), "laser on Pistol + Launcher: no recipe, no keep")
 
 
 ## M50.1b review (finding 3): fused before the first-time `fuse_ready` line's gap ended:

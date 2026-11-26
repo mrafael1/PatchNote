@@ -145,7 +145,8 @@ func _physics_process(_delta: float) -> void:
 			"items": _held_items(),
 			"evolve_ready": path_runner.evolve_ready_count if path_runner != null else 0,
 			"evolved": path_runner.evolutions.size() if path_runner != null else 0,
-			"nerfed": path_runner.nerfs_landed if path_runner != null else 0}
+			"nerfed": path_runner.nerfs_landed if path_runner != null else 0,
+			"give_choices": path_runner.give_steps() if path_runner != null else 0}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
@@ -196,9 +197,9 @@ func on_path_started(_path_id: StringName) -> void:
 ## both priority 3, so the second would queue on the mascot and its edit land before
 ## its line is read.
 func _waits(cue: Cue) -> bool:
-	# M50.1b: a fusion cue's line waits SAY_GAP after the previous say cue.
+	# M50.1b: a fusion cue's line waits SAY_GAP after the previous say cue (M50.2b: give_choice too).
 	# M50.4c1: an evolution cue's say too (its `nerf` lands at once).
-	if (cue.when in [&"fused", &"fuse_ready"] or (cue.when in [&"evolve_ready", &"evolved", &"nerfed"]
+	if (cue.when in [&"fused", &"fuse_ready", &"give_choice"] or (cue.when in [&"evolve_ready", &"evolved", &"nerfed"]
 			and cue.action == &"say")) and genre != null and _last_say >= 0.0 \
 			and genre.session_clock() < _last_say + SAY_GAP:
 		return true
@@ -245,11 +246,13 @@ func _fire(cue: Cue, index: int) -> void:
 	RunState.log_event(&"cue", {"index": index, "action": String(cue.action)})
 	match cue.action:
 		&"say":
-			if genre != null:
-				_last_say = genre.session_clock()
 			if cue.tag != &"" and path_runner != null:
 				path_runner.announce(cue.tag)   # M45a, the pool rule: said, so it may be offered
-			if cue.line.passes(CampaignDB.line_context(session)):
+			if cue.line.passes(cue_context()):
+				# M50.2b: only a line actually said starts the SAY_GAP (a give_choice n has three
+				# lines, one per branch: the two silent ones must not hold the third back).
+				if genre != null:
+					_last_say = genre.session_clock()
 				say(cue.line)
 		&"path":
 			if path_runner == null or not path_runner.request_swap(cue.target, cue.line):
@@ -309,6 +312,15 @@ func _fire(cue: Cue, index: int) -> void:
 				push_warning("Session %s: give %s %d refused" % [session.id, cue.target, cue.rank])
 		_:
 			push_warning("Session %s: cue action %s is not built yet" % [session.id, cue.action])
+
+
+## A say cue's line context: CampaignDB.line_context plus M50.2b's live hand fact `paired`
+## (the hand is a built recipe pair, whatever the `fusion` basic; never in the debrief's).
+func cue_context() -> Dictionary:
+	var ctx := CampaignDB.line_context(session)
+	if path_runner != null and path_runner.pack_path():
+		ctx.paired = path_runner.paired()
+	return ctx
 
 
 ## M48b (PLAN 1.7.1): a `skin` cue. A morph lasts FIRST_MORPH on the session's first morph

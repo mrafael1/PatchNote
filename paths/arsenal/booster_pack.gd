@@ -11,10 +11,12 @@ extends RefCounted
 ## held -> `upgrade` (+1, rare +2), not held -> `new` (rank 1, rare 3). Passives are not in a
 ## pack yet (none is reachable on Arsenal before S11). Weights: the taste's, x UPGRADE_LEAN
 ## for an upgrade (PickOffer's).
-## Guarantees: G1 card 1 is a held card (the most-fired; ties slot order); G2 no two cards share
-## (id, rarity), and with fewer ids than cards a shown id comes back at its other rarity (a
-## one-weapon pool shows 2 cards); G3 with room in the hand card 2 is a new weapon when one
-## exists; G4 a weapon a full-hand `give` queued is card 2, a new card at the give's rarity.
+## Guarantees: G1 card 1 is a held card (the most-fired; ties slot order); G2' (M50.2a, the
+## fallback roll) a pack never shows an id twice: a card slot with no unshown id left adds no
+## card, and when its own rarity roll says rare it upgrades the first shown common card to rare
+## in place (a one-weapon pool shows 1 card, a two-weapon pool on a full hand 2); G3 with room
+## in the hand card 2 is a new weapon when one exists; G4 a weapon a full-hand `give` queued is
+## card 2, a new card at the give's rarity (test-only since M50.2b, below).
 ##
 ## M50.1b (fusion): a held fusion's parent ids fold into the fused id (one candidate: a parent's
 ## card feeds the fusion). G1 prefers the lower-ranked half of a held recipe pair (one half
@@ -33,6 +35,7 @@ const COMMON := &"common"
 ## The pack for `loadout` on path `def`. `give` (G4): {} or {id, rare}. Card dictionaries:
 ## {id, rank (the rank it gives), from (the held rank, 0 for new), kind, rarity, title, gain,
 ## text}.
+## test-only (M50.2b: G4 retired, the runner passes {}): a full-hand give opens the give step.
 static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], give: Dictionary,
 		rng: RandomNumberGenerator, taste: Taste) -> PickOffer:
 	var rolls: Array[float] = []
@@ -75,8 +78,8 @@ static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], give: 
 	return offer
 
 
-## One card from `from` by weight (removed from `rest`), else a shown id at its other rarity
-## (G2), else nothing.
+## One card from `from` by weight (removed from `rest`), else G2': on a rare roll the first
+## shown common card becomes rare in place; never a new card.
 static func _take(offer: PickOffer, loadout: Loadout, from: Array, rest: Array, rarity_roll: float,
 		id_roll: float, chance: float, taste: Taste) -> void:
 	if not from.is_empty():
@@ -88,10 +91,12 @@ static func _take(offer: PickOffer, loadout: Loadout, from: Array, rest: Array, 
 				rest.remove_at(i)
 				break
 		return
-	for c: Dictionary in offer.cards.duplicate():
-		var other: bool = c.rarity == COMMON
-		if not _shown(offer, c.id, RARE if other else COMMON):
-			offer.cards.append(card(loadout, c.id, other))
+	if rarity_roll >= chance:
+		return
+	for i in offer.cards.size():
+		var c: Dictionary = offer.cards[i]
+		if c.rarity == COMMON:
+			offer.cards[i] = card(loadout, c.id, true)
 			return
 
 
@@ -233,8 +238,9 @@ static func mark_keeps(offer: PickOffer, loadout: Loadout) -> void:
 
 
 ## M50.1b: the same pack after FUSE, for the new hand: each card's id folded (a parent's card
-## now feeds the fusion), its rarity kept, its kind and text recomputed; a card that would
-## repeat a shown (id, rarity) goes. Nothing is drawn.
+## now feeds the fusion), its rarity kept, its kind and text recomputed. M50.2a review (G2'):
+## a card whose folded id is already shown is never added; the shown card turns rare in place
+## when either was rare (one card per id, never a dominated one). Nothing is drawn.
 static func recompute(offer: PickOffer, loadout: Loadout) -> PickOffer:
 	var out := PickOffer.new()
 	out.pack = true
@@ -245,9 +251,15 @@ static func recompute(offer: PickOffer, loadout: Loadout) -> PickOffer:
 	for c: Dictionary in offer.cards:
 		var id := fold(loadout, c.id)
 		var rare: bool = c.get("rarity") == RARE
-		if _shown(out, id, RARE if rare else COMMON):
-			continue
-		out.cards.append(card(loadout, id, rare))
+		var at := -1
+		for i in out.cards.size():
+			if out.cards[i].id == id:
+				at = i
+				break
+		if at < 0:
+			out.cards.append(card(loadout, id, rare))
+		elif rare and out.cards[at].rarity != RARE:
+			out.cards[at] = card(loadout, id, true)
 	return out
 
 
@@ -281,6 +293,21 @@ static func card(loadout: Loadout, id: StringName, rare: bool) -> Dictionary:
 		gain2 += ": " + have
 	return {"id": id, "rank": rank, "from": 0, "kind": &"new", "rarity": rarity, "title": title2,
 			"gain": gain2, "text": "%s: %s" % [title2, gain2]}
+
+
+## M50.2b: the give step's card: weapon `id` NEW at the cue's `rank` (3+ is a gold card, as G4
+## read it). Never drawn: nothing touches pack_rng.
+static func give_card(loadout: Loadout, id: StringName, rank: int) -> Dictionary:
+	var c := card(loadout, id, rank >= 3)
+	var to := loadout.cap(rank)
+	if int(c.rank) != to:
+		var w := WeaponDB.get_weapon(id)
+		var have := WeaponCurve.have_text(w, to) if loadout.curve == WeaponCurve.DEEP else w.pitch
+		c.rank = to
+		c.title = "%s %d" % [w.title, to]
+		c.gain = "replaces a card" + (": " + have if have != "" else "")
+		c.text = "%s: %s" % [c.title, c.gain]
+	return c
 
 
 ## A card's tags: "NEW", "RARE +2", "NEW  RARE".

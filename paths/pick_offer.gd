@@ -28,6 +28,12 @@ var cap := 0
 ## 3 cards, choose_3 on 2) and never replaces one, so the pick_rng draws do not change. Taking it
 ## spends the level-up (PathRunner._take_evolve).
 var evolve := {}
+## M50.2b (the give step): a `give` that landed on a full pack hand. `cards` is the one given
+## card (BoosterPack.give_card, plus `links`: the hand index it makes a built recipe with, -1
+## none; `recipe`: the fused title once the `fusion` basic is live, else ""). The panel opens it
+## straight on the replace step, whose last choice is "Keep your hand". It draws nothing and is
+## not a pack pick (`pack` is set only for the hand preview and the bot's chooser).
+var give_step := false
 
 const HP := &"hp"
 ## M50.4a (Auto depth design 2.8): the second filler, +Loadout.BOOST_STEP damage this session.

@@ -7,7 +7,7 @@ extends RefCounted
 ## (`shot_<key>_player`), so the card, the pickup and the shot itself show one picture.
 
 const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole",
-		&"prism", &"misfuse", &"cylinder", &"minigun"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too); M47.6d1: the revolver; M50.4c1: Minigun
+		&"prism", &"misfuse", &"cylinder", &"minigun", &"bomb", &"cluster"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too); M47.6d1: the revolver; M50.4c1: Minigun; M50.3a: the launcher's bomb, Cluster
 
 ## M50.4b (Auto depth design 7): the passive items' and the two fillers' keys. With a look on
 ## they draw the M50.4m sheet's grids (CardArt), else plain shapes below.
@@ -120,6 +120,14 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 				ci.draw_line(centre + Vector2(-r * 0.9, 0), centre + Vector2(-r * 0.9, 0) + d * r * 0.8, color, w, true)
 			ci.draw_arc(centre + Vector2(r * 0.45, 0), r * 0.45, 0.0, TAU, 20, color, w * 1.3, true)
 			ci.draw_circle(centre + Vector2(r * 0.45, 0), r * 0.16, color)
+		&"bomb":   # M50.3a: the launcher: a squat bomb with a fuse
+			ci.draw_rect(Rect2(centre + Vector2(-r * 0.3, -r * 0.45), Vector2(r * 0.95, r * 0.9)), color)
+			ci.draw_line(centre + Vector2(-r * 0.3, -r * 0.35), centre + Vector2(-r * 0.8, -r * 0.8), color, w, true)
+			ci.draw_circle(centre + Vector2(-r * 0.85, -r * 0.85), r * 0.14, color)
+		&"cluster":   # M50.3a: Cluster: a shell ringed by five bomblets
+			ci.draw_circle(centre, r * 0.36, color)
+			for i in 5:
+				ci.draw_circle(centre + Vector2.UP.rotated(TAU * i / 5.0) * r * 0.75, r * 0.15, color)
 		&"link":   # M50.1b: two rings chained
 			ci.draw_arc(centre - Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
 			ci.draw_arc(centre + Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
@@ -160,7 +168,7 @@ static func _draw_skin(ci: CanvasItem, icon: StringName, centre: Vector2, size: 
 
 ## M50.4f (the sheet's flat half): the flat cards' guns, in rounded blocks and polygons after the
 ## mockup's flat SVGs (Palette roles only: a grey body, a pink core, a gold muzzle, an orange grip).
-const FLAT_GUNS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"minigun"]
+const FLAT_GUNS: Array[StringName] = [&"dot", &"fan", &"line", &"bomb", &"minigun"]   # M50.5: the launcher is `bomb` (M50.3a)
 
 
 ## A flat card's picture: the flat gun of `icon` (FLAT_GUNS), the filled Haste bolt, else draw().
@@ -210,7 +218,7 @@ static func draw_gun_flat(ci: CanvasItem, icon: StringName, centre: Vector2, siz
 			_rr(ci, centre, u, Rect2(0, -3, 17, 2.5), body, 1.0)
 			_rr(ci, centre, u, Rect2(0, 0, 13, 2), dark, 1.0)
 			_rr(ci, centre, u, Rect2(3, -0.5, 6, 3), grip, 1.0)
-		&"ball":   # the launcher: an orange tube with a gold nose
+		&"bomb":   # the launcher: an orange tube with a gold nose (M50.5: its icon is `bomb` since M50.3a)
 			_rr(ci, centre, u, Rect2(-17, -5, 3, 10), dark, 1.0)
 			_rr(ci, centre, u, Rect2(-5, -8, 3, 3), dark, 0.5)
 			_rr(ci, centre, u, Rect2(-6, 4, 3, 7), dark, 1.0)

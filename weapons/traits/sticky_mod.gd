@@ -2,7 +2,9 @@ extends ProjectileMod
 ## Sticky (launcher rank 2) and implode (rank 3: `implode` set): the shell stops on its
 ## first contact, follows an enemy it hit, and blasts FUSE seconds (game time) later at
 ## RADIUS_MULT x its radius. With implode, IMPLODE_LEAD before the blast every enemy in
-## range is pulled in (~0.6 tile).
+## range is pulled in (~0.6 tile). M50.3a: the radius multiplier and the pull are per instance
+## (sticky's and implode's levels on the deep curve; the consts are level 1, the classic curve),
+## and the blast goes through Projectile.explode (its mods' blasted() run before the despawn).
 
 const FUSE := 0.6
 const RADIUS_MULT := 1.2
@@ -10,6 +12,8 @@ const IMPLODE_LEAD := 0.15
 const IMPLODE_PULL := 455.0   ## the impulse that moves a chaser ~0.6 tile (test_weapons)
 
 var implode := false
+var radius_mult := RADIUS_MULT  ## M50.3a: sticky's level (1.2 -> 1.5)
+var pull := IMPLODE_PULL        ## M50.3a: implode's level (455 -> 910)
 var stuck := false
 var pulled := 0                 ## tests: enemies pulled in
 var _target: Node2D
@@ -23,7 +27,7 @@ func steer(p: Node2D, _delta: float) -> void:
 		return
 	if is_instance_valid(_target) and not _target.is_queued_for_deletion():
 		p.global_position = _target.global_position + _offset
-	var radius: float = p.blast_radius * RADIUS_MULT
+	var radius: float = p.blast_radius * radius_mult
 	if implode and not _pulled_once and RunState.game_time >= _blast_at - IMPLODE_LEAD:
 		_pulled_once = true
 		for e in p.get_tree().get_nodes_in_group(&"enemy"):
@@ -35,11 +39,10 @@ func steer(p: Node2D, _delta: float) -> void:
 				continue
 			var mover := Component.find(enemy, Mover) as Mover
 			if mover:
-				mover.knockback(inward.normalized() * IMPLODE_PULL)
+				mover.knockback(inward.normalized() * pull)
 				pulled += 1
 	if RunState.game_time >= _blast_at:
-		Explosion.blast(p.global_position, radius, p.damage, 0.0, &"blast", p.source_patch, false)
-		p.despawn()
+		p.explode(p.global_position, radius)
 
 
 func hit_entity(p: Node2D, target: Node, pos: Vector2) -> bool:
