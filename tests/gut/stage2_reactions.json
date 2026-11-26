@@ -12,7 +12,9 @@
   "kills_10",
   "kills_25",
   "kills_50",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
@@ -24,7 +26,8 @@
   "streak_4",
   "streak_6",
   "streak_broken",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ],
  "s2_02_day_one|path_arsenal": [
   "camping",
@@ -39,7 +42,9 @@
   "kills_10",
   "kills_25",
   "kills_50",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
@@ -51,7 +56,8 @@
   "streak_4",
   "streak_6",
   "streak_broken",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ],
  "s2_02_day_one|path_auto": [
   "camping",
@@ -64,14 +70,17 @@
   "hp_two",
   "kills_10",
   "kills_25",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
   "no_hit_60",
   "quiet_25",
   "session_half",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ],
  "s2_02_day_one|path_survival": [
   "camping",
@@ -86,7 +95,9 @@
   "kills_10",
   "kills_25",
   "kills_50",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
@@ -98,7 +109,8 @@
   "streak_4",
   "streak_6",
   "streak_broken",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ],
  "s2_03_paint|path_arsenal": [
   "camping",
@@ -113,7 +125,9 @@
   "kills_10",
   "kills_25",
   "kills_50",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
@@ -125,7 +139,8 @@
   "streak_4",
   "streak_6",
   "streak_broken",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ],
  "s2_03_paint|path_auto": [
   "camping",
@@ -138,14 +153,17 @@
   "hp_two",
   "kills_10",
   "kills_25",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
   "no_hit_60",
   "quiet_25",
   "session_half",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ],
  "s2_03_paint|path_survival": [
   "camping",
@@ -160,7 +178,9 @@
   "kills_10",
   "kills_25",
   "kills_50",
+  "last_one",
   "last_seconds",
+  "last_two",
   "near_miss",
   "no_hit_15",
   "no_hit_30",
@@ -172,6 +192,7 @@
   "streak_4",
   "streak_6",
   "streak_broken",
-  "wave_cleared"
+  "wave_cleared",
+  "wave_done"
  ]
 }

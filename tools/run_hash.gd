@@ -18,8 +18,10 @@ extends SceneTree
 ## start to its debrief (at most --seconds, default 300 here). Every fork is answered by
 ## the tool itself before the jump (mascot, dash, dash aim, enemy, all picked from the
 ## seed), so a later change to how a jump answers forks cannot move the hash. Without
-## --session it plays s1_03_shooting, s1_04_level, s1_05_wrong and s1_06_playground. One
-## line per session and seed: {"session", "seed", "hashes"}.
+## --session it plays Stage 1, s1_00_nothing to s1_06_playground (M47.6c1: S0-S2 carry the
+## gate and the endings now; before, S3-S6). One line per session and seed: {"session",
+## "seed", "hashes"}. M47.6c1: a session with a `clear` ending that is still playing when
+## the loop stops (--seconds) is a failure line, not a silent pass.
 ##
 ## M47 (PLAN v9 5, C2.8): --frames=<n> hashes every n unpaused game ticks instead of once
 ## per second (ticks under an open pick panel or card never count), the loop then bounded
@@ -41,6 +43,15 @@ extends SceneTree
 ## live); --viewport=<w>x<h> sets the SubViewport's on-screen size (the 2D rect stays 1280x720);
 ## --handoff=<frames> holds the host's handoff that many physics frames before the first tick.
 ## Every hash must equal the unhosted run's.
+##
+## M47.6c2 (PLAN v9.4 0.8, design 2.7): --start=<x>,<y> starts every listed session at that
+## spot instead of the arena's player_start (a carried start, as a [botrun] or campaign line
+## prints it; a blocked spot falls back as in the game). --chain (campaign only) plays the
+## sessions one after the other in ONE tool host, each seed: after a session's debrief opens,
+## the next one starts where the player stood (GameHost.capture_start, the game's own capture,
+## then the host's swap), the save answered and jumped as a cold run is. One line per session
+## and seed with its "start"; a chained session must equal the cold run of that session
+## from the same --start (the gates replay each).
 
 var seconds := 120
 var out_path := ""
@@ -56,8 +67,10 @@ var _menu_opened := 0
 var shell := false                   ## --shell (M47.5a)
 var handoff_frames := 0              ## --handoff (M47.5a)
 var viewport_size := Vector2i.ZERO   ## --viewport (M47.5a)
-const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong",
-		&"s1_06_playground"]
+var start_at := Vector2.INF          ## --start (M47.6c2): INF = the arena's player_start
+var chain := false                   ## --chain (M47.6c2)
+const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_00_nothing", &"s1_01_move", &"s1_02_enemies",
+		&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong", &"s1_06_playground"]
 const CAMPAIGN_SECONDS := 300
 
 
@@ -93,6 +106,12 @@ func _run() -> void:
 					menus.append([-1 if at_hold[0] == "pick" else int(at_hold[0]), int(at_hold[1])])
 		elif arg == "--shell":
 			shell = true
+		elif arg == "--chain":
+			chain = true
+		elif arg.begins_with("--start="):
+			var xy := arg.trim_prefix("--start=").split(",")
+			if xy.size() == 2:
+				start_at = Vector2(float(xy[0]), float(xy[1]))
 		elif arg.begins_with("--handoff="):
 			handoff_frames = int(arg.trim_prefix("--handoff="))
 		elif arg.begins_with("--viewport="):
@@ -108,7 +127,14 @@ func _run() -> void:
 	if seeds.is_empty():
 		seeds = [1, 2, 3, 4]
 	if campaign:
-		await _run_campaign(seeds)
+		if chain:
+			await _run_chain(seeds)
+		else:
+			await _run_campaign(seeds)
+		return
+	if chain or start_at.is_finite():
+		print("[runhash] FAILED: --chain and --start are for campaign sessions")
+		quit(1)
 		return
 	if shell:
 		print("[runhash] FAILED: --shell hosts campaign sessions only (the v6 loop is never hosted)")
@@ -261,6 +287,8 @@ func _run_campaign(seeds: Array[int]) -> void:
 			db.set(&"active", true)
 			db.call(&"jump_to", id)
 			main_script.set(&"next_seed", run_seed)
+			if start_at.is_finite():   # M47.6c2: a carried start, replayed cold
+				main_script.set(&"next_start", start_at)
 			var game: Node = load("res://main.tscn").instantiate()
 			var host: Node = null
 			if shell:   # M47.5a: the game inside a tool host (never live)
@@ -289,17 +317,17 @@ func _run_campaign(seeds: Array[int]) -> void:
 			runs += 1
 			if _menus_missing("session=%s seed=%d" % [id, run_seed]):
 				failures += 1
-			lines.append(JSON.stringify({"session": String(id), "seed": run_seed, "hashes": hashes}))
+			var entry := {"session": String(id), "seed": run_seed, "hashes": hashes}
+			if start_at.is_finite():
+				entry["start"] = _start_of(game)
+			lines.append(JSON.stringify(entry))
 			var tag := "session=%s seed=%d" % [id, run_seed]
+			if not game.debrief.is_open() and run_state.session != null and run_state.session.has_end(&"clear"):
+				failures += 1   # M47.6c1: a fixed set the loop stopped before it cleared
+				print("[runhash] %s FAILED: still playing a clear session after %d s" % [tag, hashes.size()])
 			if compare_path != "":
 				var want: Array = expected.get("%s:%d" % [id, run_seed], [])
-				var diverged := -1
-				for s in mini(want.size(), hashes.size()):
-					if String(want[s]) != hashes[s]:
-						diverged = s
-						break
-				if diverged < 0 and want.size() != hashes.size():
-					diverged = mini(want.size(), hashes.size())
+				var diverged := _diverged(want, hashes)
 				if diverged >= 0:
 					failures += 1
 					print("[runhash] %s FAILED: diverges at second %d (%d recorded, %d now)" % [tag,
@@ -321,6 +349,140 @@ func _run_campaign(seeds: Array[int]) -> void:
 	print("[runhash] summary: campaign%s, %d runs, %d failures" % [
 			(" shell" + (" viewport=%dx%d" % [viewport_size.x, viewport_size.y] if viewport_size != Vector2i.ZERO else "")
 			+ (" handoff=%d" % handoff_frames if handoff_frames > 0 else "")) if shell else "", runs, failures])
+	quit(1 if failures > 0 else 0)
+
+
+## The first second two hash lists differ at (a length difference counts), or -1.
+static func _diverged(want: Array, hashes: Array[String]) -> int:
+	for s in mini(want.size(), hashes.size()):
+		if String(want[s]) != hashes[s]:
+			return s
+	if want.size() != hashes.size():
+		return mini(want.size(), hashes.size())
+	return -1
+
+
+## "x,y" to 0.01: the run's start point (RunLoop.start_point), as --start reads it back.
+static func _start_of(game: Node) -> String:
+	var p: Vector2 = game.run_loop.start_point
+	return "%.2f,%.2f" % [p.x, p.y]
+
+
+## M47.6c2 (--chain): each seed plays the listed sessions in one tool host, carrying the
+## player's spot from one session to the next exactly as the game does (Main._end_session:
+## GameHost.capture_start, then the host's swap). Main._end_session never reloads in a tool
+## host, so this is the chain's own loop. The save is answered and jumped per session as a
+## cold run's is, so a chained session differs from its cold run only by its start.
+func _run_chain(seeds: Array[int]) -> void:
+	if session_ids.is_empty():
+		session_ids = CAMPAIGN_SESSIONS.duplicate()
+	if not seconds_set:
+		seconds = CAMPAIGN_SECONDS
+	var expected := {}   ## "<session>:<seed>" -> hashes
+	if compare_path != "":
+		for line in FileAccess.get_file_as_string(compare_path).strip_edges().split("\n"):
+			var d: Variant = JSON.parse_string(line)
+			if d is Dictionary:
+				expected["%s:%d" % [d.session, int(d.seed)]] = d.hashes
+	var telemetry: GDScript = load("res://systems/telemetry.gd")
+	telemetry.log_path = "user://playtest/run_hash.jsonl"
+	var save: GDScript = load("res://core/save_game.gd")
+	var db: Node = root.get_node("CampaignDB")
+	db.set(&"_arg_read", true)
+	var main_script: GDScript = load("res://main.gd")
+	var host_script: GDScript = load("res://ui/always_on/game_host.gd")
+	var run_state := root.get_node("RunState")
+	var lines: Array[String] = []
+	var failures := 0
+	var runs := 0
+	for id in session_ids:
+		if db.call(&"get_session", id) == null:
+			print("[runhash] FAILED: no session %s" % id)
+			quit(1)
+			return
+	for run_seed in seeds:
+		var host: Node = null
+		var game: Node = null
+		for i in session_ids.size():
+			var id := session_ids[i]
+			save.call(&"go_inert")
+			_answer_forks(save, run_seed)
+			_answer_more(save, db.call(&"get_session", id))
+			db.set(&"active", true)
+			db.call(&"jump_to", id)
+			main_script.set(&"next_seed", run_seed)
+			if host == null:
+				main_script.call(&"clear_start")
+				if start_at.is_finite():
+					main_script.set(&"next_start", start_at)
+				game = load("res://main.tscn").instantiate()
+				host = host_script.call(&"host_for_tools", game, viewport_size)
+				root.add_child(host)
+				current_scene = host
+			else:
+				var old := game
+				host.call(&"next_session")
+				game = null
+				for f in 60:
+					await process_frame
+					var g: Variant = host.get(&"game")
+					if g is Node and is_instance_valid(g) and g != old:
+						game = g
+						break
+				if game == null:
+					print("[runhash] session=%s seed=%d FAILED: the chain's swap never came" % [id, run_seed])
+					quit(1)
+					return
+			await physics_frame
+			var card: Node = game.get(&"stage_card")
+			if card != null and card.call(&"is_open"):
+				card.call(&"skip")
+			if handoff_frames > 0:
+				host.call(&"hold")
+				for f in handoff_frames:
+					await physics_frame
+			host.call(&"skip_handoff")
+			if run_state.session == null or run_state.session.id != id:
+				print("[runhash] session=%s seed=%d FAILED: the game runs another session" % [id, run_seed])
+				quit(1)
+				return
+			_menus_reset()
+			var hashes := await _play_session(game, run_state)
+			runs += 1
+			var tag := "session=%s seed=%d" % [id, run_seed]
+			if _menus_missing(tag):
+				failures += 1
+			var start := _start_of(game)
+			lines.append(JSON.stringify({"session": String(id), "seed": run_seed, "start": start, "hashes": hashes}))
+			if not game.debrief.is_open():
+				failures += 1   # a chain needs every debrief (and a clear set cleared)
+				print("[runhash] %s FAILED: still playing after %d s" % [tag, hashes.size()])
+			if compare_path != "":
+				var diverged := _diverged(expected.get("%s:%d" % [id, run_seed], []), hashes)
+				if diverged >= 0:
+					failures += 1
+					print("[runhash] %s FAILED: diverges at second %d (start=%s)" % [tag, diverged + 1, start])
+				else:
+					print("[runhash] %s same run over %d s start=%s" % [tag, hashes.size(), start])
+			else:
+				print("[runhash] %s recorded %d s kills=%d start=%s" % [tag, hashes.size(), run_state.kills, start])
+			if i + 1 < session_ids.size():
+				# The game's own capture, read while the debrief is open (as Main._end_session).
+				main_script.set(&"next_start", host_script.call(&"capture_start", game,
+						db.call(&"get_session", session_ids[i + 1])))
+			if game.debrief.is_open():
+				game.debrief.close()
+		root.remove_child(host)
+		host.free()
+		main_script.call(&"clear_start")
+		await process_frame
+	if out_path != "":
+		var f := FileAccess.open(out_path, FileAccess.WRITE)
+		f.store_string("\n".join(lines) + "\n")
+		f.close()
+	print("[runhash] summary: campaign chain%s, %d runs, %d failures" % [
+			(" viewport=%dx%d" % [viewport_size.x, viewport_size.y] if viewport_size != Vector2i.ZERO else "")
+			+ (" handoff=%d" % handoff_frames if handoff_frames > 0 else ""), runs, failures])
 	quit(1 if failures > 0 else 0)
 
 

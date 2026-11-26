@@ -28,6 +28,22 @@ var player_start: Vector2
 var _reach := PackedByteArray()        ## is_reachable's flood fill, built on first use
 var _was_busy := false                 ## M48b: redrawn once more after a morph or a bug ends
 
+## M47.6c1 (design 3, S4): the walls grow in. strip_layout keeps the blocks it removed;
+## grow_layout adds them back one by one over GROW_SECONDS of game time, from the middle out
+## (distance of each block's centre from the arena's centre, then x, then y). Each block's
+## collision lands on the physics tick it appears (sim); its look scales in over GROW_LOOK
+## (presentation; reduce flashing: a fade). A body under a new block is pushed to the nearest
+## free tile centre (rings, row-major); the reach map is rebuilt after every block.
+const GROW_SECONDS := 2.5
+const GROW_LOOK := 0.2
+var _stripped: Array[Rect2] = []
+var _grow: Array[Rect2] = []
+var _grown := 0
+var _grow_from := 0.0
+var _grow_seconds := GROW_SECONDS
+var _appear := {}                      ## index in blocks -> game time it appeared
+var _body: StaticBody2D
+
 
 func _init(p_def: ArenaDef = null) -> void:
 	def = p_def if p_def != null else load(DEFAULT) as ArenaDef
@@ -48,7 +64,113 @@ func _init(p_def: ArenaDef = null) -> void:
 ## The first builds have no level yet (PLAN v5 4.8): only the border stays. Call it
 ## before the arena enters the tree (its collision is built in _ready).
 func strip_layout() -> void:
+	_stripped = blocks.slice(4)
 	blocks.resize(4)   # the border is the first four blocks
+
+
+## M47.6c1: the layout was stripped and has not grown back yet.
+func stripped() -> bool:
+	return not _stripped.is_empty()
+
+
+## M47.6c1: the stripped blocks grow back over `seconds` of game time (S4's `add level`).
+func grow_layout(seconds := GROW_SECONDS) -> void:
+	if _stripped.is_empty():
+		return
+	var centre := bounds.get_center()
+	_grow = _stripped.duplicate()
+	_grow.sort_custom(func(a: Rect2, b: Rect2) -> bool:
+		var da := snappedf(a.get_center().distance_squared_to(centre), 0.01)
+		var db := snappedf(b.get_center().distance_squared_to(centre), 0.01)
+		if da != db:
+			return da < db
+		if a.position.x != b.position.x:
+			return a.position.x < b.position.x
+		return a.position.y < b.position.y)
+	_stripped.clear()
+	_grown = 0
+	_grow_from = RunState.game_time
+	_grow_seconds = maxf(seconds, 0.0)
+	_grow_step()
+
+
+## M47.6c1: blocks still to grow (tests).
+func growing() -> bool:
+	return _grown < _grow.size()
+
+
+func _physics_process(_delta: float) -> void:
+	if _grown < _grow.size():
+		_grow_step()
+
+
+func _grow_step() -> void:
+	var n := _grow.size()
+	while _grown < n and RunState.game_time >= _grow_from + _grow_seconds * float(_grown + 1) / n - 0.0001:
+		_add_grown(_grow[_grown])
+		_grown += 1
+
+
+func _add_grown(rect: Rect2) -> void:
+	blocks.append(rect)
+	_appear[blocks.size() - 1] = RunState.game_time
+	_reach = PackedByteArray()   # cached on first use: never trust a tile the growth made solid
+	if _body != null:
+		var shape := RectangleShape2D.new()
+		shape.size = rect.size
+		var cs := CollisionShape2D.new()
+		cs.shape = shape
+		cs.position = rect.get_center()
+		_body.add_child(cs)
+	var reach := Tuning.TILE * 0.45
+	for group: StringName in [&"player", &"enemy"]:
+		for node in get_tree().get_nodes_in_group(group):
+			var body := node as Node2D
+			if body == null or body.is_queued_for_deletion() or not rect.grow(reach).has_point(body.global_position):
+				continue
+			body.global_position = free_tile_near(body.global_position)
+	queue_redraw()
+
+
+## M47.6c1: the centre of the free tile nearest `p` (no block on it or within half a tile of
+## its centre), in rings of growing radius, row-major; `p` when none is within 8 tiles.
+func free_tile_near(p: Vector2) -> Vector2:
+	var t := Tuning.TILE
+	var c := Vector2i(int(floorf(p.x / t)), int(floorf(p.y / t)))
+	for radius in 9:
+		var best := Vector2.INF
+		for dy in range(-radius, radius + 1):
+			for dx in range(-radius, radius + 1):
+				if maxi(absi(dx), absi(dy)) != radius:
+					continue
+				var tile := c + Vector2i(dx, dy)
+				if tile.x < 1 or tile.y < 1 or tile.x >= COLS - 1 or tile.y >= ROWS - 1:
+					continue
+				var centre := (Vector2(tile) + Vector2(0.5, 0.5)) * t
+				if distance_to_blocks(centre) < t * 0.5 - 0.01:
+					continue
+				if best == Vector2.INF or centre.distance_squared_to(p) < best.distance_squared_to(p):
+					best = centre
+		if best != Vector2.INF:
+			return best
+	return p
+
+
+## M47.6c1 (presentation): block i as drawn now: a fresh grown block scales in from 0.6 over
+## GROW_LOOK (reduce flashing: full size, faded in by the caller's alpha).
+func _shown(i: int) -> Rect2:
+	var rect := blocks[i]
+	var u := _grow_u(i)
+	if u >= 1.0 or SaveGame.reduce_flashing():
+		return rect
+	var k := lerpf(0.6, 1.0, u)
+	return Rect2(rect.get_center() - rect.size * k / 2.0, rect.size * k)
+
+
+func _grow_u(i: int) -> float:
+	if not _appear.has(i):
+		return 1.0
+	return clampf((RunState.game_time - float(_appear[i])) / GROW_LOOK, 0.0, 1.0)
 
 
 func _add_block(col: float, row: float, w: float, h: float, t: float) -> void:
@@ -71,6 +193,7 @@ func _ready() -> void:
 		cs.position = rect.get_center()
 		body.add_child(cs)
 	add_child(body)
+	_body = body
 
 
 ## Shortest distance from a point to any block (0 if inside one).
@@ -163,6 +286,15 @@ func painted_rows() -> int:
 
 ## M48b: keeps redrawing while the arena morphs or the tiles bug is live (and once after).
 func _process(_delta: float) -> void:
+	if not _appear.is_empty():   # M47.6c1: a grown block is still scaling in
+		var fresh := false
+		for i: int in _appear:
+			fresh = fresh or _grow_u(i) < 1.0
+		if fresh or growing():
+			queue_redraw()
+		elif not growing():
+			_appear.clear()
+			queue_redraw()
 	if Skins.current == null:
 		return
 	var busy := Skins.morphing(&"floor_a") or Skins.glitch_kind() == &"tiles"
@@ -199,8 +331,9 @@ func _draw_tier_0() -> void:
 			draw_line(Vector2(c * t, 0), Vector2(c * t, bounds.size.y), COLOR_GRID)
 		for r in range(1, ROWS):
 			draw_line(Vector2(0, r * t), Vector2(bounds.size.x, r * t), COLOR_GRID)
-		for rect in blocks:
-			draw_rect(rect, COLOR_BLOCK)
+		for i in blocks.size():
+			var a := _grow_u(i) if SaveGame.reduce_flashing() else 1.0
+			draw_rect(_shown(i), Color(COLOR_BLOCK, COLOR_BLOCK.a * a))
 		return
 	var g := rules.gravity_dir
 	if absf(g.x) > absf(g.y):   # sideways (M41's wrong_variable): darkens toward the side gravity pulls to
@@ -260,7 +393,8 @@ func _draw_skin(rows := ROWS) -> bool:
 				if g.y < 0.0:
 					depth = 1.0 - depth
 				draw_rect(Rect2(0, r * t, bounds.size.x, t), Color(COLOR_DEPTH, COLOR_DEPTH.a * depth))
-	for rect in blocks:
+	for i in blocks.size():
+		var rect := _shown(i)   # M47.6c1: a grown block scales in
 		var clipped := rect.intersection(top) if rows < ROWS else rect
 		if clipped.has_area():
 			skin.draw_tile(self, wall_id, clipped)

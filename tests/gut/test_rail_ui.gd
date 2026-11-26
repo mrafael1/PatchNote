@@ -129,12 +129,15 @@ func test_no_look_keeps_the_raw_terminal_and_hud_exactly() -> void:
 	var h := await _hosted(S8, &"path_arsenal")
 	assert_null(h.rail, "no rail without the look")
 	assert_null(h.terminal.dresser)
-	assert_eq(h.terminal.style, &"raw")
+	# M48.5b: a save past S2 opens on the dev-chat (M47.6b), on the dev desktop.
+	assert_eq(h.terminal.style, TerminalPanel.CHAT)
+	assert_true(h.terminal.chat.visible, "the dev-chat, not the rail's log")
+	assert_true(h.desktop.visible, "the dev desktop")
 	assert_eq(h.layout, GameHost.layout_for(h.get_viewport().get_visible_rect().size), "the raw layout")
 	assert_true(h.game.hud._label.visible, "the HUD corner")
 	assert_true(h.game.hud.path_widget.visible, "the hand")
 	assert_false(h.game.mascot.docked(), "the corner body")
-	assert_true(h.terminal._title.visible)
+	assert_eq(h.terminal.input_row().get_parent(), h.terminal.chat.input_slot, "the input in the chat")
 
 
 func test_the_look_turns_the_rail_on_and_off_and_the_rows_stay() -> void:
@@ -150,6 +153,9 @@ func test_the_look_turns_the_rail_on_and_off_and_the_rows_stay() -> void:
 	assert_eq(t.dresser, rail.chat, "the terminal is dressed, not replaced")
 	assert_eq(t.palette_name, &"rail")
 	assert_false(t._title.visible, "the raw title row hides (the chat header)")
+	assert_false(t.chat.visible, "M48.5b: the dev-chat hides under the rail's log")
+	assert_false(h.desktop.visible, "M48.5b: so does the dev desktop")
+	assert_eq(t.input_row().get_parent(), rail.reply, "M48.5b: the input sits in the reply box's well")
 	assert_true(h.layout.get("rail", false))
 	assert_eq(h.game_rect(), h.layout.game as Rect2, "the game view sits in the rail's frame")
 	assert_eq(h.viewport.size_2d_override, Vector2i(1280, 720), "the sim size never moves")
@@ -163,7 +169,9 @@ func test_the_look_turns_the_rail_on_and_off_and_the_rows_stay() -> void:
 	assert_false(rail.on or rail.visible)
 	assert_null(t.dresser)
 	assert_eq(t.palette_name, &"raw")
-	assert_true(t._title.visible)
+	assert_true(t.chat.visible, "the dev-chat back")
+	assert_true(h.desktop.visible)
+	assert_eq(t.input_row().get_parent(), t.chat.input_slot, "the input back in the chat")
 	assert_true(h.game.hud._label.visible and h.game.hud.path_widget.visible)
 	assert_false(h.game.mascot.docked())
 	assert_eq(h.layout, GameHost.layout_for(h.get_viewport().get_visible_rect().size))
@@ -331,9 +339,25 @@ func test_survival_ammo_follows_the_loadout() -> void:
 	assert_eq(rail2.snap.path.kind, &"ammo")
 	var lo := hs.game.path_runner.loadout()
 	var ammo: Dictionary = rail2.snap.path.ammo
-	assert_eq(String(ammo.sidearm), "Pistol", "the sidearm never runs dry")
+	assert_eq(String(ammo.sidearm), "Revolver", "M47.6d1: the revolver is the sidearm, it never runs dry")
 	assert_true(lo.on_sidearm(), "Survival starts on the sidearm")
-	assert_eq(int(ammo.total), -1, "on the sidearm: nothing to count")
+	assert_eq(int(ammo.total), -1, "on the sidearm: no shells to count")
+	# M48.5b: the revolver's load and its reload.
+	var rev := lo.current()
+	assert_eq(int(ammo.magazine), 6, "six rounds (revolver.tres)")
+	assert_eq(int(ammo.mag), 6)
+	assert_lt(float(ammo.reload), 0.0, "not reloading")
+	rev.spend_round()
+	rail2.refresh()
+	assert_eq(int(rail2.snap.path.ammo.mag), 5, "it follows every shot")
+	while rev.mag_left > 0:
+		rev.spend_round()
+	rail2.refresh()
+	assert_true(rev.reloading())
+	assert_between(float(rail2.snap.path.ammo.reload), 0.0, 1.0, "the reload's fill")
+	rev.tick_reload(99.0)
+	rail2.refresh()
+	assert_eq(int(rail2.snap.path.ammo.mag), 6, "full again")
 	# Review: a crate's shotgun, the AMMO module counts its shells.
 	assert_true(lo.give(&"shotgun", 2))
 	assert_false(lo.on_sidearm(), "the shotgun is in hand")
@@ -411,6 +435,68 @@ func test_patch_and_hotfix_slips_and_choices_in_the_reply_box() -> void:
 	assert_eq(rail.chat._answer_text(t.row_nodes(), t.row_nodes().size() - 1), "move on")
 
 
+## M48.5b: the rail dresses a terminal past the chat upgrade: new rows are raw rows the rail
+## draws, rows() keeps every row in order, and undressing brings the chat back.
+func test_rows_made_under_the_rail_keep_their_order_in_the_chat() -> void:
+	var h := await _hosted(S8, &"path_arsenal")
+	var t := h.terminal
+	assert_true(t.is_chat())
+	t.say_row("before the rail")
+	t.finish()
+	var rail := _pixel(h)
+	assert_eq(t.row_nodes().size(), 0, "the rail's log starts at its reveal")
+	var l := t.say_row("under the rail", &"happy")
+	t.cmd("patch apply v0.9.0")
+	t.finish()
+	assert_false(t.chat.is_ancestor_of(l), "a raw row the rail draws")
+	assert_gt(t.row_nodes().size(), 0)
+	var rows := t.rows()
+	var a := rows.find("  before the rail")
+	var b := rows.find("  under the rail")
+	assert_true(a >= 0 and b > a, "in order: %s" % [rows])
+	assert_eq(rows.back(), "$ patch apply v0.9.0")
+	var n := t.row_count()
+	assert_eq(n, rows.size(), "row_count counts each row once")
+	Skins.use(null)
+	assert_false(rail.on)
+	t.say_row("after the rail")
+	t.finish()
+	assert_eq(t.rows().back(), "  after the rail", "back in the chat")
+	assert_eq(t.rows().size(), n + 2, "header and line")
+
+
+## M48.5b (the play gate, M47.6a): under the rail the gate is typed in the reply box's well,
+## and its one `play` pill gives play as the chat's pill does.
+func test_the_play_gate_in_the_reply_box() -> void:
+	var h := await _hosted(S8, &"path_arsenal")
+	var rail := _pixel(h)
+	var t := h.terminal
+	var played: Array[bool] = []
+	t.chat_input.play_given.connect(func() -> void: played.append(true))
+	t.chat_input.gentle = true
+	t.chat_input.open_gate()
+	var st: Dictionary = rail.reply.state()
+	assert_true(bool(st.gate))
+	assert_eq(RailFrame.Reply.pills_of(st), ["play"] as Array[String], "one play pill")
+	assert_eq(RailFrame.Reply.well_hint(st), "", "the input's own ghost shows")
+	assert_eq(RailFrame.Reply.key_of(st, 0), "", "review: no key chip on the gate pill (1 only types '1')")
+	assert_eq(RailFrame.Reply.key_of({"choices": ["a", "b"], "gate": false}, 1), "2", "open choices keep their keys")
+	var well: Rect2 = rail.reply.well_rect()
+	var row := t.input_row()
+	assert_true(well.encloses(Rect2(row.position, row.size)), "the input in the well")
+	t.chat_input.text = "play"
+	t.chat_input.submit(true)
+	assert_eq(played.size(), 1, "typed play")
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = rail.reply.pill_rects(1)[0].get_center()
+	rail.reply._gui_input(e)
+	assert_eq(played.size(), 2, "the pill gives play")
+	t.chat_input.close_gate()
+	assert_eq(RailFrame.Reply.pills_of(rail.reply.state()).size(), 0)
+
+
 ## Review: S8's death asks, then says two more lines, then posts the choices; the box pairs the
 ## pills with the question, not the last line said.
 func test_the_reply_box_shows_the_question_not_the_lines_after_it() -> void:
@@ -476,7 +562,8 @@ func test_a_tool_host_keeps_its_view_size_and_the_window() -> void:
 func test_the_pixel_font_loads_and_covers_the_lines() -> void:
 	var f := UiTheme.pixel_font()
 	assert_true(f is FontVariation)
-	var base := (f as FontVariation).base_font
+	# M48.5b: the digits font first, then Pixelify (its variation) for everything else.
+	var base := ((f as FontVariation).fallbacks[0] as FontVariation).base_font
 	assert_eq(base.resource_path, UiTheme.PIXEL_FONT)
 	assert_true(FileAccess.file_exists("res://ui/rail/font/OFL.txt"), "the OFL licence ships with it")
 	for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:;!?'-+/()[]$%>_":
@@ -490,3 +577,36 @@ func test_the_pixel_font_loads_and_covers_the_lines() -> void:
 		if not base.has_char(c) and not UiTheme.mono_font().has_char(c) and not missing.has(text[i]):
 			missing.append(text[i])
 	assert_eq(missing, [] as Array[String], "every line's glyph, in the font or its mono fallback")
+
+
+## M48.5b (owner nit: the small text's 2 read as an 8): the rail's text draws 0-9 from its
+## own pixel digits, every stroke whole pixels inside the glyph's box, and each digit's
+## shape distinct from its look-alikes at every size the rail uses.
+func test_small_digits_are_whole_pixels_and_distinct() -> void:
+	for bold in [false, true]:
+		for size in [12, 13, 14, 16, 18, 24, 32]:
+			var h := RailArt.small_digit_h(size, bold)
+			var w := RailArt.small_digit_w(size, bold)
+			var box := Rect2(0, 0, w, h)
+			var adv := RailFrame.text_w("0", size, bold)
+			assert_lte(float(w), adv, "%d: the digit fits the font's advance" % size)
+			var shapes := {}
+			for d in "0123456789":
+				var rects := RailArt.small_digit(d, size, bold)
+				assert_false(rects.is_empty())
+				for r in rects:
+					assert_eq(r.position, r.position.round(), "whole pixels")
+					assert_eq(r.size, r.size.round())
+					assert_true(box.encloses(r), "%s at %d inside its box" % [d, size])
+				shapes[d] = str(rects)
+			for pair: Array in [["2", "8"], ["5", "6"], ["0", "8"], ["1", "7"], ["3", "8"], ["9", "8"]]:
+				assert_ne(shapes[pair[0]], shapes[pair[1]], "%s vs %s at %d" % [pair[0], pair[1], size])
+	# The rail's font draws them (its Labels, the log, the input too) and keeps Pixelify's widths.
+	var f := UiTheme.pixel_font()
+	var base := (f as FontVariation).fallbacks[0] as Font
+	for size in [12, 16, 24]:
+		assert_true((f as FontVariation).base_font.has_char("2".unicode_at(0)), "the digits font has 2")
+		assert_false((f as FontVariation).base_font.has_char("S".unicode_at(0)), "letters fall through")
+		assert_almost_eq(f.get_string_size("v0.2.0 12", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x,
+				base.get_string_size("v0.2.0 12", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, 2.0, "the same width at %d (whole-pixel advances: within 2 px)" % size)
+		assert_almost_eq(f.get_height(size), base.get_height(size), 0.5, "the same line height at %d" % size)

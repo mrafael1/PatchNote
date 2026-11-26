@@ -46,6 +46,8 @@ func back_style() -> StyleBox:
 
 func attach(t: TerminalPanel) -> void:
 	terminal = t
+	t.dock_input(frame.reply)   # M48.5b: the play gate is typed in the reply box's well
+	frame.reply.call(&"layout_input")
 	step()
 
 

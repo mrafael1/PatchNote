@@ -20,10 +20,20 @@ var _elapsed := 0.0
 ## spawn_after); 0 = today.
 var hold := 0.0
 var _held := 0.0
+## M47.6c1 (design 2.6): a `clear` session's fixed set. budget >= 0: the spawner draws that
+## many (spawn_one's own draws only: cue spawns, splitter children and anything else that calls
+## RunState.spawn never count), then nothing. -1 (today): unlimited, every draw as before.
+var budget := -1
+var spawned := 0
+## M47.6c1: archetype -> chance of a pick (the session's spawn_weights, fork answers resolved).
+## Empty: today's Tuning chances. Read with the pick's one roll (pick_type).
+var weights: Dictionary = {}
 
 
 func _physics_process(delta: float) -> void:
 	if not enabled or not is_instance_valid(player) or arena == null:
+		return
+	if budget_spent():
 		return
 	if _held < hold:
 		_held += delta
@@ -43,10 +53,18 @@ func current_cap() -> int:
 	return int(RunState.rules.max_enemies * phase_cap)
 
 
+## M47.6c1: a budget >= 0 and all of it drawn.
+func budget_spent() -> bool:
+	return budget >= 0 and spawned >= budget
+
+
 func spawn_one() -> Node:
 	var rng := RunState.gameplay_rng
 	var jitter := Vector2(rng.randf_range(-16, 16), rng.randf_range(-16, 16))
-	return RunState.spawn(SCENES[pick_type()], pick_point() + jitter, {&"from_spawner": true})
+	var node := RunState.spawn(SCENES[pick_type()], pick_point() + jitter, {&"from_spawner": true})
+	if node != null:
+		spawned += 1
+	return node
 
 
 ## One roll per pick. Archetypes the save has not unlocked (Unlocks.enemies, PLAN v5
@@ -55,6 +73,18 @@ func spawn_one() -> Node:
 func pick_type() -> StringName:
 	var allowed := Unlocks.enemies()
 	var roll := RunState.gameplay_rng.randf()
+	# M47.6c1 (design 2.6): the session's weights first, on the same roll (ids sorted as
+	# Strings); a weighted pick skips the bomber / lancer / tank delays. The rest of the roll is
+	# stretched back over today's chances below.
+	if not weights.is_empty():
+		var ids: Array = weights.keys()
+		ids.sort_custom(func(a: Variant, b: Variant) -> bool: return String(a) < String(b))
+		var total := 0.0
+		for id: Variant in ids:
+			total += float(weights[id])
+			if roll < total:
+				return StringName(id)
+		roll = (roll - total) / maxf(1.0 - total, 0.000001)
 	var tank_ok := _elapsed >= Tuning.spawn_tank_delay and allowed.has(&"tank")
 	var tank_chance := Tuning.spawn_tank_chance if tank_ok else 0.0
 	var shooter_chance := Tuning.spawn_shooter_chance if allowed.has(&"shooter") else 0.0

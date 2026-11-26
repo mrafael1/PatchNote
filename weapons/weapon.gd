@@ -11,6 +11,10 @@ var def: WeaponDef
 var rank := 1
 var curve: StringName = &"classic"
 var ammo_left := -1
+## M47.6d1 (the revolver, WeaponDef.magazine > 0): rounds in the load, and the game seconds
+## left of an automatic reload (0: not reloading). Sim state, never saved.
+var mag_left := 0
+var reload_left := 0.0
 var ready_in := 0.0        ## seconds until it may fire again (its own cooldown)
 var shots := 0             ## shots fired (heavy round counts them)
 var traits: Array[WeaponTrait] = []
@@ -21,6 +25,7 @@ func _init(p_def: WeaponDef = null, p_rank := 1, p_curve: StringName = &"classic
 	curve = p_curve
 	if def != null:
 		ammo_left = def.ammo
+		mag_left = def.magazine
 		set_rank(p_rank)
 
 
@@ -41,6 +46,35 @@ func set_rank(r: int) -> void:
 
 func id() -> StringName:
 	return def.id
+
+
+## M47.6d1: a magazine weapon (the revolver).
+func has_magazine() -> bool:
+	return def.magazine > 0
+
+
+## M47.6d1: empty and reloading (a magazine weapon only).
+func reloading() -> bool:
+	return has_magazine() and reload_left > 0.0
+
+
+## M47.6d1: one round spent; the last one starts the reload (reload_s at this rank).
+func spend_round() -> void:
+	if not has_magazine():
+		return
+	mag_left = maxi(0, mag_left - 1)
+	if mag_left == 0:
+		reload_left = float(value(&"reload_s"))
+
+
+## M47.6d1: `delta` game seconds of reload; full again when it runs out.
+func tick_reload(delta: float) -> void:
+	if reload_left <= 0.0:
+		return
+	reload_left -= delta
+	if reload_left <= 0.0:
+		reload_left = 0.0
+		mag_left = def.magazine
 
 
 ## A field at this weapon's rank. The pistol with no path (Stage 1, the legacy loop)

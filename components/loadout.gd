@@ -9,8 +9,8 @@ extends Component
 ## player), so the hashes hold. Every other weapon or rank goes through Shooter.fire, with
 ## the weapon's own cooldown here.
 ##
-## M47 (Survival, fire_mode manual_ammo): one aimed slot. `sidearm` is the pistol at its rank
-## (never empty, infinite ammo); slots[0] is the held weapon, else the sidearm. Each trigger
+## M47 (Survival, fire_mode manual_ammo): one aimed slot. `sidearm` is the start weapon at its
+## rank (M47.6d1: the revolver; never empty, infinite ammo, a magazine that reloads); slots[0] is the held weapon, else the sidearm. Each trigger
 ## shot spends one ammo; at 0 the slot is the sidearm again in the same call. A passive's
 ## ammo is a battery in seconds (WeaponDef.ammo): at 0 its node goes until refilled.
 
@@ -42,6 +42,9 @@ var switch_locked := false
 var misfuse_skin: StringName = &""
 var misfuse_shots := 0
 var _battery := {}                          ## M47: passive id -> seconds left (manual_ammo)
+## M47.6d1: the live path's first start weapon (the pistol with no path, Arsenal, Auto; the
+## revolver on Survival): what clear() hands back and what a sidearm is.
+var start_id: StringName = PISTOL
 
 var _drawn := false
 
@@ -58,6 +61,11 @@ func _physics_process(delta: float) -> void:
 		w.ready_in = maxf(0.0, w.ready_in - delta)
 	for w in passives:
 		w.ready_in = maxf(0.0, w.ready_in - delta)
+	# M47.6d1: a magazine reloads on game time, the holstered sidearm too.
+	for w in slots:
+		w.tick_reload(delta)
+	if sidearm != null and not sidearm in slots:
+		sidearm.tick_reload(delta)
 	if fire_mode == &"manual_ammo":
 		_drain(delta)
 
@@ -81,7 +89,7 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 	if legacy_pistol():
 		return s.try_fire(dir, auto) != null
 	var w := current()
-	if w == null or w.ready_in > 0.0 or dir == Vector2.ZERO:
+	if w == null or w.ready_in > 0.0 or dir == Vector2.ZERO or w.reloading():
 		return false
 	var m := QuickDraw.mult(self)
 	var shots: Array[Node]
@@ -97,6 +105,7 @@ func try_fire(dir: Vector2, auto := false) -> bool:
 	_drawn = false
 	w.ready_in = float(w.value(&"cooldown"))
 	w.shots += 1
+	w.spend_round()
 	if fire_mode == &"manual_ammo" and w.ammo_left > 0:
 		w.ammo_left -= 1
 		if w.ammo_left == 0:
@@ -155,7 +164,7 @@ func can_fire() -> bool:
 	if legacy_pistol():
 		return shooter().can_fire()
 	var w := current()
-	return w != null and w.ready_in <= 0.0
+	return w != null and w.ready_in <= 0.0 and not w.reloading()
 
 
 func held(id: StringName) -> Weapon:
@@ -315,18 +324,18 @@ func select(id: StringName) -> bool:
 	return false
 
 
-## Back to the pistol at rank 1, passives gone.
+## Back to the start weapon (M47.6d1: the live path's, start_id) at rank 1, passives gone.
 func clear() -> void:
 	for id: StringName in _passive_nodes.keys():
 		_free_node(id)
 	passives.clear()
-	slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1, curve)]
+	slots = [Weapon.new(WeaponDB.get_weapon(start_id), 1, curve)]
 	active = 0
 	_drawn = false
 	_battery.clear()
 	if sidearm != null:
 		sidearm = slots[0]   # M47: manual_ammo keeps a sidearm
-	EventBus.weapon_changed.emit(PISTOL, 1)
+	EventBus.weapon_changed.emit(start_id, 1)
 
 
 ## A path starts (M45a, PathRunner): back to nothing, the path's fire mode and slots, then its
@@ -335,6 +344,7 @@ func clear() -> void:
 func apply_path(def: PathDef) -> void:
 	rank_cap = def.rank_cap if def != null else MAX_RANK
 	curve = def.rank_curve if def != null else &"classic"
+	start_id = def.start[0] if def != null and not def.start.is_empty() else PISTOL
 	clear()
 	quick_draw_mult = 1.0
 	sidearm = null
@@ -347,7 +357,7 @@ func apply_path(def: PathDef) -> void:
 	for id in def.start:
 		set_weapon(id, 1)
 	if slots.is_empty():
-		slots = [Weapon.new(WeaponDB.get_weapon(PISTOL), 1, curve)]
+		slots = [Weapon.new(WeaponDB.get_weapon(start_id), 1, curve)]
 	active = 0
 	if fire_mode == &"manual_ammo":
 		sidearm = slots[0]
@@ -419,7 +429,7 @@ func _add_survival(w: Weapon) -> void:
 		if w.def.ammo > 0:
 			_battery[w.def.id] = float(w.def.ammo)
 		_attach(w)
-	elif w.def.id == PISTOL and sidearm != null:
+	elif sidearm != null and w.def.id == sidearm.def.id:
 		sidearm.set_rank(maxi(sidearm.rank, w.rank))
 		slots = [sidearm]
 	else:

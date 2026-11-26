@@ -1,3 +1,71 @@
+# Next playtest: M47.6d2, S8 and S9 endings (Stage 1 rework, part 6)
+
+What is new since M47.6d1 (no extra steps; play as usual):
+- S8 and S9 have no clock any more: each ends when its wave is dead (Arcade 100 then 120 enemies, Auto 180 then 220, Survival 55 then 70). No timer is shown; the AI calls the last ones ("That's all of them. Clean up.", "Last one."). The intro says "One wave." instead of "Two minutes" / "Ninety seconds".
+- S8 starts where you stood at the end of S7 (no reload); S9 always starts at the room's start (its first drawing is placed there).
+
+One-liners (defaults taken): S8 / S9 about 105-155 s by bot (bot numbers): too long on Auto? Survival's waves (55 / 70): enough?
+
+---
+
+# Next playtest: M47.6d1, path titles, a quicker S7 and the revolver (Stage 1 rework, part 5)
+
+What is new since M47.6c2 (no extra steps; play as usual):
+- S7 is quicker (about 117 s, was 152 s) and each taste opens with its name in big letters: ARCADE, SURVIVAL, AUTO. The Arsenal path is called "Arcade" on the fork card too (your old answer still counts).
+- Survival has fewer enemies (about two thirds) and you start with a revolver instead of the pistol: strong, slower, six shots, then it reloads by itself. The rounds left show above your square (a small arc while it reloads); a gun you pick up shows its ammo there.
+
+One-liners (defaults taken): the revolver: strong enough, too slow? Fewer enemies on Survival: enough? The title cards: too big, too short?
+
+---
+
+# Next playtest: M47.6c2, no reload between sessions (Stage 1 rework, part 4)
+
+What is new since M47.6c1 (no extra steps; play as usual):
+- From S0 to S6 the next session starts where you stood: same room, same view, no glitch. What was left on the field pops out while the AI talks, and your HP refills.
+- A death, "again", Restart, a resume or S7's chapter still reload at the room's start, with the glitch.
+
+One-liners (defaults taken): the pop of the leftovers: visible enough? Standing against a wall at the end moves you to the nearest free tile: noticeable?
+
+---
+
+# Next playtest: M47.6c1, Stage 1's endings (Stage 1 rework, part 3)
+
+What is new since M47.6b (no extra steps; play as usual):
+- No goal text anywhere: a session ends when its set of enemies is dead, or a few seconds after the AI's script is done, or when you die. The AI calls it in its bubble.
+- S0 and S1 end about 5 s after the AI's last line. S3 is three enemies. S4's walls grow in from the middle after "Walls. Watch this.", and the dash line comes after them.
+- S5 brings the enemy you picked much more often (the rest of the crowd as before) and ends 4.5 s after the gravity ("Okay. That's the test."), or when all are dead. S6 ends when its 28 are dead.
+- When the last ones are left the AI says so ("That's all of them. Clean up.", "Two left. Finish it.", "Last one.") and the last three come to you.
+
+One-liners (defaults taken): S5's new enemy share (40 % plus 8): more or less? The walls' 2.5 s: too slow or fine? The last three coming to you: helpful or too easy?
+
+---
+
+# Next playtest: M47.6b, the dev desktop and the chat upgrade (Stage 1 rework, part 2)
+
+What is new since M47.6a (no extra steps; play as usual):
+- The game now sits on a dev "desktop": the game window (title "Patch Notes - vX (debug)", a status bar) on the left, the AI's raw terminal window on the right, a taskbar at the bottom.
+- At the end of S2 the AI says the window is ugly, asks which body is it (the body pick moved here from S3), then builds itself a chat app: a short build, a crossfade, and the terminal becomes "dev-chat - <body name>" with its avatar, bubbles, a build.log strip and a "Talk to <name>..." input. The old terminal stays collapsed under "terminal (legacy)".
+- In the chat, `play` and every choice are quick-reply pills above the input (click, or keys 1-3 as before). A fork also posts each option as a card with its full description.
+- At 1920x1080 the game shows at 1512x851 with the chat 360 px wide.
+
+One-liners (defaults taken): legacy terminal rows not copied into the chat: ok? Game smaller at 1080p (k 1.18) for a 360 px chat: ok? The upgrade lines' wording ok? Option cards plus short pills: readable?
+
+---
+
+# Next playtest: M47.6a, the play gate and the voice (Stage 1 rework, part 1)
+
+What is new since the last build you played (no extra steps; play as usual):
+- Every session now waits for you in the chat on the right: the AI types a line or two, then the `you>` input is focused with a dim "play". Type `play` and Enter (or, once the lines are typed, just Enter or `p`). Esc still opens the pause menu.
+- While you are at the chat your movement keys never type: in S0 the square leans and stretches toward the key it cannot follow yet, and the "play" ghost pulses.
+- Keycaps at the bottom left (ZQSD on AZERTY) light up as you press them: in S0, and for the first 6 s of S1.
+- The AI talks again during play (its bubble is back, each line also shown dim in the chat). S0, S1 and S3 lines were rewritten.
+- A death no longer counts down: "[1] again" / "[2] move on" waits for you (`1` is again at once; Enter counts once the lines are typed).
+- Anything else you type gets a short canned reply (counted, never logged).
+
+One-liners (defaults taken): canned reply wording ok? Enter / `p` arm 0.4 s after the lines: too slow or fine?
+
+---
+
 # Patch Notes: G14a (M47.2 build, ~15 min): the three paths
 
 One page. The G13 sheet is kept below for reference.

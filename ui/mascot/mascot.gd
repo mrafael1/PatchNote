@@ -26,7 +26,8 @@ signal line_started(line: Line, priority: int)
 signal line_cut(line: Line)
 
 ## M47.5a: false while hosted (GameHost): the terminal carries the voice, the corner keeps
-## its body, its queue and its timing.
+## its body, its queue and its timing. M47.6a (PLAN v9.4 2.4): hosted, Main turns it on
+## while a session plays and off for the beat (the chat logs every line either way).
 var bubble_enabled := true
 var body: MascotBody
 var face := false
@@ -151,6 +152,31 @@ func set_docked(on: bool) -> void:
 
 func docked() -> bool:
 	return _corner != null and not _corner.visible
+
+
+## M47.6a (PLAN v9.4 2.3): how many rows `text` takes in the bubble (its width rule, its
+## font). SessionDef.problems() keeps authored lines to SessionDef.BUBBLE_ROWS.
+static func bubble_rows(text: String) -> int:
+	var f := ThemeDB.fallback_font
+	var w := bubble_width(text)
+	var h := f.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, w, FONT_SIZE, -1,
+			TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE).y
+	return maxi(1, roundi(h / f.get_height(FONT_SIZE)))
+
+
+## M47.6a: the bubble's text for `text`: whole when it fits 2 rows, else its first words
+## that fit, then "..." (a runtime net for name substitutions; the chat keeps it whole).
+static func clamp_text(text: String, rows := 2) -> String:
+	if bubble_rows(text) <= rows:
+		return text
+	var words := text.split(" ", false)
+	var n := words.size()
+	while n > 1:
+		n -= 1
+		var t := " ".join(words.slice(0, n)) + "..."
+		if bubble_rows(t) <= rows:
+			return t
+	return text.left(24) + "..."
 
 
 ## Body or caret: face false (before fork_mascot) shows the caret whatever the id.
@@ -302,7 +328,7 @@ func step(delta: float) -> void:
 		_end_line(true)   # a higher priority cuts in, typed or not
 		_next()
 		return
-	var total := _current.text.length()
+	var total := _current.text.length()   # M47.6a: the full line paces it (a clamped bubble just shows all)
 	if _chars < total:
 		# M47.3: the text speed setting (45 by default; 0 = the whole line at once).
 		var cps := Settings.type_cps()
@@ -333,9 +359,9 @@ func _start(line: Line, priority: int) -> void:
 	_shown_for = 0.0
 	_hold = SessionRunner.read_seconds(line.text)
 	shown.append(line.text)
-	_label.text = line.text
+	_label.text = clamp_text(line.text)
 	_label.visible_characters = 0
-	_label.custom_minimum_size.x = bubble_width(line.text)
+	_label.custom_minimum_size.x = bubble_width(_label.text)
 	# Grows left from the corner and down; the container's minimum size sets the height.
 	var w := _bubble.get_combined_minimum_size().x
 	_bubble.offset_left = _bubble.offset_right - w

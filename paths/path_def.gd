@@ -10,7 +10,8 @@ extends Resource
 ## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there),
 ## `warn_line` (the `path` cue's fallback warning; M47 gives each S7 cue its own) and
 ## `max_passives`. M46 adds `full_line`, `pick_line` and `quick_draw_mult` (Arsenal). M47 adds
-## Survival (paths/survival.tres: `manual_ammo`, `pickups`, one slot, no thresholds).
+## Survival (paths/survival.tres: `manual_ammo`, `pickups`, one slot, no thresholds). M47.6d1
+## adds `title` (the display name) and Survival's revolver start.
 
 const FIRE_MODES: Array[StringName] = [&"manual_one", &"auto_all", &"manual_ammo"]
 const GROWTHS: Array[StringName] = [&"cards", &"levelups", &"pickups"]
@@ -19,6 +20,9 @@ const WIDGETS: Array[StringName] = [&"hand", &"level", &"ammo"]
 const THRESHOLD_STEP := 20
 
 @export var id: StringName
+## M47.6d1 (PLAN v9.4 0.8): the display name, the title card a `path` cue shows (ARCADE,
+## SURVIVAL, AUTO). The id never changes (saves, answers and logs keep `arsenal`).
+@export var title := ""
 @export var fire_mode: StringName = &"manual_one"
 @export var growth: StringName = &"cards"
 ## The start loadout: weapon ids at rank 1.
@@ -93,6 +97,8 @@ func problems(file_id: StringName = id) -> Array[String]:
 	var where := "path %s" % file_id
 	if id != file_id:
 		out.append("%s: id %s is not its file's name" % [where, id])
+	if title.strip_edges() == "":
+		out.append("%s: no title" % where)
 	if not fire_mode in FIRE_MODES:
 		out.append("%s: unknown fire_mode %s (%s)" % [where, fire_mode, FIRE_MODES])
 	if not growth in GROWTHS:

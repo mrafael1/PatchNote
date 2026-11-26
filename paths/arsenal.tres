@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"arsenal"
+title = "ARCADE"
 fire_mode = &"manual_one"
 growth = &"cards"
 start = Array[StringName]([&"pistol"])

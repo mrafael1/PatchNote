@@ -53,6 +53,8 @@ func _on_basic_added(id: StringName) -> void:
 	apply_basics()
 	if id == &"health":
 		RunState.start_grace(Tuning.health_added_grace)   # the rims light, "run." is said, then the bites
+	if id == &"level" and arena != null and arena.stripped():
+		arena.grow_layout()   # M47.6c1 (design 3, S4): the walls grow in, from the middle out
 	# Only the basics _spawner_wanted() reads touch the spawner: `add version` must not
 	# turn back on a spawner something else turned off (a test, a held clock; M42).
 	if id in [&"enemies", &"hits", &"shooting"]:
@@ -65,7 +67,8 @@ func _on_basic_added(id: StringName) -> void:
 func _sync_spawner() -> void:
 	if not is_instance_valid(spawner):
 		return
-	spawner.enabled = _spawner_wanted() and not (run_loop != null and (run_loop.clock_held() or run_loop.is_over()))
+	spawner.enabled = _spawner_wanted() and not (run_loop != null and (run_loop.clock_held() or run_loop.is_over()
+			or run_loop.quiet_tail()))   # M47.6c1: a script ending's tail is quiet (budget sessions)
 
 
 func build(p_shell: Node) -> void:
@@ -88,7 +91,7 @@ func build(p_shell: Node) -> void:
 	RunState.world = world
 
 	player = PLAYER_SCENE.instantiate()
-	player.position = arena.player_start
+	player.position = start_for(carried_start)   # M47.6c2: the carried spot, else player_start
 	apply_basics()
 	EventBus.basic_added.connect(_on_basic_added)
 	world.add_child(player)
@@ -111,6 +114,8 @@ func build(p_shell: Node) -> void:
 	add_child(rig)
 	rig.make_current()
 	camera = rig
+	if player.position != arena.player_start:
+		rig.carry_lead(carried_lead)   # M47.6c2: the view the player had (presentation)
 
 	var tint := TimeTint.new()
 	tint.name = "TimeTint"
@@ -123,6 +128,10 @@ func build(p_shell: Node) -> void:
 	spawner.enabled = _spawner_wanted()
 	if RunState.session != null:
 		spawner.hold = RunState.session.spawn_after   # M48b (D10): S9's quiet start
+		# M47.6c1 (design 2.6): a clear ending's budget, and the session's spawn weights.
+		if RunState.session.has_end(SessionDef.CLEAR):
+			spawner.budget = enemy_total_now(RunState.session)   # M47.6d2: per path
+		spawner.weights = spawn_weights_for(RunState.session)
 	add_child(spawner)
 
 	run_loop = RunLoop.new()
@@ -130,6 +139,7 @@ func build(p_shell: Node) -> void:
 	# M14 ran the loop after the Director and the Transition; the priority keeps that
 	# order now that the loop sits in the genre, ahead of the shell's nodes.
 	run_loop.process_physics_priority = 1
+	run_loop.start_point = player.position   # M47.6c2: the record's and the bot line's start
 	add_child(run_loop)
 
 
@@ -153,7 +163,15 @@ func begin_run() -> void:
 		var goal_value := session.goal_for(path.id if path != null else &"")
 		if session.goal == SessionDef.KILLS and path != null:
 			goal_value = roundf(goal_value * path.kill_goal_mult)
+		# M47.6c1 (design 2.6): clear / script are endings: the value is the set or the tail.
+		if session.goal == SessionDef.CLEAR:
+			goal_value = float(enemy_total_now(session))
+		elif session.goal == SessionDef.SCRIPT:
+			goal_value = session.end_after
 		run_loop.set_goal(session.goal, goal_value, session.time_limit)
+		run_loop.set_endings(session.end_kinds(), enemy_total_now(session) if session.has_end(SessionDef.CLEAR) else -1,
+				session.end_after)
+		run_loop.script_window_opened.connect(_sync_spawner)
 		shell.director.enabled = false
 	run_loop.begin()
 	var missing := Unlocks.missing_basics()
@@ -169,6 +187,24 @@ func begin_run() -> void:
 	run_loop.phase_changed.connect(func(phase: StringName) -> void:
 		if phase == RunLoop.RELEASE_CANDIDATE and shell.sound:
 			shell.sound.play(&"release_candidate", 0.0))
+
+
+## M47.6d2 (design 3, S8 / S9): the fixed set the session plays on the live path
+## (enemy_total_by_path, else enemy_total).
+static func enemy_total_now(session: SessionDef) -> int:
+	var path := RunState.path_def()
+	return session.enemy_total_for(path.id if path != null else &"")
+
+
+## M47.6c1: a session's spawn_weights with each "fork:<id>" key read as that fork's enemy
+## (SessionRunner's reading); an unanswered fork is left out.
+static func spawn_weights_for(session: SessionDef) -> Dictionary:
+	var out := {}
+	for k: Variant in session.spawn_weights:
+		var arch := SessionRunner._resolve_archetype(StringName(String(k)))
+		if arch != &"" and Spawner.SCENES.has(arch):
+			out[arch] = float(out.get(arch, 0.0)) + float(session.spawn_weights[k])
+	return out
 
 
 ## The AI gives up on the build that cannot move (owner, 2026-11-22).
@@ -223,6 +259,24 @@ func _on_stage_starting(_index: int, stage: StageDef) -> void:
 
 
 ## Shifting keeps the player in place when the new layout leaves the spot free.
+## M47.6c2 (design 2.7): where the player starts: a carried spot (Main.next_start) when it
+## is inside the arena, clear of every block (half a tile) and reachable from player_start.
+## A spot hugging a wall (the player stood against it) moves to the nearest free tile centre
+## (the walls' own push-out, Arena.free_tile_near) when that one is reachable, so the room does
+## not visibly jump; else the arena's player_start. A cold start (INF) reads nothing.
+func start_for(carried: Vector2) -> Vector2:
+	if RunState.session != null and RunState.session.fresh_start:
+		return arena.player_start   # M47.6d2: S9's specimen is placed from player_start
+	if not carried.is_finite() or not arena.bounds.has_point(carried):
+		return arena.player_start
+	if _clear_spot(carried) and arena.is_reachable(carried):
+		return carried
+	var near := arena.free_tile_near(carried)
+	if near != carried and _clear_spot(near) and arena.is_reachable(near):
+		return near
+	return arena.player_start
+
+
 func _clear_spot(p: Vector2) -> bool:
 	return arena.distance_to_blocks(p) >= Tuning.TILE * 0.5
 

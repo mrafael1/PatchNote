@@ -101,8 +101,8 @@ func test_the_event_line_condition() -> void:
 
 func test_s5_is_the_wrong_variable_session() -> void:
 	var s := CampaignDB.get_session(&"s1_05_wrong")
-	assert_eq([s.goal, s.goal_value, s.time_limit, s.bump, s.fork], [SessionDef.KILLS, 20.0, 150.0, &"minor", &""],
-			"M43.2 (G13b): a 20-kill goal")
+	assert_eq([s.goal, s.enemy_total, s.time_limit, s.bump, s.fork], [SessionDef.CLEAR, 10, 120.0, &"minor", &""],
+			"M47.6c1: a clear set (or 4.5 s after its script)")
 	assert_true(&"fork:fork_enemy" in s.enemies)
 	var cues := s.cue_list()
 	var events := cues.filter(func(c: Cue) -> bool: return c.action == &"event")
@@ -114,10 +114,11 @@ func test_s5_is_the_wrong_variable_session() -> void:
 	assert_eq([adds[0].when, adds[0].value, adds[0].target], [&"at", 15.0, &"version"])
 	assert_false(&"version" in s.basics, "added live, not listed")
 	var spawns := cues.filter(func(c: Cue) -> bool: return c.action == &"spawn")
-	assert_eq(spawns.size(), 1, "M42 E6: the picked enemy comes with its announcement")
-	assert_eq([spawns[0].when, spawns[0].value, spawns[0].archetype, spawns[0].count],
-			[&"at", 6.0, &"fork:fork_enemy", 1])
-	assert_eq(s.spawn_rate, 0.8, "M42 E4")
+	# M47.6c1 (owner, design 10 Q1): only the new enemy comes more often: two every 5 s.
+	assert_eq(spawns.map(func(c: Cue) -> Array: return [c.when, c.value, c.archetype, c.count]),
+			[[&"at", 3.0, &"fork:fork_enemy", 2], [&"at", 8.0, &"fork:fork_enemy", 2],
+			[&"at", 13.0, &"fork:fork_enemy", 2], [&"at", 18.0, &"fork:fork_enemy", 2]])
+	assert_eq(s.spawn_rate, 0.8, "M42 E4; the base rate is not raised")
 	var first := s.debrief_lines()[0]
 	assert_eq([first.when, first.expression], [&"event:wrong_variable", &"guilty"])
 	assert_eq(s.notes, PackedStringArray(["Gravity fixed (mostly)"]))
@@ -148,16 +149,16 @@ func test_a_spawn_cue_can_name_the_forked_enemy() -> void:
 ".join(s.problems()), "no fork no_such_fork")
 
 
-func test_s5_spawns_the_picked_enemy_at_6_s() -> void:
+func test_s5_spawns_the_picked_enemy_at_3_s() -> void:
 	SaveGame.ship(&"enemy_tank", &"patch")
 	var game := await _game()
 	RunState.invincible = true
 	game.spawner.enabled = false
-	game.run_loop.goal_clock = 6.0
+	game.run_loop.goal_clock = 3.0
 	await wait_physics_frames(3)
 	var tanks := get_tree().get_nodes_in_group(&"enemy").filter(
 			func(n: Node) -> bool: return n.scene_file_path.ends_with("enemy_tank.tscn"))
-	assert_eq(tanks.size(), 1, "one tank, from the cue")
+	assert_eq(tanks.size(), 2, "two tanks, from the cue")
 
 
 ## M42 E5: the spawner rests while an event holds the clock, derived, never back on
@@ -178,7 +179,10 @@ func test_spawns_pause_while_the_event_holds_the_clock() -> void:
 		if not game.run_loop.clock_held():
 			break
 		await wait_physics_frames(1)
-	assert_true(game.spawner.enabled, "back once the clock runs again")
+	# M47.6c1: the event was S5's last `at` cue, so its end opens the script window: the tail
+	# is quiet (no new wave to cut), derived the same way.
+	assert_true(game.run_loop.quiet_tail())
+	assert_false(game.spawner.enabled, "the quiet tail after the script")
 	game.genre.hold_session_clock(&"test", true)
 	game.run_loop.end(&"win")
 	game.genre.hold_session_clock(&"test", false)
@@ -410,26 +414,29 @@ func test_once_per_save_then_skipped_and_the_session_still_completes() -> void:
 	assert_true(RunState.ai.is_empty())
 	assert_eq(again.event_player.said, [] as Array[String])
 	assert_eq(again.event_player.played_ids(), [] as Array[String])
-	RunState.kills = 20   # M43.2: a kills goal
-	await wait_physics_frames(10)
-	assert_eq(again.run_loop.outcome, &"win", "the session plays on and is won")
+	# M47.6c1: the skipped event leaves the script done: S5 ends 4.5 s later.
+	assert_gte(again.run_loop.script_done_at, 0.0)
+	RunState.game_time = again.run_loop.script_done_at + 4.5
+	await wait_physics_frames(3)
+	assert_eq([again.run_loop.outcome, again.run_loop.end_reason], [RunLoop.STOPPED, &"script"],
+			"the session plays on and ends")
 
 
-## M43.2 (G13b): S5 is a 20-kill goal, so the goal can be reached while the event plays.
-## No goal ends during an event (from its start, warning included, to its end): the win
-## waits for the clear, then lands on the next tick.
+## M43.2 (G13b): the goal can be reached while the event plays. No goal ends during an
+## event (from its start, warning included, to its end): the win waits for the clear, then
+## lands on the next tick. M47.6c1: S5's goal is its set cleared (budget spent, all dead).
 func _kills_during_event(at_step: int) -> Main:
 	var game := await _event_game()
 	await _to_event(game)
 	while int(game.event_player.played[0].steps_done) < at_step:
 		await wait_physics_frames(1)
-	RunState.kills = 20
+	game.spawner.budget = game.spawner.spawned
+	for e in get_tree().get_nodes_in_group(&"enemy"):
+		e.queue_free()
 	await wait_physics_frames(2)
+	assert_true(game.run_loop.cleared(), "the set is cleared mid-event")
 	assert_eq(game.run_loop.phase, RunLoop.PLAY, "step %d: the goal waits for the event" % at_step)
 	assert_true(game.run_loop.goal_held())
-	assert_eq(game.run_loop.goal_text(), "Kills 20/20")
-	RunState.kills = 21
-	assert_eq(game.run_loop.goal_text(), "Kills 20/20", "the shown kills stop at the goal")
 	for i in EVENT_FRAMES:
 		if game.run_loop.phase != RunLoop.PLAY:
 			break
@@ -437,7 +444,7 @@ func _kills_during_event(at_step: int) -> Main:
 	var rec: Dictionary = game.event_player.played[0]
 	assert_true(rec.completed, "the event played to its end")
 	assert_eq(rec.steps_done, 6)
-	assert_eq(game.run_loop.outcome, &"win", "then the session is won")
+	assert_eq([game.run_loop.outcome, game.run_loop.end_reason], [&"win", &"cleared"], "then the session is won")
 	var ended_at := _logged_at(&"event_ended")
 	assert_gte(_logged_at(&"run_ended") if _logged_at(&"run_ended") >= 0.0 else RunState.game_time, ended_at)
 	assert_eq(RunState.run_log.filter(func(e: Dictionary) -> bool: return e.get("event") == &"goal_waited").size(), 1,
@@ -459,7 +466,9 @@ func test_a_held_goal_never_ends_and_a_released_one_does() -> void:
 	var game := await _event_game()
 	game.session_runner.drop_cues(&"event")
 	game.run_loop.hold_goal(&"test", true)
-	RunState.kills = 20
+	game.spawner.budget = game.spawner.spawned   # M47.6c1: the set spent and dead
+	for e in get_tree().get_nodes_in_group(&"enemy"):
+		e.queue_free()
 	await wait_physics_frames(3)
 	assert_eq(game.run_loop.phase, RunLoop.PLAY)
 	game.run_loop.goal_clock = 200.0   # past the time limit too

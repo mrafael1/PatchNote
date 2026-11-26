@@ -151,7 +151,7 @@ static func _ammo(runner: Node, lo: Loadout) -> Dictionary:
 	var w := lo.current()
 	var side := lo.sidearm.def.title if lo.sidearm != null else "Pistol"
 	var d := {"title": "", "rank": 1, "cap": Loadout.MAX_RANK, "left": -1, "total": -1, "icon": &"",
-			"sidearm": side, "on_sidearm": lo.on_sidearm(), "crates": 0}
+			"sidearm": side, "on_sidearm": lo.on_sidearm(), "crates": 0, "magazine": 0, "mag": 0, "reload": -1.0}
 	if runner.has_method(&"crates_taken"):
 		d.crates = int(runner.call(&"crates_taken"))
 	if w == null:
@@ -159,6 +159,12 @@ static func _ammo(runner: Node, lo: Loadout) -> Dictionary:
 	d.title = w.label()
 	d.rank = w.rank
 	d.icon = w.def.icon
+	# M48.5b (M47.6d1): the revolver's load ("4/6") and its reload's fill (-1: not reloading).
+	d.magazine = w.def.magazine if w.has_magazine() else 0
+	d.mag = w.mag_left if w.has_magazine() else 0
+	d.reload = -1.0
+	if w.reloading():
+		d.reload = clampf(1.0 - w.reload_left / maxf(0.001, float(w.value(&"reload_s"))), 0.0, 1.0)
 	if w.def.ammo > 0 and not lo.on_sidearm():
 		d.left = w.ammo_left
 		d.total = w.def.ammo

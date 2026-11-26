@@ -1,7 +1,8 @@
 extends Control
 # path:survival
 ## Survival's path widget (PLAN v9 1.5, 2, M47): the held gun with its rank pips and ammo
-## ("Shotgun II ●●○ 18/24", one ammo pip per 10 rounds), then the sidearm ("+ Pistol ∞"),
+## ("Shotgun II ●●○ 18/24", one ammo pip per 10 rounds), then the sidearm ("+ Pistol ∞"; M47.6d1:
+## the revolver, "Revolver I ●○○ 4/6 ∞" in hand, "reloading" while it reloads),
 ## in the corner style of Auto's LevelWidget. PathRunner hands it to the HUD. M47.2: the HUD
 ## places it in the top-right band, left of the corner text (its minimum size is its text).
 
@@ -39,5 +40,7 @@ static func line_for(lo: Loadout) -> String:
 	var top := "%s %s" % [w.label(), pips]
 	if w.def.ammo > 0 and not lo.on_sidearm():
 		top += " %d/%d %s" % [w.ammo_left, w.def.ammo, "▮".repeat(ceili(w.ammo_left / 10.0))]
+	elif w.has_magazine():
+		top += " reloading" if w.reloading() else " %d/%d" % [w.mag_left, w.def.magazine]
 	var side := lo.sidearm.label() if lo.sidearm != null else "Pistol"
 	return "%s\n+ %s ∞" % [top, side] if not lo.on_sidearm() else "%s ∞" % top

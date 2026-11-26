@@ -10,6 +10,7 @@ const T := 48.0
 const OPEN := Vector2(34, 20)
 const TEST_LOG := "user://save_survival_test/runs.jsonl"
 const AmmoWidget := preload("res://paths/survival/ammo_widget.gd")
+const REVOLVER := &"revolver"
 
 var game: Main
 var player: CharacterBody2D
@@ -104,7 +105,7 @@ func test_the_survival_data_is_valid() -> void:
 
 
 func test_the_path_code_never_names_a_mutation_id() -> void:
-	for f in ["drops.gd", "scavenge.gd", "ammo_widget.gd"]:
+	for f in ["drops.gd", "scavenge.gd", "ammo_widget.gd", "ammo_overhead.gd"]:
 		var text := FileAccess.get_file_as_string("res://paths/survival/" + f)
 		assert_true(text.split("\n").slice(0, 3).has("# path:survival"), f + ": the path tag in its head")
 		assert_false(text.contains("\"orbit\""), f + ": reads is_passive() / ammo, never the id")
@@ -116,12 +117,12 @@ func test_ammo_counts_per_shot_and_runs_dry_to_the_sidearm() -> void:
 	await _arena()
 	var lo := _lo()
 	assert_eq(lo.fire_mode, &"manual_ammo")
-	assert_true(lo.on_sidearm(), "Survival starts on the pistol")
-	assert_eq(lo.sidearm.def.id, Loadout.PISTOL)
+	assert_true(lo.on_sidearm(), "Survival starts on the revolver (M47.6d1)")
+	assert_eq(lo.sidearm.def.id, REVOLVER)
 	assert_true(lo.give(&"shotgun"))
 	assert_eq(lo.slots.size(), 1, "one slot")
 	assert_eq(lo.current().def.id, &"shotgun")
-	assert_eq(lo.sidearm.def.id, Loadout.PISTOL, "the sidearm stays")
+	assert_eq(lo.sidearm.def.id, REVOLVER, "the sidearm stays")
 	var w := lo.current()
 	assert_eq(w.ammo_left, 24)
 	w.ammo_left = 2
@@ -132,8 +133,8 @@ func test_ammo_counts_per_shot_and_runs_dry_to_the_sidearm() -> void:
 	assert_true(lo.on_sidearm(), "0 ammo: the sidearm in the same frame")
 	assert_eq(RunState.run_log.filter(func(e: Dictionary) -> bool: return e.event == &"ammo_empty").size(), 1)
 	lo.current().ready_in = 0.0
-	assert_true(lo.try_fire(Vector2.RIGHT), "the next shot fires the pistol")
-	assert_eq(lo.current().def.id, Loadout.PISTOL)
+	assert_true(lo.try_fire(Vector2.RIGHT), "the next shot fires the revolver")
+	assert_eq(lo.current().def.id, REVOLVER)
 
 
 func test_f2_weapons_replace_slot_0_and_keep_the_sidearm() -> void:
@@ -145,7 +146,7 @@ func test_f2_weapons_replace_slot_0_and_keep_the_sidearm() -> void:
 	assert_true(lo.set_weapon(&"shotgun", 1))
 	assert_eq(lo.slots.size(), 1, "replaced, never appended")
 	assert_eq(lo.current().def.id, &"shotgun")
-	assert_eq(lo.sidearm.def.id, Loadout.PISTOL)
+	assert_eq(lo.sidearm.def.id, REVOLVER)
 
 
 # --- Scavenging ----------------------------------------------------------------------------
@@ -210,12 +211,13 @@ func test_the_untouchable_drop_waits_half_a_second() -> void:
 	assert_eq(_lo().current().def.id, &"shotgun", "0.51 s and the player arrived from outside: taken")
 
 
-func test_a_pistol_pickup_ranks_up_the_sidearm_and_keeps_the_gun() -> void:
+## M47.6d1: the sidearm's own gun (by its id: the revolver) ranks it up; never a swap.
+func test_a_revolver_pickup_ranks_up_the_sidearm_and_keeps_the_gun() -> void:
 	await _arena()
 	_clear_pickups()
 	var lo := _lo()
 	lo.give(&"shotgun")
-	_weapon_pickup(Loadout.PISTOL, player.global_position)
+	_weapon_pickup(REVOLVER, player.global_position)
 	await wait_physics_frames(3)
 	assert_eq(lo.current().def.id, &"shotgun", "never a swap")
 	assert_eq(lo.sidearm.rank, 2)
@@ -383,7 +385,7 @@ func test_kill_heal_counts_from_its_arming_and_never_on_auto() -> void:
 func test_f1_shows_survivals_weapon_ammo_and_heals() -> void:
 	await _arena()
 	var r := game.path_runner
-	assert_eq(r.state_text(), "path=survival weapon=pistol:1 ammo=- picks=0 pickups=0 heals=0")
+	assert_eq(r.state_text(), "path=survival weapon=revolver:1 ammo=- picks=0 pickups=0 heals=0")
 	_lo().give(&"shotgun")
 	_lo().upgrade(&"shotgun")
 	_lo().current().ammo_left = 18
@@ -454,12 +456,12 @@ func test_pickup_tiles_problems_and_the_fallback() -> void:
 func test_the_ammo_widget_text() -> void:
 	await _arena()
 	var lo := _lo()
-	assert_eq(AmmoWidget.line_for(lo), "Pistol I ●○○ ∞")
+	assert_eq(AmmoWidget.line_for(lo), "Revolver I ●○○ 6/6 ∞")
 	lo.give(&"shotgun")
 	lo.upgrade(&"shotgun")
 	lo.current().ammo_left = 18
 	assert_eq(AmmoWidget.line_for(lo).get_slice("\n", 0).begins_with("Shotgun II ●●○ 18/24"), true, AmmoWidget.line_for(lo))
-	assert_string_contains(AmmoWidget.line_for(lo), "+ Pistol I ∞")
+	assert_string_contains(AmmoWidget.line_for(lo), "+ Revolver I ∞")
 
 
 # --- The bot -----------------------------------------------------------------------------------
@@ -533,5 +535,147 @@ func test_power_stays_in_the_session() -> void:
 	assert_eq(SaveGame.state().shipped, [], "nothing weapon-related reaches the save")
 	game.free()
 	await _arena()
-	assert_eq(_lo().summary(), "pistol:1", "the next session starts on the pistol")
+	assert_eq(_lo().summary(), "revolver:1", "the next session starts on the revolver")
 	assert_eq(get_tree().get_nodes_in_group(&"pickup").filter(func(p: Node) -> bool: return not (p as Pickup).crate).size(), 0)
+
+
+# --- M47.6d1: the revolver (PLAN v9.4 0.8: "powerful but slower shots", the ammo above you) ---
+
+func test_the_revolver_data() -> void:
+	var r := WeaponDB.get_weapon(REVOLVER)
+	assert_eq(r.problems(), [] as Array[String])
+	assert_eq([r.damage, r.cooldown, r.speed, r.magazine, r.reload_s, r.ammo], [3.0, 0.55, 1100.0, 6, 1.2, -1])
+	assert_eq([r.value(&"reload_s", 2), r.value(&"pierce", 2)], [0.9, 0], "rank 2: a faster reload")
+	assert_eq([r.value(&"reload_s", 3), r.value(&"pierce", 3)], [0.9, 1], "rank 3: pierce 1")
+	assert_gt(r.damage, WeaponDB.get_weapon(Loadout.PISTOL).damage * 2.0, "powerful")
+	assert_gt(r.cooldown, WeaponDB.get_weapon(Loadout.PISTOL).cooldown * 2.0, "slower")
+	assert_eq(_survival().start, [REVOLVER] as Array[StringName], "Survival's start and sidearm")
+	assert_eq(_survival().offer_pool_extra, [REVOLVER] as Array[StringName], "offered on Survival only")
+	for p: StringName in [&"arsenal", &"auto"]:
+		assert_eq(PathDB.get_def(p).start, [Loadout.PISTOL] as Array[StringName], "%s keeps the pistol" % p)
+	var bad := r.duplicate() as WeaponDef
+	bad.reload_s = 0.0
+	assert_string_contains("\n".join(bad.problems()), "a magazine needs an aimed weapon and reload_s > 0")
+
+
+func test_six_rounds_then_a_reload_on_game_time() -> void:
+	await _arena()
+	var lo := _lo()
+	var w := lo.current()
+	assert_eq([w.def.id, w.mag_left, w.reloading()], [REVOLVER, 6, false])
+	for i in 6:
+		w.ready_in = 0.0
+		assert_true(lo.try_fire(Vector2.RIGHT), "round %d" % (i + 1))
+	assert_eq(w.mag_left, 0)
+	assert_true(w.reloading())
+	assert_almost_eq(w.reload_left, 1.2, 0.001)
+	w.ready_in = 0.0
+	assert_false(lo.try_fire(Vector2.RIGHT), "empty: it reloads, no seventh shot")
+	assert_false(lo.can_fire())
+	# The pause stops the reload (game time).
+	RunState.set_pause(&"test_reload", true)
+	await wait_physics_frames(30)
+	assert_almost_eq(w.reload_left, 1.2, 0.001, "paused: no reload")
+	RunState.set_pause(&"test_reload", false)
+	await wait_physics_frames(roundi(1.1 * 60))
+	assert_true(w.reloading(), "1.1 s: still reloading")
+	await wait_physics_frames(8)
+	assert_eq([w.mag_left, w.reloading()], [6, false], "1.2 s of game time: six again")
+	assert_true(lo.try_fire(Vector2.RIGHT), "it never runs dry")
+	assert_eq(w.ammo_left, -1, "an endless reserve")
+
+
+func test_the_holstered_revolver_reloads_and_takes_the_hand_back() -> void:
+	await _arena()
+	var lo := _lo()
+	var side := lo.sidearm
+	for i in 6:
+		side.ready_in = 0.0
+		lo.try_fire(Vector2.RIGHT)
+	assert_true(side.reloading())
+	assert_true(lo.give(&"shotgun"))
+	assert_eq(lo.current().def.id, &"shotgun")
+	await wait_physics_frames(roundi(1.2 * 60) + 4)
+	assert_eq(side.mag_left, 6, "it reloads in the pocket")
+	lo.current().ammo_left = 1
+	lo.current().ready_in = 0.0
+	assert_true(lo.try_fire(Vector2.RIGHT))
+	assert_true(lo.on_sidearm(), "the gun ran dry: the revolver again")
+	assert_eq(lo.current(), side)
+
+
+func test_the_overhead_number_is_the_magazine_and_the_reload_arc() -> void:
+	await _arena()
+	var lo := _lo()
+	var oh := game.path_runner.overhead()
+	assert_not_null(oh, "Survival shows its rounds over the player")
+	assert_eq(oh.get_parent(), player)
+	assert_eq(oh.call(&"readout"), ["6", -1.0])
+	for i in 2:
+		lo.current().ready_in = 0.0
+		lo.try_fire(Vector2.RIGHT)
+	assert_eq(oh.call(&"readout")[0], str(lo.current().mag_left), "the number is mag_left")
+	assert_eq(oh.call(&"readout")[0], "4")
+	for i in 4:
+		lo.current().ready_in = 0.0
+		lo.try_fire(Vector2.RIGHT)
+	var r: Array = oh.call(&"readout")
+	assert_eq(r[0], "", "reloading: the arc, no number")
+	assert_almost_eq(float(r[1]), 0.0, 0.02)
+	await wait_physics_frames(36)
+	assert_almost_eq(float(oh.call(&"readout")[1]), 0.5, 0.05, "half way through the reload")
+	assert_string_contains(AmmoWidget.line_for(lo), "reloading")
+	lo.give(&"shotgun")
+	lo.current().ammo_left = 18
+	assert_eq(oh.call(&"readout"), ["18", -1.0], "a scavenged gun: its ammo left")
+	assert_true(game.debug.switch_path(&"arsenal"))
+	await wait_physics_frames(2)
+	assert_null(game.path_runner.overhead(), "Survival only")
+	assert_eq(game.path_runner.leftovers(), [] as Array[String])
+
+
+func test_survival_never_drops_a_pistol() -> void:
+	await _arena()
+	_clear_pickups()
+	var r := game.path_runner
+	if not &"pistol" in r.live_pool:
+		r.live_pool.append(&"pistol")   # S7's Arcade taste leaves it there
+	assert_false(r.offer_pool().has(Loadout.PISTOL), "a pistol in the pool is the revolver")
+	assert_eq(r.offer_pool().count(REVOLVER), 1)
+	var drops := _drops()
+	RunState.loot_rng.seed = 11
+	for i in 100:
+		assert_ne(drops.call(&"_draw_weapon"), Loadout.PISTOL)
+	_lo().give(&"shotgun")
+	for i in 100:
+		assert_false(drops.call(&"_draw_weapon") in [Loadout.PISTOL, REVOLVER], "with a gun in hand: never the sidearm")
+
+
+func test_clear_hands_back_the_paths_start_weapon() -> void:
+	await _arena()
+	var lo := _lo()
+	lo.give(&"shotgun")
+	lo.clear()
+	assert_eq(lo.summary(), "revolver:1")
+	assert_eq(lo.sidearm, lo.current())
+	assert_true(game.debug.switch_path(&"arsenal"))
+	await wait_physics_frames(2)
+	lo.clear()
+	assert_eq(lo.summary(), "pistol:1", "Arcade keeps the pistol")
+
+
+func test_the_survival_crowd_is_smaller() -> void:
+	await _arena(&"arsenal")
+	var rate := RunState.rules.spawn_rate_mult
+	var cap := RunState.rules.max_enemies
+	assert_false(RunState.ai_owner.values().has(&"path"), "Arcade: no crowd overlay")
+	assert_true(game.debug.switch_path(&"survival"))
+	await wait_physics_frames(2)
+	assert_true(RunState.ai_owner.values().has(&"path"), "Survival's numbers, from its start")
+	assert_almost_eq(RunState.rules.spawn_rate_mult, rate * 0.65, 0.001)
+	assert_eq(RunState.rules.max_enemies, cap + roundi(cap * (0.7 - 1.0)))
+	assert_eq(game.path_runner.leftovers(), [] as Array[String])
+	assert_true(game.debug.switch_path(&"arsenal"))
+	await wait_physics_frames(2)
+	assert_false(RunState.ai_owner.values().has(&"path"), "gone with the swap")
+	assert_almost_eq(RunState.rules.spawn_rate_mult, rate, 0.001)

@@ -119,18 +119,33 @@ func _key(action: StringName) -> void:
 
 # --- Layout ------------------------------------------------------------------------------
 
+## M47.6b (PLAN v9.4 2.1): the dev desktop. The base is 1824x848 (k = 1): two windows MARGIN
+## apart, their title bars on one line, the taskbar under them; the game column sits under the
+## game window's title bar, the terminal fills the chat window under its own.
 func test_layout_at_the_base_and_at_1080p() -> void:
-	var a := GameHost.layout_for(Vector2(1760, 720))
+	assert_eq(GameHost.BASE, Vector2i(1824, 848))
+	var a := GameHost.layout_for(Vector2(GameHost.BASE))
 	assert_almost_eq(float(a.k), 1.0, 0.0001)
-	assert_eq(a.game, Rect2(0, 0, 1280, 720))
-	assert_eq(a.terminal, Rect2(1280, 0, 480, 720), "the terminal: 480 px at the base")
+	assert_eq(a.game, Rect2(16, 50, 1280, 720))
+	assert_eq(a.game_window, Rect2(16, 20, 1280, 772), "title bar 30 + 720 + status bar 22")
+	assert_eq(a.chat_window, Rect2(1312, 20, 496, 772), "top edges aligned, 16 px apart")
+	assert_eq(a.terminal, Rect2(1312, 50, 496, 742), "the chat window under its title bar")
+	assert_eq(a.taskbar, Rect2(0, 812, 1824, 36))
 	assert_eq(int(a.font), 16)
 	var b := GameHost.layout_for(Vector2(1920, 1080))
-	assert_almost_eq(float(b.k), 1.21875, 0.0001, "k = (1920 - 360) / 1280")
-	assert_eq((b.game as Rect2).size, Vector2(1560, 878))
-	assert_eq((b.game as Rect2).position.y, 101.0, "centred vertically")
-	assert_eq((b.terminal as Rect2).size, Vector2(360, 1080), "the terminal keeps its 360 px")
-	assert_eq(int(b.font), 20, "16 x 1.22")
+	assert_almost_eq(float(b.k), 1.18125, 0.0001, "k = (1920 - 48 - 360) / 1280: the width bounds it")
+	assert_eq((b.game as Rect2).size, Vector2(1512, 851))
+	assert_eq((b.game as Rect2).position, Vector2(16, 101), "the windows centred above the taskbar")
+	assert_eq((b.terminal as Rect2).size, Vector2(360, 873), "the chat keeps its 360 px")
+	assert_eq((b.game_window as Rect2).position.y, (b.chat_window as Rect2).position.y, "top edges aligned")
+	assert_eq(int(b.font), 19, "16 x 1.18")
+	for w: Vector2 in [Vector2(1280, 720), Vector2(2560, 1440), Vector2(3840, 2160)]:
+		var c := GameHost.layout_for(w)
+		var g: Rect2 = c.game
+		assert_almost_eq(g.size.x / g.size.y, 16.0 / 9.0, 0.01, "16:9 at %s" % w)
+		assert_true(Rect2(Vector2.ZERO, w).encloses(c.chat_window), "inside the window at %s" % w)
+		assert_false((c.game_window as Rect2).intersects(c.chat_window), "no overlap at %s" % w)
+		assert_lt((c.chat_window as Rect2).end.y, (c.taskbar as Rect2).position.y, "above the taskbar at %s" % w)
 
 
 func test_the_game_rect_is_1280x720_at_any_view_size_and_the_modes_hold() -> void:
@@ -148,7 +163,7 @@ func test_the_game_rect_is_1280x720_at_any_view_size_and_the_modes_hold() -> voi
 	assert_false(g.is_live_game(), "no telemetry, no reload")
 	assert_eq(g.debrief.view, DebriefScreen.TERMINAL)
 	assert_false(g.debrief.auto_way_on)
-	assert_false(g.mascot.bubble_enabled, "hosted: no bubble")
+	assert_true(g.mascot.bubble_enabled, "M47.6a: hosted, the bubble is on during play")
 
 
 func test_every_pause_reason_freezes_the_hosted_game_not_the_host() -> void:
@@ -190,12 +205,14 @@ func test_pause_reaches_the_pause_menu_through_the_container() -> void:
 	assert_false(g.pause_menu.is_open())
 
 
-func test_s3s_three_forks_take_one_key_each_and_land_on_the_corner() -> void:
-	var h := await _hosted(S3)
+## M47.6b (owner, design 10 Q9): the body pick is S2's (its beat then ships the chat, named
+## for the body); S3 asks the dash and its direction.
+func test_s2s_body_pick_and_s3s_two_forks_take_one_key_each_and_land_on_the_corner() -> void:
+	var h := await _hosted(S2)
 	var g := h.game
 	var d := g.debrief
 	d.input_delay = 0.0
-	g._on_report_ready(&"win")
+	g._on_report_ready(&"stop")
 	assert_true(d.is_open())
 	assert_null(d.big_body, "terminal view: no big body")
 	assert_true(g.mascot.visible, "the corner body stays for the beat")
@@ -214,18 +231,29 @@ func test_s3s_three_forks_take_one_key_each_and_land_on_the_corner() -> void:
 	assert_eq(h.terminal.speaker, GameHost.speaker_for(body_id), "the prompt renames itself")
 	assert_true(h.terminal.has_face)
 	assert_eq(d.box_count(), 0, "the boxes clear on the pick")
-	for i in 2:
-		d.finish_lines()
-		assert_eq(d.phase, DebriefScreen.FORK, "fork %d" % (i + 2))
-		_key(&"choose_1")
-		await wait_process_frames(1)
-		assert_eq(d.picks.size(), i + 2)
 	d.finish_lines()
 	assert_eq(d.choices(), [DebriefScreen.NEXT] as Array[String], "the labels stay")
 	var rows := h.terminal.rows()
 	assert_true(rows.has("you> 2"), "the answer is printed")
 	assert_true(rows.any(func(r: String) -> bool: return r.begins_with("[1] ")), "numbered choices")
 	d.close()
+
+
+func test_s3_asks_the_dash_then_its_direction() -> void:
+	var h3 := await _hosted(S3)
+	var d3 := h3.game.debrief
+	d3.input_delay = 0.0
+	h3.game._on_report_ready(&"win")
+	for i in 2:
+		d3.finish_lines()
+		assert_eq(d3.phase, DebriefScreen.FORK, "fork %d" % (i + 1))
+		assert_eq(d3.fork().id, [&"fork_dash", &"fork_dash_aim"][i])
+		_key(&"choose_1")
+		await wait_process_frames(1)
+		assert_eq(d3.picks.size(), i + 1)
+	d3.finish_lines()
+	assert_eq(d3.choices(), [DebriefScreen.NEXT] as Array[String])
+	d3.close()
 
 
 # --- The terminal --------------------------------------------------------------------------
@@ -296,14 +324,26 @@ func test_play_mode_completes_a_cut_line_at_once_and_marks_it() -> void:
 	assert_true(last.clip_text, "chatter is clipped to one row")
 
 
-func test_the_mascot_routes_its_lines_to_the_terminal_with_no_bubble() -> void:
+## M47.6a (PLAN v9.4 2.4; was "with no bubble"): during play the line is in the bubble and the
+## terminal logs it whole and dim at once; the beat hides the bubble.
+func test_the_mascot_speaks_in_the_bubble_and_the_terminal_logs_it_dim() -> void:
 	var h := await _hosted(S4)
 	var m := h.game.mascot
 	m.say(Line.make("Routed to the terminal.", &"happy"), 3, true)
 	m.step(0.016)
-	assert_false(m._bubble.visible, "no bubble while hosted")
+	assert_true(m._bubble.visible, "the bubble during play")
 	assert_true(m.is_speaking(), "the corner keeps its queue and timing")
 	assert_true(h.terminal.rows().back().ends_with("Routed to the terminal."))
+	assert_true(h.terminal.is_chat(), "S4: a save past S2 opens on the chat (M47.6b)")
+	var last: Label = h.terminal._order.back()
+	assert_eq(last.visible_characters, -1, "logged whole, no typing")
+	assert_eq(last.get_meta(&"tone"), &"dim", "dim: history")
+	h.game._on_report_ready(&"win")
+	assert_false(m.bubble_enabled, "the beat: no bubble")
+	m.say(Line.make("In the beat.", &"happy"), 3, true)
+	m.step(0.016)
+	assert_false(m._bubble.visible)
+	h.game.debrief.close()
 
 
 func test_the_row_cap_the_spinner_and_the_steady_caret() -> void:
@@ -352,16 +392,21 @@ func test_the_swap_frees_the_old_game_later_and_the_handoff_waits_for_input() ->
 	assert_eq(RunState.session.id, S4)
 	assert_true(h.held and RunState.is_paused_for(GameHost.HANDOFF), "the ready moment holds")
 	assert_false(h.game.can_process())
-	assert_false(h.game.pause_menu.can_open(), "no pause menu during the handoff")
+	assert_true(h.game.pause_menu.can_open(), "M47.6a: Esc at the play gate opens the pause menu")
 	var t0 := RunState.game_time
 	await wait_process_frames(10)
 	assert_true(h.held, "no input: still held")
 	assert_eq(RunState.game_time, t0)
 	assert_true(h.terminal.rows().has("$ hot-reload game ... ok"))
+	# M47.6a (PLAN v9.4 2.5): a move no longer releases it; play does.
 	Input.action_press(&"move_right")
 	await wait_process_frames(2)
 	Input.action_release(&"move_right")
-	assert_false(h.held, "the first move releases it")
+	assert_true(h.held, "a move is not play (M47.6a)")
+	assert_eq(RunState.game_time, t0)
+	h.give_play()
+	await wait_process_frames(2)
+	assert_false(h.held, "play releases it")
 	assert_true(h.game.can_process())
 	assert_true(h.terminal.rows().has("you> play"))
 
@@ -398,7 +443,7 @@ func test_reduce_flashing_turns_the_glitch_into_a_crossfade() -> void:
 func test_a_click_point_maps_to_the_same_world_point_at_k_1_and_1_22() -> void:
 	var h := await _hosted(S4)
 	var points: Array[Vector2] = []
-	for window: Vector2 in [Vector2(1760, 720), Vector2(1920, 1080)]:
+	for window: Vector2 in [Vector2(GameHost.BASE), Vector2(1920, 1080)]:
 		h.relayout(window)
 		await wait_process_frames(1)
 		var r := h.game_rect()
@@ -539,11 +584,16 @@ func test_choose_1_reaches_a_pick_panel_through_the_container() -> void:
 func test_real_mouse_events_map_through_the_container_and_clamp_over_the_terminal() -> void:
 	var h := await _hosted(S4)
 	RunState.set_pause(&"debrief", true)   # the camera holds still; the container still forwards
+	# M47.6b: the game column now starts under its title bar (16, 50); GUT's own output panel
+	# (its CanvasLayer, over everything) would take a motion there, so it hides for the test.
+	var gut_layer := get_tree().root.get_node_or_null(^"GutRunner/GutLayer") as CanvasLayer
+	if gut_layer != null:
+		gut_layer.visible = false
 	var probe := MotionProbe.new()
 	probe.process_mode = Node.PROCESS_MODE_ALWAYS
 	h.game.add_child(probe)
 	var world: Array[Vector2] = []
-	for window: Vector2 in [Vector2(1760, 720), Vector2(1920, 1080)]:
+	for window: Vector2 in [Vector2(GameHost.BASE), Vector2(1920, 1080)]:
 		h.relayout(window)
 		await wait_process_frames(1)
 		var r := h.game_rect()
@@ -559,11 +609,11 @@ func test_real_mouse_events_map_through_the_container_and_clamp_over_the_termina
 		world.append(h.game.get_global_mouse_position())
 	assert_almost_eq(world[0].x, world[1].x, 1.0, "same world x")
 	assert_almost_eq(world[0].y, world[1].y, 1.0, "same world y")
-	h.relayout(Vector2(1760, 720))
+	h.relayout(Vector2(GameHost.BASE))
 	await wait_process_frames(1)
-	assert_eq(h.game_rect(), Rect2(0, 0, 1280, 720), "back to the base column after 1080p")
+	assert_eq(h.game_rect(), Rect2(16, 50, 1280, 720), "back to the base column after 1080p")
 	probe.seen.clear()
-	_motion(Vector2(1500, 300))   # over the terminal
+	_motion(Vector2(1500, 350))   # over the chat window
 	await wait_process_frames(1)
 	assert_eq(probe.seen.size(), 1, "one motion reaches the game (the host's push, not the container)")
 	var at: Vector2 = probe.seen.back() if not probe.seen.is_empty() else Vector2.ZERO
@@ -571,6 +621,8 @@ func test_real_mouse_events_map_through_the_container_and_clamp_over_the_termina
 	assert_almost_eq(at.y, 300.0, 1.0)
 	assert_gt(h.viewport.get_mouse_position().x, 1279.0, "the aim still follows the real mouse")
 	RunState.set_pause(&"debrief", false)
+	if gut_layer != null:
+		gut_layer.visible = true
 
 
 ## A motion at `at` in the root's canvas pixels (the host's coordinates), sent in window pixels
@@ -691,6 +743,9 @@ func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
 	assert_eq(c.game, Rect2(0, 0, 1920, 1080))
 	var b := GameHost.layout_for(Vector2(1760, 720), true)
 	assert_eq(b.game, Rect2(240, 0, 1280, 720), "centred, k from the window")
+	var base := GameHost.layout_for(Vector2(GameHost.BASE), true)
+	assert_almost_eq(float(base.k), 848.0 / 720.0, 0.0001, "the windowed base: k from its height")
+	assert_eq((base.terminal as Rect2).size, Vector2.ZERO, "no chat window")
 	CampaignDB.active = true
 	assert_true(CampaignDB.jump_to(S7))
 	var g: Main = load("res://main.tscn").instantiate()
@@ -699,6 +754,7 @@ func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
 	assert_true(g.stage_card.is_open())
 	assert_true(h.chapter, "chapter mode")
 	assert_false(h.terminal.visible, "the terminal hides")
+	assert_false(h.desktop.visible, "M47.6b: the desktop too: the game alone on black")
 	h.terminal.finish()
 	assert_false(h.terminal.rows().has("$ run %s" % S7), "the session rows wait for the card")
 	h.hold()
@@ -712,8 +768,10 @@ func test_chapter_mode_hides_the_terminal_around_the_stage_card() -> void:
 	assert_true(rows.has(chapter_row), "the chapter's row")
 	var at := rows.find(chapter_row)
 	assert_gt(rows.find("$ run %s" % S7), at, "then the session's rows")
-	assert_eq(rows.back(), "you> _", "then the ready moment")
-	assert_true(h.held)
+	# M47.6a: then the play gate: its before_play line typed after the session's rows.
+	var bp := "  " + GameHost.gate_lines(RunState.session)[0].text
+	assert_gt(rows.find(bp), rows.find("$ run %s" % S7), "then the gate's lines")
+	assert_true(h.gate and h.held)
 	h.skip_handoff()
 
 
@@ -727,45 +785,44 @@ func _died(h: GameHost) -> DebriefScreen:
 	return d
 
 
-func test_the_death_countdown_starts_after_the_lines_and_restarts_once() -> void:
+## M47.6a (PLAN v9.4 2.5, D7; rewrites M47.5b's countdown tests): the death ask waits, with no
+## countdown; Enter counts only once armed (the lines typed + 0.4 s, a fresh press).
+func test_the_death_ask_has_no_countdown_and_enter_is_armed() -> void:
 	var h := await _hosted(S4)
-	h.played = true
 	var d := _died(h)
 	var retries := []
 	d.retry_requested.connect(func() -> void: retries.append(true))
 	var before := SaveGame.attempts(S4)
 	await wait_process_frames(2)
-	assert_true(h.terminal.rows().has("restarting in 3"), "after the died lines and the choices")
-	assert_eq(h.terminal.rows().find("restarting in 3"), h.terminal.rows().size() - 1)
-	d._count_msec -= 1100
-	await wait_process_frames(2)
-	assert_true(h.terminal.rows().has("restarting in 3 . 2"))
-	d._count_msec -= 2100
-	await wait_process_frames(2)
-	assert_true(h.terminal.rows().has("restarting in 3 . 2 . 1"))
-	assert_eq(retries.size(), 1, "again by itself")
+	assert_false(h.terminal.rows().any(func(r: String) -> bool: return r.begins_with("restarting in")), "no countdown")
+	assert_false(d.ask_enter_armed(), "not armed in its first 0.4 s")
+	_key(&"ui_accept")
+	await wait_process_frames(1)
+	assert_eq(retries.size(), 0, "an early Enter does not restart unread")
+	d._ask_arm_msec -= 1000
+	await wait_process_frames(30)
+	assert_eq(retries.size(), 0, "it waits; nothing restarts by itself")
+	assert_true(d.ask_enter_armed())
+	_key(&"ui_accept")
+	await wait_process_frames(1)
+	assert_eq(retries.size(), 1, "an armed Enter = again")
 	assert_eq(SaveGame.attempts(S4), before + 1, "one attempt")
 	assert_true(h.terminal.rows().has("you> 1"))
-	d._count_msec -= 5000
-	await wait_process_frames(2)
+	_key(&"ui_accept")
+	await wait_process_frames(1)
 	assert_eq(retries.size(), 1, "never twice")
 	d.close()
 
 
-func test_no_countdown_without_input_and_2_moves_on() -> void:
+func test_at_the_death_ask_1_is_again_at_once_and_2_moves_on() -> void:
 	var h := await _hosted(S4)
-	h.played = false
 	var d := _died(h)
 	var retries := []
 	d.retry_requested.connect(func() -> void: retries.append(true))
-	await wait_process_frames(2)
-	assert_false(d.countdown_due(), "nobody played since the last restart")
-	d._count_msec -= 5000
-	await wait_process_frames(2)
-	assert_eq(retries.size(), 0, "it waits at you> _")
-	assert_false(h.terminal.rows().any(func(r: String) -> bool: return r.begins_with(DebriefScreen.COUNTDOWN_LINE)))
+	_key(&"choose_1")
+	await wait_process_frames(1)
+	assert_eq(retries.size(), 1, "1 is again (no arming for the number key)")
 	d.close()
-	h.played = true
 	var d2 := _died(h)
 	var moved := []
 	d2.move_on_requested.connect(func() -> void: moved.append(true))
@@ -773,20 +830,18 @@ func test_no_countdown_without_input_and_2_moves_on() -> void:
 	_key(&"choose_2")
 	await wait_process_frames(1)
 	d2.finish_lines()
-	d2._count_msec -= 5000
 	await wait_process_frames(2)
-	assert_eq(retries.size(), 0, "2 stopped the countdown")
+	assert_eq(retries.size(), 1)
 	assert_true(d2.moved_on)
 	d2.close()
 
 
 func test_one_telemetry_line_per_attempt_with_flow_and_beat_seconds() -> void:
 	var h := await _hosted_live(S4)
-	h.played = true
 	var g := h.game
 	var d := _died(h)
 	await wait_process_frames(2)
-	d._count_msec -= 3200
+	_key(&"choose_1")   # M47.6a: again by key (no countdown)
 	await wait_process_frames(3)
 	var lines := FileAccess.get_file_as_string(TEST_LOG).strip_edges().split("\n")
 	assert_eq(lines.size(), 1, "one line for the attempt")
@@ -795,14 +850,17 @@ func test_one_telemetry_line_per_attempt_with_flow_and_beat_seconds() -> void:
 	assert_eq(rec.flow, "always_on")
 	assert_true(float(rec.beat_real_s) >= 0.0)
 	var plain := CampaignDB.telemetry_record(RunState.session, {}, &"died", 0, &"retry", Main.BUILD)
-	var keys: Array = rec.keys().filter(func(k: String) -> bool: return k != "flow" and k != "beat_real_s")
+	# M47.6c1 (design 2.10): the gate's wait, its typed count and the chat style are hosted only.
+	var hosted_only := ["flow", "beat_real_s", "play_wait_s", "chat_typed", "chat_style"]
+	var keys: Array = rec.keys().filter(func(k: String) -> bool: return not k in hosted_only)
 	keys.sort()
 	var want: Array = plain.keys()
 	want.sort()
-	assert_eq(keys, want, "the same keys as an unhosted line, plus flow and beat_real_s")
+	assert_eq(keys, want, "the same keys as an unhosted line, plus the hosted ones")
 	await wait_process_frames(30)
 	assert_true(h.swaps >= 1, "the restart swapped a new attempt in")
 	assert_false(is_instance_valid(g))
+	assert_false(h.held, "M47.6a: again carries the play already given (no second gate)")
 	h.skip_handoff()
 
 

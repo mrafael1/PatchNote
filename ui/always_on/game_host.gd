@@ -13,36 +13,69 @@ extends Control
 ## the game column for GLITCH_S and swaps the instance on a later frame; the new session
 ## then holds `&"handoff"` until the player's first move or shot (the ready moment).
 ##
-## Layout, in window pixels while live (the root's content scale off): game scale
-## k = min(H / 720, (W - 360) / 1280), the game column 1280k x 720k centred vertically on
-## black, the terminal the rest of the width at full height. The windowed base is 1760x720
-## (Settings.set_window_base); leaving restores the root and the 1280x720 base.
+## M47.6a (PLAN v9.4, 0.8 / 2.5): the ready moment is the play gate. Every live session
+## start holds (the first one after a boot or Continue too): the chat types the session's
+## before_play lines, then its input waits for `play` (or an armed Enter on the ghost).
+## A move or a shot no longer releases it: the keys strain the square instead. A retry
+## (again, the pause menu's restart) carries the play already given. --autostart and bot
+## chains never gate (auto_play / auto_beats); tool hosts gate only their swaps (run_hash
+## calls skip_handoff on frame 1).
+##
+## M47.6c2 (PLAN v9.4 0.8, design 2.7): no reload between Stage 1 sessions. The next session
+## is still a fresh instance (a clean RunState.reset), but the swap is invisible: no glitch,
+## the same arena, the player where it stood (capture_start -> Main.next_start), the room
+## emptied during the beat (clear_field: leftovers pop out, HP refills). A death, a retry, a
+## chapter, a restart, a resume or another arena still reloads visibly at player_start.
+##
+## Layout, in window pixels while live (the root's content scale off). M47.6b (PLAN v9.4 0.8,
+## design 2.1): the dev desktop (DevDesktop) draws two windows and a taskbar; the game column
+## sits in the game window under its title bar, the terminal (or, after S2, the chat) fills
+## the chat window under its title bar. k = min((H - CHROME_H) / 720, (W - CHROME_W -
+## TERMINAL_MIN) / 1280); the windows' top edges align, MARGIN apart, the block centred
+## vertically above the taskbar; the chat window takes the rest of the width. The windowed
+## base is 1824x848 (k = 1; Settings.set_window_base); leaving restores the root and the
+## 1280x720 base. Chapter mode (a stage card) is the game alone, full window, as in M47.5b.
 
 const SCENE := "res://ui/always_on/game_host.tscn"
 const GAME_SCENE := "res://main.tscn"
 const GAME_SIZE := Vector2(1280, 720)
 const TERMINAL_MIN := 360.0
-const BASE := Vector2i(1760, 720)
+const BASE := Vector2i(1824, 848)
+## M47.6b: the dev desktop's chrome (window pixels at any k).
+const MARGIN := 16.0
+const TITLE_H := 30.0
+const STATUS_H := 22.0
+const TASKBAR_H := 36.0
+const CHROME_H := MARGIN + TITLE_H + STATUS_H + 24.0 + TASKBAR_H   ## 128: 848 - 720
+const CHROME_W := MARGIN * 3.0                                    ## left, the gap, right
 const PROJECT_BASE := Vector2i(1280, 720)
 const GLITCH_S := 0.25
 const HANDOFF := &"handoff"
-## The first gameplay input releases the handoff (a move, a shot, a dash, a jump).
-const READY_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down",
-		&"shoot", &"dash", &"jump"]
+## M47.6a: nothing typed at a gate for this long (from S2 on): a dim "(type play)" row.
+const IDLE_HINT_S := 10.0
+const IDLE_HINT := "(type play)"
+const IDLE_HINT_FROM := 2
 const GLITCH_SHADER := preload("res://systems/glitch.gdshader")
+## M47.6c2: a leftover's pop at the beat (presentation; reduce flashing: a plain fade).
+const PUFF_S := 0.3
+const PUFF_R := 14.0
+const CLEAR_GROUPS: Array[StringName] = [&"enemy", &"enemy_projectile", &"player_projectile", &"pickup"]
 
 ## False in bot runs (tools/bot_runs.gd): the debrief never chooses by itself there.
 static var auto_beats := true
 ## M47.5b (PLAN v9.3, 2.7): StartScreen's boot sets it when the first-launch question was never
 ## asked (and no --autostart): the next host asks it in the terminal before S0's first frame.
 static var first_run_prompt := false
+## M47.6a (PLAN v9.4 2.5): the play gate releases at once (--autostart, the export's smoke).
+static var auto_play := false
 const FIRST_RUN_LINE := "patchnotes first run: reduce flashing and screen shake?"
 const FIRST_RUN_OPTIONS: Array[String] = ["no", "yes"]
 
 var game: Main
-var view: SubViewportContainer
+var view: GameView
 var viewport: SubViewport
 var terminal: TerminalPanel
+var desktop: DevDesktop           ## M47.6b: the dev desktop behind both windows
 var tools := false            ## host_for_tools(): never live, no window change
 var held := false             ## the handoff is held (the ready moment)
 var swaps := 0                ## sessions swapped in (tests)
@@ -60,8 +93,16 @@ var _swap_queued := false
 var _view_size_override := Vector2i.ZERO
 ## M47.5b: a stage card is open (chapter mode: the terminal hides, the game fills the window).
 var chapter := false
-## M47.5b: a gameplay input since the last swap (the death countdown restarts only then).
-var played := false
+## M47.6a: the play gate is up (held, the chat's input waits for play).
+var gate := false
+var chat_typed := 0             ## lines typed at gates that were not play (a count, never the text)
+var play_wait_s := 0.0          ## real seconds from the last gate's prompt to play
+var gate_typed := 0             ## M47.6c1: chat_typed at the last gate only (the session's telemetry)
+var _carry_play := false        ## a retry: the play already given carries over
+var _arming := false            ## the gate's lines still type; the input arms after them
+var _gate_usec := 0
+var _activity_usec := 0
+var _hint_shown := false
 var asking_first_run := false   ## the installer's question waits for 1 / 2
 ## M48.5a: the version rail (ui/rail/), the Pixel look's UI style: built on first need, shown
 ## while the look's `ui` group is on and no stage card is up (RailFrame.wanted). Off, the raw
@@ -69,21 +110,75 @@ var asking_first_run := false   ## the installer's question waits for 1 / 2
 var rail: RailFrame
 var rail_base_set := false        ## the window took the rail's base (once per host, rail_window)
 var _chapter_rows := false      ## the session's rows wait (for the card to close, or the installer's answer)
+var seamless := false           ## M47.6c2: the swap in flight carries the player (no glitch)
+var puffs: Puffs                ## M47.6c2: the leftovers' pops over the game column
+var cleared := 0                ## M47.6c2: leftovers popped at the last beat (tests)
 
 
-## The layout for a window of `window` pixels: {k, game: Rect2, terminal: Rect2, font: int}.
-## M47.5b, chapter mode: the game alone, 16:9, centred (k from the whole window), no terminal.
+## M47.6c2: the pops over the game column, in host pixels; each fades over PUFF_S (real
+## time: the game is frozen under the beat). Reduce flashing: a dot that fades, no ring.
+class Puffs:
+	extends Control
+	var points: Array[Vector2] = []
+	var age := 0.0
+	var gentle := false
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		process_mode = Node.PROCESS_MODE_ALWAYS
+		visible = false
+
+	func pop(at: Array[Vector2], p_gentle: bool) -> void:
+		points = at
+		age = 0.0
+		gentle = p_gentle
+		visible = not points.is_empty()
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		if not visible:
+			return
+		age += delta
+		if age >= PUFF_S:
+			visible = false
+			points.clear()
+		queue_redraw()
+
+	func _draw() -> void:
+		var t := clampf(age / PUFF_S, 0.0, 1.0)
+		var a := 1.0 - t
+		for p in points:
+			if gentle:
+				draw_circle(p, PUFF_R * 0.4, Color(1, 1, 1, 0.5 * a))
+			else:
+				draw_arc(p, PUFF_R * (0.4 + t), 0.0, TAU, 16, Color(1, 1, 1, 0.8 * a), 2.0)
+
+
+## The layout for a window of `window` pixels: {k, game: Rect2, terminal: Rect2, font: int,
+## game_window, chat_window, taskbar: Rect2 (M47.6b: the desktop's windows, title and status
+## bars included; the terminal is the chat window under its title bar)}.
+## M47.5b, chapter mode: the game alone, 16:9, centred (k from the whole window), no terminal,
+## no desktop (its rects empty).
 static func layout_for(window: Vector2, p_chapter := false) -> Dictionary:
 	if p_chapter:
 		var kc := maxf(0.05, minf(window.y / GAME_SIZE.y, window.x / GAME_SIZE.x))
 		var gc := (GAME_SIZE * kc).round()
-		return {"k": kc, "game": Rect2(((window - gc) * 0.5).round(), gc), "terminal": Rect2(Vector2(window.x, 0), Vector2.ZERO),
-				"font": roundi(TerminalPanel.BASE_FONT * clampf(kc, 1.0, 2.0))}
-	var k := maxf(0.05, minf(window.y / GAME_SIZE.y, (window.x - TERMINAL_MIN) / GAME_SIZE.x))
+		var none := Rect2(Vector2(window.x, 0), Vector2.ZERO)
+		return {"k": kc, "game": Rect2(((window - gc) * 0.5).round(), gc), "terminal": none,
+				"font": roundi(TerminalPanel.BASE_FONT * clampf(kc, 1.0, 2.0)),
+				"game_window": none, "chat_window": none, "taskbar": none}
+	var k := maxf(0.05, minf((window.y - CHROME_H) / GAME_SIZE.y, (window.x - CHROME_W - TERMINAL_MIN) / GAME_SIZE.x))
 	var gs := (GAME_SIZE * k).round()
-	var game_rect := Rect2(Vector2(0, roundf((window.y - gs.y) * 0.5)), gs)
-	var term := Rect2(Vector2(gs.x, 0), Vector2(maxf(0.0, window.x - gs.x), window.y))
-	return {"k": k, "game": game_rect, "terminal": term, "font": roundi(TerminalPanel.BASE_FONT * clampf(k, 1.0, 2.0))}
+	var block_h := TITLE_H + gs.y + STATUS_H
+	var top := maxf(MARGIN, roundf((window.y - TASKBAR_H - block_h) * 0.5))
+	var game_window := Rect2(Vector2(MARGIN, top), Vector2(gs.x, block_h))
+	var game_rect := Rect2(Vector2(MARGIN, top + TITLE_H), gs)
+	var chat_x := MARGIN * 2.0 + gs.x
+	var chat_window := Rect2(Vector2(chat_x, top), Vector2(maxf(0.0, window.x - chat_x - MARGIN), block_h))
+	var term := Rect2(chat_window.position + Vector2(0, TITLE_H), Vector2(chat_window.size.x, block_h - TITLE_H))
+	return {"k": k, "game": game_rect, "terminal": term, "font": roundi(TerminalPanel.BASE_FONT * clampf(k, 1.0, 2.0)),
+			"game_window": game_window, "chat_window": chat_window,
+			"taskbar": Rect2(Vector2(0, window.y - TASKBAR_H), Vector2(window.x, TASKBAR_H))}
 
 
 ## A host for tools and tests around `p_game` (run_hash --shell): never live, no window
@@ -107,7 +202,9 @@ func _ready() -> void:
 	_back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_back)
-	view = SubViewportContainer.new()
+	desktop = DevDesktop.new()
+	add_child(desktop)
+	view = GameView.new()
 	view.name = "GameView"
 	view.stretch = false
 	view.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -136,9 +233,20 @@ func _ready() -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_fade.visible = false
 	add_child(_fade)
+	puffs = Puffs.new()
+	puffs.name = "Puffs"
+	add_child(puffs)
 	terminal = TerminalPanel.new()
 	terminal.name = "Terminal"
 	add_child(terminal)
+	view.chat = terminal.chat_input
+	terminal.chat_input.play_given.connect(give_play)
+	terminal.chat_input.typed.connect(_on_typed)
+	terminal.chat_input.move_pressed.connect(_on_activity)
+	terminal.chat_input.pause_pressed.connect(_on_chat_pause)
+	terminal.upgraded.connect(_dress_desktop)   # M47.6b: the chat window's frame and title
+	if "--autostart" in OS.get_cmdline_user_args():
+		auto_play = true
 	if is_live():
 		_set_window(true)
 	get_viewport().size_changed.connect(relayout.bind(Vector2.ZERO))
@@ -155,6 +263,8 @@ func _ready() -> void:
 		_attach(load(GAME_SCENE).instantiate() as Main)
 	if asking_first_run:
 		ask_first_run()
+	if gate_due():   # M47.6a: the first session of a boot waits for play too
+		hold()
 
 
 func _exit_tree() -> void:
@@ -175,6 +285,11 @@ func is_live() -> bool:
 ## The debrief takes its own way on (Next after the patch) only in a live, non-bot host.
 func auto_way_on() -> bool:
 	return is_live() and auto_beats
+
+
+## M47.6a: a live start gates (not under --autostart, not in a bot chain).
+func gate_due() -> bool:
+	return is_live() and auto_beats and not auto_play
 
 
 # --- Window and layout ---------------------------------------------------------------------
@@ -210,7 +325,7 @@ func relayout(window := Vector2.ZERO) -> void:
 	viewport.size = Vector2i(g.size) if _view_size_override == Vector2i.ZERO else _view_size_override
 	view.position = g.position
 	view.size = g.size
-	for r: Control in [_glitch, _fade]:
+	for r: Control in [_glitch, _fade, puffs]:
 		r.position = g.position
 		r.size = g.size
 	var t: Rect2 = layout.terminal
@@ -219,6 +334,13 @@ func relayout(window := Vector2.ZERO) -> void:
 	terminal.visible = t.size.x >= 1.0 and not chapter
 	if terminal.font_size() != int(layout.font):
 		terminal.set_font_size(int(layout.font))
+	# M47.6b: a chapter is the game alone on black. M48.5b: the version rail is its own machine
+	# (it draws the whole window), so the desktop hides under it.
+	desktop.visible = not chapter and not (rail != null and rail.on)
+	desktop.position = Vector2.ZERO
+	desktop.size = window
+	desktop.layout = layout
+	_dress_desktop()
 	if rail != null and rail.on:
 		rail.apply_layout(layout)
 
@@ -262,8 +384,9 @@ func _attach(g: Main) -> void:
 	g.process_mode = Node.PROCESS_MODE_PAUSABLE   # before add_child: never inherit ALWAYS
 	viewport.add_child(g)
 	game = g
-	played = false
 	terminal.dress()   # M47.5b: the look's ui group (S9's reveal on) recolours the terminal
+	# M47.6b (design 2.8): a save past S2 opens on the chat (derived, never saved).
+	terminal.set_style(CampaignDB.chat_style())
 	_sync_rail()
 	if g.stage_card != null and g.stage_card.is_open():
 		_enter_chapter(g.stage_card)
@@ -303,7 +426,7 @@ func _exit_chapter(_card: StageCard) -> void:
 		_chapter_rows = false
 		_session_rows()
 	if held:
-		terminal.prompt()
+		_open_gate()
 
 
 ## The terminal's rows for a session that just started: the speaker, the version, then
@@ -315,12 +438,76 @@ func _session_rows() -> void:
 	if s == null:
 		return
 	var body := DebriefScreen.body_for(s)
-	terminal.set_speaker(speaker_for(body), s.face)
+	terminal.set_speaker(speaker_for(body), s.face, body)
+	_dress_desktop()
 	if _reload_row != "":
 		terminal.close_cmd("ok")
 		_reload_row = ""
 	terminal.sys("--- session %d · %s · %s ---" % [CampaignDB.index_of(s.id), s.title, SaveGame.version().label()])
 	terminal.cmd("run %s" % s.id)
+
+
+# --- No reload between sessions (M47.6c2, PLAN v9.4 0.8, design 2.7) -------------------------
+
+## A session ending `outcome` (the debrief's: won / stopped / died) carries the player into
+## session `to`: both in the same stage, Stage 1 or (M47.6d2) Stage 2, the same arena, no
+## death and `to` not a fresh_start session (S9). A stage card only ever plays before a
+## stage's first session, so the same-stage rule already keeps it cold (S6 -> S7); M47.6d2
+## dropped the old stage_card_due(to) test, which read true for S8 at S7's report (S7 not
+## done yet), so S7's leftovers would not have popped.
+static func carry_ok(from: SessionDef, to: SessionDef, outcome: StringName) -> bool:
+	return from != null and to != null and outcome != &"died" and from.stage == to.stage \
+			and from.stage in CARRY_STAGES and not to.fresh_start \
+			and from.arena_def() == to.arena_def()
+
+
+## M47.6d2: the stages whose sessions carry the player (Stage 1, then Stage 2's S7 -> S8).
+const CARRY_STAGES: Array[int] = [1, 2]
+
+
+## The one capture path (Main._end_session and run_hash --chain): where the next session
+## `next` starts, the old game's player to 0.01 px (printed_start), or Main.NO_START when the
+## carry does not apply (read while the old game's debrief is open, before the swap).
+static func capture_start(main: Main, next: SessionDef) -> Vector2:
+	if main == null or not is_instance_valid(main) or main.player == null or main.debrief == null:
+		return Main.NO_START
+	if not carry_ok(RunState.session, next, main.debrief.outcome):
+		return Main.NO_START
+	return printed_start(main.player.global_position)
+
+
+## A start to 0.01 px exactly as its printed "%.2f" text reads back (run_hash --start, the
+## [botrun] and campaign lines): snapped() in single precision can land one ulp off the
+## parsed text, and one ulp moved S2's chained hashes against its cold replay.
+static func printed_start(p: Vector2) -> Vector2:
+	return Vector2(("%.2f" % p.x).to_float(), ("%.2f" % p.y).to_float())
+
+
+## The beat of a seamless next session: the old (frozen) instance's enemies, shots and pickups
+## pop out at their last screen points and the player's HP refills, so the swap frame shows
+## the same empty room. Presentation of a run already over (the next instance is fresh).
+func clear_field(main: Main) -> void:
+	cleared = 0
+	if main == null or not is_instance_valid(main) or not main.is_inside_tree():
+		return
+	var at: Array[Vector2] = []
+	var k := view.size / GAME_SIZE
+	var on_screen := Rect2(Vector2.ZERO, GAME_SIZE)   # Puffs does not clip: off-view leftovers draw no pop
+	for g in CLEAR_GROUPS:
+		for n in get_tree().get_nodes_in_group(g):
+			if not main.is_ancestor_of(n) or n.is_queued_for_deletion():
+				continue
+			if n is CanvasItem:
+				var o := (n as CanvasItem).get_global_transform_with_canvas().origin
+				if on_screen.has_point(o):
+					at.append(view.position + o * k)
+			n.queue_free()
+			cleared += 1
+	if main.player != null:
+		var hp := Component.find(main.player, Health) as Health
+		if hp != null:
+			hp.heal(hp.max_hp())
+	puffs.pop(at, SaveGame.reduce_flashing())
 
 
 ## The prompt's name for a body: "ai" for the caret, else the body's short name, lower case.
@@ -337,9 +524,16 @@ func next_session(restart := "") -> void:
 	if _swap_queued:
 		return
 	_swap_queued = true
+	# M47.6c2 (design 2.7): Next into a Stage 1 session with the player's spot carried is
+	# invisible: no glitch, the swap on the next frame. Restart / again never carry.
+	seamless = restart == "" and Main.next_start.is_finite()
+	# M47.6a: again / restart: the play already given carries over. Review: only a play that
+	# was given (released); a restart from the gate (still held) gates again.
+	_carry_play = restart != "" and not held
+	_close_gate()
 	_reload_row = restart if restart != "" else "hot-reload game"
 	terminal.cmd_open(_reload_row)
-	if is_live() and auto_beats:
+	if is_live() and auto_beats and not seamless:
 		_pulse()
 		get_tree().create_timer(GLITCH_S, true, false, true).timeout.connect(_swap)
 	else:
@@ -382,18 +576,21 @@ func _swap() -> void:
 	_attach(load(GAME_SCENE).instantiate() as Main)
 	# The ready moment is the live player's. A bot chain (auto_beats off) keeps the old
 	# reload's timing exactly: the new session runs from the next physics frame, as a
-	# reloaded scene did, so its [botrun] lines stay byte-identical.
-	if auto_beats:
+	# reloaded scene did, so its [botrun] lines stay byte-identical. M47.6a: so does a retry
+	# (the play carries over: held for its _ready, released on its first frame, tick 0).
+	var carry := _carry_play
+	_carry_play = false
+	if auto_beats and not carry and not (auto_play and is_live()):
 		hold()
 
 
-## Holds the new session before its first tick until the first gameplay input (tools call
-## skip_handoff on frame 1).
+## Holds the new session before its first tick until play (tools call skip_handoff on
+## frame 1). The gate opens now, or after the stage card / the installer's answer.
 func hold() -> void:
 	held = true
 	RunState.set_pause(HANDOFF, true)
-	if not chapter:   # a chapter's prompt comes after its card
-		terminal.prompt()
+	if not chapter and not asking_first_run:   # a chapter's gate comes after its card
+		_open_gate()
 
 
 func skip_handoff() -> void:
@@ -403,11 +600,111 @@ func skip_handoff() -> void:
 		_release()
 
 
+## M47.6a: play (the chat's input, a quick reply, tests). Only while a gate holds.
+func give_play() -> void:
+	if held and not asking_first_run:
+		_release()
+
+
 func _release() -> void:
 	held = false
-	played = true
+	if gate:
+		play_wait_s = snappedf((Time.get_ticks_usec() - _gate_usec) / 1000000.0, 0.01)
+	_close_gate()
 	RunState.set_pause(HANDOFF, false)
-	terminal.answer("play")
+	terminal.you_said("play")
+
+
+# --- The play gate (M47.6a, PLAN v9.4 2.5) ----------------------------------------------------
+
+## The chat types the session's before_play (or the campaign's default), then its input
+## takes focus; the empty Enter arms once the lines are typed.
+func _open_gate() -> void:
+	if gate:
+		return
+	gate = true
+	_arming = true
+	_hint_shown = false
+	gate_typed = 0
+	_gate_usec = Time.get_ticks_usec()
+	_activity_usec = _gate_usec
+	for line in gate_lines(RunState.session, terminal.is_chat()):
+		terminal.type_line(line)
+	terminal.chat_input.open_gate()
+
+
+func _close_gate() -> void:
+	gate = false
+	_arming = false
+	terminal.chat_input.close_gate()
+
+
+## The lines a gate types for session `s`: its before_play (conditions passing), else the
+## campaign's before_play_default (M47.6b: the chat's, capitalised, once it is up); {key:...}
+## named for this keyboard.
+static func gate_lines(s: SessionDef, chat := false) -> Array[Line]:
+	var out: Array[Line] = []
+	var lines: Array[Line] = []
+	if s != null:
+		lines = Line.passing(s.before_play_lines(), CampaignDB.line_context(s))
+	if lines.is_empty() and CampaignDB.campaign != null:
+		lines = Line.parse_all(CampaignDB.campaign.before_play_default_for(chat))
+	for l in lines:
+		out.append(SessionRunner.with_keys(l))
+	return out
+
+
+## Anything typed at a gate that is not play: the row, then a canned reply (counted, never logged).
+func _on_typed(text: String) -> void:
+	_on_activity()
+	if not gate:
+		return
+	chat_typed += 1
+	gate_typed += 1
+	var chat := terminal.is_chat()
+	var reply := CampaignDB.campaign.chat_reply(text, chat) if CampaignDB.campaign != null else ""
+	# Review: a word that starts on a movement key lost that letter at the empty prompt
+	# ("again" -> "gain" on QWERTY). If the text alone gets the fallback, try it with the letter.
+	var lead := terminal.chat_input.typed_lead
+	if lead != "" and CampaignDB.campaign != null and reply == CampaignDB.campaign.chat_reply("", chat):
+		var with_lead := CampaignDB.campaign.chat_reply(lead + text, chat)
+		if with_lead != reply:
+			reply = with_lead
+			text = lead + text
+	terminal.you_said(text)
+	if reply != "":
+		terminal.type_line(Line.parse(reply))
+
+
+## Esc in the focused chat at a gate: the game's pause menu (PauseMenu.allowed says when).
+func _on_chat_pause() -> void:
+	if game != null and is_instance_valid(game) and game.pause_menu != null and game.pause_menu.can_open():
+		terminal.chat_input.drop_focus()
+		game.pause_menu.open()
+
+
+func _on_activity() -> void:
+	_activity_usec = Time.get_ticks_usec()
+
+
+## The gate's input wants focus unless the pause menu is up (its keys go to the game).
+func _gate_step() -> void:
+	var input := terminal.chat_input
+	if _arming and not terminal.is_busy():
+		_arming = false
+		input.arm()
+	var menu_up := game != null and is_instance_valid(game) and game.pause_menu != null and game.pause_menu.is_open()
+	if menu_up:
+		input.drop_focus()
+	elif not input.has_focus() and terminal.visible:
+		input.take_focus()
+	if input.text != "":
+		_activity_usec = Time.get_ticks_usec()
+	var s := RunState.session
+	if not _hint_shown and not _arming and s != null and CampaignDB.index_of(s.id) >= IDLE_HINT_FROM \
+			and (Time.get_ticks_usec() - _activity_usec) / 1000000.0 >= IDLE_HINT_S:
+		_hint_shown = true
+		terminal.sys(IDLE_HINT)
 
 
 # --- The installer's first-run question (M47.5b, PLAN v9.3 2.7, D13) -------------------------
@@ -451,28 +748,52 @@ func answer_first_run(reduce: bool) -> void:
 		_session_rows()
 	if not held:
 		RunState.set_pause(HANDOFF, false)
+	elif not chapter:
+		_open_gate()   # M47.6a: the AI's first lines, then the input
+
+
+## M47.6b: the desktop's live texts: the version, the session and its newest basic, the chat's
+## style and name, which window is active (the chat at a gate or a beat), the clock.
+func _dress_desktop() -> void:
+	if desktop == null or terminal == null:
+		return
+	desktop.version = SaveGame.version().label()
+	desktop.stage_text = stage_text(RunState.session)
+	desktop.chat_style = terminal.style
+	desktop.chat_name = terminal.header_name()
+	desktop.chat_focus = _chat_focus()
+	desktop.clock = terminal.clock_text().trim_prefix("[").trim_suffix("]")
+	desktop.queue_redraw()
+
+
+## The chat window is the active one at a gate, a beat or the installer's question.
+func _chat_focus() -> bool:
+	return gate or asking_first_run or (game != null and is_instance_valid(game) and game.debrief != null
+			and game.debrief.is_open())
+
+
+## The status bar's session text: "S1 movement: ON" (its newest basic), "S0 empty build".
+static func stage_text(s: SessionDef) -> String:
+	if s == null:
+		return ""
+	var i := CampaignDB.index_of(s.id)
+	if s.basics.is_empty():
+		return "S%d empty build" % i
+	return "S%d %s: ON" % [i, s.basics[s.basics.size() - 1]]
 
 
 func _process(_delta: float) -> void:
+	if desktop != null and desktop.visible and (_chat_focus() != desktop.chat_focus
+			or terminal.style != desktop.chat_style or terminal.header_name() != desktop.chat_name):
+		_dress_desktop()
 	if asking_first_run:
 		if Input.is_action_just_pressed(&"choose_1"):
 			answer_first_run(false)
 		elif Input.is_action_just_pressed(&"choose_2"):
 			answer_first_run(true)
 		return
-	if not played:
-		for a in READY_ACTIONS:
-			if Input.is_action_just_pressed(a):
-				played = true
-				break
-	if not held:
-		return
-	if game != null and game.stage_card != null and game.stage_card.is_open():
-		return   # the card first; its own pause holds the game too
-	for a in READY_ACTIONS:
-		if Input.is_action_just_pressed(a):
-			_release()
-			return
+	if gate:
+		_gate_step()
 
 
 ## The mouse over the terminal still aims: motion outside the game column reaches the game

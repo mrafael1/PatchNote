@@ -17,8 +17,20 @@ const OVERRUN := &"overrun"
 ## PLAN v9 1.2 (stubs in M43: never end on the clock; "not built yet" in campaign data).
 const STAGES := &"stages"     ## won when the stage set's last part clears (M50)
 const BOSS := &"boss"         ## won when the boss's HP reaches 0 (M49)
-const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN, STAGES, BOSS]
+## M47.6c1 (PLAN v9.4 0.8, design 2.6): endings instead of goals.
+## The session's fixed set is dead: the spawner spent `enemy_total`, no `at` / `kills` spawn
+## cue is still to fire and no enemy is alive (won). `time_limit` > 0 is a hidden cap (stopped).
+const CLEAR := &"clear"
+## The script is done (every `at` cue fired, no event running, no edit pending or timed-live),
+## then `end_after` game seconds pass (stopped). The spawner goes quiet for that tail when the
+## session has a budget.
+const SCRIPT := &"script"
+const GOALS: Array[StringName] = [SURVIVE, KILLS, STOP, OVERRUN, STAGES, BOSS, CLEAR, SCRIPT]
+## The kinds `ends` may list (M47.6c1).
+const ENDINGS: Array[StringName] = [CLEAR, SCRIPT]
 const FORK_ENEMY := &"fork:fork_enemy"
+## M47.6b: `chat`'s one value (the session whose beat ships the dev-chat).
+const CHAT_UPGRADE := &"upgrade"
 ## The path ids a `path` field may name (PLAN v9 1.5; PathDB has Auto from M45a).
 const PATHS: Array[StringName] = [&"arsenal", &"auto", &"survival"]
 const STAGE_SETS_DIR := "res://levels/stages/"
@@ -82,6 +94,21 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## path; S8 Survival survives 90 s). Not on a tryout (a swap never rescales) or a
 ## pathless session; a kills goal is still multiplied by the path's kill_goal_mult.
 @export var goal_by_path: Dictionary[StringName, float] = {}
+## M47.6c1 (design 2.6): more than one ending ([clear, script]: whichever comes first); empty =
+## the goal alone. `goal` stays the primary kind for older readers and must be listed.
+@export var ends: Array[StringName] = []
+## M47.6c1: a `script` ending's quiet tail, game seconds after the script is done.
+@export var end_after := 5.0
+## M47.6c1: a `clear` ending's spawner budget (the spawner's own draws; spawn cues add theirs on
+## top). -1 = unlimited (every session that does not clear).
+@export var enemy_total := -1
+## M47.6d2 (design 3, S8 / S9): path id -> the enemy_total on that path ({} = enemy_total on every
+## path), as goal_by_path: a clear session's fixed set per path. Not on a tryout or a pathless
+## session; each value >= 0.
+@export var enemy_total_by_path: Dictionary[StringName, int] = {}
+## M47.6d2 (design 2.7): this session always starts at the arena's player_start (S9: its
+## specimen is placed from it), never at a spot carried from the session before.
+@export var fresh_start := false
 
 @export_group("The AI")
 ## The mascot has a body (false before fork_mascot is answered).
@@ -89,6 +116,16 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var intro: PackedStringArray = []
 @export var cues: PackedStringArray = []
 @export var debrief: PackedStringArray = []
+## M47.6a (PLAN v9.4, 0.8): what the AI types in the chat at the play gate, before the
+## session's sim starts (Line syntax). Empty: the campaign's before_play_default.
+@export var before_play: PackedStringArray = []
+## M47.6a: said in the bubble the moment a `script` end window opens (used from M47.6c1).
+## "" = nothing said.
+@export var end_line := ""
+## M47.6b (PLAN v9.4 0.8, design 2.8): &"upgrade" on the session whose beat ships the dev-chat
+## (S2): after its patch rows the terminal becomes the chat. &"" elsewhere. One session at most
+## (CampaignDB.problems); a save past it opens on the chat (CampaignDB.chat_style()).
+@export var chat: StringName = &""
 
 @export_group("After")
 @export var fork: StringName = &""
@@ -124,6 +161,8 @@ var _debrief: Array[Line] = []
 var _after_pick: Array[Line] = []
 var _reveal_lines: Array[Line] = []
 var _door_beat: Array[Line] = []
+var _before_play: Array[Line] = []
+var _end_line: Line
 var _parsed := false
 
 
@@ -132,10 +171,38 @@ func is_cooking() -> bool:
 	return not cooking.is_empty()
 
 
+## M47.6c1: the endings this session plays (ends, else [goal]).
+func end_kinds() -> Array[StringName]:
+	if not ends.is_empty():
+		return ends.duplicate()
+	var out: Array[StringName] = [goal]
+	return out
+
+
+func has_end(kind: StringName) -> bool:
+	return kind in end_kinds()
+
+
+## M47.6c1: the enemies the `at` / `kills` spawn cues add (no specimens): with enemy_total, the
+## fixed set a `clear` session's progress reads.
+func cue_spawn_total() -> int:
+	var n := 0
+	for c in cue_list():
+		if c.problem == "" and c.action == &"spawn" and not c.specimen and c.when in [&"at", &"kills"]:
+			n += c.count
+	return n
+
+
 ## M47.2: the goal value this session plays on path `path_id` (goal_by_path, else
 ## goal_value; &"" = no path).
 func goal_for(path_id: StringName) -> float:
 	return float(goal_by_path.get(path_id, goal_value))
+
+
+## M47.6d2: the spawner budget this session plays on path `path_id` (enemy_total_by_path, else
+## enemy_total; &"" = no path).
+func enemy_total_for(path_id: StringName) -> int:
+	return int(enemy_total_by_path.get(path_id, enemy_total))
 
 
 func intro_lines() -> Array[Line]:
@@ -163,6 +230,18 @@ func reveal_line_list() -> Array[Line]:
 	return _reveal_lines
 
 
+## M47.6a: the play gate's chat lines (unfiltered; the host passes them with the line context).
+func before_play_lines() -> Array[Line]:
+	_parse()
+	return _before_play
+
+
+## M47.6a: the script end's bubble line, or null.
+func end_line_parsed() -> Line:
+	_parse()
+	return _end_line
+
+
 ## M47.4: the door beat's lines, parsed (DoorBeat says them at LINE_AT).
 func door_beat_lines() -> Array[Line]:
 	_parse()
@@ -179,6 +258,8 @@ func _parse() -> void:
 	_after_pick = Line.parse_all(after_pick)
 	_reveal_lines = Line.parse_all(reveal_lines)
 	_door_beat = Line.parse_all(door_beat)
+	_before_play = Line.parse_all(before_play)
+	_end_line = Line.parse(end_line) if end_line.strip_edges() != "" else null
 
 
 ## The arena this session plays.
@@ -374,10 +455,11 @@ func problems() -> Array[String]:
 		out.append("%s: stage %d is not 1-5" % [where, stage])
 	if not goal in GOALS:
 		out.append("%s: unknown goal %s" % [where, goal])
-	elif goal_value <= 0.0:
+	elif goal_value <= 0.0 and not goal in ENDINGS:
 		out.append("%s: goal_value must be > 0" % where)
-	if time_limit < 0.0 or (time_limit > 0.0 and goal != KILLS):
-		out.append("%s: time_limit is for kills goals only" % where)
+	if time_limit < 0.0 or (time_limit > 0.0 and goal != KILLS and not has_end(CLEAR)):
+		out.append("%s: time_limit is for kills and clear goals only" % where)
+	out.append_array(_ending_problems(where))
 	for b in basics:
 		if not b in Unlocks.CAMPAIGN_BASICS:
 			out.append("%s: unknown basic %s" % [where, b])
@@ -424,6 +506,7 @@ func problems() -> Array[String]:
 	for l in intro_lines() + debrief_lines():
 		if l.problem != "":
 			out.append("%s: %s" % [where, l.problem])
+	out.append_array(_voice_problems(where))
 	for c in cue_list():
 		if c.problem != "":
 			out.append("%s: %s" % [where, c.problem])
@@ -449,6 +532,8 @@ func problems() -> Array[String]:
 		elif c.when == &"boss_hp" and goal != BOSS and not cue_list().any(
 				func(x: Cue) -> bool: return x.action == &"boss"):
 			out.append("%s: cue '%s': boss_hp needs a boss" % [where, c.source])
+		elif c.when == &"tried" and &"movement" in basics:
+			out.append("%s: cue '%s': tried needs a session without movement" % [where, c.source])
 		elif c.when == &"pct" and goal != SURVIVE:
 			out.append("%s: cue '%s': pct needs a survive goal" % [where, c.source])
 		elif c.when == &"hp" and not &"health" in basics and not cue_list().any(
@@ -485,6 +570,91 @@ func problems() -> Array[String]:
 		for w in Line.condition_parts(String(l.when)):
 			if w.begins_with("event:") and EventDB.get_event(StringName(w.trim_prefix("event:"))) == null:
 				out.append("%s: unknown event %s" % [where, w.trim_prefix("event:")])
+	return out
+
+
+## M47.6c1 (design 2.6): ends lists clear / script once each and holds the goal; a clear
+## ending has a budget >= 0, a script one an end_after > 0; end_line needs a script ending;
+## a `kills N` spawn cue can fire (N enemies can exist before it: the budget and the other
+## spawn cues that do not wait on as many kills).
+func _ending_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	var seen := {}
+	for e in ends:
+		if not e in ENDINGS:
+			out.append("%s: ends: %s is not clear or script" % [where, e])
+		if seen.has(e):
+			out.append("%s: ends lists %s twice" % [where, e])
+		seen[e] = true
+	if not ends.is_empty() and not goal in ends:
+		out.append("%s: ends must list the goal %s" % [where, goal])
+	if has_end(CLEAR) and enemy_total < 0:
+		out.append("%s: a clear ending needs enemy_total >= 0" % where)
+	if not has_end(CLEAR) and enemy_total >= 0:
+		out.append("%s: enemy_total is for clear endings only" % where)
+	if has_end(SCRIPT) and end_after <= 0.0:
+		out.append("%s: end_after must be > 0" % where)
+	if end_line.strip_edges() != "" and not has_end(SCRIPT):
+		out.append("%s: end_line needs a script ending" % where)
+	for k: Variant in enemy_total_by_path:
+		if typeof(k) != TYPE_STRING_NAME or not StringName(k) in PATHS:
+			out.append("%s: enemy_total_by_path: unknown path %s (%s)" % [where, k, PATHS])
+		elif int(enemy_total_by_path[k]) < 0:
+			out.append("%s: enemy_total_by_path: %s must be >= 0" % [where, k])
+	if not enemy_total_by_path.is_empty():
+		if not has_end(CLEAR):
+			out.append("%s: enemy_total_by_path is for clear endings only" % where)
+		if path == &"":
+			out.append("%s: enemy_total_by_path needs a path" % where)
+		if tryout:
+			out.append("%s: enemy_total_by_path is not for a tryout (a swap never rescales)" % where)
+	if has_end(CLEAR):
+		var least := enemy_total
+		for k: Variant in enemy_total_by_path:
+			least = mini(least, int(enemy_total_by_path[k]))
+		for c in cue_list():
+			if c.problem != "" or c.action != &"spawn" or c.when != &"kills":
+				continue
+			var can := maxi(least, 0)
+			for o in cue_list():
+				if o != c and o.problem == "" and o.action == &"spawn" and not o.specimen \
+						and (o.when == &"at" or (o.when == &"kills" and o.value < c.value)):
+					can += o.count
+			if int(c.value) > can:
+				out.append("%s: cue '%s' can never fire (at most %d enemies before it)" % [where, c.source, can])
+	return out
+
+
+## M47.6a (PLAN v9.4 2.3): before_play / end_line parse and read no outcome; every line
+## said in the bubble during play (intro, end_line, a cue's line) fits BUBBLE_ROWS rows of
+## the mascot's bubble (measured with its own font; the runtime clamp is only a net).
+const BUBBLE_ROWS := 2
+
+
+func _voice_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	for l in before_play_lines():
+		if l.problem != "":
+			out.append("%s: before_play: %s" % [where, l.problem])
+		elif reads_outcome(l.when) or reads_event(l.when) or reads_fusion(l.when):
+			out.append("%s: a before_play line cannot depend on the outcome, an event or a fusion" % where)
+	var spoken: Array[Line] = intro_lines().duplicate()
+	var el := end_line_parsed()
+	if el != null:
+		if el.problem != "":
+			out.append("%s: end_line: %s" % [where, el.problem])
+		elif reads_outcome(el.when):
+			out.append("%s: end_line cannot depend on the outcome" % where)
+		spoken.append(el)
+	for c in cue_list():
+		if c.problem == "" and c.line != null:
+			spoken.append(c.line)
+	for l in spoken:
+		if l.problem != "" or l.text == "":
+			continue
+		var rows := Mascot.bubble_rows(SessionRunner.with_keys(l).text)
+		if rows > BUBBLE_ROWS:
+			out.append("%s: '%s' takes %d bubble rows (max %d)" % [where, l.text, rows, BUBBLE_ROWS])
 	return out
 
 
@@ -658,6 +828,8 @@ func _look_problems(where: String) -> Array[String]:
 ## The PLAN v9 1.2 fields, by shape (CampaignDB.problems() adds "not built yet").
 func _field_problems(where: String) -> Array[String]:
 	var out: Array[String] = []
+	if not chat in [&"", CHAT_UPGRADE]:
+		out.append("%s: chat must be \"\" or upgrade" % where)
 	for pair: Array in [[&"path", path], [&"stages", stages], [&"hud", hud], [&"boss", boss]]:
 		var f := fork_of(pair[1])
 		if f != &"" and ChangeDB.get_fork(f) == null:
@@ -674,11 +846,21 @@ func _field_problems(where: String) -> Array[String]:
 		out.append("%s: a boss needs goal boss" % where)
 	if hud != &"" and fork_of(hud) == &"":
 		out.append("%s: hud must be a fork (fork:<id>)" % where)
+	# M47.6c1: a weight is the chance a spawner pick is that enemy ("fork:<id>" = the answer's);
+	# the rest of the roll keeps today's Tuning chances, so the weights sum below 1.
+	var weight_sum := 0.0
 	for k: Variant in spawn_weights:
-		if not EnemyDB.has(StringName(String(k))):
+		var fk := fork_of(k)
+		if fk != &"" and ChangeDB.get_fork(fk) == null:
+			out.append("%s: spawn_weights: no fork %s" % [where, fk])
+		elif fk == &"" and not EnemyDB.has(StringName(String(k))):
 			out.append("%s: spawn_weights: unknown enemy %s" % [where, k])
 		elif not (spawn_weights[k] is float or spawn_weights[k] is int) or float(spawn_weights[k]) <= 0.0:
 			out.append("%s: spawn_weights: %s must be > 0" % [where, k])
+		else:
+			weight_sum += float(spawn_weights[k])
+	if weight_sum >= 1.0:
+		out.append("%s: spawn_weights must sum below 1 (%.2f)" % [where, weight_sum])
 	if hp_floor < 0:
 		out.append("%s: hp_floor must be >= 0" % where)
 	return out

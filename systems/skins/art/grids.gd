@@ -442,6 +442,17 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
 	},
+	"shot_cylinder_player": {
+		"grid": [
+			".KKKKKKK..",
+			"KSPPPHHHK.",
+			"KSPPPHHHHK",
+			"KSPPPHHHHK",
+			"KSPPPHHHK.",
+			".KKKKKKK..",
+		],
+		"ramp": {"P": "#ffd36a", "S": "#d08a1e", "H": "#fff4c8", "A": "#ffffff"},
+	},
 	"shot_fan_player": {
 		"grid": [
 			".KKKK.",

@@ -25,6 +25,8 @@ const OLD_SESSIONS := {
 	&"not_shooting": [3, -1], &"quiet_25": [4, -1], &"session_half": [4, -1], &"shooter_seen": [4, 4],
 	&"streak_3": [3, -1], &"streak_4": [4, -1], &"streak_6": [3, -1], &"streak_broken": [3, -1],
 	&"tank_seen": [5, 5], &"wave_cleared": [3, -1],
+	# M47.6c1: the fixed sets from S3 on (M47.6d2: S8 / S9 clear too, so no end).
+	&"wave_done": [3, -1], &"last_two": [3, -1], &"last_one": [3, -1],
 }
 ## PLAN 1.13's audit: gated off on Auto (camping stays on every path, D8).
 const AUTO_GATED: Array[StringName] = [&"not_shooting", &"crowd_12", &"kills_50", &"streak_3", &"streak_4",

@@ -16,25 +16,28 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - Compiling... mostly.
 - One of them is on fire.
 - Done. Mostly.
-### Intro
+### Before play (in the chat, at the play gate)
 - (happy) Stage two. I want to make a real shooter.
 - (thinking) But which kind? Let's try three. Quick ones.
 - (worried) Can't lose today. It's a tryout.
+- (proud) Three games. You try each one. Type play.
+### Intro
 ### Cues
-- at 13: path arsenal warning: (happy) Version one. Your guns are cards.
-- at 17: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack.
+- at 4: path arsenal warning: (happy) Version one. Your guns are cards.
+- at 8: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack.
 - picked 1: (proud) See? Same card, stronger gun.
-- at 52: (proud) Okay. Saving that one.
-- at 56: path survival warning: (happy) Version two. No cards. Guns are lying around.
-- at 61: (happy) Walk over a gun to take it. Ammo runs out, so keep looking.
-- at 74: (thinking) And every few kills patch you up. Kills are food.
-- at 95: (proud) Saving that too.
-- at 99: path auto warning: (worried) Version three. Hands off the trigger.
-- at 103: (surprised) It shoots for you. You just move.
-- at 107: (happy) And more enemies. Lots more. You'll need them.
-- at 112: (happy) Grab the gems. You'll level up.
-- at 128: (panic) That's a lot of them. That's the point!
-- at 145: (thinking) Okay. Three games. I can only build one.
+- at 36: (proud) Okay. Saving that one.
+- at 40: path survival warning: (happy) Version two. Guns lying around.
+- at 42: (happy) And a revolver. Six shots, then it reloads.
+- at 45: (happy) Walk over a gun to take it. Ammo runs out, so keep looking.
+- at 58: (thinking) And every few kills patch you up. Kills are food.
+- at 73: (proud) Saving that too.
+- at 76: path auto warning: (worried) Version three. Hands off the trigger.
+- at 80: (surprised) It shoots for you. You just move.
+- at 84: (happy) And more enemies. Lots more. You'll need them.
+- at 89: (happy) Grab the gems. You'll level up.
+- at 105: (panic) That's a lot of them. That's the point!
+- at 112: (thinking) Okay. Three games. I can only build one.
 ### Debrief
 - (thinking) So. Three versions of the same game.
 - hit_lots (worried) You took a beating in there. Prototypes, sorry.
@@ -43,20 +46,21 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - (happy) The other two go in a drawer. I never throw anything away.
 
 ## s2_02_day_one: Day one
+### Before play (in the chat, at the play gate)
+- (happy) Day one. You picked it, I built it. Type play.
 ### Intro
 - answer:path_arsenal (happy) Cards. Today it's you and one card: the pistol.
 - answer:path_auto (happy) Auto. Don't touch the trigger. I mean it.
-- answer:path_survival (happy) Scavenger. You get a pistol. The rest is out there.
-- !answer:path_survival (thinking) Two minutes. I'll build it properly this time.
-- answer:path_survival (thinking) Ninety seconds. I'll build it properly this time.
+- answer:path_survival (happy) Scavenger. You get a revolver. The rest is out there.
+- (thinking) One wave. I'll build it properly this time.
 ### Cues
 - answer:path_arsenal at 10: (happy) Remember the cards? Now they come in packs. Six kills, one pack, take one card.
 - answer:path_arsenal at 20: (thinking) Secret: the first shot after a switch hits twice as hard. Switch a lot.
 - answer:path_auto at 10: (happy) Remember the gems? Now they count. Real levels, a real bar.
 - answer:path_auto at 14: (worried) And I made the crowd bigger again. Sorry. You need it.
-- answer:path_survival at 10: (happy) Remember the guns on the floor? Now they come in crates. Two now, one every twenty seconds.
+- answer:path_survival at 10: (happy) Guns come in crates now. Two now, one every twenty seconds.
 - answer:path_survival at 22: (thinking) Walk over another gun to swap. Yours drops at your feet.
-- answer:path_survival at 36: (happy) Run dry and you get the pistol back. It never runs out.
+- answer:path_survival at 36: (happy) Run dry and you get the revolver back. It just reloads.
 - answer:path_survival kills 5: (proud) And kills heal you. Like I promised.
 - at 30: (happy) The shotgun's in. Close range, big mess.
 - at 50: (surprised) New enemy. It's two enemies. Sort of.
@@ -75,6 +79,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - (thinking) Next time, I'll have something to show you. A drawing. My first.
 
 ## s2_03_paint: Fresh paint
+### Before play (in the chat, at the play gate)
+- (happy) Day two. Type play.
 ### Intro
 - (happy) I learned to draw. Watch this one.
 ### Cues
@@ -116,7 +122,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 
 ## fork_path
 - Question: Which shooter do we make?
-- Path: Arsenal (cards) · Cards. Every gun is a card; upgrade the card, upgrade the gun. · Cards it is. I'll start printing.
+- Path: Arcade (cards) · Cards. Every gun is a card; upgrade the card, upgrade the gun. · Cards it is. I'll start printing.
 - Path: Auto · Auto. It shoots for you; you pick upgrades and dodge. · Auto! I'll make more enemies. Many more.
 - Path: Survival (scavenger) · Scavenge. Guns on the ground, ammo runs out, kills heal you. · Scavenger. Good. I'll hide guns everywhere.
 

@@ -172,8 +172,14 @@ func _hp(r: Rect2, d: Dictionary) -> void:
 		RailArt.draw_grid(self, RailArt.HEART, RailArt.HEART_LEGEND if i < int(d.hp) else RailArt.HEART_EMPTY_LEGEND,
 				Vector2(roundf(x), roundf(r.position.y + 44 * sc)), hpx)
 		x += hpx * 8.0
-	var w := _num(_d(r, Vector2(12, 92)), str(int(d.hp)), 64, RailArt.c(&"hp"))
-	_num(_d(r, Vector2(12, 92)) + Vector2(w, 0), "/%d" % int(d.max), 64, RailArt.c(&"dim"))
+	# M48.5b: "10/10" (Auto's health) shrinks to fit the cell instead of running past it.
+	var hp_s := str(int(d.hp))
+	var max_s := "/%d" % int(d.max)
+	var big := 64.0
+	while big > 18.0 and RailArt.digits_width(hp_s + max_s, maxf(1.0, roundf(big * sc / 9.0))) + 2.0 * maxf(1.0, roundf(big * sc / 9.0)) > r.size.x - 24 * sc:
+		big -= 1.0
+	var w := _num(_d(r, Vector2(12, 92)), hp_s, big, RailArt.c(&"hp"))
+	_num(_d(r, Vector2(12, 92)) + Vector2(w, 0), max_s, big, RailArt.c(&"dim"))
 	var hits := int(d.hits)
 	RailFrame.text(self, _d(r, Vector2(12, 172)), "%d hit%s taken" % [hits, "" if hits == 1 else "s"], RailLayout.text_px(16, sc), RailArt.c(&"dim"))
 
@@ -452,9 +458,25 @@ func _ammo(r: Rect2, d: Dictionary) -> void:
 	RailFrame.text(self, cr.position + Vector2(0, 92 * sc), title, RailFrame.fit(title, RailLayout.text_px(16, sc), cr.size.x - 10 * sc, true),
 			RailArt.c(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, cr.size.x)
 	RailFrame.text(self, cr.position + Vector2(0, 118 * sc), "rank %d of %d" % [int(d.rank), cap], RailLayout.text_px(12, sc), RailArt.c(&"hi"), false, HORIZONTAL_ALIGNMENT_CENTER, cr.size.x)
-	RailFrame.text(self, cr.position + Vector2(0, 136 * sc), "no reload" if int(d.total) > 0 else "never runs dry", RailLayout.text_px(12, sc), RailArt.c(&"hi"), false, HORIZONTAL_ALIGNMENT_CENTER, cr.size.x)
+	var mag := int(d.get("magazine", 0))
+	var sub := "reloads" if mag > 0 else ("no reload" if int(d.total) > 0 else "never runs dry")
+	RailFrame.text(self, cr.position + Vector2(0, 136 * sc), sub, RailLayout.text_px(12, sc), RailArt.c(&"hi"), false, HORIZONTAL_ALIGNMENT_CENTER, cr.size.x)
 	var total := int(d.total)
-	if total > 0:
+	if mag > 0:
+		# M48.5b (M47.6d1): the revolver's load, a round per pip; while it reloads, a fill.
+		var reload := float(d.get("reload", -1.0))
+		var left := 0 if reload >= 0.0 else int(d.mag)
+		var aw := _num(_d(r, Vector2(192, 40)), str(left), 64, RailArt.c(&"gold") if reload < 0.0 else RailArt.c(&"dim"))
+		_num(_d(r, Vector2(192, 40)) + Vector2(aw, _num_h(64) - _num_h(36)), "/%d" % mag, 36, RailArt.c(&"dim"))
+		_small(r, Vector2(194, 102), "reloading" if reload >= 0.0 else "rounds · then it reloads")
+		for i in mini(mag, 12):
+			RailArt.block(self, Rect2(_d(r, Vector2(192.0 + i * 14.0 + 2, 120)), (Vector2(10, 16) * sc).round()),
+					RailArt.c(&"warn") if i < left else RailArt.c(&"sunk"), p)
+		if reload >= 0.0:
+			var bar := Rect2(_d(r, Vector2(192, 142)), (Vector2(mini(mag, 12) * 14.0, 8) * sc).round())
+			RailArt.block(self, bar, RailArt.c(&"sunk"), p)
+			RailArt.block(self, Rect2(bar.position, Vector2(roundf(bar.size.x * reload), bar.size.y)), RailArt.c(&"gold"), p)
+	elif total > 0:
 		var aw := _num(_d(r, Vector2(192, 40)), str(int(d.left)), 64, RailArt.c(&"gold"))
 		_num(_d(r, Vector2(192, 40)) + Vector2(aw, _num_h(64) - _num_h(36)), "/%d" % total, 36, RailArt.c(&"dim"))
 		_small(r, Vector2(194, 102), "shells" if total <= 24 else "shells · 1 per %d rounds" % ceili(total / 24.0))

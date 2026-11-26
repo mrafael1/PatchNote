@@ -35,6 +35,11 @@ var session_path: StringName = &""
 ## PLAN v9 1.15 (M45b): shots RunState.spawn refused at their cap this run (telemetry).
 var enemy_shots_refused := 0
 var player_shots_refused := 0
+## M47.6c1 (design 2.6, sim): a clear session's set is all out (RunLoop sets it each tick; the
+## bot hunts on it), and the last few survivors chase the player (latched; shooters read it).
+## Never set outside a clear session with a budget, so every other run plays as before.
+var wave_closed := false
+var survivors_chase := false
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
@@ -535,6 +540,8 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	session_added.clear()
 	enemy_shots_refused = 0
 	player_shots_refused = 0
+	wave_closed = false
+	survivors_chase = false
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])

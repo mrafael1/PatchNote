@@ -5,14 +5,15 @@
 [resource]
 script = ExtResource("1")
 id = &"survival"
+title = "SURVIVAL"
 fire_mode = &"manual_ammo"
 growth = &"pickups"
-start = Array[StringName]([&"pistol"])
+start = Array[StringName]([&"revolver"])
 max_slots = 1
 max_passives = 1
-offer_pool_extra = Array[StringName]([])
-spawn_rate_mult = 1.0
-max_enemies_mult = 1.0
+offer_pool_extra = Array[StringName]([&"revolver"])
+spawn_rate_mult = 0.65
+max_enemies_mult = 0.7
 enemy_hp_mult = 1.0
 kill_goal_mult = 1.0
 boss_hp_mult = 0.9

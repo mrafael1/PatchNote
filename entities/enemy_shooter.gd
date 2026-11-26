@@ -62,7 +62,11 @@ func _physics_process(delta: float) -> void:
 		_strafe_left = STRAFE_FLIP_TIME
 
 	var steer := dir.orthogonal() * _strafe_sign
-	if distance > Tuning.shooter_far:
+	if RunState.survivors_chase:
+		# M47.6c1 (design 2.6): one of the last few of a clear session's set: it stops
+		# kiting and walks at the player (strafing along a wall it hits).
+		steer = dir if get_slide_collision_count() == 0 else (dir + dir.orthogonal() * _strafe_sign).normalized()
+	elif distance > Tuning.shooter_far:
 		steer = dir
 	elif distance < Tuning.shooter_near:
 		steer = -dir

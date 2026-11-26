@@ -59,7 +59,10 @@ static func sync(p_host: Node, frame: RailFrame) -> RailFrame:
 		frame.host = p_host
 		frame.name = "Rail"
 		p_host.add_child(frame)
-		p_host.move_child(frame, 1)   # over Back, under the game, the glitch, the fade and the terminal
+		# Over Back and the dev desktop (M48.5b: hidden under the rail), under the game, the
+		# glitch, the fade and the terminal.
+		var desk: Node = p_host.get(&"desktop")
+		p_host.move_child(frame, desk.get_index() + 1 if desk != null else 1)
 	p_host.set(&"rail", frame)   # before set_on: its relayout reads host.rail
 	frame.set_on(want)
 	return frame
@@ -243,6 +246,7 @@ func apply_layout(l: Dictionary) -> void:
 		return
 	reply.position = l.reply.position
 	reply.size = l.reply.size
+	reply.call(&"layout_input")
 	var lg: Rect2 = l.log
 	var head := roundf(RailLayout.HEADER_H * float(l.s))
 	chat_layer.set_anchors_preset(Control.PRESET_TOP_LEFT)
@@ -312,6 +316,7 @@ func rect(d: Rect2) -> Rect2:
 static func text(ci: CanvasItem, top_left: Vector2, t: String, size: int, color: Color, bold := false,
 		align := HORIZONTAL_ALIGNMENT_LEFT, width := -1.0) -> void:
 	var f := UiTheme.pixel_font(bold)
+	# M48.5b: the font draws 0-9 from the rail's own pixel digits (UiTheme.pixel_digits).
 	ci.draw_string(f, Vector2(top_left.x, top_left.y + f.get_ascent(size)), t, align, width, size, color)
 
 

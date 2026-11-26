@@ -62,9 +62,9 @@ const AGAIN := "again"
 const MOVE_ON_ROW := "move on (I'll take this one)"
 const BOX := Vector2(230, 210)   ## a raw fork preview box
 const SECTIONS: Array[String] = ["Added", "Changed", "Fixed"]
-## M47.5b (PLAN v9.3 2.5, D2): a death's countdown before "again" fires by itself.
-const COUNTDOWN_S := 3
-const COUNTDOWN_LINE := "restarting in"
+## M47.6a (PLAN v9.4 2.5, D7): the death ask has no countdown; Enter = again counts only once
+## the died lines and the choices are typed, plus this, and on a fresh press.
+const ASK_ARM_S := 0.4
 
 var session: SessionDef
 var outcome: StringName = &""   ## won, died or stopped
@@ -118,14 +118,13 @@ var _boxes: CenterContainer     ## the fork's raw preview boxes over the frozen 
 var _boxes_row: HBoxContainer
 var _auto_wait := false
 var _auto_msec := 0
-## M47.5b: the host (the death countdown asks it whether anyone played since the last
-## restart), the countdown's row and its clock, and when this beat opened (telemetry).
+## M47.5b: the host, and when this beat opened (telemetry). M47.6a: the death ask's Enter
+## arms (-1: not yet; the msec it counts from) and whether Enter was held when it armed.
 var host: GameHost
 var opened_usec := 0
-var _count_wait := false
-var _count_label: Label
-var _count_msec := 0
-var _count_shown := 0
+var _death_ask := false
+var _ask_arm_msec := -1
+var _ask_enter_held := false
 
 
 var events: Array = []   ## the events played this attempt (open())
@@ -324,8 +323,8 @@ func open(p_session: SessionDef, run_outcome: StringName, hits: int, p_events: A
 	_apply_style()
 	_chosen = false
 	_auto_wait = false
-	_count_wait = false
-	_count_label = null
+	_death_ask = false
+	_ask_arm_msec = -1
 	opened_usec = Time.get_ticks_usec()
 	if view != TERMINAL:
 		_set_body(body_for(session))
@@ -397,13 +396,14 @@ func death_expected() -> bool:
 
 
 ## The session's next fork still to ask here, in asked_forks() order: not answered in
-## the save nor picked in this debrief (null when none is left).
+## the save nor picked in this debrief (null when none is left). M47.6b: first any fork an
+## earlier finished session left unanswered (CampaignDB.late_forks: the body pick moved to S2).
 func fork() -> Fork:
 	if session == null:
 		return null
 	if outcome == &"died" and not death_expected() and not moved_on:
 		return null
-	for id in session.asked_forks():
+	for id in CampaignDB.late_forks(session) + session.asked_forks():
 		var f := ChangeDB.get_fork(id)
 		if f == null or f.is_answered():
 			continue
@@ -634,7 +634,7 @@ func finish_lines() -> void:
 func _process(delta: float) -> void:
 	if view == TERMINAL and is_open() and phase == DONE:
 		_auto_step()
-		_count_step()
+		_ask_step()
 	if not is_open() or phase != LINES or _line == null:
 		return
 	_line_t += delta
@@ -893,7 +893,7 @@ func pick(index: int) -> bool:
 			corner.setup(true, c.take.id)
 			corner.show_expression(&"surprised")
 			corner.glitch(0.35)
-		terminal.set_speaker(GameHost.speaker_for(c.take.id), true)
+		terminal.set_speaker(GameHost.speaker_for(c.take.id), true, c.take.id)
 	elif c.kind == &"mascot":
 		_set_body(c.take.id)
 		big_body.set_expression(&"surprised")
@@ -940,18 +940,35 @@ func _finish() -> void:
 func _terminal_way_on() -> void:
 	if outcome == &"died" and not death_expected() and not moved_on:
 		terminal.ask([AGAIN, MOVE_ON_ROW] as Array[String])
-		# M47.5b: once the choices are up, "restarting in 3 . 2 . 1", then again by itself
-		# (a live host, and only when someone played since the last restart).
-		_count_wait = countdown_due()
-		_count_msec = Time.get_ticks_msec()
+		# M47.6a: no countdown; 1 / Enter (armed) = again, 2 = move on.
+		_death_ask = true
+		_ask_arm_msec = -1
 		return
 	var v := CampaignDB.version_after(session).label()
 	terminal.think()
 	terminal.cmd("build %s" % v, "ok")
 	terminal.cmd("patch apply %s" % v)
 	terminal.notes(changelog(session, picked, more_picks()))
+	if session.chat == SessionDef.CHAT_UPGRADE and not terminal.is_chat():
+		_chat_upgrade()
 	_auto_wait = auto_way_on
 	_auto_msec = Time.get_ticks_msec()
+
+
+## M47.6b (PLAN v9.4 0.8, design 2.8): S2's beat ships the dev-chat after its patch rows: a
+## line, the AI thinks, builds it, retires the terminal (collapsed, not deleted), the chat
+## opens in its place (TerminalPanel.upgrade, a 0.3 s crossfade) and says its first line. All
+## queued, so the way on waits for it.
+func _chat_upgrade() -> void:
+	var c := CampaignDB.campaign
+	for l in Line.parse_all(c.chat_upgrade_before if c != null else PackedStringArray()):
+		terminal.type_line(l)
+	terminal.think()
+	terminal.cmd("build dev_chat_ui", "ok (it has round corners now)")
+	terminal.cmd("retire terminal", "collapsed, not deleted")
+	terminal.upgrade()
+	for l in Line.parse_all(c.chat_upgrade_after if c != null else PackedStringArray()):
+		terminal.type_line(l)
 
 
 ## auto_way_on: AUTO_DELAY after the terminal is done typing, the first choice (Next).
@@ -968,43 +985,22 @@ func _auto_step() -> void:
 			choose(options[0])
 
 
-## M47.5b: the death countdown runs (auto_way_on, and the host saw a gameplay input since
-## its last swap: a player who walked away stops at `you> _`).
-func countdown_due() -> bool:
-	return auto_way_on and (host == null or host.played)
-
-
-## The countdown starts when the died lines and the choices are typed, a row of its own;
-## a number a second; at the end, again (RETRY).
-func _count_step() -> void:
-	if not _count_wait or _chosen:
+## M47.6a: the death ask's Enter arms once the terminal is done typing (+ ASK_ARM_S).
+func _ask_step() -> void:
+	if not _death_ask or _chosen or _ask_arm_msec >= 0:
 		return
-	if _count_label == null:
-		if terminal.is_busy():
-			_count_msec = Time.get_ticks_msec()
-			return
-		_count_shown = 0
-		_count_label = terminal.sys_now(countdown_text(0))
-		_count_msec = Time.get_ticks_msec()
+	if terminal.is_busy():
 		return
-	var whole := mini(int((Time.get_ticks_msec() - _count_msec) / 1000), COUNTDOWN_S)
-	if whole != _count_shown:
-		_count_shown = whole
-		if is_instance_valid(_count_label):
-			_count_label.text = countdown_text(whole)
-			terminal.touch()
-	if whole >= COUNTDOWN_S and can_choose():
-		_count_wait = false
-		if RETRY in choices():
-			choose(RETRY)
+	_ask_arm_msec = Time.get_ticks_msec() + int(ASK_ARM_S * 1000.0)
+	_ask_enter_held = Input.is_key_pressed(KEY_ENTER) or Input.is_key_pressed(KEY_KP_ENTER)
 
 
-## "restarting in 3", "restarting in 3 . 2", "restarting in 3 . 2 . 1".
-static func countdown_text(step: int) -> String:
-	var parts: Array[String] = []
-	for i in mini(step, COUNTDOWN_S - 1) + 1:
-		parts.append(str(COUNTDOWN_S - i))
-	return COUNTDOWN_LINE + " " + " . ".join(parts)
+## Enter at the death ask counts (the lines read, a fresh press): a player mashing Enter
+## after a death does not restart unread. Off the death ask it always counts.
+func ask_enter_armed() -> bool:
+	if not _death_ask:
+		return true
+	return _ask_arm_msec >= 0 and Time.get_ticks_msec() >= _ask_arm_msec and not _ask_enter_held
 
 
 ## Real seconds since this beat opened (telemetry's beat_real_s).
@@ -1099,7 +1095,7 @@ func choose(label: String) -> bool:
 		if _chosen:
 			return false   # M47.5a: one way on per open (a second key, the auto way on)
 		_auto_wait = false
-		_count_wait = false   # M47.5b: a key (1 or 2) stops the countdown
+		_death_ask = false
 		terminal.finish()
 		if terminal.has_prompt():
 			terminal.answer(str(choices().find(label) + 1))
@@ -1143,7 +1139,7 @@ func close() -> void:
 	_root.visible = false
 	_open = false
 	_auto_wait = false
-	_count_wait = false
+	_death_ask = false
 	_hide_boxes()
 	RunState.set_pause(&"debrief", false)
 
@@ -1164,6 +1160,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# M47.3 (PLAN 1.16): actions, not raw keycodes: choose_N is bound by physical position
 	# (1 / 2 work on AZERTY), ui_accept is Enter, keypad Enter, Space and the pad's A.
+	if event.is_action_released(&"ui_accept"):
+		_ask_enter_held = false   # M47.6a: the key held through the lines is up
 	if event.is_echo() or not event.is_pressed():
 		return
 	match phase:
@@ -1187,7 +1185,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			var options := choices()
 			var choice := -1
-			if event.is_action_pressed(&"choose_1") or event.is_action_pressed(&"ui_accept"):
+			if event.is_action_pressed(&"choose_1"):
+				choice = 0
+			elif event.is_action_pressed(&"ui_accept"):
+				if not ask_enter_armed():
+					get_viewport().set_input_as_handled()
+					return
 				choice = 0
 			elif event.is_action_pressed(&"choose_2"):
 				choice = 1

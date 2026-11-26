@@ -54,6 +54,10 @@ const ARENA_MORPH := 3.0
 ## M50.1b: a `fused` / `fuse_ready` cue fires at least this long after the previous say cue.
 const SAY_GAP := 4.0
 var _last_say := -1.0
+## M47.6a (PLAN v9.4, S0): direction presses while the build cannot move (`tried N` cues):
+## each new direction the player's input enters counts one (physics, the input it reads).
+var tried := 0
+var _tried_dir := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -130,7 +134,8 @@ func hold_speech(on: bool) -> void:
 func _physics_process(_delta: float) -> void:
 	if genre == null or genre.is_over():
 		return
-	var ctx := {"clock": genre.session_clock(), "kills": RunState.kills,
+	_count_tried()
+	var ctx := {"clock": genre.session_clock(), "kills": RunState.kills, "tried": tried,
 			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched,
 			"hp": _player_hp(),
 			"level": path_runner.level() if path_runner != null else -1,
@@ -150,6 +155,21 @@ func _physics_process(_delta: float) -> void:
 			_fire(_cues[i], i)
 		elif _cues[i].expired(ctx):
 			_fired[i] = true   # dropped, not said
+
+
+## M47.6a: a press counts when the input's direction (rounded per axis) changes to a new
+## non-zero one while the player's movement is locked. Reads the input only, never moves it.
+func _count_tried() -> void:
+	var p := genre.player
+	if p == null or not is_instance_valid(p) or not bool(p.get(&"movement_locked")):
+		_tried_dir = Vector2i.ZERO
+		return
+	var input: Variant = p.get(&"input")
+	var m: Vector2 = input.get(&"move") if input is Object and input != null else Vector2.ZERO
+	var d := Vector2i(signi(roundi(m.x * 1.4)), signi(roundi(m.y * 1.4)))
+	if d != Vector2i.ZERO and d != _tried_dir:
+		tried += 1
+	_tried_dir = d
 
 
 ## M47 (C1.7): a path started. Each unfired `picked` cue binds to it, or, bound to the
@@ -351,6 +371,29 @@ func inject(text: String) -> Cue:
 		if c.when == &"picked" and path_runner != null and path_runner.path_id != &"":
 			_bound[_cues.size() - 1] = true
 	return c
+
+
+## M47.6c1 (design 2.6): enemies the unfired `at` / `kills` spawn cues will still add (both
+## always fire: time runs and kills only grow). A cue keyed on anything else never holds a
+## clear ending, nor does a specimen.
+func pending_spawns() -> int:
+	var n := 0
+	for i in _cues.size():
+		var c := _cues[i]
+		if not _fired[i] and c.action == &"spawn" and not c.specimen and c.when in [&"at", &"kills"]:
+			n += c.count
+	return n
+
+
+## M47.6c1: the script part a `script` ending waits for: every `at` cue fired (or expired), and
+## the rule book has no edit in its warning or timed-live. Condition cues never hold it.
+func script_cues_done() -> bool:
+	for i in _cues.size():
+		if not _fired[i] and _cues[i].when == &"at":
+			return false
+	if rule_book != null and rule_book.busy():
+		return false
+	return event_player == null or not event_player.is_playing()
 
 
 ## Lines said or waiting their turn: what the session gave the AI to say, whatever the

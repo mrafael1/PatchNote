@@ -6,6 +6,11 @@ extends Control
 ## right before the open `you>` prompt (hidden in the log while the rail shows), so whoever
 ## asked keeps reading its own keys. A click on a pill emits terminal.chosen(index), as a click
 ## on the raw choice row does.
+##
+## M48.5b (the Stage 1 rework, M47.6a-b): the terminal's input row (ChatInput) sits in the
+## well while the rail shows, so the play gate is typed here as in the chat ("play", or Enter
+## once armed); the well's text is then the input's own (its ghost "play", "Talk to Blob...").
+## At a gate with no choices open, one gold `play` pill gives play, as the chat's pill does.
 
 const Chat := preload("res://ui/rail/rail_chat.gd")
 
@@ -24,11 +29,12 @@ func _process(_delta: float) -> void:
 
 ## The open question now: {question, who, choices: Array[String], prompt: bool}.
 func state() -> Dictionary:
-	var out := {"question": "", "who": "", "choices": [] as Array[String], "prompt": false}
+	var out := {"question": "", "who": "", "choices": [] as Array[String], "prompt": false, "gate": false}
 	var t: TerminalPanel = frame.host.get(&"terminal") if frame != null and frame.host != null else null
 	if t == null:
 		return out
 	out.who = t.speaker
+	out.gate = t.chat_input != null and t.chat_input.gate
 	var rows := t.row_nodes()
 	var you := -1
 	if t.has_prompt():
@@ -79,6 +85,42 @@ static func asks(line: String) -> bool:
 	return t.ends_with("?")
 
 
+## The pills on show: the open choices, else `play` at a gate (M48.5b), else none.
+static func pills_of(st: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	out.assign(st.choices)
+	if out.is_empty() and bool(st.get("gate", false)):
+		out.append("play")
+	return out
+
+
+## Review (M48.5b): pill `i`'s key chip: "1", "2"... for an open choice (the choose keys pick
+## it); "" for the gate's `play` pill, which no number key gives (focus sits in the input, so
+## 1 would type "1"): it draws no chip, and Enter on "play" or a click gives play.
+static func key_of(st: Dictionary, i: int) -> String:
+	return str(i + 1) if i < (st.choices as Array).size() else ""
+
+
+## The input well (local).
+func well_rect() -> Rect2:
+	var sc: float = frame.s() if frame != null else 1.0
+	return Rect2(Vector2(16 * sc, 166 * sc).round(), Vector2(size.x - 32 * sc, 34 * sc).round())
+
+
+## M48.5b: lays the docked input row in the well, after its ">".
+func layout_input() -> void:
+	var t: TerminalPanel = frame.host.get(&"terminal") if frame != null and frame.host != null else null
+	if t == null or t.input_row() == null or t.input_row().get_parent() != self:
+		return
+	var sc: float = frame.s()
+	var well := well_rect()
+	var fs := RailLayout.text_px(16, sc)
+	var x := 12 * sc + RailFrame.text_w(">", fs, true) + 6 * sc
+	var row := t.input_row()
+	row.position = Vector2(well.position.x + x, well.position.y).round()
+	row.size = Vector2(well.size.x - x - 8 * sc, well.size.y).round()
+
+
 ## The pills' rects (local) for `n` choices: up to 32 tall, 6 apart, from y 44 to the well.
 func pill_rects(n: int) -> Array[Rect2]:
 	var out: Array[Rect2] = []
@@ -98,7 +140,7 @@ func _draw() -> void:
 	var sc: float = frame.s()
 	var p: float = frame.px()
 	var st := state()
-	var choices: Array = st.choices
+	var choices: Array = pills_of(st)
 	var fs := RailLayout.text_px(16, sc)
 	var w := size.x - 32 * sc
 	if String(st.question) != "":
@@ -117,34 +159,41 @@ func _draw() -> void:
 		var first := i == 0
 		RailArt.block(self, r, RailArt.c(&"gold") if first else RailArt.c(&"pill"), p, roundf(4 * sc),
 				RailArt.c(&"gold_lo") if first else RailArt.c(&"pill_lo"))
-		var key := str(i + 1)
-		var kr := Rect2(r.position + Vector2(8 * sc, roundf((ph - 22 * sc) * 0.5) - 1 * sc), Vector2(24, 22) * sc).abs()
-		kr = Rect2(kr.position.round(), kr.size.round())
-		RailArt.block(self, kr, RailArt.c(&"ink") if first else RailArt.c(&"key"), p, roundf(4 * sc),
-				RailArt.c(&"base") if first else RailArt.c(&"key_lo"))
-		RailFrame.text(self, kr.position + Vector2(0, 3 * sc), key, RailLayout.text_px(12, sc),
-				RailArt.c(&"gold") if first else RailArt.c(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, kr.size.x)
+		var key := key_of(st, i)
+		var tx := r.position.x + 16 * sc
+		if key != "":
+			var kr := Rect2(r.position + Vector2(8 * sc, roundf((ph - 22 * sc) * 0.5) - 1 * sc), Vector2(24, 22) * sc).abs()
+			kr = Rect2(kr.position.round(), kr.size.round())
+			RailArt.block(self, kr, RailArt.c(&"ink") if first else RailArt.c(&"key"), p, roundf(4 * sc),
+					RailArt.c(&"base") if first else RailArt.c(&"key_lo"))
+			RailFrame.text(self, kr.position + Vector2(0, 3 * sc), key, RailLayout.text_px(12, sc),
+					RailArt.c(&"gold") if first else RailArt.c(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, kr.size.x)
+			tx = kr.end.x + 12 * sc
 		var t: String = choices[i]
-		var tx := kr.end.x + 12 * sc
 		RailFrame.text(self, Vector2(tx, r.position.y + (ph - UiTheme.pixel_font().get_height(fs)) * 0.5 - 1 * sc), t,
 				RailFrame.fit(t, fs, r.end.x - tx - 8 * sc, false, 9), RailArt.c(&"ink"))
-	# The input well.
-	var well := Rect2(Vector2(16 * sc, 166 * sc).round(), Vector2(w, 34 * sc).round())
+	# The input well: ">" then the docked ChatInput (its ghost / idle text, its caret); while
+	# choices are open (no gate) the input hides and the well names their keys.
+	var well := well_rect()
 	RailArt.block(self, well, RailArt.c(&"sunk"), p)
-	var hint := "watching you play"
-	if n > 0:
-		var keys: Array[String] = []
-		for i in n:
-			keys.append(str(i + 1))
-		hint = "press " + " ".join(keys)
-	elif st.prompt:
-		hint = "move to play"
 	var ty := well.position.y + (well.size.y - UiTheme.pixel_font().get_height(fs)) * 0.5
 	RailFrame.text(self, Vector2(well.position.x + 12 * sc, ty), ">", fs, RailArt.c(&"gold"), true)
-	var hx := well.position.x + 12 * sc + RailFrame.text_w(">", fs, true) + 8 * sc
-	RailFrame.text(self, Vector2(hx, ty), hint, fs, RailArt.c(&"dim") if st.prompt else RailArt.c(&"mute"))
-	if st.prompt and caret_on():
-		draw_rect(Rect2(Vector2(hx + RailFrame.text_w(hint, fs) + 6 * sc, well.position.y + 9 * sc).round(), (Vector2(8, 16) * sc).round()), RailArt.c(&"gold"))
+	var hint := well_hint(st)
+	if hint != "":
+		var hx := well.position.x + 12 * sc + RailFrame.text_w(">", fs, true) + 8 * sc
+		RailFrame.text(self, Vector2(hx, ty), hint, fs, RailArt.c(&"dim"))
+
+
+## The well's own text: "press 1 2" while choices are open and no gate is up; else "" (the
+## input shows its own).
+static func well_hint(st: Dictionary) -> String:
+	var choices: Array = st.choices
+	if choices.is_empty() or bool(st.get("gate", false)):
+		return ""
+	var keys: Array[String] = []
+	for i in choices.size():
+		keys.append(str(i + 1))
+	return "press " + " ".join(keys)
 
 
 ## The caret's blink (1 Hz; steady under reduce flashing, read live).
@@ -155,7 +204,7 @@ func caret_on() -> bool:
 
 ## The pill under `local` (-1 none).
 func pill_at(local: Vector2) -> int:
-	var rects := pill_rects((state().choices as Array).size())
+	var rects := pill_rects(pills_of(state()).size())
 	for i in rects.size():
 		if rects[i].has_point(local):
 			return i
@@ -170,6 +219,12 @@ func _gui_input(event: InputEvent) -> void:
 	if i < 0:
 		return
 	var t: TerminalPanel = frame.host.get(&"terminal")
-	if t != null:
+	if t == null:
+		return
+	var st := state()
+	if (st.choices as Array).is_empty():
+		if bool(st.gate) and t.chat_input != null:
+			t.chat_input.play_given.emit()   # M48.5b: the gate's `play` pill
+	else:
 		t.chosen.emit(i)
-		accept_event()
+	accept_event()

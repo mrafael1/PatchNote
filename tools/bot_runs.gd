@@ -56,7 +56,8 @@ extends SceneTree
 ##                                on a copy of it, exactly as the .tres would ship it. In
 ##                                the chain it applies to every session; <session id>.<key>
 ##                                applies to that one only. goal_value also clears the
-##                                copy's goal_by_path (M47.2: S8 Survival's 90 s)
+##                                copy's goal_by_path (M47.2: S8 Survival's 90 s), and
+##                                enemy_total its enemy_total_by_path (M47.6d2: S8 / S9)
 ##   --dash=<classic|grapple|teleport|none>   with --campaign (M42.1): the dash style.
 ##                                With --only, ships dash_<style> before the session (none:
 ##                                the player's dash stays locked, a control); in the chain,
@@ -169,7 +170,7 @@ var edit_at := 12.0                          ## --edit-at
 var lift := 0.0                              ## --lift
 var events_off := false                      ## --events=none
 var session_set := PackedStringArray()       ## --session-set (M42), "[<session id>.]key=value"
-const SESSION_KEYS := ["spawn_rate", "spawn_cap", "goal_value", "time_limit"]
+const SESSION_KEYS := ["spawn_rate", "spawn_cap", "goal_value", "time_limit", "enemy_total", "end_after"]
 const READ_CPS := 45.0                       ## the chain's reading estimate: characters a second
 const FORK_SECONDS := 5.0                    ## ... and seconds a pick
 const EVENT_TAIL := 1.0                      ## a death this soon after an event counts as during it
@@ -600,7 +601,11 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		var dash_name: String = "none" if dash_arg == "none" else String(game.player.dasher.style)
 		var aim_name := "aim" if game.player.dasher.aims else "move"
 		if lift > 0.0:
-			game.run_loop.goal_value = lift
+			if game.run_loop.has_end(&"clear"):   # M47.6c1: a clear session's set grows instead
+				game.spawner.budget = int(lift)
+				game.run_loop.enemy_total = int(lift)
+			else:
+				game.run_loop.goal_value = lift
 		var loadout: Node = game.player.get_node_or_null(^"Loadout")
 		if not loadout_arg.is_empty() and loadout != null:
 			_force_loadout(loadout)
@@ -743,6 +748,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		# M46: PLAN 4's per-seed fp=, only behind --fp (check.ps1's anchored regexes never see it).
 		if fp_arg and path_text != "":
 			landed_text += " fp=%s" % _fp_text(runner.call(&"fingerprint"))
+		landed_text += end_text(game)   # M47.6c1: last of all (check.ps1's anchored regexes read it)
 		print("[botrun] session=%s seed=%d%s mascot=%s outcome=%s t=%.1f%s%s reactions=%d chatter=%d p2=%d p3=%d/%d min_gap=%s ids=%s%s" % [
 			only, run_seed, " (invincible)" if invincible else "", save.call(&"mascot"), outcome,
 			duration, edit_text, event_text, fired.size(), chatter.size(),
@@ -1074,6 +1080,12 @@ func _event_report(game: Node, rec: Dictionary, cue_at: float, stats: Dictionary
 ## not tied to it; --dash= picks its option in fork_dash. M42.2: the third (fork_dash_aim)
 ## is posmod(floor(pick_seed / 9), 2), so chains 1i (seed 5) and 2 (seed 6) both play aim;
 ## --dash-aim= picks its option. Returns the picks' ids joined by "," or "".
+## M47.6b: fork_mascot moved to S2's end (owner, design 10 Q9). The dash forks keep the
+## divisors they had after it at S3 (FORK_DIV), so the chains still play the same dashes
+## (1i grapple+aim, 2 teleport+aim); the body is now picked from S2's pick_seed.
+const FORK_DIV := {&"fork_dash": 3, &"fork_dash_aim": 9}
+
+
 func _through_debrief(debrief: Node, pick_seed: int) -> String:
 	var picks: Array[String] = []
 	var div := 1
@@ -1081,9 +1093,11 @@ func _through_debrief(debrief: Node, pick_seed: int) -> String:
 		debrief.finish_lines()
 		if debrief.phase == &"fork":
 			var options: Array = debrief.fork_options()
+			var fork_id: StringName = options[0].fork if not options.is_empty() else &""
+			if FORK_DIV.has(fork_id):
+				div = FORK_DIV[fork_id]
 			var index := posmod(floori(float(pick_seed) / float(div)), options.size())
 			# --answer= (and --dash= / --dash-aim=): that fork picks its named option.
-			var fork_id: StringName = options[0].fork if not options.is_empty() else &""
 			if answers.has(fork_id):
 				for k in options.size():
 					if options[k].id == answers[fork_id]:
@@ -1197,6 +1211,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			line += " card=%d" % card_stage   # PLAN v9 2: last, so the Stage 1 lines stay byte-identical
 		line += _path_text(game.get(&"path_runner"))   # M45a: after card=, only with a live path
 		line += _tryout_text(game.get(&"path_runner"))   # M47: a tryout's swaps and leftovers
+		line += end_text(game)   # M47.6c1: last of all
 		print(line)
 		if last:
 			break
@@ -1262,6 +1277,17 @@ func _insert_draft() -> bool:
 	(db.get(&"campaign").get(&"sessions") as Array).insert(at, d)
 	print("[botrun] draft %s inserted at %d" % [d.get(&"id"), at])
 	return true
+
+
+## M47.6c1 (design 2.10): " end=<reason> spawned=<n>/<budget> start=<x>,<y>", the run's end
+## reason, the spawner's own draws against its budget (-1: none) and where the player started
+## (M47.6c2: the carried spot in a chain, else the arena's player_start).
+static func end_text(game: Node) -> String:
+	var rec: Dictionary = game.run_loop.record
+	var sp: Node = game.get(&"spawner")
+	var start: Vector2 = game.run_loop.start_point
+	return " end=%s spawned=%d/%d start=%.2f,%.2f" % [String(rec.get("end", "")) if String(rec.get("end", "")) != "" else "-",
+			int(sp.get(&"spawned")) if sp != null else 0, int(sp.get(&"budget")) if sp != null else -1, start.x, start.y]
 
 
 ## M47: on a tryout, " swaps=<id>@<t>,... leftovers=<n>" (else "").
@@ -1478,6 +1504,10 @@ static func set_session_field(copy: Resource, key: String, value: float) -> void
 	if key == "goal_value" and not (copy.get(&"goal_by_path") as Dictionary).is_empty():
 		copy.set(&"goal_by_path", Dictionary({}, TYPE_STRING_NAME, &"", null, TYPE_FLOAT, &"", null))
 		print("[botrun] %s: goal_value=%s replaces goal_by_path" % [copy.get(&"id"), value])
+	# M47.6d2: enemy_total likewise clears enemy_total_by_path (S8 / S9's per-path sets).
+	if key == "enemy_total" and not (copy.get(&"enemy_total_by_path") as Dictionary).is_empty():
+		copy.set(&"enemy_total_by_path", Dictionary({}, TYPE_STRING_NAME, &"", null, TYPE_INT, &"", null))
+		print("[botrun] %s: enemy_total=%s replaces enemy_total_by_path" % [copy.get(&"id"), value])
 
 
 ## Estimated seconds a player spends reading this attempt's lines (M42 "chain:"): the

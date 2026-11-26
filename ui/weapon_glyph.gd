@@ -7,7 +7,7 @@ extends RefCounted
 ## (`shot_<key>_player`), so the card, the pickup and the shot itself show one picture.
 
 const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole",
-		&"prism", &"misfuse"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too)
+		&"prism", &"misfuse", &"cylinder"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too); M47.6d1: the revolver
 
 static var skin_draws := 0   ## pictures drawn from a look's sprite (tests)
 
@@ -53,6 +53,12 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 				var c2 := centre + Vector2(-r * 0.15 + r * 0.3 * k, -r * 0.1 + r * 0.2 * k)
 				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 1.2, r * 0.3)), Color(color, 0.6 + 0.4 * k))
 				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 0.3, r * 0.7)), Color(color, 0.6 + 0.4 * k))
+		&"cylinder":   # M47.6d1: the revolver: a cylinder of six chambers, a heavy round out of it
+			ci.draw_circle(centre + Vector2(-r * 0.35, 0), r * 0.5, color)
+			for i in 6:
+				var d := Vector2.RIGHT.rotated(TAU * i / 6.0)
+				ci.draw_circle(centre + Vector2(-r * 0.35, 0) + d * r * 0.28, r * 0.09, Palette.OUTLINE)
+			ci.draw_circle(centre + Vector2(r * 0.6, 0), r * 0.26, color)
 		&"link":   # M50.1b: two rings chained
 			ci.draw_arc(centre - Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
 			ci.draw_arc(centre + Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)

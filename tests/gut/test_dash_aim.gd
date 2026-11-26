@@ -85,7 +85,7 @@ func _debrief() -> DebriefScreen:
 func test_s3_asks_the_direction_right_after_the_dash() -> void:
 	SaveGame.go_inert()
 	var s3 := CampaignDB.get_session(&"s1_03_shooting")
-	assert_eq(s3.asked_forks(), [&"fork_mascot", &"fork_dash", &"fork_dash_aim"] as Array[StringName])
+	assert_eq(s3.asked_forks(), [&"fork_dash", &"fork_dash_aim"] as Array[StringName], "M47.6b: the body is S2's")
 	var f := ChangeDB.get_fork(&"fork_dash_aim")
 	assert_not_null(f)
 	assert_true(f.campaign)
@@ -93,9 +93,6 @@ func test_s3_asks_the_direction_right_after_the_dash() -> void:
 	assert_eq(f.changes().map(func(c: Change) -> StringName: return c.take.id), Change.DASH_AIMS, "aim first")
 	var d := _debrief()
 	d.open(s3, &"stopped", 0)
-	d.finish_lines()
-	assert_eq(d.fork().id, &"fork_mascot")
-	assert_true(d.pick(0))
 	d.finish_lines()
 	assert_eq(d.fork().id, &"fork_dash")
 	assert_true(d.pick(2))
@@ -110,10 +107,10 @@ func test_s3_asks_the_direction_right_after_the_dash() -> void:
 	d.finish_lines()
 	assert_eq(d.said[-1], "Where your feet go. Simple.")
 	assert_eq(d.choices(), [DebriefScreen.NEXT])
-	assert_eq(d.more_picks().map(func(c: Change) -> StringName: return c.id),
-			[&"dash_teleport", &"dashdir_move"])
+	assert_eq(d.picked.id, &"dash_teleport")
+	assert_eq(d.more_picks().map(func(c: Change) -> StringName: return c.id), [&"dashdir_move"])
 	var notes := DebriefScreen.notes_text(s3, d.picked, d.more_picks())
-	assert_eq(notes.count("\n  • "), s3.notes.size() + 3, "three pick bullets")
+	assert_eq(notes.count("\n  • "), s3.notes.size() + 2, "two pick bullets")
 	assert_string_contains(notes, "The dash goes where you move")
 	var after := CampaignDB.version_after(s3).label()
 	CampaignDB.complete(s3, d.picked, d.more_picks())
@@ -350,12 +347,14 @@ func test_the_s4_intro_says_one_direction_line() -> void:
 			if answer != &"":
 				SaveGame.ship(StringName("dashdir_%s" % answer), GameVersion.PATCH)
 			var ctx := CampaignDB.line_context(s4)
-			var texts := Line.passing(s4.intro_lines(), ctx).map(func(l: Line) -> String: return l.text)
+			# M47.6c1: S4's lines are cues now (walls at 0.3 s, the dash at 5 s).
+			var texts: Array = s4.cue_list().filter(func(c: Cue) -> bool:
+				return c.action == &"say" and Line.condition_holds(c.cond, ctx)).map(func(c: Cue) -> String: return c.line.text)
 			var said_aim := texts.any(func(t: String) -> bool: return t.ends_with("where you aim."))
 			var said_move := texts.any(func(t: String) -> bool: return t.ends_with("where you move."))
 			assert_ne(said_aim, said_move, "exactly one direction (%s %s)" % [style, answer])
 			assert_eq(said_aim, answer == &"aim", "aim only for aim (%s %s)" % [style, answer])
-			assert_eq(texts.size(), 3, "mascot, walls, then the dash and its direction in one line")
+			assert_eq(texts.size(), 2, "the walls, then the dash and its direction in one line")
 
 
 ## The & join (M42.2 review): both halves must hold. M43 (PLAN v9 1.1): any conditions join.
