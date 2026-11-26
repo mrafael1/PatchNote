@@ -35,6 +35,10 @@ extends Node
 ## shows (link_state). `fuse fail` (S9's beat, fuse_fail()) is the misfuse: an overlay for
 ## MISFUSE_SECONDS of game time (the Loadout untouched; its shots leave the wrong way, switching
 ## locked, no pack opens), then the AI patches it (a patch-note line).
+##
+## M50.2a (pack tuning): a 1-card pack (toast_pack: no choice to make) applies at once with no
+## pause and shows as PickPanel.toast(); it still counts as a pack. packs_short / packs_toast /
+## rares_shown feed the telemetry and the bot's line.
 
 signal started(path_id: StringName)
 
@@ -97,6 +101,11 @@ var leftover_checks: Array = []
 var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or the fade)
 ## M50.1a (packs): what was taken, for the telemetry and the bot's line.
 var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0}
+## M50.2a (telemetry, the bot's line): packs dealt with fewer than 3 cards, the 1-card ones
+## applied as a toast (no pause), and the rare cards shown in all packs.
+var packs_short := 0
+var packs_toast := 0
+var rares_shown := 0
 ## M50.1b: each fusion made: {id, t, from: ["shotgun:5", "laser:4"], rank}.
 var fusions: Array[Dictionary] = []
 ## M50.1b: the times FUSE became available (the `fuse_ready n` cues read it) and the ticks it
@@ -687,6 +696,20 @@ func _open_offer() -> void:
 			BoosterPack.mark_keeps(offer, lo)
 		if not _give_wait.is_empty():
 			_give_wait.packs = int(_give_wait.packs) + 1
+		if offer.cards.size() < 3:
+			packs_short += 1
+		for c: Dictionary in offer.cards:
+			if c.get("rarity") == BoosterPack.RARE:
+				rares_shown += 1
+		if toast_pack(offer, lo):
+			# M50.2a (D3): a 1-card pack has no choice: it applies now, with no pause, and a
+			# short toast shows it. It still counts as a pack (the meter, `picked n`, the log).
+			packs_toast += 1
+			offers.append(offer)
+			EventBus.pick_offered.emit(offer)
+			panel.toast(offer)
+			_pick(offer, 0)
+			return
 	else:
 		var first := _first
 		if first == &"" and _cards_growth():
@@ -714,12 +737,26 @@ static func most_fired(lo: Loadout) -> StringName:
 	return best.def.id if best != null else &""
 
 
+## M50.2a (D3): a pack with no choice: one card, no FUSE, and the card ranks a held weapon up
+## or joins a hand with room (never a replace step).
+static func toast_pack(offer: PickOffer, lo: Loadout) -> bool:
+	if not offer.pack or offer.cards.size() != 1 or not offer.fuse.is_empty() or lo == null:
+		return false
+	var c: Dictionary = offer.cards[0]
+	return c.kind == &"upgrade" or (c.kind == &"new" and not lo.hand_full())
+
+
 func _on_picked(offer: PickOffer, index: int) -> void:
 	fp.menu_close()
 	# The key that picked card n must not also pick slot n (keys 1-3, M46).
 	var p: Node = game.get(&"player") if game != null else null
 	if is_instance_valid(p) and p.get(&"input") != null:
 		(p.get(&"input") as PlayerInput).require_fresh_press()
+	_pick(offer, index)
+
+
+## The chosen card applies (the panel's pick, or M50.2a's 1-card toast).
+func _pick(offer: PickOffer, index: int) -> void:
 	var card: Dictionary = offer.cards[index]
 	_want = maxi(0, _want - 1)
 	picks += 1

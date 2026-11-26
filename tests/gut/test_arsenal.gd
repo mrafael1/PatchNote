@@ -147,10 +147,13 @@ func _frozen_chaser(tile: Vector2) -> Node2D:
 	return e
 
 
-## Opens a pick now (no waiting on the physics tick) and chooses card i.
+## Opens a pick now (no waiting on the physics tick) and chooses card i. M50.2a: a 1-card
+## pack applies as a toast (no panel): its offer is the runner's last.
 func _pick(runner: PathRunner, i := 0) -> PickOffer:
 	runner.want_pick()
 	runner._open_offer()
+	if not game.pick_panel.is_open():
+		return runner.offers[-1]
 	var offer := game.pick_panel.offer
 	game.pick_panel._unlock()
 	game.pick_panel.choose(mini(i, offer.cards.size() - 1))
@@ -189,7 +192,7 @@ func test_the_arsenal_data_is_valid() -> void:
 	assert_eq(a.quick_draw_mult, 2.0)
 	assert_eq(a.pick_line, "Pack. Pick one.")
 	assert_eq([a.pack_every, a.pack_taste, a.rank_cap, a.rank_curve], [6, 2, 0, &"deep"], "M50.1a: packs, deep ranks")
-	assert_almost_eq(a.rare_chance, 0.2, 0.0001)
+	assert_almost_eq(a.rare_chance, 0.15, 0.0001, "M50.2a: tuned down from 0.2")
 	assert_eq(a.taste_thresholds, PackedInt32Array([10]))
 	assert_eq(a.level_thresholds.size(), a.max_picks, "one cumulative threshold per pick")
 	for i in range(1, a.level_thresholds.size()):
@@ -351,6 +354,7 @@ func test_a_pick_asks_the_player_input_for_a_fresh_press() -> void:
 	player.set_input(h)
 	await wait_physics_frames(1)
 	assert_false(h._wait_release)
+	r.announce(&"shotgun")   # M50.2a: a pool of two, so the pack is a choice (no toast)
 	_pick(r, 0)
 	assert_true(h._wait_release, "the runner asks for a fresh press after a pick")
 

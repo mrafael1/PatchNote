@@ -693,6 +693,10 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
 		out.packs = int(runner.call(&"packs"))
 		out.pack_picks = (runner.get(&"pack_picks") as Dictionary).duplicate()
+		# M50.2a (additive): packs with fewer than 3 cards, 1-card toasts, rare cards shown.
+		out.packs_short = int(runner.get(&"packs_short"))
+		out.packs_toast = int(runner.get(&"packs_toast"))
+		out.rares_shown = int(runner.get(&"rares_shown"))
 		out.ranks_end = (out.weapons as Dictionary).duplicate()
 		var top := 0
 		for r: Variant in (out.weapons as Dictionary).values():

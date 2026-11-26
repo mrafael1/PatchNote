@@ -22,6 +22,12 @@ extends CanvasLayer
 ## Choosing it emits fuse_requested; the PathRunner fuses and hands back the same pack for the
 ## new hand (after_fuse): the cards hide for FUSE_TIME (real time, the tree stays paused, so the
 ## hand's merge shows) and the pack comes back with its own input delay.
+##
+## M50.2a (pack tuning, D3): a 1-card pack has no choice, so it never opens the panel: toast()
+## shows a short line at the game's bottom right, next to the rail's PACK module ("Pack:
+## Pistol +1", gold when rare) for TOAST_TIME of real time, fading out at the end (a fade only,
+## no shine, whatever reduce_flashing says). No pause, no input. A plain label until M50.2c
+## dresses it as a small card face.
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
@@ -35,6 +41,8 @@ const LAYER := 72   ## over the HUD (50) and the mascot (60), under the debrief 
 const CHOICES := 4  ## choose_1..4 (M50.1a: the replace step's Back, M50.1b's FUSE)
 const HAND_SCALE := 0.6
 const FUSE_TIME := 0.4   ## M50.1b: the fuse animation (real time)
+const TOAST_TIME := 1.6  ## M50.2a: the 1-card pack's toast (real time)
+const TOAST_FADE := 0.4  ## its fade-out at the end
 
 var offer: PickOffer
 var input_delay := INPUT_DELAY   ## tests set 0
@@ -50,6 +58,8 @@ var _locked_for := 0.0
 var _fusing := 0.0          ## M50.1b: seconds left of the fuse animation
 var _fused_title := ""
 var _dismissed := false   ## the run is over: never open again
+var _toast: Label         ## M50.2a: the 1-card pack's line
+var _toast_left := 0.0
 
 
 func _ready() -> void:
@@ -86,10 +96,55 @@ func _ready() -> void:
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 60)
 	column.add_child(gap)
+	_toast = Label.new()
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_toast.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_toast.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_toast.offset_right = -28
+	_toast.offset_bottom = -24
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_toast.add_theme_font_size_override(&"font_size", 22)
+	_toast.add_theme_color_override(&"font_outline_color", Palette.OUTLINE)
+	_toast.add_theme_constant_override(&"outline_size", 6)
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast.visible = false
+	add_child(_toast)
 
 
 func is_open() -> bool:
 	return _root.visible
+
+
+## M50.2a: a 1-card pack, applied by the PathRunner without a pause: its line shows for
+## TOAST_TIME (a new toast replaces the one showing).
+func toast(p_offer: PickOffer) -> void:
+	if _dismissed or p_offer == null or p_offer.cards.is_empty():
+		return
+	var c: Dictionary = p_offer.cards[0]
+	_toast.text = toast_text(c)
+	_toast.add_theme_color_override(&"font_color",
+			Palette.color(&"card_rare") if c.get("rarity") == BoosterPack.RARE else Palette.INFO)
+	_toast.modulate = Color(1, 1, 1, 1)
+	_toast.visible = true
+	_toast_left = TOAST_TIME
+
+
+## M50.2a: the toast is showing (tests, captures).
+func toasting() -> bool:
+	return _toast != null and _toast.visible
+
+
+## M50.2a: "Pack: Pistol +1", "Pack: Pistol +2  RARE", "Pack: Laser 1 joins".
+static func toast_text(c: Dictionary) -> String:
+	var w := WeaponDB.get_weapon(c.get("id", &""))
+	var title := String(w.title) if w != null else String(c.get("id", ""))
+	var rare: bool = c.get("rarity") == BoosterPack.RARE
+	var text := ""
+	if c.get("kind") == &"upgrade":
+		text = "Pack: %s +%d" % [title, int(c.get("rank", 0)) - int(c.get("from", 0))]
+	else:
+		text = "Pack: %s %d joins" % [title, int(c.get("rank", 1))]
+	return text + ("  RARE" if rare else "")
 
 
 ## Opens now (the caller defers: never pause the tree inside a physics callback). Refused
@@ -287,6 +342,12 @@ static func card_text(p_offer: PickOffer, i: int, to_label := Callable(), hints 
 
 
 func _process(delta: float) -> void:
+	if _toast_left > 0.0:
+		_toast_left -= delta / maxf(Engine.time_scale, 0.001)   # real time
+		_toast.modulate = Color(1, 1, 1, clampf(_toast_left / TOAST_FADE, 0.0, 1.0))
+		if _toast_left <= 0.0:
+			_toast_left = 0.0
+			_toast.visible = false
 	if not _root.visible:
 		return
 	if RunState.is_paused_for(RunState.MENU):   # M47.3: the pause menu holds the lock
@@ -314,6 +375,9 @@ func dismiss() -> void:
 	_dismissed = true
 	if _root.visible:
 		_root.visible = false
+	_toast_left = 0.0
+	if _toast != null:
+		_toast.visible = false
 	RunState.set_pause(PAUSE, false)
 
 

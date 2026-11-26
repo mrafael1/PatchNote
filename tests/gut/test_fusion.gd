@@ -174,6 +174,29 @@ func test_a_parent_card_feeds_the_fusion_and_never_shows_twice() -> void:
 			assert_false(card.id in [&"shotgun", &"laser"], "a parent is never its own card")
 
 
+## M50.2a review (finding 1): a common parent card and a rare one fold into ONE fused card,
+## the rare one (G2': never the same id twice, never a dominated card); either order.
+func test_recompute_folds_a_common_and_a_rare_parent_into_one_rare_card() -> void:
+	for order in 2:
+		var lo := _deep([&"shotgun", &"laser"], [4, 4])
+		var a := BoosterPack.card(lo, &"shotgun", order == 1)
+		var b := BoosterPack.card(lo, &"laser", order == 0)
+		var o := PickOffer.new()
+		o.pack = true
+		o.cards = [a, b] as Array[Dictionary]
+		assert_true(lo.fuse(&"shotgun", &"laser", &"prism", 4))
+		var out := BoosterPack.recompute(o, lo)
+		assert_eq(out.cards.size(), 1, "one fused card, not two")
+		assert_eq(out.cards[0].id, &"prism")
+		assert_eq(out.cards[0].rarity, BoosterPack.RARE, "the rare one stays")
+		assert_eq(int(out.cards[0].rank), lo.cap(4 + 2))
+		var c := BoosterPack.card(lo, &"shotgun", false)
+		var o2 := PickOffer.new()
+		o2.pack = true
+		o2.cards = [c, BoosterPack.card(lo, &"laser", false)] as Array[Dictionary]
+		assert_eq(BoosterPack.recompute(o2, lo).cards.size(), 1, "two commons: one card too")
+
+
 func test_g1_steers_to_the_lower_recipe_half() -> void:
 	var lo := _deep([&"shotgun", &"laser"], [7, 3])
 	lo.slots[0].shots = 50
@@ -231,7 +254,7 @@ func test_fuse_reopens_the_same_pack_for_the_new_hand_with_nothing_drawn() -> vo
 		if panel.offer.cards[i].kind == &"new":
 			new_at = i
 	assert_eq(panel.offer.cards.map(func(c: Dictionary) -> String: return "%s/%s" % [c.id, c.rarity]),
-			["pistol/common", "prism/common", "prism/rare"], "parents fold into the fusion")
+			["pistol/common", "prism/rare"], "parents fold into one fusion card (M50.2a review: G2')")
 	assert_eq(new_at, 0, "the pistol is still NEW")
 	assert_string_contains(String(panel.offer.cards[new_at].gain), "joins your hand", "the freed slot")
 	panel.choose(new_at)

@@ -88,8 +88,9 @@ extends SceneTree
 ##   --probe=no_switch            (M46) the arsenal policy never switches cards
 ##   --probe=no_fuse              (M50.1a) a pack's FUSE is never taken (M50.1b's; a no-op now)
 ##   --probe=skip_new             (M50.1a) a pack's NEW card is never taken (no join, no replace)
-##   --probe=human_pace           (M50.1a) Arsenal deals a pack every 9 kills instead of 6 (the
-##                                bot's ~0.9 kills/s then gives a human's pack cadence)
+##   --probe=human_pace           (M50.1a) Arsenal deals a pack every pack_every + 3 kills (9
+##                                instead of 6; M50.2a: read from the PathDef; the bot's
+##                                ~0.9 kills/s then gives a human's pack cadence)
 ##   --probe=human                (M50.1b review) human_pace, and a replace step that lets the
 ##                                lowest-rank card go that the step allows (a first play does
 ##                                not know the recipes; the step's kept partner is never offered)
@@ -200,7 +201,8 @@ var max_sessions := 0                        ## --max-sessions (M47): 0 = no lim
 const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human"]
 ## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
 const PACK_TARGETS := {"s2_02_day_one": [12, 25], "s2_03_paint": [15, 28]}
-const HUMAN_PACE_EVERY := 9
+## M50.2a: human_pace deals a pack every pack_every + this many kills (6 + 3 = 9 today).
+const HUMAN_PACE_EXTRA := 3
 
 
 func _initialize() -> void:
@@ -302,7 +304,7 @@ func _run() -> void:
 				return
 			if probe_arg in ["human_pace", "human"]:
 				var arsenal_def: Resource = load("res://paths/path_db.gd").call(&"get_def", &"arsenal")
-				arsenal_def.set(&"pack_every", HUMAN_PACE_EVERY)
+				arsenal_def.set(&"pack_every", int(arsenal_def.get(&"pack_every")) + HUMAN_PACE_EXTRA)
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=")
 			var fork_id := StringName(pair.get_slice("=", 0))
@@ -731,10 +733,11 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			var ar := _arsenal_run(cards_run, duration)
 			if bool(runner.call(&"pack_path")):
 				ar = _pack_run(cards_run, runner, loadout, String(only), invincible)
-				landed_text += " packs=%d pack_gap_median=%.1f rares=%d replaces=%d backs=%d max_rank=%d hand=%s cards_fired=%d shots=%s fusions=%s misfuse=%s" % [
+				landed_text += " packs=%d pack_gap_median=%.1f rares=%d replaces=%d backs=%d max_rank=%d hand=%s cards_fired=%d shots=%s fusions=%s misfuse=%s packs_short=%d packs_toast=%d rares_shown=%d" % [
 						int(ar.offers), float(ar.gap_median), int(ar.rares), int(ar.replaces), int(ar.backs),
 						int(ar.max_rank), ar.hand, int(ar.fired), _join_or_dash(_shots_parts(cards_run.shots)),
-						_join_or_dash(ar.fusions), ar.misfuse]
+						_join_or_dash(ar.fusions), ar.misfuse, int(ar.packs_short), int(ar.packs_toast),
+						int(ar.rares_shown)]
 			else:
 				landed_text += " cards=%d offers=%s cards_fired=%d shots=%s" % [int(runner.call(&"cards")),
 						_join_or_dash((cards_run.offers as Array).map(func(t: float) -> String: return "@%.1f" % t)),
@@ -846,6 +849,16 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			_median(fused_runs.map(func(r: Dictionary) -> float: return float(r.fuse_t))) if not fused_runs.is_empty() else -1.0,
 			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return _join_or_dash(r.fusions))),
 			mf_ok, arsenal_runs.size()])
+		# M50.2a: rare cards shown per pack, packs under 3 cards and 1-card toasts per seed.
+		var shown := 0
+		var dealt := 0
+		for r: Dictionary in arsenal_runs:
+			shown += int(r.rares_shown)
+			dealt += int(r.offers)
+		print("[botrun] packs: %s rares_per_pack=%.2f short_per_seed=%s toast_per_seed=%s" % [only,
+			float(shown) / maxf(1.0, float(dealt)),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.packs_short))),
+			",".join(arsenal_runs.map(func(r: Dictionary) -> String: return str(r.packs_toast)))])
 	elif not arsenal_runs.is_empty():
 		var in_band := arsenal_runs.filter(func(r: Dictionary) -> bool: return bool(r.ok)).size()
 		var fired2 := arsenal_runs.filter(func(r: Dictionary) -> bool: return int(r.fired) >= 2).size()
@@ -931,7 +944,8 @@ static func _pack_run(run: Dictionary, runner: Node, lo: Node, session_id: Strin
 			"backs": int(picks.get("back", 0)), "max_rank": max_rank,
 			"hand": String(lo.call(&"summary")) if lo != null else "-", "ok": ok,
 			"fusions": fused, "fuse_t": float(runner.get(&"fusions")[0].t) if not fused.is_empty() else -1.0,
-			"misfuse": misfuse}
+			"misfuse": misfuse, "packs_short": int(runner.get(&"packs_short")),
+			"packs_toast": int(runner.get(&"packs_toast")), "rares_shown": int(runner.get(&"rares_shown"))}
 
 
 static func _shots_parts(shots: Dictionary) -> Array:

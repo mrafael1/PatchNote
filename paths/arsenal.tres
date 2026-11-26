@@ -28,6 +28,6 @@ pick_line = "Pack. Pick one."
 quick_draw_mult = 2.0
 pack_every = 6
 pack_taste = 2
-rare_chance = 0.2
+rare_chance = 0.15
 rank_cap = 0
 rank_curve = &"deep"
