@@ -9,16 +9,59 @@ extends RefCounted
 const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole",
 		&"prism", &"misfuse"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too)
 
+## M50.4b (Auto depth design 7): the passive items' and the two fillers' keys. With a look on
+## they draw the M50.4m sheet's grids (CardArt), else plain shapes below.
+const ITEM_KEYS: Array[StringName] = [&"haste", &"area", &"might", &"duration", &"amount", &"speed",
+		&"attract", &"hp", &"boost"]
+
 static var skin_draws := 0   ## pictures drawn from a look's sprite (tests)
 
 
 ## Draws `icon` centred at `centre` in a box of `size` on `ci`.
 static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float, color: Color) -> void:
+	if icon in ITEM_KEYS and Skins.current != null and CardArt.draw(ci, icon, centre, size):
+		skin_draws += 1
+		return
 	if _draw_skin(ci, icon, centre, size, color):
 		return
 	var r := size * 0.5
 	var w := maxf(1.5, size * 0.07)
 	match icon:
+		&"haste":   # M50.4b: a lightning bolt
+			ci.draw_polyline(PackedVector2Array([centre + Vector2(r * 0.35, -r * 0.9), centre + Vector2(-r * 0.3, 0),
+					centre + Vector2(r * 0.3, 0), centre + Vector2(-r * 0.35, r * 0.9)]), color, w * 1.6, true)
+		&"area":   # a ring around a dot
+			ci.draw_arc(centre, r * 0.8, 0.0, TAU, 28, color, w * 1.4, true)
+			ci.draw_circle(centre, r * 0.28, color)
+		&"might":   # an up arrow
+			ci.draw_colored_polygon(PackedVector2Array([centre + Vector2(0, -r * 0.95), centre + Vector2(r * 0.8, -r * 0.1),
+					centre + Vector2(-r * 0.8, -r * 0.1)]), color)
+			ci.draw_rect(Rect2(centre + Vector2(-r * 0.3, -r * 0.15), Vector2(r * 0.6, r * 1.05)), color)
+		&"duration":   # an hourglass
+			ci.draw_colored_polygon(PackedVector2Array([centre + Vector2(-r * 0.7, -r * 0.9), centre + Vector2(r * 0.7, -r * 0.9),
+					centre]), color)
+			ci.draw_colored_polygon(PackedVector2Array([centre, centre + Vector2(r * 0.7, r * 0.9),
+					centre + Vector2(-r * 0.7, r * 0.9)]), Color(color, 0.6))
+		&"amount":   # three dots
+			for i in 3:
+				ci.draw_circle(centre + Vector2(r * (-0.65 + 0.65 * i), 0), r * 0.24, color)
+		&"speed":   # a double chevron
+			for k in 2:
+				var x := -r * 0.55 + r * 0.6 * k
+				ci.draw_polyline(PackedVector2Array([centre + Vector2(x, -r * 0.6), centre + Vector2(x + r * 0.45, 0),
+						centre + Vector2(x, r * 0.6)]), color, w * 1.4, true)
+		&"attract":   # a horseshoe
+			ci.draw_arc(centre + Vector2(0, r * 0.1), r * 0.6, 0.0, PI, 16, color, w * 2.0, true)
+			ci.draw_line(centre + Vector2(-r * 0.6, r * 0.1), centre + Vector2(-r * 0.6, -r * 0.8), color, w * 2.0, true)
+			ci.draw_line(centre + Vector2(r * 0.6, r * 0.1), centre + Vector2(r * 0.6, -r * 0.8), color, w * 2.0, true)
+		&"hp":   # a heart
+			ci.draw_circle(centre + Vector2(-r * 0.32, -r * 0.2), r * 0.38, color)
+			ci.draw_circle(centre + Vector2(r * 0.32, -r * 0.2), r * 0.38, color)
+			ci.draw_colored_polygon(PackedVector2Array([centre + Vector2(-r * 0.68, -r * 0.05), centre + Vector2(r * 0.68, -r * 0.05),
+					centre + Vector2(0, r * 0.8)]), color)
+		&"boost":   # a plus
+			ci.draw_rect(Rect2(centre + Vector2(-r * 0.2, -r * 0.75), Vector2(r * 0.4, r * 1.5)), color)
+			ci.draw_rect(Rect2(centre + Vector2(-r * 0.75, -r * 0.2), Vector2(r * 1.5, r * 0.4)), color)
 		&"dot":   # a round leaving a barrel stub
 			ci.draw_rect(Rect2(centre + Vector2(-r * 0.9, -r * 0.18), Vector2(r * 0.8, r * 0.36)), color)
 			ci.draw_circle(centre + Vector2(r * 0.35, 0), r * 0.32, color)
@@ -64,6 +107,16 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 			ci.draw_rect(Rect2(centre - Vector2(r, r) * 0.6, Vector2(r, r) * 1.2), color, false, w)
 			ci.draw_string(ThemeDB.fallback_font, centre + Vector2(-r * 0.25, r * 0.3), "?",
 					HORIZONTAL_ALIGNMENT_LEFT, -1, int(size * 0.5), color)
+
+
+## M50.4b review: a level-up card's or the Auto rail slot's picture. With a look on, a weapon
+## with a gun in CardArt draws that gun (the shot sprites of the Pistol and the Shotgun are
+## the same pellet); everything else draws as draw().
+static func draw_card(ci: CanvasItem, icon: StringName, centre: Vector2, size: float, color: Color) -> void:
+	if Skins.current != null and CardArt.draw_gun(ci, icon, centre, size):
+		skin_draws += 1
+		return
+	draw(ci, icon, centre, size, color)
 
 
 ## The look's sprite for `icon` at the largest whole scale that fits `size` (pixels stay

@@ -696,6 +696,12 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		out.levels = int(runner.call(&"level"))
 		out.level_picks = (runner.get(&"level_picks") as Dictionary).duplicate()
 		out.ranks_end = (out.weapons as Dictionary).duplicate()
+		# M50.4b (additive): the passive items held at the end, id -> level.
+		var items_end := {}
+		if lo != null:
+			for it in lo.items:
+				items_end[String(it.def.id)] = it.level
+		out.items_end = items_end
 	# M50.1a (additive, Arsenal's packs only): packs, what was taken, ranks at the end.
 	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
 		out.packs = int(runner.call(&"packs"))

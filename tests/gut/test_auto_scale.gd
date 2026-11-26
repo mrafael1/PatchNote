@@ -665,7 +665,7 @@ func _pick(runner: PathRunner, i := 0) -> PickOffer:
 func test_nova_and_well_are_never_offered_before_a_tagged_say() -> void:
 	await _draft_game()
 	var r: PathRunner = game.path_runner
-	assert_eq(r.def.offer_pool_extra, [&"nova", &"well"] as Array[StringName])
+	assert_eq(r.def.offer_pool_extra, [&"nova", &"well", &"haste", &"area", &"might"] as Array[StringName])
 	RunState.add_basic(&"levelups")
 	r.announce(&"shotgun")
 	var seen: Array = []

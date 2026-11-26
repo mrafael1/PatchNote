@@ -19,8 +19,9 @@ func describe(at_level: int) -> String:
 	return "burning line %s s" % WeaponCurve.num(float(value_at(at_level, &"life", BurnLineZone.LIFE)))
 
 
-func spawned(_weapon: Weapon, projectile: Node) -> void:
+func spawned(weapon: Weapon, projectile: Node) -> void:
 	var mod := BurnLineMod.new()
 	mod.life = float(step_value(&"life", BurnLineZone.LIFE))
 	mod.cap = BurnLineZone.DEEP_CAP if deep else 0
+	mod.width = weapon.stat_mult(&"area")
 	projectile.add_mod(mod)

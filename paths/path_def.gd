@@ -119,8 +119,8 @@ func problems(file_id: StringName = id) -> Array[String]:
 		if not WeaponDB.has(w):
 			out.append("%s: start: unknown weapon %s" % [where, w])
 	for w in offer_pool_extra:
-		if not WeaponDB.has(w):
-			out.append("%s: offer_pool_extra: unknown weapon %s" % [where, w])
+		if not WeaponDB.has(w) and not WeaponDB.has_item(w):   # M50.4b: items too
+			out.append("%s: offer_pool_extra: unknown weapon or item %s" % [where, w])
 	if max_slots < 1:
 		out.append("%s: max_slots must be >= 1" % where)
 	if max_passives < 0 or max_picks < 0:

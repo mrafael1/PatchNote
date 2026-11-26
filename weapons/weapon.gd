@@ -15,8 +15,13 @@ var ready_in := 0.0        ## seconds until it may fire again (its own cooldown)
 var shots := 0             ## shots fired (heavy round counts them)
 var traits: Array[WeaponTrait] = []
 ## M50.4a (Auto depth design 4): role -> multiplier from the path's items and boost (Loadout
-## writes it). Empty (every path but Auto with a boost): value() is exactly the old code.
+## writes it). Empty (every path but Auto with a boost or an item): value() is exactly the old
+## code. M50.4b: each role scales the field its def names (WeaponDef.stat_fields, else
+## DEFAULT_FIELDS); `area` also reaches node knobs through stat_mult.
 var mods := {}
+
+## M50.4b: the field each item role scales when the def names none.
+const DEFAULT_FIELDS := {&"haste": &"cooldown", &"might": &"damage", &"area": &"blast_radius"}
 
 
 func _init(p_def: WeaponDef = null, p_rank := 1, p_curve: StringName = &"classic") -> void:
@@ -55,8 +60,12 @@ func value(field: StringName) -> Variant:
 		if field == &"speed":
 			return Tuning.projectile_speed
 	var v: Variant = WeaponCurve.value(def, field, rank) if deep() else def.value(field, rank)
-	if not mods.is_empty() and field == &"damage" and mods.has(&"might"):
-		return float(v) * float(mods[&"might"])
+	if mods.is_empty():
+		return v
+	var map: Dictionary = def.stat_fields if not def.stat_fields.is_empty() else DEFAULT_FIELDS
+	for role: StringName in mods:
+		if StringName(map.get(role, &"")) == field:
+			v = float(v) * float(mods[role])
 	return v
 
 

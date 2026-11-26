@@ -418,7 +418,7 @@ func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bo
 		var mr := Rect2(Vector2(sr.end.x - 8 * sc - mw, sr.position.y + 6 * sc), Vector2(mw, roundf(14 * sc)))
 		RailArt.block(self, mr, RailArt.c(&"gold"), p)
 		RailFrame.text(self, mr.position + Vector2(3 * sc, 0), "MAX", fs, RailArt.c(&"ink"), true)
-	WeaponGlyph.draw(self, item.icon, sr.position + Vector2(sr.size.x * 0.5, 44 * sc), roundf(minf(40.0, w - 16.0) * sc), Color.WHITE)
+	WeaponGlyph.draw_card(self, item.icon, sr.position + Vector2(sr.size.x * 0.5, 44 * sc), roundf(minf(40.0, w - 16.0) * sc), Color.WHITE)
 	var title: String = item.title
 	RailFrame.text(self, sr.position + Vector2(0, 66 * sc), title, RailFrame.fit(title, RailLayout.text_px(16, sc), sr.size.x - 8 * sc, true, 8),
 			RailArt.c(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x)

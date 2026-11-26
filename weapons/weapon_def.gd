@@ -56,6 +56,10 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 @export var inherits: Array[StringName] = []
 ## M50.1b: "" = built; else the milestone that builds this fusion (a data row until then).
 @export var built_in := ""
+## M50.4b (Auto depth design 4): which field each item role scales on this weapon (role ->
+## field). Empty: Weapon.DEFAULT_FIELDS (haste: cooldown, might: damage, area: blast_radius).
+## The well sets {might: damage}: its `cooldown` is its field's life, never Haste's.
+@export var stat_fields: Dictionary = {}
 
 
 ## A field's value at `rank`: the rank's override, else the field.
@@ -158,6 +162,11 @@ func problems(file_id: StringName = id) -> Array[String]:
 			var k := String(key)
 			if not fields.has(k) or k in ["id", "mode", "ranks", "card_text", "pitch", "title", "damage"]:
 				out.append("%s: mechanic %d sets %s, not a rank field" % [where, i, k])
+	for role: Variant in stat_fields:
+		if not StringName(role) in [&"haste", &"area", &"might", &"duration", &"amount", &"speed", &"attract"]:
+			out.append("%s: stat_fields: unknown role %s" % [where, role])
+		elif not fields.has(String(stat_fields[role])):
+			out.append("%s: stat_fields: %s scales %s, not a field" % [where, role, stat_fields[role]])
 	if card_text.size() != max_rank():
 		out.append("%s: %d card lines for %d ranks" % [where, card_text.size(), max_rank()])
 	return out

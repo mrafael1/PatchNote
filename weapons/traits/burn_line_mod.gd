@@ -11,6 +11,7 @@ var points := PackedVector2Array()   ## the path so far (tests)
 ## M50.1a: the line's life (the trait's level) and the alive cap (0 = none: the classic curve).
 var life := BurnLineZone.LIFE
 var cap := 0
+var width := 1.0   ## M50.4b review: the Area item's multiplier (Weapon.stat_mult)
 
 
 ## Each tick: where the shot is now (a straight flight keeps one segment).
@@ -32,6 +33,7 @@ func despawned(p: Node2D) -> void:
 	zone.points = points.duplicate()
 	zone.source = p.source_patch
 	zone.life = life
+	zone.width = width
 	if cap > 0:
 		BurnLineZone.make_room(cap)
 	RunState.world.add_child.call_deferred(zone)

@@ -757,6 +757,7 @@ Each milestone **ends playable**: the campaign plays from S0 to its last built s
 | M50.1 | **Path depth (v9.2, 1.17)** | **First a one-page design to the owner** (the three depth pieces, one rule each, with the fusion and evolution lists). Then: Arsenal's fusions, Auto's evolutions, Survival's holster and enemy answers, each announced in S10 or S11. **Numbers:** projectile caps hold at the top of every path (hard); hashes as M44 (hard); the degenerate-strategy probes of 4 re-run per path. **Reported:** the `fp` table before and after per path; path-only lines (reported, no limit) | **Async:** the one-page design, before building |
 | *M50.1 (v9.1), folded into the row above* | *Rank-4 evolutions* | the 7 evolutions of 1.4 as traits, offered from S10 on; F2 shows them. **Numbers:** caps at the top rank (player budget 140, enemies keep 60; test, hard); hashes as M44 (hard); bench with every weapon at rank 4 (**windowed**) | — |
 | M50.4a | **Auto depth: rank 6, 3 shared slots, no cap** (`.check/auto_depth/design.md` rev. 2) | Auto on the deep curve to rank 6 (`rank_cap 6`), 3 weapon slots shared by every mode (nova / well take one; `PathDef.shared_slots`, `Loadout._add` replaces the weakest non-active), no level cap (`max_picks 0`), two fillers (+1 max HP, +5% damage), nova's rank-6 `shockwave`, the raw LV rows and the rail's weapon row, S8's 18 / 60 s lines, telemetry `levels` / `level_picks` / `ranks_end`, a `[botrun] auto:` line. As built: 6.20. **Numbers (hard):** S7, Arsenal, Survival, v6, gauntlet, campaign, S4 refs unchanged; new `.check/ref_m50_4a/` (S8 / S9 Auto) replayed twice | the bot numbers in 6.20, next playtest |
+| M50.4b | **Auto depth: passives and the dressed pick panel** (`.check/auto_depth/design.md` rev. 2) | 7 item rows (`ItemDef` / `Item`, `weapons/items/`): Haste, Area, Might wired, Duration / Amount / Speed / Magnet are data-only "not built yet" rows; `WeaponDB.items()` / `has_item` / `item_problems`; `Loadout.items` (2 slots), `Weapon.mods` / `stat_fields`; item cards in the level-up offer; the dressed level-up panel (`ui/level_card.gd`, flat and Pixel, LEVEL n banner, 7 item glyphs); `auto_choice` bot rule; S8 38 / 42 s lines + debrief, S9 `give haste` at 9 s + a `holds haste` line and a 94 s line; telemetry `items_end`. As built: 6.21. **Numbers (hard):** every ref equal except S8 / S9 Auto (new refs `.check/ref_m50_4b/`, 2 replays, 0 failures). | built (not committed) |
 | M51 | **S11 (without the event)** | *v9.1: the HUD build moved to M48.5;* `fork_hud` as data in S11's debrief (kept by the owner), the orbit and `well` lines; S11 as data with the three enemies mixed in, the orbit, `edit_enemies_flee`, the event cue as a no-op. **Numbers (hard):** the reversibility test for `edit_enemies_flee`; M48.5's no-overlap test still green. **Reported:** S11 mortal deaths per path | — |
 | M52 | **Gravity through the screen + look tier 2** | 1.11: the event, `GlassStack` (`PROCESS_MODE_ALWAYS`), the freeze on `set_pause` + `hold_clock`, `camera_push`, `crack` and its persistence, the sorry gift, the gentle variant; tier 2 for each look (1.7, v9.1: Pixel's CRT and HUD digits, Minimal's streaks and shatter, Splat's live heroes, mascot breathing and kill scatter, themed explosions; Splat's live instances ≤ 1000 and ≤ 0.5 ms). **Numbers (hard):** 16/16 S11 seeds per path play the event fully; **0 hits during it**; state hash before = after in 16/16; the same seed replays the event to the same hash twice; the 6 steps at fixed frames; the gentle variant creates no white node. **Windowed:** a `.check/glass_*.png` strip (grow, smack, pile, undo) per look; tier 2 sheets per look; bench ≥ 60 fps with tier 2. **Reported:** deaths in the 20 s after it against the control (`--events=none`) | — |
 | M53 | **S12 + S13 complete (v9.2)** | S12 as data (the HUD lands, the polish, `arena_boss`'s line, the Big Square dummy, no fork); S13 complete: both halves with every line of 3.2, the per-path tuning retuned after M50.1's depth pieces (they change DPS). **Numbers (hard):** the whole fight 120-200 s for the invincible bot on every path, max/min ≤ 1.4; M49a's and M49b's rules on every path; S13 replays to the same hash twice. **Reported:** mortal tries per path, deaths per half and per attack | — |
@@ -1590,6 +1591,107 @@ Built on M48a (`7d1d559`) from `.check/m48b/map.md`, every default taken. 1.7.1'
 - **Still open (defaults taken):** Q1 the mortal S8 Auto drop (default: no retune in M50.4a; re-measure after M50.4b's items and bot rule, then the design's fallbacks in order); Q2 the item slots on the LV row of the raw widget (default yes); Q3 the ring skips blast-hit enemies (default yes); Q4 fillers on Auto only (default yes).
 - **Doc/code notes:** design 0 assumes the rework and Arcade landed first (they did not: refs and S10 differ, listed above); design 11 says `full GUT` and `check.ps1 -BotRuns` for M50.4a, this build ran the affected files and the gate script only (as asked); `run_hash` summaries say 0 failures over SCRIPT ERRORs, so the gate script alone would have missed the gems bug (scan the logs); the `PickOffer` header said upgrades stop at `Loadout.MAX_RANK` ("rank 4 is M50.1"), now per curve.
 - **Review (3 findings, 1 upheld, all fixed):** (1) the `boost` filler never reached the well's bite until the well ranked up: `Loadout._apply_mods` calls `reconfigure` or sets `damage`, and `well_weapon.gd` keeps its teeth in `dps` (copied once by `configure`), so the boost landed late and only at the next `_rank_to -> _attach`. `well_weapon.gd` now has `reconfigure(w)` (`dps` and `life` re-read in place, the node kept; fields already on the ground keep their bite). Test `test_boost_reaches_the_well_without_a_rank_up` (well rank 3, one stack: dps x 1.05, same node) fails without the fix (1.5 vs 1.575). Not upheld: 2 findings. After the fix: all gates (`.check/m50_4a/gates.sh`) 85 summaries 0 failures + sheet exit 0, no script error in any log, no ref moved; full GUT 60 scripts, 1129/1129; `check.ps1 -BotRuns` CHECK PASSED with no expectation changed.
+### 6.21 As built (M50.4b): Auto depth, passives and the dressed pick panel
+
+Built on `build/auto` (M50.4a), without the Stage 1 rework or Arcade. Source: section 11 of `.check/auto_depth/design.md` rev. 2, and the M50.4m mockup (`.check/mockups/cards/Auto_Choices.dc.html`).
+
+- **Items.** `weapons/item_def.gd` (`ItemDef`: `stat`, signed `per_level`, `pairs`, `card_text`, `built_in`) and `weapons/item.gd` (`Item`: def + level). There are 7 rows in `weapons/items/`:
+  - Wired: Haste (-6 % cooldown per level, pairs with the Pistol), Area (+10 % blast, field and cone size, Shotgun), Might (+8 % damage, Nova).
+  - Data only, with `built_in` set to "not built yet (S10+/S11)": Duration, Amount, Speed, Magnet. They are never offered and never given, and `item_problems()` lists them.
+
+  `WeaponDB` adds `items()`, `item()`, `has_item()` and `item_built()`. `get_weapon` never resolves an item.
+- **Stats.** `Weapon.mods` (role -> multiplier) and `WeaponDef.stat_fields` (role -> field). The default fields are haste -> cooldown, might -> damage, area -> blast_radius.
+  - An empty `mods` returns exactly the old value. A byte test covers the deep curve, ranks 1-6, every weapon.
+  - `Loadout.mods_now()` is the boost's might times each item's multiplier.
+  - `_apply_mods` reconfigures nova and the well. The well has `stat_fields {might: damage}`, and its field radius is multiplied by Area.
+  - Haste never changes the well's life.
+- **Offers.** `PathDef.offer_pool_extra` accepts item ids. `auto.tres` lists nova, well, haste, area, might.
+  - `PickOffer.candidate` builds an item card `{id, rank, kind, item, paired, text}`. It does so when a slot is free (2 slots, `max_items`) or when the item is held below the cap.
+  - Card text example: "Haste 1: guns fire 6% faster  (new) · your Pistol evolves with this".
+  - `PathRunner._on_picked` adds or levels the item and records it in `level_picks` as `item_new` / `item_up`.
+  - The F1 `state_text` shows `items=` only when items are held.
+- **Dressed panel.** A level-up offer (`PickOffer.level > 0`, not a pack) shows `LevelCard`s (`ui/level_card.gd`, 232 x 356).
+  - Each card shows: the kind (WEAPON / PASSIVE / BONUS), a NEW tag, "LV a > b", a glyph window, the name, pips up to the cap (the new one ringed), the effect, the item's pairing, and "[key] choose".
+  - Once the UI look is on, the cards use the Pixel style (plum and paper, as in the mockup). Otherwise they are flat, in Palette roles (new role `card_item`).
+  - Banner: "LEVEL n · pick 1 of n · game paused".
+  - Each card is still a Button, so keys, pad, click and the input delay all work. The card's line is its tooltip and still goes to the logs.
+  - The pack and gift panels are unchanged.
+  - There are 7 item glyphs plus hp and boost: tier 0 shapes in `ui/weapon_glyph.gd`, Pixel grids in `systems/skins/art/card_art.gd`.
+- **HUD.** The raw LV widget has an items row ("Haste 2  Area 1", or "Haste 1  +"). The rail's passive row is filled by `rail_state._items`.
+- **Campaign.**
+  - S8: a `[haste]` line at 38 s, an `[area]` line at 42 s, and a debrief line.
+  - S9: `give haste` at 9 s (Auto only), a `holds haste` line (said once Haste is picked, review fix 3), and a `[might]` line at 94 s. An item give on another path is skipped and logged as `give_skipped`.
+  - New `SessionDef` problems: an item give needs a built item and `answer:path_auto`, and a tag that names an unbuilt item is a problem.
+  - `lines_stage2.md` regenerated (+5 lines). Telemetry adds `items_end`.
+- **Bot.**
+  - `bot_runs.auto_choice(panel, lo, probe, drawn)` applies design rules 2-7. It runs after the `pick_card` draw, so S7 and every non-Auto hash stay equal.
+  - Probes: `random_picks` (keeps the drawn card) and `no_evolve` (no-op until evolutions exist).
+  - `HUMAN_PACE_LEVELS` is 1.5.
+  - The `[botrun] auto:` line adds `items=` and `item_t=` (the time each item joined).
+  - `tools/run_hash.gd` uses the same rule.
+- **Deviations.**
+  1. Item glyphs and card colours are in `card_art.gd`, not `grids.gd`, so the atlas digest does not move. This means less friction with Arcade's digest move.
+  2. Area scales `blast_radius` (launcher, nova ring), the well's field, the Shotgun's cone reach (its pellets' `lifetime`, `shotgun.tres` `stat_fields`) and the laser's burn width (review fix 1). The knockback push itself is not scaled.
+  3. The raw items row is on the LV widget, not on a row of its own.
+  4. No S10 here, because this branch has none, so S10 item tags do not apply.
+  5. Pixel item glyphs show whenever any look is on.
+  6. The gate script was copied from `.check/m50_4a/gates.sh`, which is newer than the brief's `m48_5a`.
+  7. New test file `test_auto_items.gd` (25 tests with the review's) instead of growing `test_auto_depth`.
+  8. Card height is 356 (the mockup is about 344), so the key row clears the focus ring.
+- **Touch points with the Stage 1 rework (for the merge):**
+  - `s2_02_day_one.tres`: 2 cues and a debrief line appended.
+  - `s2_03_paint.tres`: 3 cues appended.
+  - `campaign/session_runner.gd`: item give branch.
+  - `campaign/session_def.gd`: item give and tag problems, and the `holds` item check.
+  - `campaign/cue.gd` (the `holds <item>` when) and `campaign/lines_render.gd` (renders it).
+  - `weapons/shotgun.tres` (`stat_fields`), `weapons/traits/burn_line*.gd` (`width`), `ui/rail/rail_modules.gd` (Auto slot gun).
+  - `campaign/campaign_db.gd`: `items_end`.
+  - `ui/pick_panel.gd`: banner and `_build_dressed`.
+  - `systems/palette.gd`: `card_item`.
+  - `lines_stage2.md`: regenerate after the merge.
+  - `main.gd`: BUILD.
+- **Numbers.**
+  - GUT, one file at a time (no full suite): 34 files, 798 tests, 0 failing, 0 script errors (`.check/m50_4b/gut_affected.txt`). The new test_auto_items passes 21/21.
+  - Gates (`.check/m50_4b/gates.sh`): 86 summaries, 0 failures, no script error in any log.
+  - S8 and S9 Auto were recorded in `.check/ref_m50_4b/` and differ from `ref_m50_4a`: S8 first differs at hash 233 / 265, S9 at hash 92 (Haste given at 9 s).
+  - Every other ref is equal: S7 x4, Arsenal vs `ref_m50_1b`, Survival, v6, gauntlet, campaign, S4, pixel / skins-off, shell, pause.
+- **Bots (8 seeds; the design asks for 16).**
+
+  | Set | Result | Target | Met? |
+  |---|---|---|---|
+  | Invincible S8 Auto, wins | 8/8 | | |
+  | Invincible S8 Auto, level median | 13.5 (13-15) | 13-16 | yes |
+  | Invincible S8 Auto, a weapon at rank 6 | 8/8 | | yes |
+  | Invincible S8 Auto, 2 items held by 60 s | 1/8 | 14/16 | **no** |
+  | Mortal S8 Auto, deaths | 5/8 | <= 10/16 | yes |
+  | Mortal S8 Auto, median t | 95.1 s | not below the parent's 116.2 s | **no** |
+  | Mortal S9 Auto, deaths | 7/8, median 81.0 s | <= 8/16, within 6 of both other paths | **no** |
+  | Mortal S9 Arsenal, deaths | 3/8, 150 s | | |
+  | Mortal S9 Survival, deaths | 1/8 | | |
+  | Invincible S9 Auto | 8/8 wins, level median 16.5, Haste 3 + Might 1 held | | |
+
+  - Items by 60 s: the first item joins at 38-47 s, the second at 51-105 s (median about 68 s).
+  - Mortal S8 comparison: M50.4a on the same set had 6/8 deaths, 95.7 s. The parent (`random_picks`) had 4/8, 116.2 s.
+  - Mortal S9 comparison: M50.4a had 6/8 deaths, 126.2 s.
+  - With `--probe=random_picks`: S8 mortal 6/8 deaths (85.9 s), S9 mortal 8/8 deaths (60.3 s).
+  - The mortal S9 runs that die hold one or two weapons plus Haste 2-3. The item picks take levels that went to the guns in M50.4a.
+  - No retune (AGENTS 6). The design's "too weak" fallback is crowd spawn mult 1.6 -> 1.5, which is an owner call.
+- **Captures.** Made with `.check/m50_4b/capture_items.gd` and `card_preview.gd`: windowed, inert save, S8 Auto, seed 1. They match the mockup's layout and palettes.
+  - `s8_auto_items.png`: raw HUD with 56 s left, "LV 7 / Pistol 6* / Haste 1 +".
+  - `pick_item.png`: flat, LEVEL 6. Area NEW passive "pairs with Shotgun", Pistol 5 > 6, Shotgun 2 > 3.
+  - `pick_weapon.png`: Pixel. Pistol 3 > 4, Shotgun NEW (its own long-barrel gun since review fix 2), Haste NEW passive.
+  - `pick_filler.png`: Pixel, everything at 6, the two BONUS cards.
+  - `rail_items.png`: Pixel rail. ITEMS 1+1, Pistol LV 6 MAX, Haste LV 1 in the passive slot.
+  - `preview_{flat,pixel}{,_fill}.png`: the panel on its own.
+- **Review (4 findings, 3 upheld, all fixed).**
+  1. Area was a dead pick in S8: it scaled only blasts and the well's field, but S8 Auto holds only the Pistol and the Shotgun, and its card said "pairs with Shotgun". Fix: `shotgun.tres` `stat_fields {area: lifetime, haste: cooldown, might: damage}` (Area grows the cone's reach, x1.1 per level) and the burn line's width reads `stat_mult(&"area")` (`BurnLineMod.width` -> `BurnLineZone.width`, 1.0 without Area, byte-equal). Card text "+10% blast, field and cone size", the 42 s line "And area: bigger blasts, longer shotgun reach." Test: `test_area_grows_the_shotgun_reach_and_the_burn_width` (fails on the old `shotgun.tres`).
+  2. Pixel weapon cards drew the shot sprite, and the Pistol's and the Shotgun's are the same pellet. Fix: `CardArt.GUNS` (Pistol, Shotgun, Laser, Launcher, from the mockup sheet's pixel guns) and `WeaponGlyph.draw_card`, used by the Pixel level cards and Auto's rail slots (other weapons and the flat cards keep their glyphs). Test: `test_each_card_weapon_has_its_own_gun`. Capture: `pick_weapon.png` now shows a pistol and a long-barrel shotgun.
+  3. S9's "Haste came back with you" played at 18 s, but `give haste` only puts Haste first in the next offer. Fix: a new cue time `holds <item>` (`Cue.held`, due once the PathRunner's Loadout holds it; `SessionDef` refuses an unbuilt item; `lines_render` prints it), and S9's line is now `answer:path_auto holds haste:`. Tests: `test_a_holds_cue_waits_for_the_item`, `test_the_runner_says_the_haste_line_only_after_the_pick`, the shipped-lines test.
+  - After the fixes: S8 Auto re-recorded in `.check/ref_m50_4b/` (first differs from the pre-review ref at hash 429 / 441, seeds 1 / 2; the old one is in `pre_review/`), S9 Auto unchanged (the line moves no hash). Gates again: 86 summaries, 0 failures.
+  - Bots after the fixes (8 seeds, `.check/m50_4b/review/`; bot numbers, not a retune): invincible S8 Auto 8/8 wins, level median 14 (12-14), a rank-6 weapon 8/8, 2 items by 60 s 1/8 (second item 51-110 s); mortal S8 Auto 6/8 deaths, median 77.5 s (hits: projectile 35, contact 2); mortal S9 Auto 7/8 deaths, 81.0 s (unchanged); S9 Arsenal 3/8, 150 s (unchanged).
+- **`BUILD = "M50.4b"`.**
+- **Still open (defaults taken):** see section 9 (items by 60 s, mortal S9 Auto, mortal S8 Auto).
+
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**
 1. **Length:** Stage 1 is ~7 min against ~20, Stage 2 is planned at 30–40 against 45, and the campaign target is ~2 h 30. Grow now (a session in a stage's middle) or later?
@@ -1652,6 +1754,9 @@ Built on M48a (`7d1d559`) from `.check/m48b/map.md`, every default taken. 1.7.1'
 ---
 
 ## 9. Still open (each with a proposed default)
+- **M50.4b, items by 60 s (6.21):** in 1/8 invincible S8 Auto runs the bot holds 2 items by 60 s (design: 14/16). The second item arrives at the first level-up after the 42 s line where the bot rule picks it over a rank. Default: no change. At the playtest, ask whether the 42 s Area line should come with an Area card (a `give area` at 42 s).
+- **M50.4b, mortal S9 Auto (6.21):** 7/8 deaths, against Arsenal 3/8 and Survival 1/8 (design: Auto <= 8/16 and within 6 of both). Default: no retune from bot numbers (AGENTS 6). The design's "too weak" fallback (crowd spawn mult 1.6 -> 1.5) waits for the owner's S9 play.
+- **M50.4b, mortal S8 Auto (6.21, follows the M50.4a item):** 5/8 deaths, median 95.1 s, below the parent's 116.2 s; after the review's Area fix 6/8, 77.5 s (bot numbers). Default: same as above.
 - **M50.4a, mortal S8 Auto (6.20):** the bot now dies 14/16 (parent 7/16) because the early "+1 max HP" fillers are gone (ranks to 6 come first). Default: no retune in M50.4a; re-measure after M50.4b (items, the bot rule), then the design's fallbacks in order. Question: "Auto S8 felt harder in the first minute?"
 - **Look timing (ROADMAP 6.5, v8 9):** **asked in S8's debrief, after the AI tries all three on you live**; lands in S9. This **changes the ROADMAP's plan** (the end of Stage 1, "so Stage 2 is already yours"), so G14a asks it (7.9). Reasons: S7 already hosts the path, two big picks back to back are heavy, and the preview uses your own S8 frame in your path. Alternative A: ask it at the end of S6 with stills. Alternative B: ask it with the path in S7.
 - **The three looks (ROADMAP 6.6; v9.1, owner-polish-vision):** Pixel / Minimal / Splat (pixel-art gaussian splats), every entity drawn in code, as 1.7. Spares: `look_voxel` for Splat (1.7's decision rule), `look_terminal` (green-on-black CRT) for any other look that fails G14b. (v9's Neon / Paper and the "darker palette" alternative are dropped.)

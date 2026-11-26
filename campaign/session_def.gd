@@ -277,6 +277,13 @@ func _weapon_problems(where: String) -> Array[String]:
 	for c in cue_list():
 		if c.problem != "" or c.action != &"give":
 			continue
+		if WeaponDB.has_item(c.target):
+			# M50.4b: a passive item: built, and only on Auto (a level-ups path).
+			if not WeaponDB.item_built(c.target):
+				out.append("%s: cue '%s': item %s is %s" % [where, c.source, c.target, WeaponDB.item(c.target).built_in])
+			elif not "answer:path_auto" in c.cond:
+				out.append("%s: cue '%s': an item give must carry answer:path_auto" % [where, c.source])
+			continue
 		if not WeaponDB.has(c.target):
 			out.append("%s: cue '%s': unknown weapon %s" % [where, c.source, c.target])
 		elif not c.target in weapons:
@@ -284,6 +291,9 @@ func _weapon_problems(where: String) -> Array[String]:
 	# M45a (the pool rule): a [tag] names a weapon the session lists or a path's extra.
 	for c in cue_list():
 		if c.problem != "" or c.tag == &"" or c.tag in weapons:
+			continue
+		if WeaponDB.has_item(c.tag) and not WeaponDB.item_built(c.tag):
+			out.append("%s: cue '%s': [%s] is %s" % [where, c.source, c.tag, WeaponDB.item(c.tag).built_in])
 			continue
 		if not PathDB.all().any(func(p: PathDef) -> bool: return c.tag in p.offer_pool_extra):
 			out.append("%s: cue '%s': [%s] is not in the session's weapons or a path's offer_pool_extra"
@@ -456,6 +466,8 @@ func problems() -> Array[String]:
 			out.append("%s: cue '%s': hp needs the health basic" % [where, c.source])
 		elif c.when in [&"fused", &"fuse_ready"] and not _has_basic(&"fusion"):
 			out.append("%s: cue '%s': %s needs the fusion basic" % [where, c.source, c.when])
+		elif c.when == &"holds" and not WeaponDB.item_built(c.held):
+			out.append("%s: cue '%s': holds %s: no built item" % [where, c.source, c.held])
 		elif c.action == &"fuse" and not _has_basic(&"cards"):
 			out.append("%s: cue '%s': fuse needs the cards basic (a pack path)" % [where, c.source])
 		elif (c.action == &"fuse" or c.when in [&"fused", &"fuse_ready"]) and not _arsenal_only(c):

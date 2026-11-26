@@ -139,9 +139,11 @@ static func _items(runner: Node, lo: Loadout, def: PathDef) -> Dictionary:
 	var passive_slots := def.max_passives
 	if def.shared_slots:
 		# M50.4a (Auto depth T7): every weapon (passive-mode ones too) in the shared weapon
-		# slots; the passive slots are the items' (M50.4b fills them).
+		# slots; the passive slots are the items' (M50.4b).
 		for w in lo.weapons():
 			weapons.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon, "evo": false})
+		for it in lo.items:   # M50.4b: the passive items, rank = their level
+			passives.append({"title": it.def.title, "rank": it.level, "icon": it.def.icon})
 		passive_slots = def.max_items
 	else:
 		for w in lo.slots:

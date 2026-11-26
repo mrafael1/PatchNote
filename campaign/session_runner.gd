@@ -136,7 +136,8 @@ func _physics_process(_delta: float) -> void:
 			"level": path_runner.level() if path_runner != null else -1,
 			"picks": path_runner.picks_on_path if path_runner != null else 0,
 			"fused": path_runner.fusions.size() if path_runner != null else 0,
-			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0}
+			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0,
+			"items": _held_items()}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
@@ -181,6 +182,16 @@ func _waits(cue: Cue) -> bool:
 	if cue.when == &"hp":
 		return rule_book.busy()
 	return cue.action == &"edit" and rule_book.warning_pending()
+
+
+## M50.4b review: the item ids the player holds, for "holds <item>:" cues ([] off Auto).
+func _held_items() -> Array:
+	var out := []
+	var lo := path_runner.loadout() if path_runner != null else null
+	if lo != null:
+		for it in lo.items:
+			out.append(it.id())
+	return out
 
 
 ## The player's HP for "hp N:" cues; -1 without the health basic (nothing can hurt yet).
@@ -254,6 +265,12 @@ func _fire(cue: Cue, index: int) -> void:
 		&"give":
 			# M44: with no path, a free slot (or a rank up). M45a: the weapon joins the live
 			# pool, and under Auto the next level-up offers it first instead (no slot filled).
+			# M50.4b: a passive item only means something on a level-ups path (Auto): anywhere
+			# else it is skipped and logged.
+			if WeaponDB.has_item(cue.target):
+				if path_runner == null or path_runner.def == null or path_runner.def.growth != &"levelups" 						or not path_runner.give(cue.target, cue.rank):
+					RunState.log_event(&"give_skipped", {"item": String(cue.target)})
+				return
 			if path_runner != null and path_runner.give(cue.target, cue.rank):
 				return
 			var loadout: Loadout = null

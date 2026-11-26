@@ -39,6 +39,7 @@ One page. The G13 sheet is kept below for reference.
 8. G13's 7a-7j (the sheet below), one line each.
 
 ## Open one-liners
+- M50.4b (Auto): level-ups now show dressed cards and two passive slots (Haste, Area; Might in S9). Do the cards read at a glance, and does S8 offer the second passive soon enough after the 42 s line?
 - Arsenal's first card in S8 comes at 25 kills (the plan said 15): ok?
 - Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it; nothing offers it before S9.)
 - Path line budget (250 own lines per path): nova and well counted as shared code (Auto 182) or as Auto's own (315, over)? Survival is at 250 exactly (paths/survival/) on the first reading, or about 485 if its shared Loadout / Pickup / bot / pickup-field lines count as its own.

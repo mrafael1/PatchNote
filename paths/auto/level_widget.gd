@@ -8,7 +8,8 @@ extends Control
 ## text() keep the whole list).
 ## M50.4a (Auto depth design 7): with shared slots, row 2 is every held weapon (aimed and
 ## passive-mode, "Pistol 6*" where * = the top rank) and the passive item slots ("+" each free
-## one; the items come in M50.4b) sit dim right of the bar, so the widget keeps the band's 60 px.
+## one; M50.4b: each held item, "Haste 2  Area 1") sit dim right of the bar, so the widget keeps
+## the band's 60 px.
 
 const BAR := Vector2(120, 6)
 const MAX_W := 300.0
@@ -99,10 +100,17 @@ func _refresh() -> void:
 	var items_def := meter.get(&"def") as PathDef
 	_items.visible = shared and items_def != null and items_def.max_items > 0
 	if _items.visible:
+		# M50.4b: each held item ("Haste 2"), then a "+" per free slot.
+		var held_items: Array[String] = []
+		for it in loadout.items:
+			held_items.append(it.label())
 		var free: Array[String] = []
-		for i in items_def.max_items:
+		for i in maxi(0, items_def.max_items - loadout.items.size()):
 			free.append("+")
-		_items.text = "Passives  " + " ".join(free)
+		if held_items.is_empty():
+			_items.text = "Passives  " + " ".join(free)
+		else:
+			_items.text = "  ".join(held_items) + ("  " + " ".join(free) if not free.is_empty() else "")
 	_fill.size = Vector2(BAR.x * float(meter.call(&"progress")), BAR.y)
 	var top_w := _back.position.x + BAR.x
 	if _items.visible:

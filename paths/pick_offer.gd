@@ -5,7 +5,8 @@ extends RefCounted
 ## AiDirector, the save, build_number or the patch notes (0.4). Drawn from pick_rng out of
 ## the live pool (the pool rule, 1.2), leaning on the session's taste.
 
-## Each card: {id, rank, kind: new | upgrade | hp, text}. M50.1a: a pack's cards add rarity
+## Each card: {id, rank, kind: new | upgrade | hp, text}. M50.4b: an item card adds `item: true`
+## (its rank is the item's level). M50.1a: a pack's cards add rarity
 ## (common | rare), from, title and gain (BoosterPack).
 var cards: Array[Dictionary] = []
 var line := ""
@@ -18,6 +19,10 @@ var max_slots := 0
 ## M50.1b: the pack's FUSE choice (BoosterPack.fuse_option; {} none). It is the choice after
 ## the cards (key choose_4 on a 3-card pack) and never replaces one.
 var fuse := {}
+## M50.4b (Auto depth design 7): a level-up offer (PathRunner, a levelups path) carries the level
+## it was drawn at and the path's rank cap, for the dressed cards (LevelCard). 0: a plain panel.
+var level := 0
+var cap := 0
 
 const HP := &"hp"
 ## M50.4a (Auto depth design 2.8): the second filler, +Loadout.BOOST_STEP damage this session.
@@ -76,6 +81,8 @@ static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], first:
 ## def.max_passives). M50.4a: a deep weapon tops out at the Loadout's rank_cap (Auto 6), and
 ## with shared slots a new weapon of any mode needs one of max_slots free.
 static func candidate(loadout: Loadout, def: PathDef, id: StringName) -> Dictionary:
+	if WeaponDB.has_item(id):
+		return item_candidate(loadout, def, id)
 	var w := WeaponDB.get_weapon(id)
 	if w == null:
 		return {}
@@ -98,6 +105,35 @@ static func candidate(loadout: Loadout, def: PathDef, id: StringName) -> Diction
 	elif loadout.slots.size() >= loadout.max_slots:
 		return {}
 	return {"id": id, "rank": 1, "kind": &"new", "text": card_line(w, 1, false)}
+
+
+## M50.4b (Auto depth design 2.4): an item card, or {}: held below the rank cap (+1 level), or
+## not held, built, with one of def.max_items free (level 1). Unbuilt items are never offered.
+static func item_candidate(loadout: Loadout, def: PathDef, id: StringName) -> Dictionary:
+	var it := WeaponDB.item(id)
+	if it == null or not it.built():
+		return {}
+	var top := loadout.rank_cap if loadout.rank_cap > 0 else Loadout.MAX_RANK
+	var held := loadout.item_level(id)
+	if held > 0:
+		if held >= top:
+			return {}
+		return {"id": id, "rank": held + 1, "kind": &"upgrade", "item": true,
+				"paired": loadout.held(it.pairs) != null, "text": item_line(it, held + 1, loadout)}
+	if loadout.items.size() >= (def.max_items if def != null else loadout.max_items):
+		return {}
+	return {"id": id, "rank": 1, "kind": &"new", "item": true, "paired": loadout.held(it.pairs) != null,
+			"text": item_line(it, 1, loadout)}
+
+
+## M50.4b: "Haste 1: guns fire 6% faster  (new)" / "Haste 2 -> 3: guns fire 18% faster (was
+## 12%)", then " · your Pistol evolves with this" when its weapon is held.
+static func item_line(it: ItemDef, level: int, loadout: Loadout = null) -> String:
+	var text := "%s 1: %s  (new)" % [it.title, it.effect(1)] if level <= 1 else 			"%s %d -> %d: %s (was %s)" % [it.title, level - 1, level, it.effect(level), it.pct(level - 1)]
+	var w := WeaponDB.get_weapon(it.pairs)
+	if loadout != null and w != null and loadout.held(it.pairs) != null:
+		text += " · your %s evolves with this" % w.title
+	return text
 
 
 ## "Shotgun II: knockback.  (I -> II)" for an upgrade, the rank-1 line plus "(new)" else.

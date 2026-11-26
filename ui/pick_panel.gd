@@ -22,6 +22,13 @@ extends CanvasLayer
 ## Choosing it emits fuse_requested; the PathRunner fuses and hands back the same pack for the
 ## new hand (after_fuse): the cards hide for FUSE_TIME (real time, the tree stays paused, so the
 ## hand's merge shows) and the pack comes back with its own input delay.
+##
+## M50.4b (Auto depth design 7, the M50.4m sheet): a level-up offer (PickOffer.level > 0, not a
+## pack) shows dressed cards (LevelCard: kind, level badge, glyph window, name plate, pips, the
+## effect, an item's pairing; the Pixel cards once the UI look is revealed, else the flat ones)
+## under a "LEVEL n" banner. Each is still a Button (keys, click, pad focus, the input delay); its
+## text stays empty and the card's line lives in card_text() and the logs. The pack and gift
+## branches are untouched.
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
@@ -50,6 +57,8 @@ var _locked_for := 0.0
 var _fusing := 0.0          ## M50.1b: seconds left of the fuse animation
 var _fused_title := ""
 var _dismissed := false   ## the run is over: never open again
+var _banner: LevelCard.Banner   ## M50.4b: the dressed panel's "LEVEL n"
+var _cards_dressed: Array[LevelCard] = []   ## M50.4b: tests
 
 
 func _ready() -> void:
@@ -68,6 +77,10 @@ func _ready() -> void:
 	column.alignment = BoxContainer.ALIGNMENT_END
 	column.add_theme_constant_override(&"separation", 18)
 	_root.add_child(column)
+	_banner = LevelCard.Banner.new()
+	_banner.visible = false
+	_banner.custom_minimum_size = Vector2(420, 84)
+	column.add_child(_banner)
 	_line = Label.new()
 	_line.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_line.add_theme_font_size_override(&"font_size", 28)
@@ -117,6 +130,9 @@ func _build() -> void:
 	_buttons.clear()
 	for c in _hand_row.get_children():
 		c.queue_free()
+	_cards_dressed.clear()
+	_banner.visible = false
+	_line.visible = true
 	var hints := Settings.key_hints()
 	if _replacing >= 0:
 		_line.text = "Your hand is full. %s replaces:" % offer.cards[_replacing].get("title", "")
@@ -129,6 +145,9 @@ func _build() -> void:
 		_line.text = "Fusing... %s" % _fused_title
 		return
 	_line.text = offer.line
+	if dressed():
+		_build_dressed(hints)
+		return
 	for i in offer.cards.size():
 		var text := pack_card_text(offer, i, Callable(), hints) if offer.pack else card_text(offer, i, Callable(), hints)
 		_add_button(text, choose.bind(i), offer.pack and offer.cards[i].get("rarity") == BoosterPack.RARE)
@@ -160,6 +179,43 @@ func _add_button(text: String, on_press: Callable, rare: bool, fuse := false) ->
 	_cards.add_child(frame)
 	_frames.append(frame)
 	_buttons.append(b)
+
+
+## M50.4b: this offer shows the dressed level-up cards (a level-up offer, not a pack).
+func dressed() -> bool:
+	return offer != null and not offer.pack and offer.level > 0
+
+
+## M50.4b: the dressed cards: the banner, then one LevelCard per card inside its Button.
+func _build_dressed(hints: bool) -> void:
+	var pixel := Skins.is_on(&"ui_panel")
+	_banner.level = offer.level
+	_banner.count = offer.cards.size()
+	_banner.pixel = pixel
+	_banner.visible = true
+	_banner.queue_redraw()
+	_line.visible = false
+	for i in offer.cards.size():
+		var key := InputSetup.expand_keys("{key:choose_%d}" % (i + 1)) if hints else ""
+		var frame := Control.new()
+		frame.custom_minimum_size = LevelCard.SIZE
+		var b := Button.new()
+		b.custom_minimum_size = LevelCard.SIZE
+		b.flat = true
+		b.disabled = true
+		b.tooltip_text = card_text(offer, i, Callable(), false)
+		for style: StringName in [&"normal", &"hover", &"pressed", &"disabled", &"focus", &"hover_pressed"]:
+			b.add_theme_stylebox_override(style, StyleBoxEmpty.new())
+		b.pressed.connect(choose.bind(i))
+		var card := LevelCard.new()
+		card.set_card(LevelCard.data_for(offer.cards[i], offer.cap, key), pixel)
+		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		b.add_child(card)
+		frame.add_child(b)
+		_cards.add_child(frame)
+		_frames.append(frame)
+		_buttons.append(b)
+		_cards_dressed.append(card)
 
 
 ## M50.1a: the hand under a pack's cards, at HAND_SCALE.

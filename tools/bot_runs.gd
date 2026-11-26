@@ -102,6 +102,12 @@ extends SceneTree
 ##                                takes what it walks over)
 ##   (M47) On Survival a "survival:" summary follows the paths: line (pickups per min, heals,
 ##   ammo_dry_share and crates taken per run: median min-max).
+##   --probe=random_picks         (M50.4b) a level-up pick is always the pick_rng draw (no
+##                                auto_choice rule: the M50.4a behaviour)
+##   --probe=no_evolve            (M50.4b) the EVOLVE choice is never taken (M50.4c1's; a no-op now)
+##   (M50.4b) human_pace and human also scale Auto's level thresholds x1.5 (threshold_mult)
+##   (M50.4b) A level-up offer that shows an item card is chosen by BotRuns.auto_choice, one
+##   static rule after the pick_rng draw, shared with tools/run_hash.gd
 ##   --probe=first_pick           (M46) every pick panel takes card 0; its own pick_rng draw is
 ##                                still consumed, but offers stay paired with the default only
 ##                                while both hands match: PickOffer.draw rolls once per card
@@ -197,7 +203,10 @@ var draft_arg := ""                          ## --draft (M45a)
 var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 no_switch, first_pick
 var fp_arg := false                          ## --fp (M46)
 var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
-const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human"]
+const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human",
+		"random_picks", "no_evolve"]
+## M50.4b: human_pace's Auto level thresholds (PathDef.threshold_mult).
+const HUMAN_PACE_LEVELS := 1.5
 ## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
 const PACK_TARGETS := {"s2_02_day_one": [12, 25], "s2_03_paint": [15, 28]}
 const HUMAN_PACE_EVERY := 9
@@ -303,6 +312,8 @@ func _run() -> void:
 			if probe_arg in ["human_pace", "human"]:
 				var arsenal_def: Resource = load("res://paths/path_db.gd").call(&"get_def", &"arsenal")
 				arsenal_def.set(&"pack_every", HUMAN_PACE_EVERY)
+				var auto_def: Resource = load("res://paths/path_db.gd").call(&"get_def", &"auto")
+				auto_def.set(&"threshold_mult", HUMAN_PACE_LEVELS)
 		elif arg.begins_with("--answer="):
 			var pair := arg.trim_prefix("--answer=")
 			var fork_id := StringName(pair.get_slice("=", 0))
@@ -1329,9 +1340,10 @@ static func _path_text(runner: Node) -> String:
 			int(runner.get(&"picks")), int(runner.get(&"pickups_taken"))]
 
 
-## M50.4a: "[botrun] auto: session=<id> seed=n level=n picks=n items=- ranks=pistol:6,nova:3
-## max_rank=n weapons=n fillers=n boost=n level_picks=upgrade:n,new:n,filler:n" (items, evolutions
-## and the nerf join in M50.4b / c1).
+## M50.4a: "[botrun] auto: session=<id> seed=n level=n picks=n items=haste:3,area:1
+## ranks=pistol:6,nova:3 max_rank=n weapons=n fillers=n boost=n
+## level_picks=upgrade:n,new:n,filler:n,item_new:n,item_up:n" (M50.4b: items; evolutions and the
+## nerf join in c1).
 static func _auto_line(session_id: StringName, run_seed: int, runner: Node, lo: Node) -> String:
 	var top := 0
 	var n := 0
@@ -1340,11 +1352,29 @@ static func _auto_line(session_id: StringName, run_seed: int, runner: Node, lo: 
 			top = maxi(top, int(w.get(&"rank")))
 			n += 1
 	var lp: Dictionary = runner.get(&"level_picks")
-	return "[botrun] auto: session=%s seed=%d level=%d picks=%d items=- ranks=%s max_rank=%d weapons=%d fillers=%d boost=%d level_picks=upgrade:%d,new:%d,filler:%d" % [
-			session_id, run_seed, int(runner.call(&"level")), int(runner.get(&"picks")),
+	var items := String(lo.call(&"items_summary")) if lo != null and is_instance_valid(lo) else ""
+	return "[botrun] auto: session=%s seed=%d level=%d picks=%d items=%s ranks=%s max_rank=%d weapons=%d fillers=%d boost=%d level_picks=upgrade:%d,new:%d,filler:%d,item_new:%d,item_up:%d" % [
+			session_id, run_seed, int(runner.call(&"level")), int(runner.get(&"picks")), items if items != "" else "-",
 			String(lo.call(&"summary")) if lo != null and is_instance_valid(lo) else "-", top, n,
 			int(lp.get("filler", 0)), int(lo.get(&"boost")) if lo != null and is_instance_valid(lo) else 0,
-			int(lp.get("upgrade", 0)), int(lp.get("new", 0)), int(lp.get("filler", 0))]
+			int(lp.get("upgrade", 0)), int(lp.get("new", 0)), int(lp.get("filler", 0)), int(lp.get("item_new", 0)),
+			int(lp.get("item_up", 0))] + " item_t=%s" % _item_times(runner)
+
+
+## M50.4b: when each item joined, "haste@39.2,area@43.0" (game time of its first pick), or "-".
+static func _item_times(runner: Node) -> String:
+	var db: GDScript = load("res://weapons/weapon_db.gd")
+	var seen := {}
+	var parts: Array[String] = []
+	for e: Dictionary in runner.get_node("/root/RunState").get(&"run_log"):
+		if e.get("event") != &"pick":
+			continue
+		var id := StringName(String(e.get("pick", "")))
+		if seen.has(id) or not bool(db.call(&"has_item", id)):
+			continue
+		seen[id] = true
+		parts.append("%s@%.1f" % [id, float(e.get("time", 0.0))])
+	return ",".join(parts) if not parts.is_empty() else "-"
 
 
 ## An open pick panel gets a card from RunState.pick_rng (PLAN v9 4). True if it chose.
@@ -1357,8 +1387,78 @@ func _choose_pick(game: Node) -> bool:
 		choose_pack(panel, game, probe_arg)
 		return true
 	var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
-	panel.call(&"choose", pick_card(root.get_node("RunState").get(&"pick_rng"), n, probe_arg))
+	var drawn := pick_card(root.get_node("RunState").get(&"pick_rng"), n, probe_arg)
+	var p: Node = game.get(&"player")
+	var lo: Node = p.get_node_or_null(^"Loadout") if is_instance_valid(p) else null
+	panel.call(&"choose", auto_choice(panel, lo, probe_arg, drawn))
 	return true
+
+
+## M50.4b (Auto depth design 9): the bot's level-up choice after the pick_rng draw (`drawn`,
+## always made first, so the stream never moves). An offer with no item card (and no EVOLVE,
+## M50.4c1) keeps the drawn card: S7's taste and every offer before the first item stay the
+## draw. Else, in order: (2) an upgrade of a held weapon whose catalyst item is held (highest
+## rank first); (3) a NEW item that is a held weapon's catalyst; (4) a NEW weapon while a slot is
+## free; (5) an upgrade of the highest-ranked held weapon below the cap; (6) an item upgrade;
+## (7) the drawn card. Ties: card order. random_picks and first_pick: the drawn card.
+## (Rule 1, EVOLVE, comes with M50.4c1.) Shared with tools/run_hash.gd (bot.call).
+static func auto_choice(panel: Node, lo: Node, probe: String, drawn: int) -> int:
+	var cards: Array = panel.get(&"offer").get(&"cards")
+	if probe in ["random_picks", "first_pick"] or lo == null or not is_instance_valid(lo):
+		return drawn
+	if not cards.any(func(c: Dictionary) -> bool: return bool(c.get("item", false))):
+		return drawn
+	# Loaded, not named: this tool compiles before the autoloads those classes reach.
+	var db: GDScript = load("res://weapons/weapon_db.gd")
+	# (2) an upgrade of a held weapon whose catalyst is held, highest rank first
+	var best := -1
+	for i in cards.size():
+		var c: Dictionary = cards[i]
+		if c.get("item", false) or c.kind != &"upgrade" or not _catalyst_held(db, lo, c.id):
+			continue
+		if best < 0 or _held_rank(lo, c.id) > _held_rank(lo, cards[best].id):
+			best = i
+	if best >= 0:
+		return best
+	# (3) a NEW item that is a held weapon's catalyst
+	for i in cards.size():
+		var c: Dictionary = cards[i]
+		if c.get("item", false) and c.kind == &"new":
+			var it: Resource = db.call(&"item", c.id)
+			if it != null and _held_rank(lo, it.get(&"pairs")) > 0:
+				return i
+	# (4) a NEW weapon while a slot is free
+	if int(lo.call(&"weapon_count")) < int(lo.get(&"max_slots")):
+		for i in cards.size():
+			if not cards[i].get("item", false) and cards[i].kind == &"new":
+				return i
+	# (5) the highest-ranked held weapon's upgrade
+	for i in cards.size():
+		var c: Dictionary = cards[i]
+		if c.get("item", false) or c.kind != &"upgrade":
+			continue
+		if best < 0 or _held_rank(lo, c.id) > _held_rank(lo, cards[best].id):
+			best = i
+	if best >= 0:
+		return best
+	# (6) an item upgrade
+	for i in cards.size():
+		if cards[i].get("item", false) and cards[i].kind == &"upgrade":
+			return i
+	return drawn
+
+
+## M50.4b: an item whose `pairs` is `weapon_id` is held.
+static func _catalyst_held(db: GDScript, lo: Node, weapon_id: StringName) -> bool:
+	for it: Resource in db.call(&"items"):
+		if it.get(&"pairs") == weapon_id and int(lo.call(&"item_level", it.get(&"id"))) > 0:
+			return true
+	return false
+
+
+static func _held_rank(lo: Node, weapon_id: StringName) -> int:
+	var w: RefCounted = lo.call(&"held", weapon_id)
+	return int(w.get(&"rank")) if w != null else 0
 
 
 ## M50.1a: chooses on an open pack panel with pack_choice (shared with tools/run_hash.gd).

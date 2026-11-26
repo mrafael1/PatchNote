@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/item_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"speed"
+title = "Speed"
+icon = &"speed"
+stat = &"speed"
+per_level = 0.1
+pairs = &"orbit"
+pitch = "Shots fly faster; orbits spin faster."
+card_text = "%s shot speed"
+built_in = "not built yet (S11)"

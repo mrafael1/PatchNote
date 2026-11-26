@@ -49,6 +49,11 @@ var shared_slots := false
 ## session; Weapon.mods). 0 = none: every value() is the old one.
 var boost := 0
 const BOOST_STEP := 0.05
+## M50.4b (Auto depth design 4): the passive items held (ItemDef at a level), in the order
+## taken; at most max_items (PathDef.max_items, set by apply_path; 0 elsewhere). Items own no
+## node: each held weapon's mods carry them (_apply_mods).
+var items: Array[Item] = []
+var max_items := 0
 
 var _drawn := false
 
@@ -332,6 +337,7 @@ func clear() -> void:
 	_drawn = false
 	_battery.clear()
 	boost = 0
+	items.clear()
 	if sidearm != null:
 		sidearm = slots[0]   # M47: manual_ammo keeps a sidearm
 	EventBus.weapon_changed.emit(PISTOL, 1)
@@ -350,6 +356,7 @@ func apply_path(def: PathDef) -> void:
 	fire_mode = def.fire_mode if def != null else &"manual_one"
 	max_slots = def.max_slots if def != null else 3
 	shared_slots = def != null and def.shared_slots
+	max_items = def.max_items if def != null else 0
 	if def == null or def.start.is_empty():
 		return
 	slots.clear()
@@ -401,9 +408,59 @@ func add_boost() -> void:
 	_apply_mods()
 
 
-## M50.4a: the role multipliers every held weapon gets now ({} with no boost).
+## M50.4a: the role multipliers every held weapon gets now ({} with no boost and no item).
+## M50.4b: each held item multiplies its role (Might and the boost multiply together).
 func mods_now() -> Dictionary:
-	return {} if boost <= 0 else {&"might": 1.0 + BOOST_STEP * boost}
+	var m := {}
+	if boost > 0:
+		m[&"might"] = 1.0 + BOOST_STEP * boost
+	for it in items:
+		m[it.def.stat] = float(m.get(it.def.stat, 1.0)) * it.def.mult(it.level)
+	return m
+
+
+## M50.4b: the held item `id` (null: not held).
+func item(id: StringName) -> Item:
+	for it in items:
+		if it.def.id == id:
+			return it
+	return null
+
+
+func item_level(id: StringName) -> int:
+	var it := item(id)
+	return it.level if it != null else 0
+
+
+## M50.4b: item `id` joins at level 1 while a slot is free (false: unknown, unbuilt, held or
+## full). Every held weapon re-reads its numbers (node weapons keep their clocks).
+func add_item(id: StringName) -> bool:
+	var def := WeaponDB.item(id)
+	if def == null or not def.built() or item(id) != null or items.size() >= max_items:
+		return false
+	items.append(Item.new(def, 1))
+	_apply_mods()
+	EventBus.item_changed.emit(id, 1)
+	return true
+
+
+## M50.4b: held item `id` one level up, to rank_cap (false: not held or at the top).
+func level_item(id: StringName) -> bool:
+	var it := item(id)
+	if it == null or (rank_cap > 0 and it.level >= rank_cap):
+		return false
+	it.level += 1
+	_apply_mods()
+	EventBus.item_changed.emit(id, it.level)
+	return true
+
+
+## "haste:2,area:1" (the order taken; "" with none).
+func items_summary() -> String:
+	var parts: Array[String] = []
+	for it in items:
+		parts.append("%s:%d" % [it.def.id, it.level])
+	return ",".join(parts)
 
 
 func _apply_mods() -> void:
@@ -434,7 +491,7 @@ func passive_node(id: StringName) -> Node:
 
 func _add(def: WeaponDef, rank: int) -> void:
 	var w := Weapon.new(def, rank, curve)
-	if boost > 0:
+	if boost > 0 or not items.is_empty():
 		w.mods = mods_now()
 	if shared_slots and fire_mode != &"manual_ammo" and weapon_count() >= max_slots:
 		_drop_weakest()   # M50.4a: never a 4th weapon (give, F2, --loadout, the bench)

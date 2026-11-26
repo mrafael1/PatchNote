@@ -36,6 +36,8 @@ static func render() -> String:
 				continue
 			var cond := ("%s " % c.cond) if c.cond != "" else ""
 			var when := "%s %s" % [c.when, (str(int(c.value)) if c.value == floorf(c.value) else str(c.value))] if c.when != &"" else ""
+			if c.when == &"holds":
+				when = "holds %s" % c.held
 			var what := "path %s warning: " % c.target if c.action == &"path" else ""
 			out.append("- %s%s: %s%s" % [cond, when.strip_edges(), what, _line(c.line)])
 		if not s.reveal_lines.is_empty():

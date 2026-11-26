@@ -52,9 +52,11 @@ extends RefCounted
 ##                                            with fewer than 2 cards, logged)
 ##   "fuse_ready 1: say ..."   the n-th time FUSE became available
 ##   "fused 1: say ..."        once n fusions were made this session
+## M50.4b review (Auto's passive items):
+##   "holds haste: say ..."   once the player holds that item (a give only offers it first)
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
-		&"level", &"picked", &"fused", &"fuse_ready"]
+		&"level", &"picked", &"fused", &"fuse_ready", &"holds"]
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
 		&"drop", &"look", &"boss", &"skin", &"release", &"fuse"]
 ## The cue times that take no number (touch takes one or none: a deadline).
@@ -91,6 +93,7 @@ var dummy := false             ## boss: the harmless one
 var specimen := false          ## spawn: stands still and harmless until a `release` (M48b)
 var morph := false             ## skin: morph in (M48b)
 var bug: StringName = &""      ## skin bug: swap / tiles / flip (M48b); target is then &"bug"
+var held: StringName = &""     ## holds: the item id (M50.4b review)
 var problem := ""
 var source := ""
 
@@ -140,6 +143,11 @@ static func parse(p_source: String) -> Cue:
 					"0-100" if c.when == &"boss_hp" else ">= 1"]
 			return c
 		c.value = head[1].to_int()
+	elif c.when == &"holds":
+		if head.size() != 2 or head[1].is_valid_float():
+			c.problem = "cue '%s': holds takes an item id" % p_source
+			return c
+		c.held = StringName(head[1])
 	elif c.when == &"touch":
 		if head.size() > 2 or (head.size() == 2 and not head[1].is_valid_float()):
 			c.problem = "cue '%s': 'touch' takes a deadline in seconds or nothing" % p_source
@@ -315,6 +323,8 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("fused", 0)) >= int(value)
 		&"fuse_ready":
 			return int(ctx.get("fuse_ready", 0)) >= int(value)
+		&"holds":   # M50.4b review: the held item ids (PathRunner's Loadout; [] without one)
+			return held in (ctx.get("items", []) as Array)
 	return false
 
 

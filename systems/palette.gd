@@ -63,6 +63,7 @@ const CARD_LIT := Color(1.0, 0.95, 0.5)           ## the equipped card
 const CARD_FLASH := Color(0.5, 0.5, 0.6, 0.94)    ## a card joining the hand
 const CARD_BAR := Color(1.0, 0.85, 0.35)          ## the card meter
 const CARD_RARE := Color(1.0, 0.78, 0.22)         ## M50.1a: a rare pack card's frame
+const CARD_ITEM := Color(1.0, 0.62, 0.38)         ## M50.4b: a passive item's level-up card
 const GAUGE := Color(0.55, 1.0, 0.7)              ## the HUD gauge and its banner
 const SPINNER := Color(1.0, 0.85, 0.3)            ## the stage card's spinner
 const BEAT_TEXT := Color(0.7, 0.9, 0.7)           ## the stage card's build lines
@@ -128,7 +129,7 @@ const TIER_0 := {
 	&"turn_danger": TURN_DANGER, &"turn_aim": TURN_AIM, &"turn_shot": TURN_SHOT,
 	&"turn_rest": TURN_REST, &"hint": HINT, &"marker": MARKER,
 	&"ui_dim": UI_DIM, &"ui_soft": UI_SOFT, &"card_lit": CARD_LIT, &"card_flash": CARD_FLASH,
-	&"card_bar": CARD_BAR, &"card_rare": CARD_RARE, &"gauge": GAUGE, &"spinner": SPINNER, &"beat_text": BEAT_TEXT,
+	&"card_bar": CARD_BAR, &"card_rare": CARD_RARE, &"card_item": CARD_ITEM, &"gauge": GAUGE, &"spinner": SPINNER, &"beat_text": BEAT_TEXT,
 	&"lock": LOCK, &"info": INFO, &"debug_text": DEBUG_TEXT, &"rework": REWORK,
 	&"rework_back": REWORK_BACK, &"agenda": AGENDA, &"keep": KEEP, &"lose": LOSE,
 	&"scrim": SCRIM, &"scrim_teal": SCRIM_TEAL, &"scrim_pick": SCRIM_PICK, &"band": BAND,

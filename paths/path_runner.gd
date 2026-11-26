@@ -98,7 +98,7 @@ var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or 
 ## M50.1a (packs): what was taken, for the telemetry and the bot's line.
 var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0}
 ## M50.4a (levelups picks): what each level-up took, for the telemetry and the bot's line.
-## item_new / item_up (M50.4b) and evolve (M50.4c1) stay 0 until those are built.
+## item_new / item_up are the passive items (M50.4b); evolve stays 0 until M50.4c1.
 var level_picks := {"upgrade": 0, "new": 0, "item_new": 0, "item_up": 0, "evolve": 0, "filler": 0}
 ## M50.1b: each fusion made: {id, t, from: ["shotgun:5", "laser:4"], rank}.
 var fusions: Array[Dictionary] = []
@@ -696,6 +696,10 @@ func _open_offer() -> void:
 			first = most_fired(lo)   # Arsenal: the most-fired card's upgrade first (1.5, D7)
 		offer = PickOffer.draw(lo, def, offer_pool(), first, RunState.pick_rng, taste)
 		_first = &""
+		if def != null and def.growth == &"levelups":
+			# M50.4b: the dressed cards' banner and pips (presentation only).
+			offer.level = level()
+			offer.cap = lo.rank_cap if lo.rank_cap > 0 else Loadout.MAX_RANK
 	offers.append(offer)
 	EventBus.pick_offered.emit(offer)
 	fp.menu_open()
@@ -730,6 +734,12 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 	var lo := loadout()
 	if offer.pack:
 		_take_pack_card(lo, card)
+	elif card.get("item", false) and lo != null:
+		# M50.4b: a passive item joins (level 1) or levels up.
+		if card.kind == &"new":
+			lo.add_item(card.id)
+		else:
+			lo.level_item(card.id)
 	elif card.kind == &"new" and lo != null:
 		lo.give(card.id, 1)
 	elif card.kind == &"upgrade" and lo != null:
@@ -740,6 +750,8 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 		lo.add_boost()
 	if not offer.pack and def != null and def.growth == &"levelups":
 		var key := String(card.kind) if card.kind in [&"upgrade", &"new"] else "filler"
+		if card.get("item", false):
+			key = "item_new" if card.kind == &"new" else "item_up"
 		level_picks[key] = int(level_picks[key]) + 1
 	for c in offer.cards:
 		taste._nudge_raw(c.id, [], Taste.PICK if c == card else Taste.PASS)
@@ -983,5 +995,9 @@ func state_text() -> String:
 		return "path=%s cards=%d kills=%d/%s picks=%d pickups=%d" % [path_id, cards(),
 				int(_meter.get(&"kills")) if _meter != null else 0, str(need) if need >= 0 else "-", picks,
 				pickups_taken]
-	return "path=%s level=%d picks=%d pickups=%d" % [path_id if path_id != &"" else &"-", level(), picks,
+	var text := "path=%s level=%d picks=%d pickups=%d" % [path_id if path_id != &"" else &"-", level(), picks,
 			pickups_taken]
+	var lo_i := loadout()
+	if lo_i != null and not lo_i.items.is_empty():
+		text += " items=%s" % lo_i.items_summary()   # M50.4b
+	return text
