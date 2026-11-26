@@ -70,12 +70,17 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_survival at 80: (happy) I'm going to learn to draw. Give me a session.
 - answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. Gold ones count twice. No top rank.
 - answer:path_arsenal at 34: (worried) Two cards max. Anything new means letting one go.
+- answer:path_auto at 18: (thinking) New top: rank six. Every gun learns three tricks on the way.
+- answer:path_auto at 60: (worried) Three guns, two passives. That's the whole backpack.
+- answer:path_auto at 38: (happy) New pick: passives. Haste makes every gun fire faster.
+- answer:path_auto at 42: (thinking) And area: bigger blasts, longer shotgun reach. Two passive slots. Choose.
 ### Debrief
 - won (happy) Day one. It works!
 - died (guilty) Day one bugs. Want another go, or should I just patch it?
 - answer:path_auto&hit_none (surprised) You didn't touch the trigger and didn't get touched. Fair.
 - answer:path_arsenal (thinking) Cards feel good. I want more of them.
 - answer:path_survival (thinking) You're a good scavenger. Suspiciously good.
+- answer:path_auto (thinking) A maxed gun and its passive... I have an idea for next time.
 - (thinking) Next time, I'll have something to show you. A drawing. My first.
 
 ## s2_03_paint: Fresh paint
@@ -106,6 +111,12 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal at 94: (thinking) Real fusion now. Two cards at rank four light a link.
 - answer:path_arsenal fuse_ready 1: (happy) The link's glowing. Open the next pack and fuse them.
 - answer:path_arsenal fused 1: (proud) A Prism! That recipe goes in the book.
+- answer:path_auto holds haste: (happy) Haste came back with you. Guns fire faster.
+- answer:path_auto at 94: (thinking) Might makes everything hit harder. Nova evolves with it.
+- answer:path_auto at 84: (happy) New trick. A gun at rank six plus its passive evolves.
+- answer:path_auto evolve_ready 1: (happy) It's glowing. Take EVOLVE.
+- answer:path_auto evolved 1: (surprised) Oh. Oh no. That came out strong.
+- answer:path_auto nerfed 1: (guilty) Too strong. Patched it down live. Still good, promise.
 ### Reveal lines (one per new enemy drawn in, in order)
 - (happy) Another one!
 - (proud) Drew that one too.
@@ -119,6 +130,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal (thinking) The gems are still in the drawer.
 - answer:path_survival (thinking) The cards are still in the drawer. And the gems.
 - answer:path_arsenal&fused (proud) You fused one. I'm keeping the recipe.
+- answer:path_auto&evolved (proud) You evolved one. I only nerfed it a little.
 
 ## fork_path
 - Question: Which shooter do we make?
@@ -132,6 +144,6 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 
 ## The paths
 - arsenal: warn "happy: New version. Your guns are cards." · full "thinking: That's enough cards for one test." · pick "Pack. Pick one."
-- auto: warn "worried: New version. Hands off the trigger." · full "thinking: That's enough levels for one test." · pick "Level up. Pick one."
+- auto: warn "worried: New version. Hands off the trigger." · full "" · pick "Level up. Pick one."
 - survival: warn "happy: New version. Guns are lying around." · full "" · pick "Level up. Pick one."
 - Pick lines: happy: Ooh, that one. · proud: Good pick.

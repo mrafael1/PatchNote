@@ -358,6 +358,13 @@ func _weapon_problems(where: String) -> Array[String]:
 	for c in cue_list():
 		if c.problem != "" or c.action != &"give":
 			continue
+		if WeaponDB.has_item(c.target):
+			# M50.4b: a passive item: built, and only on Auto (a level-ups path).
+			if not WeaponDB.item_built(c.target):
+				out.append("%s: cue '%s': item %s is %s" % [where, c.source, c.target, WeaponDB.item(c.target).built_in])
+			elif not "answer:path_auto" in c.cond:
+				out.append("%s: cue '%s': an item give must carry answer:path_auto" % [where, c.source])
+			continue
 		if not WeaponDB.has(c.target):
 			out.append("%s: cue '%s': unknown weapon %s" % [where, c.source, c.target])
 		elif not c.target in weapons:
@@ -365,6 +372,9 @@ func _weapon_problems(where: String) -> Array[String]:
 	# M45a (the pool rule): a [tag] names a weapon the session lists or a path's extra.
 	for c in cue_list():
 		if c.problem != "" or c.tag == &"" or c.tag in weapons:
+			continue
+		if WeaponDB.has_item(c.tag) and not WeaponDB.item_built(c.tag):
+			out.append("%s: cue '%s': [%s] is %s" % [where, c.source, c.tag, WeaponDB.item(c.tag).built_in])
 			continue
 		if not PathDB.all().any(func(p: PathDef) -> bool: return c.tag in p.offer_pool_extra):
 			out.append("%s: cue '%s': [%s] is not in the session's weapons or a path's offer_pool_extra"
@@ -541,10 +551,19 @@ func problems() -> Array[String]:
 			out.append("%s: cue '%s': hp needs the health basic" % [where, c.source])
 		elif c.when in [&"fused", &"fuse_ready"] and not _has_basic(&"fusion"):
 			out.append("%s: cue '%s': %s needs the fusion basic" % [where, c.source, c.when])
+		elif c.when == &"holds" and not WeaponDB.item_built(c.held):
+			out.append("%s: cue '%s': holds %s: no built item" % [where, c.source, c.held])
 		elif c.action == &"fuse" and not _has_basic(&"cards"):
 			out.append("%s: cue '%s': fuse needs the cards basic (a pack path)" % [where, c.source])
 		elif (c.action == &"fuse" or c.when in [&"fused", &"fuse_ready"]) and not _arsenal_only(c):
 			out.append("%s: cue '%s': a fusion cue needs answer:path_arsenal (it can run on another path)" % [where, c.source])
+		elif (c.action == &"nerf" or c.when in EVOLVE_WHENS) and not _has_basic(&"evolve"):
+			out.append("%s: cue '%s': %s needs the evolve basic" % [where, c.source,
+					c.when if c.when in EVOLVE_WHENS else c.action])
+		elif (c.action == &"nerf" or c.when in EVOLVE_WHENS) and not "answer:path_auto" in c.cond:
+			out.append("%s: cue '%s': an evolution cue needs answer:path_auto (it can run on another path)" % [where, c.source])
+		elif c.action == &"nerf" and c.when != &"evolved":
+			out.append("%s: cue '%s': nerf sits on an `evolved n` cue" % [where, c.source])
 	# M43.2: a quiet edit says nothing itself, so an earlier warned edit cue with the same
 	# time must announce it (PLAN v8 0.4: the AI says so before it edits).
 	var all_cues := cue_list()
@@ -658,6 +677,8 @@ func _voice_problems(where: String) -> Array[String]:
 	return out
 
 
+## M50.4c1: the evolution cue times (Auto's; they need the evolve basic).
+const EVOLVE_WHENS: Array[StringName] = [&"evolve_ready", &"evolved", &"nerfed"]
 ## The enemy bases a `spawn ... specimen` may name (a walker: the chaser and the scripts
 ## that extend it); a variant counts by its base.
 const SPECIMEN_BASES: Array[StringName] = EnemyDB.WALKERS
@@ -765,7 +786,7 @@ static func reads_outcome(when: StringName) -> bool:
 ## which an intro line has no record of yet.
 static func reads_fusion(when: StringName) -> bool:
 	return Line.condition_parts(String(when)).any(func(p: String) -> bool:
-		return p.trim_prefix("!") in ["fused", "misfused"])
+		return p.trim_prefix("!") in ["fused", "misfused", "evolved"])
 
 
 ## M50.1b review: basic b is in basics or an `add b` cue brings it.

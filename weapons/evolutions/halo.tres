@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"halo"
+title = "Halo"
+mode = &"passive"
+icon = &"halo"
+pitch = "Six shards that eat shots."
+card_text = PackedStringArray("Halo: Six shards that eat shots.")
+base = &"orbit"
+catalyst = &"speed"
+built_in = "S11"

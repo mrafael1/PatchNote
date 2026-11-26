@@ -528,6 +528,8 @@ func _path_hash(game: Node, run_state: Node) -> String:
 	var parts: Array[String] = ["path=%s" % run_state.call(&"live_path")]
 	var lo: Node = runner.call(&"loadout") if runner != null else null
 	parts.append("lo=%s" % (lo.call(&"summary") if lo != null else "-"))
+	if lo != null and not (lo.get(&"items") as Array).is_empty():
+		parts.append("items=%s" % lo.call(&"items_summary"))   # M50.4b: only once an item is held
 	var picks: Array[String] = []
 	for e: Dictionary in run_state.run_log:
 		if e.get("event") == &"pick":
@@ -581,7 +583,12 @@ func _play_session_frames(game: Node, run_state: Node) -> Array[String]:
 					bot.call(&"choose_pack", panel, game, "")   # M50.1a: the bot's own pack rule
 				else:
 					var n: int = (panel.get(&"offer").get(&"cards") as Array).size()
-					panel.call(&"choose", bot.call(&"pick_card", run_state.get(&"pick_rng"), n, ""))
+					var drawn: int = bot.call(&"pick_card", run_state.get(&"pick_rng"), n, "")
+					var p: Node = game.get(&"player")
+					var lo: Node = p.get_node_or_null(^"Loadout") if is_instance_valid(p) else null
+					# M50.4b: the bot's own level-up rule after the draw (the drawn card when no
+					# item card shows, so every offer before the first item is the draw).
+					panel.call(&"choose", bot.call(&"auto_choice", panel, lo, "", drawn))
 		await physics_frame
 		frames += 1
 		if paused:

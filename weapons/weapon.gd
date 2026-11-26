@@ -18,6 +18,17 @@ var reload_left := 0.0
 var ready_in := 0.0        ## seconds until it may fire again (its own cooldown)
 var shots := 0             ## shots fired (heavy round counts them)
 var traits: Array[WeaponTrait] = []
+## M50.4a (Auto depth design 4): role -> multiplier from the path's items and boost (Loadout
+## writes it). Empty (every path but Auto with a boost or an item): value() is exactly the old
+## code. M50.4b: each role scales the field its def names (WeaponDef.stat_fields, else
+## DEFAULT_FIELDS); `area` also reaches node knobs through stat_mult.
+var mods := {}
+## M50.4c1 (Auto depth design 6): the evolution's launch numbers (field -> value; its def's
+## launch_values) while a `nerf` cue holds them, read before mods; {} = the steady numbers.
+var launch := {}
+
+## M50.4b: the field each item role scales when the def names none.
+const DEFAULT_FIELDS := {&"haste": &"cooldown", &"might": &"damage", &"area": &"blast_radius"}
 
 
 func _init(p_def: WeaponDef = null, p_rank := 1, p_curve: StringName = &"classic") -> void:
@@ -85,9 +96,21 @@ func value(field: StringName) -> Variant:
 			return Tuning.shoot_cooldown
 		if field == &"speed":
 			return Tuning.projectile_speed
-	if deep():
-		return WeaponCurve.value(def, field, rank)
-	return def.value(field, rank)
+	var v: Variant = WeaponCurve.value(def, field, rank) if deep() else def.value(field, rank)
+	if not launch.is_empty() and launch.has(field):
+		v = launch[field]
+	if mods.is_empty():
+		return v
+	var map: Dictionary = def.stat_fields if not def.stat_fields.is_empty() else DEFAULT_FIELDS
+	for role: StringName in mods:
+		if StringName(map.get(role, &"")) == field:
+			v = float(v) * float(mods[role])
+	return v
+
+
+## M50.4a: the multiplier of role `role` (1.0 without it), for knobs that are not a field.
+func stat_mult(role: StringName) -> float:
+	return float(mods.get(role, 1.0))
 
 
 func has_trait(trait_id: StringName) -> bool:
@@ -102,8 +125,11 @@ func trait_level(trait_id: StringName) -> int:
 	return 0
 
 
-## "Shotgun II"; on the deep curve the digit ("Shotgun 7").
+## "Shotgun II"; on the deep curve the digit ("Shotgun 7"); M50.4c1: an evolution its name
+## ("MINIGUN": it has no ranks).
 func label() -> String:
+	if def.is_evolution():
+		return def.title.to_upper()
 	if deep():
 		return "%s %d" % [def.title, rank]
 	return "%s %s" % [def.title, ["I", "II", "III", "IV"][clampi(rank, 1, 4) - 1]]

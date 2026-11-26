@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"supernova"
+title = "Supernova"
+mode = &"passive"
+cooldown = 2.0
+damage = 8.0
+pellets = 1
+speed = 0.0
+blast_radius = 2.5
+icon = &"supernova"
+node_script = "res://weapons/nova_pulse.gd"
+pitch = "A bigger nova, a wider ring."
+card_text = PackedStringArray("Supernova: A bigger nova, a wider ring.")
+mechanics = Array[StringName]([&"shove", &"dash_nova", &"shockwave", &"supernova"])
+mechanic_values = Array[Dictionary]([])
+base = &"nova"
+catalyst = &"might"
+launch_values = {
+&"cooldown": 1.2,
+&"damage": 12.0
+}

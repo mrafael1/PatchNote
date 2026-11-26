@@ -285,6 +285,8 @@ if ($BotRuns) {
         if ($s9.Text -notmatch "outcome=win t=(\d+\.\d) .*path=$p .* end=cleared spawned=$n/$n " -or [double]$Matches[1] -lt 75.0) { $failures += "bot_s9_${p}: did not clear its $n on $p after the transformation" }
         if ($p -eq 'arsenal' -and $s9.Text -notmatch 'fusions=@[\d.]+:\w+') { $failures += 'bot_s9_arsenal: no fusion before the clear' }
         if ($s9.Text -notmatch '\[botrun\] summary: s2_03_paint x1, .* 0 failures') { $failures += "bot_s9_${p}: run failed" }
+        # M50.4c1: on Auto the one seed evolves the pistol, the live nerf lands and its line is said in the run.
+        if ($p -eq 'auto' -and $s9.Text -notmatch '\[botrun\] auto_depth: s2_03_paint evolved=1/1 .*nerf_landed=1/1 nerfed_before_clear=1/1 ') { $failures += "bot_s9_auto: no evolution, nerf or nerf line" }
     }
     # M47.5a (PLAN v9.3): the campaign hosted in the always-on GameHost hashes as the M43.3 refs,
     # and S8 hosted at a 1560x878 view with the handoff held matches the M50.1b ref (Arsenal's

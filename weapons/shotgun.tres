@@ -21,3 +21,8 @@ pitch = "Five pellets, short reach. Get close."
 card_text = PackedStringArray("Shotgun: five pellets, short reach.", "Shotgun II: knockback.", "Shotgun III: a tighter cone, double damage up close.")
 mechanics = Array[StringName]([&"knockback_cone", &"point_blank", &"shrapnel"])
 mechanic_values = Array[Dictionary]([{}, {"spread_deg": 18.0}, {}])
+stat_fields = {
+&"area": &"lifetime",
+&"haste": &"cooldown",
+&"might": &"damage"
+}

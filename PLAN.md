@@ -790,6 +790,11 @@ Each milestone **ends playable**: the campaign plays from S0 to its last built s
 | M50 | **Levels + the three enemies + S10** | 1.8's levels (`stages` sessions with prompts forced to 0 and clears that sweep pickups, the 3 sets retuned with `pickup_tiles`, `room N [at s]`), `fork_layout` as new campaign `.tres` (S9's debrief, map thumbnails), the launcher, shielder / sniper / swarm as `EnemyVariant`s (the sniper's `DangerZone`), the flank rule in the Arsenal and Survival policies, `edit_hot_edges`, S10 as data (no fork; notes); *v9.1:* Pixel grids, Minimal shapes and Splat samples for the shielder, sniper and swarm (id coverage and silhouette gates in all 3 looks). **Numbers (hard):** S10 invincible 200–260 s per layout, no part over 100 s; every exit reachable with 3 dash styles × 2 aims; `edit_hot_edges` never covers an exit tile; the v6 `stages` fork is never asked in a session. **Reported (check hit kinds first):** mortal deaths per layout × path (9 cells × 16 seeds); each enemy × path time to death against that path's no-new-enemy baseline; shielder hits blocked per path | — |
 | M50.1 | **Path depth (v9.2, 1.17)** | **First a one-page design to the owner** (the three depth pieces, one rule each, with the fusion and evolution lists). Then: Arsenal's fusions, Auto's evolutions, Survival's holster and enemy answers, each announced in S10 or S11. **Numbers:** projectile caps hold at the top of every path (hard); hashes as M44 (hard); the degenerate-strategy probes of 4 re-run per path. **Reported:** the `fp` table before and after per path; path-only lines (reported, no limit) | **Async:** the one-page design, before building |
 | *M50.1 (v9.1), folded into the row above* | *Rank-4 evolutions* | the 7 evolutions of 1.4 as traits, offered from S10 on; F2 shows them. **Numbers:** caps at the top rank (player budget 140, enemies keep 60; test, hard); hashes as M44 (hard); bench with every weapon at rank 4 (**windowed**) | — |
+| M50.4a | **Auto depth: rank 6, 3 shared slots, no cap** (`.check/auto_depth/design.md` rev. 2) | Auto on the deep curve to rank 6 (`rank_cap 6`), 3 weapon slots shared by every mode (nova / well take one; `PathDef.shared_slots`, `Loadout._add` replaces the weakest non-active), no level cap (`max_picks 0`), two fillers (+1 max HP, +5% damage), nova's rank-6 `shockwave`, the raw LV rows and the rail's weapon row, S8's 18 / 60 s lines, telemetry `levels` / `level_picks` / `ranks_end`, a `[botrun] auto:` line. As built: 6.20. **Numbers (hard):** S7, Arsenal, Survival, v6, gauntlet, campaign, S4 refs unchanged; new `.check/ref_m50_4a/` (S8 / S9 Auto) replayed twice | the bot numbers in 6.20, next playtest |
+| M50.4b | **Auto depth: passives and the dressed pick panel** (`.check/auto_depth/design.md` rev. 2) | 7 item rows (`ItemDef` / `Item`, `weapons/items/`): Haste, Area, Might wired, Duration / Amount / Speed / Magnet are data-only "not built yet" rows; `WeaponDB.items()` / `has_item` / `item_problems`; `Loadout.items` (2 slots), `Weapon.mods` / `stat_fields`; item cards in the level-up offer; the dressed level-up panel (`ui/level_card.gd`, flat and Pixel, LEVEL n banner, 7 item glyphs); `auto_choice` bot rule; S8 38 / 42 s lines + debrief, S9 `give haste` at 9 s + a `holds haste` line and a 94 s line; telemetry `items_end`. As built: 6.21. **Numbers (hard):** every ref equal except S8 / S9 Auto (new refs `.check/ref_m50_4b/`, 2 replays, 0 failures). | built (not committed) |
+| M50.4c1 | **Auto depth: EVOLVE, the Minigun and the live nerf** (`.check/auto_depth/design.md` rev. 2) | 7 evolution rows (`weapons/evolutions/`; Minigun built, 6 "not built yet"), `WeaponDB.evolutions()` / `evolution_for` / `evolution_problems`; the EVOLVE choice after the cards (rank 6 + its item + the `evolve` basic; spends the level-up), the gold EVOLVE card; `Loadout.evolve`; the steering; `sweep`; `launch_values` + the `nerf <s>` action, `evolve_ready` / `evolved` / `nerfed` whens, the `evolved` condition, the patch note; recipes + `recipes_text()` "Evolutions:"; the evolve hint (raw HUD, rail); S9 `add evolve` at 84 s + 4 lines + debrief; bot rule 1 + `auto_depth` summary; check.ps1 assertion. As built: 6.22. **Numbers (hard):** every ref equal except S9 Auto (new ref `.check/ref_m50_4c1/`, 2 replays, 0 failures). | built (not committed) |
+| M50.4c2 | **Auto depth: Supernova, Thunderclap and the stress bench** (`.check/auto_depth/design.md` rev. 2) | Supernova (nova + Might, node: 2.0 s, 2.5 T, 8 dmg, ring to 6 T at 0.75x, shove 1.5 T; launch 1.2 s / 12) and Thunderclap (shotgun + Area: 7 pellets / 34 deg, cd 0.5, one clap blast 2.5 T ahead per volley, 1 T, 2 dmg, knockback 420; launch 1.5 T / 4) built; traits `supernova` / `clap`; nova's clocks kept on evolve; launch / nerf re-read node weapons; their pictures (tier 0 + Pixel); the 3-evolution caps bench + `bench --auto --evolved`. As built: 6.23. **Numbers (hard):** every ref equal (S9 Auto equal to `ref_m50_4c1`). | built (not committed) |
+| M50.4f | **Auto cards match the mockup** (`Auto_Choices.dc.html`, presentation only) | Pixel card art at the window scale on the sheet backdrop (laser beam, Haste lines); MAX tag + gold ring; tall pips / diamonds on mechanic ranks; mechanic icon + bold name on the effect line; pair gun + READY; "focused" key; flat guns; EVOLVE window, wrap and focus ring; banner tabs; the rail lifts the focused slot, rings EVOLVE base, full bar + legend; the flat slot bar. As built: 6.24. **Numbers (hard):** no ref changed. | built |
 | M51 | **S11 (without the event)** | *v9.1: the HUD build moved to M48.5;* `fork_hud` as data in S11's debrief (kept by the owner), the orbit and `well` lines; S11 as data with the three enemies mixed in, the orbit, `edit_enemies_flee`, the event cue as a no-op. **Numbers (hard):** the reversibility test for `edit_enemies_flee`; M48.5's no-overlap test still green. **Reported:** S11 mortal deaths per path | — |
 | M52 | **Gravity through the screen + look tier 2** | 1.11: the event, `GlassStack` (`PROCESS_MODE_ALWAYS`), the freeze on `set_pause` + `hold_clock`, `camera_push`, `crack` and its persistence, the sorry gift, the gentle variant; tier 2 for each look (1.7, v9.1: Pixel's CRT and HUD digits, Minimal's streaks and shatter, Splat's live heroes, mascot breathing and kill scatter, themed explosions; Splat's live instances ≤ 1000 and ≤ 0.5 ms). **Numbers (hard):** 16/16 S11 seeds per path play the event fully; **0 hits during it**; state hash before = after in 16/16; the same seed replays the event to the same hash twice; the 6 steps at fixed frames; the gentle variant creates no white node. **Windowed:** a `.check/glass_*.png` strip (grow, smack, pile, undo) per look; tier 2 sheets per look; bench ≥ 60 fps with tier 2. **Reported:** deaths in the 20 s after it against the control (`--events=none`) | — |
 | M53 | **S12 + S13 complete (v9.2)** | S12 as data (the HUD lands, the polish, `arena_boss`'s line, the Big Square dummy, no fork); S13 complete: both halves with every line of 3.2, the per-path tuning retuned after M50.1's depth pieces (they change DPS). **Numbers (hard):** the whole fight 120-200 s for the invincible bot on every path, max/min ≤ 1.4; M49a's and M49b's rules on every path; S13 replays to the same hash twice. **Reported:** mortal tries per path, deaths per half and per attack | — |
@@ -1699,6 +1704,354 @@ Stage 2: S8 and S9 endings and the carry, per design `.check/stage1_rework/desig
 - **Still open (defaults taken):** Q1 the rail's log starts at the reveal rather than replaying the chat's history (default: starts at the reveal); Q2 the gate's `play` pill in the reply box (default yes, as the chat's); M48.5a's Q1-Q6 stand.
 - **Doc/code notes:** M48.5a's tests and 6.25 assume a raw terminal in Stage 2 (S8 opens on the dev-chat since M47.6b); `TerminalPanel.style` meant "raw / rail" in M48.5a and "raw / chat" on main: it is the latter now, with the rail as `dresser`.
 
+### 6.27 As built (M50.4a): Auto depth, rank 6, 3 shared slots, no cap
+*Built in the `build/auto` worktree on `build/m48_5a` (main 8a0bc64 + M48.5a) from `.check/auto_depth/design.md` rev. 2, milestone M50.4a; owner decisions `auto-evolution-design` (3 weapons + 2 passives, rank cap 6) and `overnight-2026-11-26`. **The Stage 1 rework (M47.6a-d2) and Arcade (M50.2 / M50.3) are not in this branch**: built against today's goals (S8 survive 120 s, S9 survive 150 s), today's refs, no S10. Not committed.*
+- **Data** (`paths/auto.tres`): `rank_curve deep`, `rank_cap 6`, `max_slots 4 -> 3`, `max_passives 2 -> 0`, `max_items 2`, `shared_slots true`, `max_picks 10 -> 0`, `full_line ""`. `PathDef` gains `shared_slots`, `max_items` (M50.4b fills the slots), `threshold_mult` (1.0; `threshold()` rounds when it is set; M50.4b's `human_pace` uses it) and three `problems()` rows (`shared_slots` needs `max_passives 0`; `max_items >= 0`; `threshold_mult > 0`). `max_picks 0` = no cap on a levelups path (`LevelMeter`); a tryout still stops after its taste list.
+- **Ranks:** Auto weapons rank 1-6 on Arsenal's deep curve (damage x1 / 1 / 1.5 / 1.5 / 2 / 2; A, B, C at 2, 4, 6). `PickOffer.candidate` tops a deep weapon at `Loadout.rank_cap`; `card_line` prints digits and the gain on the deep curve ("Pistol 3 -> 4: shots seek (60 deg/s, 4 T)"), ROMAN only on the classic curve (the rank-5 index crash is gone). The launcher ranks 1-6 with sticky at 2 and implode at 4 (no `mine_layer`: Arcade's M50.3a is not in this branch); well and orbit keep their classic traits as A and B.
+- **Shared slots** (`Loadout.shared_slots`, copied in `apply_path`; `weapons()` = slots + passives, `weapon_count()`): a new weapon of any mode needs one of the 3 slots (`candidate` refuses a 4th), and `_add` enforces it for `give` / F2 / `--loadout` / the bench: the weakest weapon that is not the active slot goes (lowest rank, ties the last in `weapons()` order; a passive-mode weapon's node is freed; a `weapon_dropped` run-log event). Nova / well / orbit take a weapon slot.
+- **Fillers** (no candidate at all; Auto only: `growth levelups` + `shared_slots`): two cards, `hp` "+1 max HP, heal 1" and `boost` "+5% damage, every gun (this session)" (`Loadout.boost`, `BOOST_STEP` 0.05). Other paths keep the single "+1 HP" filler. The boost reaches values through `Weapon.mods` (`might` role -> damage; empty mods = the exact old `value()` path, tested on every base weapon x ranks 1-3); node weapons re-read their numbers with nova's and the well's `reconfigure(w)` (the nova's clock kept; the well's `dps` / `life`, live fields keep their bite) or the orbit shards' `damage`. `clear()` / `apply_path()` reset the boost.
+- **Nova's C:** `nova.tres` `mechanics [shove, dash_nova, shockwave]` (classic nova unchanged). `weapons/traits/shockwave.gd` + `shockwave_ring.gd`: each nova blast sends a ring from its radius to 4 T over 0.4 s of game time; each enemy it passes is hit once for 0.5x (kind `blast`, `weapon:nova`); node-reference hit list, no RNG, at most 4 rings alive, not a projectile.
+- **HUD:** the raw `LevelWidget`: "LV n" + bar, then every held weapon ("Pistol 6*  Nova 2", `*` = the top rank), and the 2 item slots "Passives  + +" dim, right of the bar. The rail's ITEMS (`rail_state._items` under `shared_slots`): weapons from `lo.weapons()` against `max_slots` 3, `passive_slots = max_items` 2 (empty wells until M50.4b), cap lv 6 with 6 pips.
+- **S8 lines** (appended at the end of `cues`, `answer:path_auto`): `at 18` "New top: rank six. Every gun learns three tricks on the way." and `at 60` "Three guns, two passives. That's the whole backpack." `campaign/lines_stage2.md` regenerated.
+- **Telemetry** (additive; a levelups path, not a tryout): `levels`, `level_picks {upgrade, new, item_new, item_up, evolve, filler}` (`PathRunner.level_picks`), `ranks_end`. **Bot:** a separate `[botrun] auto: session= seed= level= picks= items=- ranks= max_rank= weapons= fillers= boost= level_picks=` line per Auto run (the session line is untouched). Picks stay the `pick_card` draw (the `auto_choice` rule is M50.4b).
+- **Bug fixed on the way:** `paths/auto/gems.gd` `merge_oldest` filtered `_mine` with a typed lambda; a freed (taken) gem in the list made it fail, `filter()` returned an untyped `[]` and the typed assignment raised a SCRIPT ERROR (no merge at the 60-pickup cap). The uncapped S9 Auto reached it (48 errors per 2-seed run, which `run_hash` does not count as failures); now `assign()` with an untyped lambda (test_auto_depth fails without it). The S9 Auto ref was recorded after the fix.
+- **Deviations:** (1) no S10 (T18): that session is Arcade's and not in this branch. (2) The item slots sit on the LV row, not a third row: the band is 60 px high (`test_hud_layout`). (3) The shockwave ring skips the enemies the blast itself reached, even after the shove pushed them out. (4) The two fillers are Auto-only. (5) `threshold_mult` exists but no probe sets it yet. (6) The dressed level-up cards (`Auto_Choices.dc.html`) are M50.4b in the design's milestone list; the panel keeps today's buttons with the new digit text. (7) `check.ps1` unchanged (the summary assertion is M50.4c1).
+- **Touch points with the Stage 1 rework (for the merge):** `paths/auto.tres` (theirs adds `title`), `s2_02_day_one.tres` (ours appends 2 cues at the end of `cues`; theirs changes goal, intro and times), `campaign/lines_stage2.md` (regenerate), the S8 / S9 Auto refs (re-record on the merged tree), `tests/gut/test_paths.gd` (data pin, the meter test on a `max_picks 10` copy, fillers), `test_auto_scale.gd` (two 4-weapon loadouts, the passive-cap test), `test_arsenal.gd:202` (Auto's `full_line` is ""), `test_arsenal_depth.gd` (its classic example uses no path instead of Auto), `test_rail_ui.gd` (ITEMS 3 + 2, cap 6). With Arcade: `pick_offer.gd` (ours: `BOOST`, `candidate`, `card_line(..., deep)`; theirs adds `gift`), `bot_runs.gd` (our `_auto_line`), `nova_pulse.gd` / `nova.tres`.
+- **Numbers.** GUT, one file at a time (no full suite): test_auto_depth 23/23 (new; 22 before the review), test_paths 41/41, test_auto_scale 21/21, test_weapons 36/36, test_arsenal 36/36, test_arsenal_depth 30/30, test_rail_ui 17/17, test_hud_layout 10/10, test_fusion 21/21, test_always_on 39/39, test_s7_tryout 29/29, test_s8_day_one 21/21, test_s9_paint 22/22, test_survival 23/23, test_campaign 48/48, test_pixel_skin 30/30, test_pause_menu 13/13, test_stage2_door 21/21, test_reactions 24/24 and 14 more files (33 in all), no script errors. **Hash gates** (`.check/m50_4a/gates.sh`): 85 summaries, 0 failures, silhouette sheet exit 0, no script error in any log: v6, gauntlet, campaign vs ref_m43.3 (+ pixel), S4 vs ref_m42.2 (+ pixel), **S7 x 4 equal to ref_m50_1b and ref_m50_1a**, S8 / S9 Arsenal equal to ref_m50_1b, S8 Survival to ref_m47_2, S9 Survival to ref_m48b (replays, `--skins=off`, `--look=pixel`), every hosted `--shell` row at both view sizes, pause determinism S8 x 3 paths + S4 (8 seeds, both patterns), handoff rows. **New refs** `.check/ref_m50_4a/s8_auto_hash.jsonl`, `s9_auto_hash.jsonl` (both differ from ref_m47 / ref_m48b), each replayed twice with 0 failures, plus `--skins=off`, `--look=pixel` and hosted rows. `bot_s7_auto_stub` keeps `level=2 picks=1`; `bot_s7` keeps its swaps.
+- **Bots (bot numbers, 16 seeds, same seeds on the parent tree by `git stash`):** invincible S8 Auto won 16/16, levels median 14 (12-14; parent 11, the cap), a weapon at 6 in 16/16, fillers median 2; invincible S9 Auto won 16/16, levels median 16 (15-17), 3 weapons held 16/16, fillers median 3 (the pistol is at 6 long before the 80 s laser). **Mortal S8 Auto: lose 14/16, median t 76.3 s (parent 7/16, 120.0 s): misses the design's "lose <= 10/16, median t never below the parent".** Cause by count: on the parent the classic pistol and shotgun capped at rank 3, so of S8's 10 level-ups about 5 were "+1 max HP, heal 1" fillers (5 -> ~10 HP); now the picks go into ranks 4-6 and fillers come only after both guns hit 6 (median 0 in mortal runs). Hits are projectiles (72 of 76), as on the parent; M48.5a's own `s8_auto.png` shows it: LV 4, HP 6/6, pistol at 3 MAX. Mortal S9: Auto 11/16 (parent 10/16), median t 117.0 s (136.6); Arsenal 8/16, Survival 2/16 (unchanged code): Auto is more than 6 deaths from Survival, as on the parent. **Not retuned** (AGENTS 6): the listed fallback (crowd spawn x1.6 -> 1.5) moves S7's hash (S7 adds `crowd` at 107 s), a hard gate here; M50.4b's items and `auto_choice` rule change the picture. Arcade's "Arcade <= Auto + 2" cannot be checked here (no Arcade). Logs `.check/m50_4a/base/`, `new2/`.
+- **Captures** (`.check/m50_4a/capture_auto.gd`, windowed, inert save, S8 Auto seed 1): `rail_items.png` (`--look=pixel`, 35 s: ITEMS 1+0, "3 weapon slots · cap lv 6", "2 passives", Pistol LV 4 with 4 of 6 pips, two empty weapon wells and two empty passive wells, LV 4 78%), `rail_items_max.png` (`--look=pixel`, forced pistol 6 / shotgun 4 / nova 3 at 40 s: Pistol LV 6 MAX and Shotgun LV 6 MAX with 6 gold pips, Nova LV 3 in the third weapon slot, the passive wells empty, the filler panel open, the 18 s "New top: rank six" line in the chat), `raw_level_widget.png` (no look: "LV 6" + bar + "Passives + +" on the first row, "Pistol 6*  Shotgun 2  Nova 2" under it, clear of "HP 5 v0.8.0"), `pick_deep.png` (the plain panel: "[1] Shotgun: five pellets, short reach. (new)", "[2] Pistol 3 -> 4: shots seek (60 deg/s, 4 T)"), `pick_filler.png` (all three at 6: "[1] +1 max HP, heal 1", "[2] +5% damage, every gun (this session)"; the raw row "Pistol 6*  Shotgun 6*  Nova 6*"). Compared with `.check/m48_5a/s8_auto.png` (4 weapon wells, cap lv 3, 3 pips). The rail mode was meant for ~95 s but stops at 35 s: the capture tool does not answer pick panels while it waits, so game time stood still; not a game issue.
+- **`BUILD = "M50.4a"`.**
+- **Still open (defaults taken):** Q1 the mortal S8 Auto drop (default: no retune in M50.4a; re-measure after M50.4b's items and bot rule, then the design's fallbacks in order); Q2 the item slots on the LV row of the raw widget (default yes); Q3 the ring skips blast-hit enemies (default yes); Q4 fillers on Auto only (default yes).
+- **Doc/code notes:** design 0 assumes the rework and Arcade landed first (they did not: refs and S10 differ, listed above); design 11 says `full GUT` and `check.ps1 -BotRuns` for M50.4a, this build ran the affected files and the gate script only (as asked); `run_hash` summaries say 0 failures over SCRIPT ERRORs, so the gate script alone would have missed the gems bug (scan the logs); the `PickOffer` header said upgrades stop at `Loadout.MAX_RANK` ("rank 4 is M50.1"), now per curve.
+- **Review (3 findings, 1 upheld, all fixed):** (1) the `boost` filler never reached the well's bite until the well ranked up: `Loadout._apply_mods` calls `reconfigure` or sets `damage`, and `well_weapon.gd` keeps its teeth in `dps` (copied once by `configure`), so the boost landed late and only at the next `_rank_to -> _attach`. `well_weapon.gd` now has `reconfigure(w)` (`dps` and `life` re-read in place, the node kept; fields already on the ground keep their bite). Test `test_boost_reaches_the_well_without_a_rank_up` (well rank 3, one stack: dps x 1.05, same node) fails without the fix (1.5 vs 1.575). Not upheld: 2 findings. After the fix: all gates (`.check/m50_4a/gates.sh`) 85 summaries 0 failures + sheet exit 0, no script error in any log, no ref moved; full GUT 60 scripts, 1129/1129; `check.ps1 -BotRuns` CHECK PASSED with no expectation changed.
+### 6.28 As built (M50.4b): Auto depth, passives and the dressed pick panel
+
+Built on `build/auto` (M50.4a), without the Stage 1 rework or Arcade. Source: section 11 of `.check/auto_depth/design.md` rev. 2, and the M50.4m mockup (`.check/mockups/cards/Auto_Choices.dc.html`).
+
+- **Items.** `weapons/item_def.gd` (`ItemDef`: `stat`, signed `per_level`, `pairs`, `card_text`, `built_in`) and `weapons/item.gd` (`Item`: def + level). There are 7 rows in `weapons/items/`:
+  - Wired: Haste (-6 % cooldown per level, pairs with the Pistol), Area (+10 % blast, field and cone size, Shotgun), Might (+8 % damage, Nova).
+  - Data only, with `built_in` set to "not built yet (S10+/S11)": Duration, Amount, Speed, Magnet. They are never offered and never given, and `item_problems()` lists them.
+
+  `WeaponDB` adds `items()`, `item()`, `has_item()` and `item_built()`. `get_weapon` never resolves an item.
+- **Stats.** `Weapon.mods` (role -> multiplier) and `WeaponDef.stat_fields` (role -> field). The default fields are haste -> cooldown, might -> damage, area -> blast_radius.
+  - An empty `mods` returns exactly the old value. A byte test covers the deep curve, ranks 1-6, every weapon.
+  - `Loadout.mods_now()` is the boost's might times each item's multiplier.
+  - `_apply_mods` reconfigures nova and the well. The well has `stat_fields {might: damage}`, and its field radius is multiplied by Area.
+  - Haste never changes the well's life.
+- **Offers.** `PathDef.offer_pool_extra` accepts item ids. `auto.tres` lists nova, well, haste, area, might.
+  - `PickOffer.candidate` builds an item card `{id, rank, kind, item, paired, text}`. It does so when a slot is free (2 slots, `max_items`) or when the item is held below the cap.
+  - Card text example: "Haste 1: guns fire 6% faster  (new) · your Pistol evolves with this".
+  - `PathRunner._on_picked` adds or levels the item and records it in `level_picks` as `item_new` / `item_up`.
+  - The F1 `state_text` shows `items=` only when items are held.
+- **Dressed panel.** A level-up offer (`PickOffer.level > 0`, not a pack) shows `LevelCard`s (`ui/level_card.gd`, 232 x 356).
+  - Each card shows: the kind (WEAPON / PASSIVE / BONUS), a NEW tag, "LV a > b", a glyph window, the name, pips up to the cap (the new one ringed), the effect, the item's pairing, and "[key] choose".
+  - Once the UI look is on, the cards use the Pixel style (plum and paper, as in the mockup). Otherwise they are flat, in Palette roles (new role `card_item`).
+  - Banner: "LEVEL n · pick 1 of n · game paused".
+  - Each card is still a Button, so keys, pad, click and the input delay all work. The card's line is its tooltip and still goes to the logs.
+  - The pack and gift panels are unchanged.
+  - There are 7 item glyphs plus hp and boost: tier 0 shapes in `ui/weapon_glyph.gd`, Pixel grids in `systems/skins/art/card_art.gd`.
+- **HUD.** The raw LV widget has an items row ("Haste 2  Area 1", or "Haste 1  +"). The rail's passive row is filled by `rail_state._items`.
+- **Campaign.**
+  - S8: a `[haste]` line at 38 s, an `[area]` line at 42 s, and a debrief line.
+  - S9: `give haste` at 9 s (Auto only), a `holds haste` line (said once Haste is picked, review fix 3), and a `[might]` line at 94 s. An item give on another path is skipped and logged as `give_skipped`.
+  - New `SessionDef` problems: an item give needs a built item and `answer:path_auto`, and a tag that names an unbuilt item is a problem.
+  - `lines_stage2.md` regenerated (+5 lines). Telemetry adds `items_end`.
+- **Bot.**
+  - `bot_runs.auto_choice(panel, lo, probe, drawn)` applies design rules 2-7. It runs after the `pick_card` draw, so S7 and every non-Auto hash stay equal.
+  - Probes: `random_picks` (keeps the drawn card) and `no_evolve` (no-op until evolutions exist).
+  - `HUMAN_PACE_LEVELS` is 1.5.
+  - The `[botrun] auto:` line adds `items=` and `item_t=` (the time each item joined).
+  - `tools/run_hash.gd` uses the same rule.
+- **Deviations.**
+  1. Item glyphs and card colours are in `card_art.gd`, not `grids.gd`, so the atlas digest does not move. This means less friction with Arcade's digest move.
+  2. Area scales `blast_radius` (launcher, nova ring), the well's field, the Shotgun's cone reach (its pellets' `lifetime`, `shotgun.tres` `stat_fields`) and the laser's burn width (review fix 1). The knockback push itself is not scaled.
+  3. The raw items row is on the LV widget, not on a row of its own.
+  4. No S10 here, because this branch has none, so S10 item tags do not apply.
+  5. Pixel item glyphs show whenever any look is on.
+  6. The gate script was copied from `.check/m50_4a/gates.sh`, which is newer than the brief's `m48_5a`.
+  7. New test file `test_auto_items.gd` (25 tests with the review's) instead of growing `test_auto_depth`.
+  8. Card height is 356 (the mockup is about 344), so the key row clears the focus ring.
+- **Touch points with the Stage 1 rework (for the merge):**
+  - `s2_02_day_one.tres`: 2 cues and a debrief line appended.
+  - `s2_03_paint.tres`: 3 cues appended.
+  - `campaign/session_runner.gd`: item give branch.
+  - `campaign/session_def.gd`: item give and tag problems, and the `holds` item check.
+  - `campaign/cue.gd` (the `holds <item>` when) and `campaign/lines_render.gd` (renders it).
+  - `weapons/shotgun.tres` (`stat_fields`), `weapons/traits/burn_line*.gd` (`width`), `ui/rail/rail_modules.gd` (Auto slot gun).
+  - `campaign/campaign_db.gd`: `items_end`.
+  - `ui/pick_panel.gd`: banner and `_build_dressed`.
+  - `systems/palette.gd`: `card_item`.
+  - `lines_stage2.md`: regenerate after the merge.
+  - `main.gd`: BUILD.
+- **Numbers.**
+  - GUT, one file at a time (no full suite): 34 files, 798 tests, 0 failing, 0 script errors (`.check/m50_4b/gut_affected.txt`). The new test_auto_items passes 21/21.
+  - Gates (`.check/m50_4b/gates.sh`): 86 summaries, 0 failures, no script error in any log.
+  - S8 and S9 Auto were recorded in `.check/ref_m50_4b/` and differ from `ref_m50_4a`: S8 first differs at hash 233 / 265, S9 at hash 92 (Haste given at 9 s).
+  - Every other ref is equal: S7 x4, Arsenal vs `ref_m50_1b`, Survival, v6, gauntlet, campaign, S4, pixel / skins-off, shell, pause.
+- **Bots (8 seeds; the design asks for 16).**
+
+  | Set | Result | Target | Met? |
+  |---|---|---|---|
+  | Invincible S8 Auto, wins | 8/8 | | |
+  | Invincible S8 Auto, level median | 13.5 (13-15) | 13-16 | yes |
+  | Invincible S8 Auto, a weapon at rank 6 | 8/8 | | yes |
+  | Invincible S8 Auto, 2 items held by 60 s | 1/8 | 14/16 | **no** |
+  | Mortal S8 Auto, deaths | 5/8 | <= 10/16 | yes |
+  | Mortal S8 Auto, median t | 95.1 s | not below the parent's 116.2 s | **no** |
+  | Mortal S9 Auto, deaths | 7/8, median 81.0 s | <= 8/16, within 6 of both other paths | **no** |
+  | Mortal S9 Arsenal, deaths | 3/8, 150 s | | |
+  | Mortal S9 Survival, deaths | 1/8 | | |
+  | Invincible S9 Auto | 8/8 wins, level median 16.5, Haste 3 + Might 1 held | | |
+
+  - Items by 60 s: the first item joins at 38-47 s, the second at 51-105 s (median about 68 s).
+  - Mortal S8 comparison: M50.4a on the same set had 6/8 deaths, 95.7 s. The parent (`random_picks`) had 4/8, 116.2 s.
+  - Mortal S9 comparison: M50.4a had 6/8 deaths, 126.2 s.
+  - With `--probe=random_picks`: S8 mortal 6/8 deaths (85.9 s), S9 mortal 8/8 deaths (60.3 s).
+  - The mortal S9 runs that die hold one or two weapons plus Haste 2-3. The item picks take levels that went to the guns in M50.4a.
+  - No retune (AGENTS 6). The design's "too weak" fallback is crowd spawn mult 1.6 -> 1.5, which is an owner call.
+- **Captures.** Made with `.check/m50_4b/capture_items.gd` and `card_preview.gd`: windowed, inert save, S8 Auto, seed 1. They match the mockup's layout and palettes.
+  - `s8_auto_items.png`: raw HUD with 56 s left, "LV 7 / Pistol 6* / Haste 1 +".
+  - `pick_item.png`: flat, LEVEL 6. Area NEW passive "pairs with Shotgun", Pistol 5 > 6, Shotgun 2 > 3.
+  - `pick_weapon.png`: Pixel. Pistol 3 > 4, Shotgun NEW (its own long-barrel gun since review fix 2), Haste NEW passive.
+  - `pick_filler.png`: Pixel, everything at 6, the two BONUS cards.
+  - `rail_items.png`: Pixel rail. ITEMS 1+1, Pistol LV 6 MAX, Haste LV 1 in the passive slot.
+  - `preview_{flat,pixel}{,_fill}.png`: the panel on its own.
+- **Review (4 findings, 3 upheld, all fixed).**
+  1. Area was a dead pick in S8: it scaled only blasts and the well's field, but S8 Auto holds only the Pistol and the Shotgun, and its card said "pairs with Shotgun". Fix: `shotgun.tres` `stat_fields {area: lifetime, haste: cooldown, might: damage}` (Area grows the cone's reach, x1.1 per level) and the burn line's width reads `stat_mult(&"area")` (`BurnLineMod.width` -> `BurnLineZone.width`, 1.0 without Area, byte-equal). Card text "+10% blast, field and cone size", the 42 s line "And area: bigger blasts, longer shotgun reach." Test: `test_area_grows_the_shotgun_reach_and_the_burn_width` (fails on the old `shotgun.tres`).
+  2. Pixel weapon cards drew the shot sprite, and the Pistol's and the Shotgun's are the same pellet. Fix: `CardArt.GUNS` (Pistol, Shotgun, Laser, Launcher, from the mockup sheet's pixel guns) and `WeaponGlyph.draw_card`, used by the Pixel level cards and Auto's rail slots (other weapons and the flat cards keep their glyphs). Test: `test_each_card_weapon_has_its_own_gun`. Capture: `pick_weapon.png` now shows a pistol and a long-barrel shotgun.
+  3. S9's "Haste came back with you" played at 18 s, but `give haste` only puts Haste first in the next offer. Fix: a new cue time `holds <item>` (`Cue.held`, due once the PathRunner's Loadout holds it; `SessionDef` refuses an unbuilt item; `lines_render` prints it), and S9's line is now `answer:path_auto holds haste:`. Tests: `test_a_holds_cue_waits_for_the_item`, `test_the_runner_says_the_haste_line_only_after_the_pick`, the shipped-lines test.
+  - After the fixes: S8 Auto re-recorded in `.check/ref_m50_4b/` (first differs from the pre-review ref at hash 429 / 441, seeds 1 / 2; the old one is in `pre_review/`), S9 Auto unchanged (the line moves no hash). Gates again: 86 summaries, 0 failures.
+  - Bots after the fixes (8 seeds, `.check/m50_4b/review/`; bot numbers, not a retune): invincible S8 Auto 8/8 wins, level median 14 (12-14), a rank-6 weapon 8/8, 2 items by 60 s 1/8 (second item 51-110 s); mortal S8 Auto 6/8 deaths, median 77.5 s (hits: projectile 35, contact 2); mortal S9 Auto 7/8 deaths, 81.0 s (unchanged); S9 Arsenal 3/8, 150 s (unchanged).
+- **`BUILD = "M50.4b"`.**
+- **Still open (defaults taken):** see section 9 (items by 60 s, mortal S9 Auto, mortal S8 Auto).
+
+### 6.29 As built (M50.4c1): Auto depth, EVOLVE, the Minigun and the live nerf
+
+Built on `build/auto` (M50.4b), without the Stage 1 rework or Arcade. Source: section 11 of `.check/auto_depth/design.md` rev. 2, and the M50.4m mockup (`.check/mockups/cards/Auto_Choices.dc.html`, the EVOLVE card).
+
+- **Evolutions.** `WeaponDef` gains `base`, `catalyst`, `launch_values` and `is_evolution()`. `problems()` checks the catalyst, the launch fields and "not built yet (<where>)". There are 7 rows in `weapons/evolutions/`:
+  - Built: **Minigun** (Pistol + Haste). Aimed, cooldown 0.066 (4 ticks, 15 shots/s), damage 1.5, speed 1100, life 0.8 s. Mechanics: heavy_round, seeker, chain, and the new `sweep` (`weapons/traits/sweep.gd`: a fixed -6/-2/2/6/2/-2 degree pattern by shot count, no RNG). `launch_values {cooldown 0.033 (2 ticks, 30/s), damage 2.0, pierce 1}`.
+  - Rows only: Supernova (Nova + Might) and Thunderclap (Shotgun + Area), "M50.4c2"; Sunbeam and Barrage (with Duration / Amount); Halo and Singularity, "S11".
+  - `WeaponDB` adds `evolutions()`, `evolution_for(weapon)`, `evolution_built(id)` and `evolution_problems()`. The checks: the base is a base weapon, the catalyst pairs with it, a built row needs a built catalyst, and mechanics = the base's mechanics + a built signature. `get_weapon` resolves evolutions; `all()` / `ids()` stay the base weapons.
+- **Stats.** `value()` reads `Weapon.launch` (field -> value) first, then the item mods. `Weapon.label()` is the title in capitals ("MINIGUN"). The deep curve treats an evolution like a fusion: all mechanics at level 1.
+- **EVOLVE.** It is offered only when all of these hold: the `evolve` basic is live (it belongs to Auto, `Unlocks.CAMPAIGN_BASICS`), the base is at rank 6 (the cap), its catalyst is held, and the row is built.
+  - `PathRunner.evolve_option()` sets `PickOffer.evolve` on a level-up offer. EVOLVE is the choice **after** the cards (key `choose_(n+1)`) and is never a card, so the `pick_rng` draws never move.
+  - `_on_picked` with index `cards.size()` calls `_take_evolve`:
+    - `Loadout.evolve(from, into)` replaces the base in place and keeps the slot, the shots and the item mods.
+    - The level-up is spent (`picks`, `level_picks.evolve`) and an `evolved` event is logged.
+    - The first time: `SaveGame.learn_recipe` and a "New recipe: Minigun (pistol + haste)" patch note.
+    - Limits: one per weapon, 2 at most (`MAX_EVOLUTIONS`). An evolved base and a held evolution are never offered again.
+  - Steering: once `evolve` is live, a held weapon under rank 6 whose catalyst is held is the offer's first card (`steer()`).
+  - `evolve_ready_count` / `evolve_ready_t` count each time EVOLVE becomes available.
+- **The live nerf.**
+  - Action `nerf <s>` (it must sit on an `evolved` cue) applies the launch values to the evolution just made.
+  - `<s>` seconds of game time later (the pause stops the clock) they clear, with one glitch pulse (`_pulse`, which respects `reduce_flashing`; it does not count in `wipes`).
+  - The patch note is built from the effective numbers: "Balance: Minigun 30 -> 15 shots/s, damage 2 -> 1.5. It was too strong." With Might held, both damages are scaled; with Haste 5-6 it reads "30 -> 20".
+  - `stop()` lands a pending nerf; a path swap drops it.
+  - Whens: `evolve_ready N` (waits SAY_GAP after the last say, dropped once N evolutions exist), `evolved N`, `nerfed N`. Condition `evolved` (debrief). `SessionDef.problems()`: these need the `evolve` basic and `answer:path_auto`.
+  - The debrief changelog files a "Balance: " note under **Changed** ("~ Changed minigun 30 -> 15 shots/s, ...").
+- **S9 ("Fresh paint", Auto only).**
+  - At 84 s: `add evolve` and "New trick. A gun at rank six plus its passive evolves."
+  - `evolve_ready 1`: "It's glowing. Take EVOLVE."
+  - `evolved 1`: `nerf 8` and "Oh. Oh no. That came out strong."
+  - `nerfed 1`: "Too strong. Patched it down live. Still good, promise."
+  - Debrief, `answer:path_auto&evolved`: "You evolved one. I only nerfed it a little."
+  - `lines_stage2.md` regenerated (+5 lines). S8 has no `evolve` basic, so S8 Auto never steers or evolves.
+- **UI.**
+  - The gold EVOLVE card (`LevelCard.KIND_EVOLVE`, 264 x 356, flat and Pixel; Palette role `card_evolve`): the pink EVOLVE ribbon, the "PISTOL 6 MAX" + "HASTE" tiles, the merge arrows, the Minigun's own Pixel gun (`CardArt.GUNS`, from the mockup), the gold name plate, "fire rate x2.5, a sweeping stream", and "[n] evolve".
+  - The plain panel gets an "EVOLVE: ..." button.
+  - Raw HUD: a dim hint row ("EVOLVE next level: pistol lv 6 + haste -> MINIGUN", or "pistol lv 4/6 + haste -> MINIGUN"), inside the 60 px band.
+  - Rail ITEMS: an evolution's slot has a gold ring, a pink "EVO" tag and its name. The bottom line shows the hint (pink when EVOLVE is ready).
+  - The pause menu shows "Evolutions: Minigun (pistol + haste)" below the fusion recipes.
+  - Pixel shot `shot_minigun_player` (a warm tracer) and a tier-0 `minigun` glyph.
+- **Bot.**
+  - `auto_choice` rule 1: take EVOLVE when offered, unless `--probe=no_evolve`.
+  - The `[botrun] auto:` line adds `evolved= nerf= nerfed_line= launch_dps= pre_dps= launch_live= pre_live= evolve_kills=`. Damage is counted in the tool from `entity_damaged` (no sim change).
+  - A new `[botrun] auto_depth:` summary per set.
+  - `check.ps1`'s S9 Auto row asserts `evolved=1/1 ... nerf_landed=1/1 nerfed_before_clear=1/1`.
+- **Telemetry** (additive): `evolutions` ({id, t, from, catalyst}), `nerf`, `evolve_ready_s`.
+- **Deviations.**
+  1. The gate script was copied from `.check/m50_4b/gates.sh`, which is newer than the brief's `m48_5a`.
+  2. This branch has no S10, so S10's `add evolve` (design T18) is not built.
+  3. This branch has no `enemy_total` (S9 is "survive 150 s"). So the `human_pace` row "EVOLVE at <= 50 % of enemy_total killed" is measured as kills at EVOLVE / kills at the end (`evolve_half`). "Said before the clear" is measured as "the `nerfed 1` cue fired before the session ended": the line is queued at that point, and the speech queue runs on the wall clock, which a headless bot outruns.
+  4. `check.ps1` runs one seed, so its assertion is on that seed's summary (1/1), not the design's 14/16.
+  5. The EVOLVE card is 264 wide (the sheet's 256 + the gold rim). Its window is 88 high so the name plate and the effect line stay inside the card.
+  6. (Withdrawn by the review: the banner now counts EVOLVE, "pick 1 of n" with n = cards + 1, as in the mockup.)
+  7. `SaveGame.parse` keeps evolution ids in `recipes` (same key, design Q12).
+  8. New test file `test_evolve.gd` (26 tests) instead of growing `test_auto_items`.
+  9. The atlas digest moves (`shot_minigun_player`): `test_pixel_skin` now pins `95eb8f0b...` (was `d07379b4...`).
+- **Touch points with the Stage 1 rework and Arcade (for the merge):**
+  - `s2_03_paint.tres`: 6 cues and a debrief line appended. Move them to the rework's S9 timings; S10 gets `add evolve`.
+  - `campaign/cue.gd` (3 whens, `nerf`), `campaign/session_runner.gd` (ctx, `_waits`, the `nerf` branch of `_fire`), `campaign/session_def.gd` (evolve problems), `campaign/line.gd` (`evolved`), `campaign/campaign_db.gd` (`line_context.evolved`, telemetry).
+  - `core/unlocks.gd` (`evolve` basic), `paths/auto.tres` (basics), `core/save_game.gd` (recipes parse).
+  - `ui/pick_panel.gd` (the EVOLVE choice), `ui/level_card.gd`, `ui/debrief_screen.gd` (Balance -> Changed), `ui/pause_menu.gd`, `ui/rail/rail_state.gd` and `rail_modules.gd` (Arcade's rail T7 / T11), `systems/palette.gd` (`card_evolve`).
+  - `systems/skins/art/grids.gd` and `skins.gd`. The atlas digest moves, so Arcade's digest must be re-pinned after the merge.
+  - `tools/bot_runs.gd` (rule 1, `auto_depth`), `tools/check.ps1` (the S9 Auto assertion), `lines_stage2.md` (regenerate), `main.gd` (BUILD).
+- **Numbers.**
+  - GUT, one file at a time (no full suite): 41 files, 0 failing, 0 script errors (`.check/m50_4c1/gut_affected.txt`, `gut_affected2.txt`, `gut_affected3.txt`, `gut_evolve.log`). test_evolve passes 26/26.
+  - Gates (`.check/m50_4c1/gates.sh`): 88 summaries, 0 failures, sheet exit 0, no script error in any log.
+  - S9 Auto was recorded in `.check/ref_m50_4c1/`. Against `ref_m50_4b` it first differs at hash 716 / 512 (seeds 1 / 2). It replays equal twice, with skins off, in Pixel and in the shell (0 failures).
+  - S8 Auto is equal to `ref_m50_4b` and Arsenal to `ref_m50_1b`. S7, Survival, v6, gauntlet, campaign, S4, pixel, shell and pause are all equal.
+- **Bots (8 seeds; the design asks for 16; `.check/m50_4c1/bots/`).**
+
+  | Set | Result | Target (scaled to 8) | Met? |
+  |---|---|---|---|
+  | Invincible S9 Auto, evolved | 8/8, median 91.8 s (85.2-96.8) | >= 14/16 (7/8), median <= 100 s | yes |
+  | Invincible S9 Auto, nerf landed | 8/8 | n/n | yes |
+  | Invincible S9 Auto, `nerfed 1` before the end | 8/8 | >= 14/16 (7/8) | yes |
+  | Invincible S9 Auto, wins / level | 8/8, max level 17 | | |
+  | `human_pace` S9 Auto, EVOLVE in the first half of the kills | 5/8 (46-55 %); evolved 8/8, median 90.4 s, nerf 8/8 | >= 12/16 (6/8) | **no (by one seed)** |
+  | Mortal S9 Auto, deaths | 7/8, median 83.2 s (evolved 4/8); with `no_evolve` 7/8, 81.0 s | <= 8/16, within 6 of both | **no** (as M50.4b: 7/8) |
+  | Mortal S9 Arsenal / Survival | 3/8 / 1/8 | | |
+  | Invincible S8 Auto | 8/8 wins, evolved 0/8 (no basic) | unchanged | yes |
+  | Mortal S8 Auto | 6/8, 77.5 s | as M50.4b (6/8, 77.5 s) | equal |
+
+  - Damage spike (reported only), invincible S9: player damage per second in the launch window was 4.7-11.5, against 4.5-13.0 in the 8 s before. Median live enemies: 7-10 against 8-14. S9 is spawn-bound, so the 30/s stream shows as fewer enemies alive, not as more damage.
+  - `human_pace` misses by one seed. `add evolve` comes at 84 s of a 150 s survive session, so EVOLVE lands near half the kills whatever the pace. The design's fallback (`add evolve` at 0) was written for the rework's clear S9 and would move the beat, so it was not applied (AGENTS 6). See section 9.
+  - Mortal S9 Auto: EVOLVE does not change the deaths (7/8 with and without it). The runs die before 84 s or soon after. No retune.
+- **Captures.** Made with `.check/m50_4c1/capture_evolve.gd` (windowed, inert save, S9 Auto, seed 1, Pixel look) and `card_preview.gd`.
+  - `evolve_choice.png`: LEVEL 10 with Laser NEW, Haste 3 > 4, and the gold EVOLVE card (Pistol 6 MAX + Haste -> MINIGUN, "fire rate x2.5, a sweeping stream", "[3] evolve"). The HUD hint row is pink.
+  - `minigun_launch.png`: 2 s after EVOLVE. The rail slot reads EVO / MINIGUN.
+  - `minigun_nerfed.png` and `rail_items_evo.png`: after the nerf. Tracers on screen, the chat shows "Oh. Oh no. That came out strong.", ITEMS 2+1 with the EVO slot.
+  - `pause_recipes_evo.png`: "Evolutions: Minigun (pistol + haste)" below the pause buttons.
+  - `changelog_nerf.png`: the v0.8.2 patch slip with "+ Added new recipe: Minigun (pistol + haste)" and "~ Changed minigun 30 -> 15 shots/s, damage 2 -> 1.5. It was too strong.", and the debrief line "You evolved one. I only nerfed it a little."
+  - `preview_evolve_{flat,pixel}_{2,3}.png`: the panel alone with 2 and 3 cards (keys 3 / 4).
+  - In the capture only, the speech queue is made to keep up with game time, because `--fixed-fps` runs faster than the wall clock.
+- **Review (2 findings, 1 upheld, all fixed):** (1) the level-up banner left EVOLVE out of its choice count ("pick 1 of 2" over three choices, keys 1-3), against the approved `Auto_Choices` mockup ("pick 1 of 3" for 2 cards + EVOLVE): `PickPanel._build_dressed` now sets `_banner.count` to the cards plus 1 when the offer has EVOLVE. Presentation only, no hash moves. The new assert in `test_evolve_is_the_choice_after_the_cards_and_never_moves_the_draw` fails without the fix (1 vs 2); `test_a_level_up_opens_the_dressed_cards_flat_then_pixel` pins the plain count without EVOLVE. `evolve_choice.png` and the `preview_evolve_*` shots were re-taken and read "pick 1 of 3" (2 cards + EVOLVE) and "pick 1 of 4" (3 cards + EVOLVE). Not upheld: 1 finding.
+- **`BUILD = "M50.4c1"`.**
+- **Still open (defaults taken):** see section 9 (the `human_pace` EVOLVE share, mortal S9 Auto) and the design's Q3-Q6 and Q13 in PLAYTEST.
+
+### 6.30 As built (M50.4c2): Supernova, Thunderclap and the stress bench
+
+Built on `build/auto` (M50.4c1), without the Stage 1 rework or Arcade. Source: section 11 of `.check/auto_depth/design.md` rev. 2. For M50.4c2 it asks for the two defs built, the Supernova node (keeps the clock rule), `clap`, their glyphs and the 3-evolution caps bench.
+
+- **Supernova** (`weapons/evolutions/supernova.tres`, built). It is Nova + Might, a node weapon on `nova_pulse.gd`.
+  - Steady: a blast every 2.0 s, radius 2.5 T, 8 damage. The shockwave ring goes out to 6 T at 0.75x the damage, and the shove pushes 1.5 T.
+  - Launch values: every 1.2 s, 12 damage.
+  - Mechanics: shove, dash_nova, shockwave, and the signature `supernova` (`weapons/traits/supernova.gd`).
+    - The signature sets the node's new `ring_to`, `ring_mult` and `shove_impulse`.
+    - A plain nova keeps 4 T, 0.5x and 610 (`test_a_plain_nova_keeps_its_numbers`).
+  - **Clock rule.** `Loadout.evolve` carries nova's two clocks into the Supernova node: the time to the next blast and the dash wait.
+    - The blast clock is clamped to the new period (`nova_pulse.clocks()` / `keep_clocks()`).
+    - An item pick still calls `reconfigure`, which keeps the clock.
+- **Thunderclap** (`weapons/evolutions/thunderclap.tres`, built). It is Shotgun + Area, aimed.
+  - Steady:
+    - 7 pellets over 34 degrees, cooldown 0.5, 2 damage per pellet, speed 900, life 0.35 s.
+    - `mechanic_values` is empty, so point blank's 18 degrees do not apply.
+  - Launch values: blast radius 1.5 T (3 T across), 4 damage.
+  - `stat_fields`: Area scales `blast_radius`, Haste scales `cooldown`, Might scales `damage`.
+  - Mechanics: knockback_cone, point_blank, shrapnel, and the signature `clap` (`weapons/traits/clap.gd`).
+    - Once per volley (on pellet 0), `clap` pops one `Explosion.blast` 2.5 T ahead along the aim, or short of a wall in the way.
+    - The blast uses the weapon's `blast_radius` (1.0 T) and damage, with knockback 420. Its kind is `blast` and it never pushes the player.
+    - The pellets get `blast_radius` 0, so they never blast.
+    - The blast is not a projectile, and it uses no RNG.
+- **The nerf on a node weapon.** `arm_nerf`, `_land_nerf` and `_drop_nerf` now call `Loadout.reread(w)`.
+  - On a passive-mode weapon, its node runs `reconfigure` and keeps its clock. Aimed weapons are unchanged.
+  - The patch note for a node weapon reads "Balance: Supernova every 1.2 s -> every 2 s, damage 12.96 -> 8.64. It was too strong." The Minigun's note is unchanged. After the review the note names only the launch keys (see Review).
+- **The EVOLVE card.** The line "fire rate xN, a sweeping stream" now shows only for an evolution with `sweep` (the Minigun). The other two show their pitch:
+  - Supernova: "A bigger nova, a wider ring." (shortened after the Pixel capture: the longer line ran past the card's edge).
+  - Thunderclap: "Every volley claps a blast ahead."
+- **Pictures.**
+  - Tier 0 shapes in `ui/weapon_glyph.gd`: `supernova` (a star in a ring) and `thunderclap` (a fan and a blast).
+  - Pixel pictures `GUN_SUPERNOVA` and `GUN_THUNDERCLAP` in `CardArt.GUNS`, in the sheet's colours. The M50.4m sheet has neither picture.
+  - The two keys are not in `WeaponGlyph.KEYS` (they have no shot sprite), so the atlas digest does not move.
+- **A full hand keeps its evolutions.** `Loadout._drop_weakest` runs when a give, F2, `--loadout` or the bench adds a weapon to 3 full slots.
+  - It now counts an evolution's rank as past the cap (`_keep_rank`).
+  - Before, an evolution held at rank 1 was the first weapon to go.
+  - Play never reaches this, because offers never show a NEW weapon on a full hand.
+- **Stress bench.**
+  - `test_three_evolutions_at_launch_stay_in_the_budgets`: Minigun, Thunderclap and Supernova at launch with Haste 6 and Might 6, against 57 enemies for 10 s.
+    - Player shots peak at 36 (cap 140). Enemy shots stay at or under 60.
+    - Two shooters keep firing (14 windups), and a 16-shot ring spawns whole.
+    - `enemy_shots_refused` stays 0.
+  - `tools/bench.gd --auto --evolved[=ids]` is the windowed perf bench.
+- **Deviations.**
+  1. The gate script was copied from `.check/m50_4c1/gates.sh`, the newest one (the brief named `m48_5a`). It adds `g9_auto_vs_m50_4c1.log`, S9 Auto checked against the c1 ref.
+  2. This branch has no S10, so the Thunderclap can only be reached through F2, the bench or tests (design: S10).
+     - The Supernova needs nova 6 + Might in S9. No bot seed got there (nova 5 at most), so S9 shows no Supernova.
+     - The design expected this: "rare, reported".
+  3. `.check/ref_m50_4c2/s9_auto_hash.jsonl` was recorded, and it is byte-identical to `ref_m50_4c1`. S9 Auto is "equal", not a new ref (the design's cell: "new only if the bots reach Supernova").
+  4. The pictures live in `card_art.gd`, not `grids.gd` (as in M50.4b, deviation 1). So the atlas digest does not move, although the design's T17 expected it to.
+  5. The two pictures are not on the M50.4m sheet. They are drawn here in its colours.
+  6. `_drop_weakest` keeping evolutions is not in the design. It is a fix found while building the capture.
+- **Touch points for the merge (rework, Arcade).**
+  - `components/loadout.gd`: `evolve` clocks, `reread`, `_keep_rank`.
+  - `paths/path_runner.gd`: the nerf's `reread` and the note.
+  - `weapons/nova_pulse.gd`.
+  - `ui/level_card.gd` (one line), `ui/weapon_glyph.gd`, `systems/skins/art/card_art.gd`, `tools/bench.gd`.
+  - `main.gd` (BUILD).
+  - No session or line changes: `lines_stage2.md` is unchanged.
+- **Numbers.**
+  - **GUT**, one file at a time (no full suite): 21 files, 486/486 passing, 0 script errors (`.check/m50_4c2/gut_affected.txt`).
+    - The new `test_supernova_thunderclap.gd` passes 11/11.
+    - In `test_evolve.gd`, three pins were rewritten: 4 unbuilt rows; nova 6 + Might offers the Supernova; a held Shotgun + Area may now steer.
+  - **Gates** (`.check/m50_4c2/gates.sh`), run twice. Run 2 is on the final tree (`gates_run2.txt`; run 1 is in `run1/`).
+    - 86 summaries, 0 failures, sheet exit 0, and no script error in any log.
+  - **Refs: every one is equal.**
+    - S9 Auto against `ref_m50_4c1`.
+    - S8 Auto against `ref_m50_4b`.
+    - Arsenal against `ref_m50_1b`.
+    - S7, Survival, v6, gauntlet, campaign, S4, pixel and skins-off, shell, handoff and pause.
+  - **Perf**, windowed (`bench --auto --evolved`): 55 enemies, Minigun + Thunderclap + Supernova at launch, Haste 6, Might 6.
+    - Physics average 5.31 ms, p95 6.16 ms, max 6.16 ms (target: p95 <= 8 ms).
+    - 113 player shots (the bench's synthetic fill included), 0 refused on either side.
+    - For comparison: the Minigun alone, p95 4.38 ms; M45b's default loadout, p95 5.85 ms.
+- **Bots** (8 seeds; the design asks for 16; `.check/m50_4c2/bots/`). These are bot numbers; nothing was retuned.
+
+  | Set | Result | Against M50.4c1 |
+  |---|---|---|
+  | Invincible S9 Auto | 8/8 wins; evolved 8/8, median 91.8 s; nerf landed 8/8; `nerfed 1` before the end 8/8; max level 17 | 3 seeds pick differently (nova is steered once Might is held: nova up to 5); no Supernova |
+  | `human_pace` S9 Auto | evolved 8/8, median 90.4 s; EVOLVE in the first half of the kills 5/8 | 3 seeds differ; still 5/8 |
+  | Mortal S9 Auto | 7/8 deaths, median 69.9 s (evolved 4/8); with `no_evolve` 7/8 | equal |
+  | Mortal S9 Arsenal / Survival | 3/8 / 1/8 deaths | equal |
+  | Invincible S8 Auto | 8/8 wins, evolved 0/8 | equal |
+  | Mortal S8 Auto | 6/8 deaths | equal |
+
+- **Captures.** Windowed, inert save.
+  - The scripts:
+    - `.check/m50_4c2/capture_c2.gd`: S9 Auto, seed 1, the Pixel look.
+    - `card_preview.gd`: the panel on its own.
+  - `preview_{supernova,thunderclap}_{flat,pixel}.png`: the gold EVOLVE card.
+    - "NOVA 6 MAX + MIGHT -> SUPERNOVA", with a star in its ring.
+    - "SHOTGUN 6 MAX + AREA -> THUNDERCLAP", with the shotgun and its blast.
+    - The banners read "pick 1 of 3" and "pick 1 of 4".
+  - `evolve_supernova.png`: in play at 95 s, after the Minigun's nerf, with nova 6 + Might set (F2-style).
+    - LEVEL 10 with three cards plus the EVOLVE Supernova.
+    - The rail's bottom line reads "EVOLVE next level: nova lv 6 + might -> SUPERNOVA".
+    - This shot still has the old, long pitch.
+  - `supernova_ring.png`: the 6 T shockwave ring in flight. The rail shows EVO Minigun, Laser and EVO Supernova.
+  - `thunderclap_clap.png` and `rail_three_evo.png`: the Supernova's blast and a clap blast on screen, and three EVO slots in the rail. The name "THUNDERCLAP" fills its rail slot from edge to edge.
+- **`BUILD = "M50.4c2"`.**
+- **Still open (defaults taken):** section 9 (no Supernova in S9).
+- **Review (3 findings, 2 upheld, all fixed):** (1+2, one bug reported twice) the live-nerf note for an aimed evolution with no cooldown launch key read "Thunderclap 2 -> 2 shots/s, damage 4 -> 2" and left out the blast cut. `PathRunner.nerf_parts` now builds the note from the launch keys only (rate or period when `cooldown` is one, `damage`, and "blast a T -> b T" for `blast_radius`), and drops a part whose number did not move. The Thunderclap now reads "Balance: Thunderclap damage 4 -> 2, blast 1.65 T -> 1.1 T. It was too strong." (Area 1). The Minigun and Supernova notes are unchanged. Test `test_the_thunderclap_nerf_note_names_the_blast_not_the_rate` (test_supernova_thunderclap) fails without the fix. Not upheld: 1 finding.
+
+### 6.31 As built (M50.4f): Auto cards match the mockup
+
+Built on `build/auto` (M50.4c2). Source: the approved mockup `.check/mockups/cards/Auto_Choices.dc.html` (owner: "I like mockup let's build it") and `Arcade_Cards.dc.html` for the mechanic vocabulary. Presentation only: no gameplay, RNG, save or telemetry change.
+
+- **Pixel card window** (`ui/level_card.gd`, `CardArt.draw_card_art` / `card_px`). The card art is drawn at the window's own scale (cell size from the window, 2-7 px, about 90 % fill) instead of the rail-slot size. The window has the sheet's backdrop: the lower floor band, two faint stars and a gold one; a passive's window has the faint centre column. The laser's pink beam leaves the muzzle (`CardArt.MUZZLE_ROW`), and Haste gets its four speed lines.
+- **MAX variant.** `data_for` sets `max` when a rank-up reaches the path's cap. Pixel: a gold MAX tag where NEW goes, the gold badge and a gold ring around the card when it is not focused. Flat: a gold MAX pill and a gold edge (`card_evolve`). The fresh-pip glow is skipped on a MAX card (all pips lit).
+- **Pips.** Tall pips (Pixel) and diamonds (flat) mark the mechanic ranks of a weapon card (`mechanic_rank`: the deep curve's even ranks, the classic curve's 2-3). Passives have none. The fresh pip keeps its ring plus a steady soft glow. The focused weapon card carries the sheet's "tall pips = new mechanic" note.
+- **Effect line.** A rank that brings a mechanic (`LevelCard.gained_mechanic`) draws that trait's 8 x 8 icon (`CardArt.MECHS`: overcharge, heavy round, seeker, chain, burn line, ricochet, knockback cone, point blank, shrapnel, sweep; a gold spark for the rest), then the trait's name in bold with a colon, then the text (a describe() that repeats the name drops it). Pixel 16 px, flat 15 px; the paragraph steps down until it fits its lines and its height.
+- **Pair row.** The paired gun (Pixel grid / flat gun), "pairs with Pistol" in ink and a pink READY tag when the offer's EVOLVE uses this item as its catalyst.
+- **Key row.** The focused card's chip is gold (flat: cyan) and its word is "focused"; the others "choose"; EVOLVE keeps "evolve".
+- **Flat guns** (`WeaponGlyph.draw_card_flat` / `draw_gun_flat`, `FLAT_GUNS`): pistol, shotgun, laser, launcher and minigun in rounded blocks and polygons (Palette roles `dust`, `wall`, `hit`, `card_evolve`, `card_item`), on the flat cards, the flat EVOLVE card's parent tile and window, and the flat slot bar. Haste draws a filled bolt with speed dashes. Other icons keep their glyphs.
+- **EVOLVE Pixel card.** The window is 104 px tall with the floor band and stars (the placeholder boxes are gone); the minigun is drawn at 4 px cells (fills the window's height). The line wraps to at most 2 lines at 14 px inside the card, above the gold studs. The focus ring is a 4 px pink ring outside the gold rim (ink-edged), so the ribbon cannot hide it. Flat EVOLVE: a pink ring outside the gold rim when focused.
+- **LEVEL banner.** Ink-outlined pink ribbon tabs with a dark lip and a plum notch, a small ink stem under the plate, a gold highlight on the plate.
+- **The rail's ITEMS module** (`RailState._preview`, `PickPanel.preview` / `focused_choice`). While the dressed level-up is open: the bar is full with "UP!" in gold, and the bottom line is the per-key legend ("[1] laser new . [2] haste 3 > 4 . [3] pistol -> minigun"). The focused choice lifts its slot (3 px, gold ring) and its next pip glows (steady); a NEW card lifts the free well (gold "+", pink NEW tag); a focused EVOLVE rings the base weapon in pink and ticks its catalyst.
+- **Flat slot bar** (`PickPanel.SlotBar`, `RailState.items_for`). In the flat look the dressed panel shows "Items n + m" under the cards: one card per slot (LV, the flat gun or glyph, the name, the dots; MAX pill), the same focus lift (cyan ring, next dot glowing), EVOLVE's pink ring, then "LV n", the full bar, "Level up" and the legend. The space under the panel shrinks from 60 to 12 px so the LEVEL banner stays clear of the timer. `main.gd` sets `pick_panel.runner`.
+- **Deviations.**
+  1. READY shows only when the offer's EVOLVE uses this item (the item is evolve-ready), not whenever the paired weapon is held. The two findings disagreed; the mockup's READY sits beside an EVOLVE choice. Holding the weapon still shows the gun and the ink text (dim when not held).
+  2. The title keeps the Pixelify font (no VT323-like font in the repo).
+  3. The EVOLVE card stays 316 px tall: the minigun is drawn at 4 px cells (the window's height), not 5.
+  4. The mechanic icons are 8 x 8 grids in `card_art.gd` drawn for this branch (the Arcade module's glyphs are not in `build/auto`).
+  5. Card size stays 232 x 356 (M50.4b deviation 8).
+- **Numbers.** Hash gates `.check/m50_4f/gates.sh` (copied from M50.4c2): every summary 0 failures and `g0` exit 0, so no ref changed (S9 Auto still equal to `ref_m50_4c1`, S8 Auto to `ref_m50_4b`). GUT 1194/1194 (suite 278.6 s). `check.ps1 -BotRuns`: CHECK PASSED.
+- **Tests** (`test_auto_items.gd`): `test_m50_4f_max_mechanic_and_ready_card_data` (MAX, the mechanic, tall-pip ranks, READY, the pair icon, mechanic grid colours) and `test_m50_4f_focus_lifts_the_slot_and_the_rail_reads_the_pick` (each focus reads "focused" on its card only; the rail reading has `picking`, one legend entry per choice, one lifted slot with its next pip for an upgrade, the free well for a NEW card; nothing after the pick; the flat slot bar exists). Both fail without the change (the fields and functions are new).
+- **Captures** (`.check/m50_4f/`, windowed, inert save; the shots before the change are in `before/`): `preview_{flat,pixel}.png`, `preview_evolve_{flat,pixel}_{2,3}.png`, `pick_weapon.png`, `pick_item{,_pixel}.png`, `pick_filler.png`, `evolve_choice{,_flat}.png`, `audit_rail/focus_{1,2,3}.png`, `rf_focus_*.png` (reduce flashing: identical, nothing animates).
+- **`BUILD = "M50.4f"`.**
+- **Review (17 found, 16 upheld, all fixed):** the 16 upheld mockup mismatches above (card art scale and backdrop; MAX variant; tall pips and diamonds; mechanic icon and bold name; pair gun and READY; "focused" key, reported twice; flat guns; EVOLVE text, studs and backdrop; banner tabs; rail slot lift; rail pink EVOLVE ring; rail XP strip; flat slot bar; EVOLVE focus ring; MAX and READY, reported again). Not upheld: 1.
+
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**
 1. **Length:** Stage 1 is ~7 min against ~20, Stage 2 is planned at 30–40 against 45, and the campaign target is ~2 h 30. Grow now (a session in a stage's middle) or later?
@@ -1770,6 +2123,14 @@ Stage 2: S8 and S9 endings and the carry, per design `.check/stage1_rework/desig
 - **M47.6c1 defaults (built, ask at the next playtest):** S5's new enemy at 40 % of the draws plus 8 from cues, the crowd's rate unchanged (more, or less?); S0 / S1 one line longer each (about 12 / 11 s); the last three come to you (only the shooter changed); "That's all of them. Clean up." / "Two left. Finish it." / "Last one." ok?; S4's walls in 2.5 s, middle out (slower?).
 - **M47.6b defaults (built, ask at the next playtest):** the old terminal rows are not copied into the chat at the upgrade, only kept collapsed under the "terminal (legacy)" tab (copy them?); at 1920x1080 the game is 1512x851 (k 1.18, the chat column bounds it) instead of the design's ~1.33 (narrow the chat instead?); the upgrade's wording ("also this window is ugly.", "one sec.", "it has round corners now", "New window. Round corners. Proud of them.") ok?; a fork's options show as full cards in the chat plus short "[n] name" pills (enough to read, or too long?).
 - **M47.6a defaults (built, ask at the next playtest):** the canned replies' words ("hi. type play and we'll go." / "type play. it starts the next test." / "type play. the test runs again." / "i only know 'play' so far. working on it."); a retry (again, the pause menu's Restart) carries the play already given, F5 / a debug restart asks for play again; the empty Enter and a bare `p` arm 0.4 s after the gate's lines are typed; at the death ask the number key `1` is again at once, only Enter is armed.
+- **M50.4f, READY on an item card (6.24):** READY shows only when the offer's EVOLVE uses that item, not whenever its weapon is held. Ask at the playtest: "Should READY show as soon as the paired weapon is held?"
+- **M50.4c2, Supernova in S9 (6.23):** no bot seed reaches nova 6 + Might before S9 ends (nova 5 at most), so the second evolution is F2 / bench only for now, and Thunderclap waits for S10 (not in this branch). Default: no change (design Q9). Ask at the playtest: "Want a second evolution reachable in S9?"
+- **M50.4c1, `human_pace` EVOLVE share (6.22):** in 5/8 runs EVOLVE comes within the first half of the kills (design: 12/16 against `enemy_total`, which this branch does not have). Default: no change here. Re-measure on the rework's clear S9 after the merge, then apply the design's fallbacks (nerf 8 -> 6, `add evolve` at 0).
+- **M50.4c1, mortal S9 Auto (6.22):** 7/8 deaths with or without EVOLVE (Arsenal 3/8, Survival 1/8). Default: no retune from bot numbers (AGENTS 6), as in M50.4b.
+- **M50.4b, items by 60 s (6.21):** in 1/8 invincible S8 Auto runs the bot holds 2 items by 60 s (design: 14/16). The second item arrives at the first level-up after the 42 s line where the bot rule picks it over a rank. Default: no change. At the playtest, ask whether the 42 s Area line should come with an Area card (a `give area` at 42 s).
+- **M50.4b, mortal S9 Auto (6.21):** 7/8 deaths, against Arsenal 3/8 and Survival 1/8 (design: Auto <= 8/16 and within 6 of both). Default: no retune from bot numbers (AGENTS 6). The design's "too weak" fallback (crowd spawn mult 1.6 -> 1.5) waits for the owner's S9 play.
+- **M50.4b, mortal S8 Auto (6.21, follows the M50.4a item):** 5/8 deaths, median 95.1 s, below the parent's 116.2 s; after the review's Area fix 6/8, 77.5 s (bot numbers). Default: same as above.
+- **M50.4a, mortal S8 Auto (6.20):** the bot now dies 14/16 (parent 7/16) because the early "+1 max HP" fillers are gone (ranks to 6 come first). Default: no retune in M50.4a; re-measure after M50.4b (items, the bot rule), then the design's fallbacks in order. Question: "Auto S8 felt harder in the first minute?"
 - **Look timing (ROADMAP 6.5, v8 9):** **asked in S8's debrief, after the AI tries all three on you live**; lands in S9. This **changes the ROADMAP's plan** (the end of Stage 1, "so Stage 2 is already yours"), so G14a asks it (7.9). Reasons: S7 already hosts the path, two big picks back to back are heavy, and the preview uses your own S8 frame in your path. Alternative A: ask it at the end of S6 with stills. Alternative B: ask it with the path in S7.
 - **The three looks (ROADMAP 6.6; v9.1, owner-polish-vision):** Pixel / Minimal / Splat (pixel-art gaussian splats), every entity drawn in code, as 1.7. Spares: `look_voxel` for Splat (1.7's decision rule), `look_terminal` (green-on-black CRT) for any other look that fails G14b. (v9's Neon / Paper and the "darker palette" alternative are dropped.)
 - **In-run 1-of-3 picks** for Arsenal and Auto (0.4): kept, as ROADMAP 1.7 says, and asked at G14a against dev-session-big-only. Alternative: Arsenal's cards come as drops you walk over, and Auto's level-ups are chosen by the AI from your taste ("Here, take the laser") with no panel.

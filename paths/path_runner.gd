@@ -35,6 +35,16 @@ extends Node
 ## shows (link_state). `fuse fail` (S9's beat, fuse_fail()) is the misfuse: an overlay for
 ## MISFUSE_SECONDS of game time (the Loadout untouched; its shots leave the wrong way, switching
 ## locked, no pack opens), then the AI patches it (a patch-note line).
+##
+## M50.4c1 (Auto depth design 2.5, 6): once the `evolve` basic is live on a levelups path, a held
+## deep weapon at the rank cap whose catalyst item is held (its evolution built, none of it held
+## yet, at most MAX_EVOLUTIONS a session) puts an EVOLVE choice in the next level-up
+## (evolve_option; the choice after the cards). Taking it spends the level-up: the weapon
+## becomes its evolution in place (Loadout.evolve), the first of each id is learned as a recipe.
+## While a held weapon below the cap has its catalyst held, its upgrade is offered first (a give
+## wins). S9's `evolved 1: nerf 8` arms the evolution's launch numbers (too strong); 8 s of game
+## time later the AI patches them down live (one glitch pulse, a patch-note line written from the
+## effective numbers); a session that ends first lands it at stop(), a path swap drops it.
 
 signal started(path_id: StringName)
 ## M47.6d1: a `path` cue landed (its warning starts): the title card (PathTitle) shows.
@@ -58,6 +68,8 @@ const GIVE_PACKS := 3
 const MISFUSE_SECONDS := 6.0
 const MISFUSE_SKIN := &"shot_misfuse_player"
 const MISFUSE_NOTE := "Fixed: cards fusing into a gun with guns on it."
+## M50.4c1: at most this many evolutions a session (one per weapon; 2 passive slots).
+const MAX_EVOLUTIONS := 2
 const GLITCH := 0.6        ## one pulse: one flash, far under 3 a second (D12)
 const FADE_SECONDS := 0.4  ## the pulse under reduce flashing
 ## The mascot's word after a pick (priority 1, muted with --mute-ai; D8, first to cut).
@@ -100,6 +112,9 @@ var leftover_checks: Array = []
 var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or the fade)
 ## M50.1a (packs): what was taken, for the telemetry and the bot's line.
 var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0}
+## M50.4a (levelups picks): what each level-up took, for the telemetry and the bot's line.
+## item_new / item_up are the passive items (M50.4b); evolve stays 0 until M50.4c1.
+var level_picks := {"upgrade": 0, "new": 0, "item_new": 0, "item_up": 0, "evolve": 0, "filler": 0}
 ## M50.1b: each fusion made: {id, t, from: ["shotgun:5", "laser:4"], rank}.
 var fusions: Array[Dictionary] = []
 ## M50.1b: the times FUSE became available (the `fuse_ready n` cues read it) and the ticks it
@@ -111,6 +126,15 @@ var misfuse := {}
 ## M47.6d1: the last title card shown (PathTitle) and every title shown, in order (tests).
 var title_card: PathTitle
 var titles_shown: Array[String] = []
+## M50.4c1: each evolution made: {id, t, from: "pistol:6", catalyst: "haste:2"}.
+var evolutions: Array[Dictionary] = []
+## M50.4c1: the times EVOLVE became available (the `evolve_ready n` cues), the first one's game
+## time (-1 never), and the nerfs landed (`nerfed n`).
+var evolve_ready_count := 0
+var evolve_ready_t := -1.0
+var nerfs_landed := 0
+## M50.4c1: the live nerf ({} none): {id, t_armed, t_landed (-1 pending), text}.
+var nerf := {}
 
 var _gems: Node
 var _meter: RefCounted
@@ -142,6 +166,8 @@ var _give_wait := {}
 var _fuse_was_ready := false
 var _misfuse_left := 0           ## M50.1b: physics ticks the misfuse has left (0: none)
 var _misfuse_before := ""
+var _evolve_was_ready := false
+var _nerf_left := 0              ## M50.4c1: physics ticks until the nerf lands (0: none pending)
 
 
 func _ready() -> void:
@@ -492,6 +518,7 @@ func _build_levels() -> void:
 	_widget.name = "LevelWidget"
 	_widget.meter = _meter
 	_widget.loadout = loadout()
+	_widget.runner = self   # M50.4c1: the evolve hint
 	var hud: Node = game.get(&"hud") if game != null else null
 	if hud != null and hud.has_method(&"set_path_widget"):
 		hud.set_path_widget(_widget)
@@ -556,6 +583,8 @@ func _clear_growth() -> void:
 	_pack_gap_until = -1
 	_end_misfuse(false)
 	_fuse_was_ready = false
+	_drop_nerf()
+	_evolve_was_ready = false
 
 
 func _on_basic_added(id: StringName) -> void:
@@ -725,6 +754,17 @@ func _physics_process(_delta: float) -> void:
 			if not _fuse_was_ready:
 				fuse_ready_count += 1
 		_fuse_was_ready = ready
+	if _nerf_left > 0:
+		_nerf_left -= 1
+		if _nerf_left == 0:
+			_land_nerf()
+	if evolve_live() and not _stopped:
+		var ready_e := not evolve_option().is_empty()
+		if ready_e and not _evolve_was_ready:
+			evolve_ready_count += 1
+			if evolve_ready_t < 0.0:
+				evolve_ready_t = snappedf(RunState.game_time, 0.1)
+		_evolve_was_ready = ready_e
 	if _want > 0 and not _opening and _tick >= _pack_gap_until and can_open_now():
 		_opening = true
 		_open_offer.call_deferred()
@@ -749,8 +789,15 @@ func _open_offer() -> void:
 		var first := _first
 		if first == &"" and _cards_growth():
 			first = most_fired(lo)   # Arsenal: the most-fired card's upgrade first (1.5, D7)
+		if first == &"" and evolve_live():
+			first = steer(lo)   # M50.4c1: a weapon whose catalyst is held ranks first
 		offer = PickOffer.draw(lo, def, offer_pool(), first, RunState.pick_rng, taste)
 		_first = &""
+		if def != null and def.growth == &"levelups":
+			# M50.4b: the dressed cards' banner and pips (presentation only).
+			offer.level = level()
+			offer.cap = lo.rank_cap if lo.rank_cap > 0 else Loadout.MAX_RANK
+			offer.evolve = evolve_option()   # M50.4c1: never one of the cards
 	offers.append(offer)
 	EventBus.pick_offered.emit(offer)
 	fp.menu_open()
@@ -778,19 +825,35 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 	var p: Node = game.get(&"player") if game != null else null
 	if is_instance_valid(p) and p.get(&"input") != null:
 		(p.get(&"input") as PlayerInput).require_fresh_press()
+	var lo := loadout()
+	if not offer.pack and not offer.evolve.is_empty() and index == offer.cards.size():
+		_take_evolve(lo, offer.evolve)
+		return
 	var card: Dictionary = offer.cards[index]
 	_want = maxi(0, _want - 1)
 	picks += 1
 	picks_on_path += 1
-	var lo := loadout()
 	if offer.pack:
 		_take_pack_card(lo, card)
+	elif card.get("item", false) and lo != null:
+		# M50.4b: a passive item joins (level 1) or levels up.
+		if card.kind == &"new":
+			lo.add_item(card.id)
+		else:
+			lo.level_item(card.id)
 	elif card.kind == &"new" and lo != null:
 		lo.give(card.id, 1)
 	elif card.kind == &"upgrade" and lo != null:
 		lo.upgrade(card.id)
 	elif card.kind == PickOffer.HP:
 		_one_more_hp()
+	elif card.kind == PickOffer.BOOST and lo != null:
+		lo.add_boost()
+	if not offer.pack and def != null and def.growth == &"levelups":
+		var key := String(card.kind) if card.kind in [&"upgrade", &"new"] else "filler"
+		if card.get("item", false):
+			key = "item_new" if card.kind == &"new" else "item_up"
+		level_picks[key] = int(level_picks[key]) + 1
 	for c in offer.cards:
 		taste._nudge_raw(c.id, [], Taste.PICK if c == card else Taste.PASS)
 	RunState.log_event(&"pick", {"offer": offer.ids().map(func(i: StringName) -> String: return String(i)),
@@ -803,6 +866,219 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 			_pack_gap_until = _tick + roundi(PACK_GAP * Engine.physics_ticks_per_second)
 		return
 	_speak(Line.parse(PICK_LINES[(picks - 1) % PICK_LINES.size()]), 1)
+
+
+# --- Evolution (M50.4c1) -------------------------------------------------------------------
+
+## The `evolve` basic is live on this levelups path (until then no EVOLVE, no steering).
+func evolve_live() -> bool:
+	return _levelups() and &"evolve" in def.basics and Unlocks.has_basic(&"evolve")
+
+
+## The EVOLVE choice the loadout has now ({} none, or before the `evolve` basic): a held deep
+## weapon at the rank cap, its evolution built, its catalyst item held, none of it held yet,
+## fewer than MAX_EVOLUTIONS made. Several: the most shots, ties weapons() order.
+## {from, into, catalyst, rank, text}.
+func evolve_option() -> Dictionary:
+	var lo := loadout()
+	if lo == null or not evolve_live() or evolutions.size() >= MAX_EVOLUTIONS or lo.rank_cap <= 0:
+		return {}
+	var best: Weapon = null
+	var best_into: StringName = &""
+	for w in lo.weapons():
+		var into := _evolve_target(lo, w)
+		if into == &"" or w.rank < lo.rank_cap:
+			continue
+		if lo.item_level(WeaponDB.get_weapon(into).catalyst) <= 0:
+			continue
+		if best == null or w.shots > best.shots:
+			best = w
+			best_into = into
+	if best == null:
+		return {}
+	var e := WeaponDB.get_weapon(best_into)
+	return {"from": best.def.id, "into": e.id, "catalyst": e.catalyst, "rank": best.rank,
+			"text": PickOffer.evolve_line(best.def, WeaponDB.item(e.catalyst), e, best.rank)}
+
+
+## The built evolution weapon `w` could become (&"" none: an evolution, a fusion, unbuilt, or
+## one of it held already).
+func _evolve_target(lo: Loadout, w: Weapon) -> StringName:
+	if not w.deep() or w.def.is_evolution() or w.def.is_fusion():
+		return &""
+	var into := WeaponDB.evolution_for(w.def.id)
+	if into == &"" or not WeaponDB.evolution_built(into) or lo.evolution_of(w.def.id) != null:
+		return &""
+	return into
+
+
+## M50.4c1 (design 2.6, steering): the held weapon below the cap whose catalyst is held
+## (highest rank first, ties weapons() order), offered first; &"" none.
+func steer(lo: Loadout) -> StringName:
+	var best: Weapon = null
+	for w in lo.weapons():
+		var into := _evolve_target(lo, w)
+		if into == &"" or (lo.rank_cap > 0 and w.rank >= lo.rank_cap):
+			continue
+		if lo.item_level(WeaponDB.get_weapon(into).catalyst) <= 0:
+			continue
+		if best == null or w.rank > best.rank:
+			best = w
+	return best.def.id if best != null else &""
+
+
+## EVOLVE was chosen: it is the level-up's pick (counted, `pick_made`), no pick line, no taste
+## nudge. The first of each evolution is learned as a recipe (a patch-note line).
+func _take_evolve(lo: Loadout, ev: Dictionary) -> void:
+	_want = maxi(0, _want - 1)
+	picks += 1
+	picks_on_path += 1
+	level_picks.evolve = int(level_picks.evolve) + 1
+	if lo == null:
+		return
+	var from_id: StringName = ev.from
+	var into_id: StringName = ev.into
+	var from := "%s:%d" % [from_id, lo.rank_of(from_id)]
+	var cat := "%s:%d" % [ev.catalyst, lo.item_level(ev.catalyst)]
+	if not lo.evolve(from_id, into_id):
+		return
+	var t := snappedf(RunState.game_time, 0.1)
+	evolutions.append({"id": String(into_id), "t": t, "from": from, "catalyst": cat})
+	RunState.log_event(&"evolved", {"weapon": String(into_id), "from": from, "catalyst": cat})
+	var into := WeaponDB.get_weapon(into_id)
+	if SaveGame.learn_recipe(into_id):
+		RunState.log_event(&"patch_note", {"text": "New recipe: %s (%s + %s)" % [into.title, from_id, ev.catalyst]})
+	_evolve_was_ready = false
+	EventBus.pick_made.emit(into_id)
+
+
+## S9's `nerf <s>` cue (it sits on an `evolved n` cue): the evolution just made starts at its
+## launch numbers, and `seconds` of game time later the AI patches it to its steady ones. False
+## (logged nerf_skipped) with no evolution held, no launch numbers or a nerf already armed.
+func arm_nerf(seconds: float) -> bool:
+	var lo := loadout()
+	var w: Weapon = null
+	if lo != null and not evolutions.is_empty():
+		for x in lo.weapons():
+			if String(x.def.id) == String(evolutions[evolutions.size() - 1].id):
+				w = x
+	if w == null or w.def.launch_values.is_empty() or not nerf.is_empty() or _stopped:
+		RunState.log_event(&"nerf_skipped", {})
+		return false
+	var launch := {}
+	for k: Variant in w.def.launch_values:
+		launch[StringName(k)] = w.def.launch_values[k]
+	w.launch = launch
+	lo.reread(w)   # M50.4c2: a node weapon (the Supernova) takes its launch numbers now
+	_nerf_left = maxi(1, roundi(seconds * Engine.physics_ticks_per_second))
+	nerf = {"id": String(w.def.id), "t_armed": snappedf(RunState.game_time, 0.1), "t_landed": -1.0, "text": ""}
+	RunState.log_event(&"nerf_armed", {"weapon": String(w.def.id), "seconds": seconds})
+	return true
+
+
+## The nerf is pending (tests).
+func nerf_pending() -> bool:
+	return _nerf_left > 0
+
+
+## The AI's live patch: the launch numbers go (slot, shots and item mods kept), one glitch
+## pulse, a patch-note line from the effective numbers before and after.
+func _land_nerf() -> void:
+	_nerf_left = 0
+	if nerf.is_empty() or float(nerf.t_landed) >= 0.0:
+		return
+	var lo := loadout()
+	var w: Weapon = null
+	if lo != null:
+		for x in lo.weapons():
+			if String(x.def.id) == String(nerf.id):
+				w = x
+	nerf.t_landed = snappedf(RunState.game_time, 0.1)
+	if w == null:
+		return
+	# M50.4c2 review: the note names only the launch keys (the Thunderclap has no cooldown one,
+	# and its blast radius is the cut the player sees), in a fixed order.
+	var keys: Array[StringName] = []
+	for k: Variant in w.launch:
+		keys.append(StringName(k))
+	var before := {}
+	for k in [&"cooldown", &"damage", &"blast_radius"]:
+		before[k] = float(w.value(k))
+	w.launch = {}
+	lo.reread(w)   # M50.4c2: a node weapon re-reads its steady numbers, its clock kept
+	nerf.text = "Balance: %s %s. It was too strong." % [w.def.title, nerf_parts(w, keys, before)]
+	nerfs_landed += 1
+	RunState.log_event(&"patch_note", {"text": nerf.text})
+	RunState.log_event(&"nerfed", {"weapon": String(w.def.id)})
+	_pulse()
+
+
+## The changed numbers of a live nerf, from the launch `keys` and the effective `before` values
+## (cooldown, damage, blast_radius) to `w`'s now: "30 -> 15 shots/s" (aimed) or "every 1.2 s ->
+## every 2 s" (a node weapon, on its own clock), "damage a -> b", "blast a T -> b T". A part
+## whose number did not move is left out.
+static func nerf_parts(w: Weapon, keys: Array[StringName], before: Dictionary) -> String:
+	var parts: PackedStringArray = []
+	if &"cooldown" in keys:
+		var cd_before := float(before[&"cooldown"])
+		var cd_after := float(w.value(&"cooldown"))
+		if w.def.is_passive():
+			if not is_equal_approx(snappedf(cd_before, 0.01), snappedf(cd_after, 0.01)):
+				parts.append("every %s s -> every %s s" % [WeaponCurve.num(snappedf(cd_before, 0.01)), WeaponCurve.num(snappedf(cd_after, 0.01))])
+		elif not is_equal_approx(fire_rate(cd_before), fire_rate(cd_after)):
+			parts.append("%s -> %s shots/s" % [WeaponCurve.num(fire_rate(cd_before)), WeaponCurve.num(fire_rate(cd_after))])
+	for pair: Array in [[&"damage", "damage %s -> %s"], [&"blast_radius", "blast %s T -> %s T"]]:
+		var k: StringName = pair[0]
+		if not k in keys:
+			continue
+		var a := snappedf(float(before[k]), 0.01)
+		var b := snappedf(float(w.value(k)), 0.01)
+		if not is_equal_approx(a, b):
+			parts.append((pair[1] as String) % [WeaponCurve.num(a), WeaponCurve.num(b)])
+	if parts.is_empty():
+		return "patched down"
+	return ", ".join(parts)
+
+
+## A path swap (or a new path) drops a pending nerf: the launch numbers go, no note.
+func _drop_nerf() -> void:
+	if _nerf_left <= 0:
+		return
+	_nerf_left = 0
+	var lo := loadout()
+	if lo != null:
+		for x in lo.weapons():
+			if not x.launch.is_empty():
+				x.launch = {}
+				lo.reread(x)
+	nerf = {}
+
+
+## Shots a second for a cooldown `cd` on the 60 Hz auto clock: a weapon fires at most once a
+## tick and drops the overshoot (Loadout.auto_tick), so every ceil(cd * 60) ticks.
+static func fire_rate(cd: float) -> float:
+	var ticks := maxi(1, ceili(cd * Engine.physics_ticks_per_second - 0.0001))
+	return snappedf(float(Engine.physics_ticks_per_second) / ticks, 0.1)
+
+
+## The evolve hint (the rail's bottom line, the raw HUD's last row): "EVOLVE next level: pistol
+## lv 6 + haste -> MINIGUN" when ready, "pistol lv 4/6 + haste -> MINIGUN" while the catalyst is
+## held below the cap, "" before `evolve` or with no pair.
+func evolve_hint() -> String:
+	var lo := loadout()
+	if lo == null or not evolve_live():
+		return ""
+	var ev := evolve_option()
+	if not ev.is_empty():
+		return "EVOLVE next level: %s lv %d + %s -> %s" % [ev.from, int(ev.rank), ev.catalyst,
+				WeaponDB.get_weapon(ev.into).title.to_upper()]
+	if evolutions.size() >= MAX_EVOLUTIONS:
+		return ""
+	var s_id := steer(lo)
+	if s_id == &"":
+		return ""
+	var into := WeaponDB.get_weapon(WeaponDB.evolution_for(s_id))
+	return "%s lv %d/%d + %s -> %s" % [s_id, lo.rank_of(s_id), lo.rank_cap, into.catalyst, into.title.to_upper()]
 
 
 ## M50.1a: a pack card goes to the hand: a held weapon ranks up (+1, rare +2), a new one joins
@@ -962,6 +1238,8 @@ func stop() -> void:
 	_gems = null
 	if _meter != null:
 		_meter.set(&"stopped", true)
+	if _nerf_left > 0:
+		_land_nerf()   # M50.4c1: the session ended inside the window: the note still lands
 
 
 func _over() -> bool:
@@ -988,6 +1266,11 @@ func _speak(line: Line, priority: int, queued := false) -> void:
 ## One glitch pulse, or a 0.4 s fade under reduce flashing (D12).
 func _wipe() -> void:
 	wipes += 1
+	_pulse()
+
+
+## M50.4c1: the pulse alone (the nerf's; not a swap, so `wipes` stays the swaps').
+func _pulse() -> void:
 	if not SaveGame.reduce_flashing():
 		var transition: Transition = game.get(&"transition") if game != null else null
 		if transition != null:
@@ -1033,5 +1316,13 @@ func state_text() -> String:
 		return "path=%s cards=%d kills=%d/%s picks=%d pickups=%d" % [path_id, cards(),
 				int(_meter.get(&"kills")) if _meter != null else 0, str(need) if need >= 0 else "-", picks,
 				pickups_taken]
-	return "path=%s level=%d picks=%d pickups=%d" % [path_id if path_id != &"" else &"-", level(), picks,
+	var text := "path=%s level=%d picks=%d pickups=%d" % [path_id if path_id != &"" else &"-", level(), picks,
 			pickups_taken]
+	var lo_i := loadout()
+	if lo_i != null and not lo_i.items.is_empty():
+		text += " items=%s" % lo_i.items_summary()   # M50.4b
+	if not evolutions.is_empty():   # M50.4c1
+		text += " evolved=%s" % ",".join(evolutions.map(func(e: Dictionary) -> String: return "%s@%d" % [e.id, roundi(float(e.t))]))
+	if not nerf.is_empty():
+		text += " nerf=@%s" % (str(roundi(float(nerf.t_landed))) if float(nerf.t_landed) >= 0.0 else "pending")
+	return text

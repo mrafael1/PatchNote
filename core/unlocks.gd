@@ -24,10 +24,11 @@ const BASICS: Array[StringName] = [&"movement", &"enemies", &"level"]
 ## M46: + `cards` (Arsenal's card meter and hand) and `quick_draw` (its first-shot-after-a-
 ## switch bonus), Arsenal's path basics. M47: + `pickups` (Survival's drops and crates) and
 ## `kill_heal` (every 5th kill heals 1), Survival's path basics. M50.1b: + `fusion` (Arsenal's
-## FUSE and the hand's link; S9 adds it at 94 s).
+## FUSE and the hand's link; S9 adds it at 94 s). M50.4c1: + `evolve` (Auto's EVOLVE choice and
+## its steering; S9 adds it at 84 s).
 const CAMPAIGN_BASICS: Array[StringName] = [&"movement", &"shooting", &"dash", &"enemies", &"level",
 		&"health", &"hits", &"version", &"levelups", &"crowd", &"cards", &"quick_draw", &"pickups",
-		&"kill_heal", &"fusion"]
+		&"kill_heal", &"fusion", &"evolve"]
 
 
 ## Patches that may be offered: the starters plus what shipped changes unlock, never

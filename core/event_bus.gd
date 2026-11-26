@@ -35,6 +35,7 @@ signal pickup_taken(kind: StringName, id: StringName)
 signal pick_offered(offer: RefCounted)
 signal pick_made(id: StringName)
 signal level_up(n: int)
+signal item_changed(id: StringName, level: int)   ## M50.4b: a passive item joined or levelled (Loadout)
 signal patch_applied(mutation: Resource)
 signal patch_reverted(mutation: Resource)
 signal big_swapped(old: Resource, new: Resource, dropped: Array)   ## old may be null

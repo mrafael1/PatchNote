@@ -17,6 +17,8 @@ var points := PackedVector2Array()
 var source: StringName = &""
 var hits := 0                      ## tests
 var life := LIFE                   ## M50.1a: per line (the trait's level)
+## M50.4b review: the Area item's multiplier on the burn width (half width + MARGIN; 1.0 without).
+var width := 1.0
 var _born := -1.0
 var _next := {}                    ## enemy -> game time it may burn again
 
@@ -63,7 +65,7 @@ func _physics_process(_delta: float) -> void:
 			continue
 		var half: float = enemy.get(&"half_width") if enemy.get(&"half_width") != null else 15.0
 		var closest := closest_point(enemy.global_position)
-		if closest.distance_to(enemy.global_position) > half + MARGIN:
+		if closest.distance_to(enemy.global_position) > (half + MARGIN) * width:
 			continue
 		if RunState.game_time < float(_next.get(enemy, -1.0)):
 			continue
@@ -79,4 +81,4 @@ func _draw() -> void:
 		return
 	var age := RunState.game_time - _born if _born >= 0.0 else 0.0
 	var a := clampf(1.0 - age / life, 0.0, 1.0)
-	draw_polyline(points, Color(Palette.color(&"burn"), 0.55 * a), 5.0)
+	draw_polyline(points, Color(Palette.color(&"burn"), 0.55 * a), 5.0 * width)

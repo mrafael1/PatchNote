@@ -630,6 +630,16 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#b48cff", "S": "#27c0e0", "H": "#fff8d0", "A": "#ffffff"},
 	},
+	# M50.4c1: the Minigun's tracer (player-only): a 2x7 streak with a warm core.
+	"shot_minigun_player": {
+		"grid": [
+			".KKKKKKK.",
+			"KSSPPPHAK",
+			"KSSPPPHAK",
+			".KKKKKKK.",
+		],
+		"ramp": {"P": "#ffb84a", "S": "#c9602e", "H": "#ffe890", "A": "#fff8e0"},
+	},
 	# M50.1b: the misfuse's shot (player-only): a tiny pistol, barrel first.
 	"shot_misfuse_player": {
 		"grid": [

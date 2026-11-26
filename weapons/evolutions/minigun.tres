@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"minigun"
+title = "Minigun"
+mode = &"aimed"
+cooldown = 0.066
+damage = 1.5
+pellets = 1
+spread_deg = 0.0
+pierce = 0
+speed = 1100.0
+lifetime = 0.8
+icon = &"minigun"
+pitch = "A stream of bullets that sweeps the room."
+card_text = PackedStringArray("Minigun: a stream of bullets.")
+mechanics = Array[StringName]([&"heavy_round", &"seeker", &"chain", &"sweep"])
+mechanic_values = Array[Dictionary]([])
+base = &"pistol"
+catalyst = &"haste"
+launch_values = {
+&"cooldown": 0.033,
+&"damage": 2.0,
+&"pierce": 1
+}

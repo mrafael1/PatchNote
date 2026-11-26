@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"sunbeam"
+title = "Sunbeam"
+mode = &"aimed"
+icon = &"sunbeam"
+pitch = "A beam that never lets go."
+card_text = PackedStringArray("Sunbeam: A beam that never lets go.")
+base = &"laser"
+catalyst = &"duration"
+built_in = "with Duration (S10+/S11)"

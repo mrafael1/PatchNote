@@ -17,3 +17,5 @@ node_script = "res://weapons/nova_pulse.gd"
 ranks = Array[Dictionary]([{"traits": [&"shove"]}, {"traits": [&"shove", &"dash_nova"]}])
 pitch = "Every few seconds, you go off. Politely."
 card_text = PackedStringArray("Nova: a blast around you every 3 s.", "Nova II: it shoves survivors away.", "Nova III: a dash sets it off early.")
+mechanics = Array[StringName]([&"shove", &"dash_nova", &"shockwave"])
+mechanic_values = Array[Dictionary]([{}, {}, {}])
