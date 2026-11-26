@@ -560,7 +560,8 @@ static func _parse_campaign(src: Dictionary) -> Variant:
 		if not src.mascot is String:
 			return null
 		out.mascot = src.mascot
-	# M50.1b: the recipes learned (sparse; fusion ids only, once each).
+	# M50.1b: the recipes learned (sparse; fusion ids only, once each). M50.4c1: and evolution
+	# ids (same key; an older build drops the ids it cannot resolve, as here).
 	if src.has("recipes"):
 		if not src.recipes is Array:
 			return null
@@ -568,7 +569,8 @@ static func _parse_campaign(src: Dictionary) -> Variant:
 		for x: Variant in src.recipes:
 			if not x is String:
 				return null
-			if WeaponDB.get_weapon(StringName(x)) != null and WeaponDB.get_weapon(StringName(x)).is_fusion() and not x in known:
+			var rw := WeaponDB.get_weapon(StringName(x))
+			if rw != null and (rw.is_fusion() or rw.is_evolution()) and not x in known:
 				known.append(x)
 		out["recipes"] = known
 	return out

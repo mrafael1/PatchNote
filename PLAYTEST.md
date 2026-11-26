@@ -39,6 +39,7 @@ One page. The G13 sheet is kept below for reference.
 8. G13's 7a-7j (the sheet below), one line each.
 
 ## Open one-liners
+- M50.4c1 (Auto, S9): at 84 s the AI adds EVOLVE. Pistol 6 + Haste turns into the Minigun (a sweeping stream), at 30 shots/s for 8 s, then the AI patches it to 15/s live ("Too strong. Patched it down live.") and the debrief changelog lists the change. Questions, one line each: (Q3) should EVOLVE be free like FUSE, instead of spending the level-up? (Q4) too easy with the passive at any level, or should it need the passive maxed? (Q5) did the nerf read as a joke, or did it feel like losing something? (Q6) too much in S9 (paint + evolve): move evolve to S10? (Q13) do the EVOLVE card and the level-up cards look right?
 - M50.4b (Auto): level-ups now show dressed cards and two passive slots (Haste, Area; Might in S9). Do the cards read at a glance, and does S8 offer the second passive soon enough after the 42 s line?
 - Arsenal's first card in S8 comes at 25 kills (the plan said 15): ok?
 - Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it; nothing offers it before S9.)

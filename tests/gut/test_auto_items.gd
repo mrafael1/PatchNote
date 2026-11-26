@@ -457,6 +457,7 @@ func test_a_level_up_opens_the_dressed_cards_flat_then_pixel() -> void:
 	assert_eq(panel._cards_dressed.size(), offer.cards.size())
 	assert_true(panel._banner.visible, "the LEVEL n banner")
 	assert_eq(panel._banner.level, offer.level)
+	assert_eq(panel._banner.count, offer.cards.size(), "no EVOLVE: the banner counts the cards")
 	assert_false(panel._line.visible)
 	assert_false(panel._cards_dressed[0].pixel, "no look: the flat cards")
 	for b in panel._buttons:

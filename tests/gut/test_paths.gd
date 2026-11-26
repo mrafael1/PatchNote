@@ -145,7 +145,7 @@ func test_the_path_data_is_valid() -> void:
 	assert_eq(a.max_items, 2)
 	assert_true(a.shared_slots)
 	assert_eq([a.rank_curve, a.rank_cap, a.max_picks, a.full_line], [&"deep", 6, 0, ""])
-	assert_eq(a.basics, [&"levelups", &"crowd"] as Array[StringName])
+	assert_eq(a.basics, [&"levelups", &"crowd", &"evolve"] as Array[StringName], "M50.4c1: + evolve")
 	assert_eq(a.kill_goal_mult, 2.0)
 	assert_eq(PathDB.owner_of_basic(&"crowd"), &"auto")
 	assert_eq(PathDB.owner_of_basic(&"dash"), &"")

@@ -141,7 +141,7 @@ static func _items(runner: Node, lo: Loadout, def: PathDef) -> Dictionary:
 		# M50.4a (Auto depth T7): every weapon (passive-mode ones too) in the shared weapon
 		# slots; the passive slots are the items' (M50.4b).
 		for w in lo.weapons():
-			weapons.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon, "evo": false})
+			weapons.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon, "evo": w.def.is_evolution()})
 		for it in lo.items:   # M50.4b: the passive items, rank = their level
 			passives.append({"title": it.def.title, "rank": it.level, "icon": it.def.icon})
 		passive_slots = def.max_items
@@ -151,8 +151,10 @@ static func _items(runner: Node, lo: Loadout, def: PathDef) -> Dictionary:
 		for w in lo.passives:
 			passives.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon})
 	var meter: RefCounted = runner.call(&"meter")
+	# M50.4c1: the bottom line's evolve hint ("" none: the rail's own "next level" line).
+	var hint := String(runner.call(&"evolve_hint")) if runner.has_method(&"evolve_hint") else ""
 	return {"weapons": weapons, "passives": passives, "slots": maxi(1, def.max_slots),
-			"passive_slots": passive_slots, "cap": cap,
+			"passive_slots": passive_slots, "cap": cap, "hint": hint,
 			"level": int(meter.get(&"level")) if meter != null else 1,
 			"xp": float(meter.call(&"progress")) if meter != null and meter.has_method(&"progress") else 0.0}
 

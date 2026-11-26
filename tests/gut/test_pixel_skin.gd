@@ -647,8 +647,8 @@ func test_the_atlas_hash_is_m48as() -> void:
 	var skin := Skins.pixel()
 	assert_not_null(skin.mosaic(&"chaser"))
 	assert_not_null(skin.outline(&"chaser"))
-	# M50.1b: + shot_prism_player and shot_misfuse_player.
-	assert_eq(skin.digest(), "d07379b4045ff8a8ffe29f54f8ccb145a83e5bbeb4b683fc2f8fb00ba3d88857")
+	# M50.1b: + shot_prism_player and shot_misfuse_player (d07379b4...). M50.4c1: + shot_minigun_player.
+	assert_eq(skin.digest(), "95eb8f0bfc4f43ceabdb3d119c6af3cddfe4b89f1849b79aac7ced22e39f3759")
 
 
 ## A CLI / F10 / console swap reveals everything (M48a's behaviour); a manual reveal state

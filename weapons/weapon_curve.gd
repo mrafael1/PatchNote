@@ -73,9 +73,10 @@ static func levels(rank: int, n: int, fused := false) -> Array[int]:
 	return lv
 
 
-## M50.1b: `def`'s mechanic levels at `rank` (a fusion: all unlocked from rank 1).
+## M50.1b: `def`'s mechanic levels at `rank` (a fusion: all unlocked from rank 1). M50.4c1: an
+## evolution too (held at rank 1, so every mechanic is at level 1).
 static func levels_of(def: WeaponDef, rank: int) -> Array[int]:
-	return levels(rank, mechanics(def).size(), def.is_fusion())
+	return levels(rank, mechanics(def).size(), def.is_fusion() or def.is_evolution())
 
 
 ## The deep-curve mechanics of `def`: its `mechanics` list, else its classic ranks' new

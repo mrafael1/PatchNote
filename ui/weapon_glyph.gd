@@ -7,7 +7,7 @@ extends RefCounted
 ## (`shot_<key>_player`), so the card, the pickup and the shot itself show one picture.
 
 const KEYS: Array[StringName] = [&"dot", &"fan", &"line", &"ball", &"ring", &"burst", &"hole",
-		&"prism", &"misfuse"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too)
+		&"prism", &"misfuse", &"minigun"]   ## M50.1b: Prism, the misfuse (each has a pixel shot; `link` draws too); M50.4c1: Minigun
 
 ## M50.4b (Auto depth design 7): the passive items' and the two fillers' keys. With a look on
 ## they draw the M50.4m sheet's grids (CardArt), else plain shapes below.
@@ -96,6 +96,12 @@ static func draw(ci: CanvasItem, icon: StringName, centre: Vector2, size: float,
 				var c2 := centre + Vector2(-r * 0.15 + r * 0.3 * k, -r * 0.1 + r * 0.2 * k)
 				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 1.2, r * 0.3)), Color(color, 0.6 + 0.4 * k))
 				ci.draw_rect(Rect2(c2 + Vector2(-r * 0.6, -r * 0.2), Vector2(r * 0.3, r * 0.7)), Color(color, 0.6 + 0.4 * k))
+		&"minigun":   # M50.4c1: a drum and a bundle of three barrels
+			ci.draw_rect(Rect2(centre + Vector2(-r * 0.9, -r * 0.45), Vector2(r * 0.6, r * 0.9)), color)
+			for k in 3:
+				ci.draw_rect(Rect2(centre + Vector2(-r * 0.3, -r * 0.42 + r * 0.3 * k), Vector2(r * 1.25, r * 0.2)),
+						Color(color, 1.0 - 0.2 * k))
+			ci.draw_rect(Rect2(centre + Vector2(r * 0.05, -r * 0.5), Vector2(r * 0.14, r * 1.0)), color)
 		&"link":   # M50.1b: two rings chained
 			ci.draw_arc(centre - Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)
 			ci.draw_arc(centre + Vector2(r * 0.3, 0), r * 0.42, 0.0, TAU, 18, color, w, true)

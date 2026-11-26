@@ -758,6 +758,7 @@ Each milestone **ends playable**: the campaign plays from S0 to its last built s
 | *M50.1 (v9.1), folded into the row above* | *Rank-4 evolutions* | the 7 evolutions of 1.4 as traits, offered from S10 on; F2 shows them. **Numbers:** caps at the top rank (player budget 140, enemies keep 60; test, hard); hashes as M44 (hard); bench with every weapon at rank 4 (**windowed**) | — |
 | M50.4a | **Auto depth: rank 6, 3 shared slots, no cap** (`.check/auto_depth/design.md` rev. 2) | Auto on the deep curve to rank 6 (`rank_cap 6`), 3 weapon slots shared by every mode (nova / well take one; `PathDef.shared_slots`, `Loadout._add` replaces the weakest non-active), no level cap (`max_picks 0`), two fillers (+1 max HP, +5% damage), nova's rank-6 `shockwave`, the raw LV rows and the rail's weapon row, S8's 18 / 60 s lines, telemetry `levels` / `level_picks` / `ranks_end`, a `[botrun] auto:` line. As built: 6.20. **Numbers (hard):** S7, Arsenal, Survival, v6, gauntlet, campaign, S4 refs unchanged; new `.check/ref_m50_4a/` (S8 / S9 Auto) replayed twice | the bot numbers in 6.20, next playtest |
 | M50.4b | **Auto depth: passives and the dressed pick panel** (`.check/auto_depth/design.md` rev. 2) | 7 item rows (`ItemDef` / `Item`, `weapons/items/`): Haste, Area, Might wired, Duration / Amount / Speed / Magnet are data-only "not built yet" rows; `WeaponDB.items()` / `has_item` / `item_problems`; `Loadout.items` (2 slots), `Weapon.mods` / `stat_fields`; item cards in the level-up offer; the dressed level-up panel (`ui/level_card.gd`, flat and Pixel, LEVEL n banner, 7 item glyphs); `auto_choice` bot rule; S8 38 / 42 s lines + debrief, S9 `give haste` at 9 s + a `holds haste` line and a 94 s line; telemetry `items_end`. As built: 6.21. **Numbers (hard):** every ref equal except S8 / S9 Auto (new refs `.check/ref_m50_4b/`, 2 replays, 0 failures). | built (not committed) |
+| M50.4c1 | **Auto depth: EVOLVE, the Minigun and the live nerf** (`.check/auto_depth/design.md` rev. 2) | 7 evolution rows (`weapons/evolutions/`; Minigun built, 6 "not built yet"), `WeaponDB.evolutions()` / `evolution_for` / `evolution_problems`; the EVOLVE choice after the cards (rank 6 + its item + the `evolve` basic; spends the level-up), the gold EVOLVE card; `Loadout.evolve`; the steering; `sweep`; `launch_values` + the `nerf <s>` action, `evolve_ready` / `evolved` / `nerfed` whens, the `evolved` condition, the patch note; recipes + `recipes_text()` "Evolutions:"; the evolve hint (raw HUD, rail); S9 `add evolve` at 84 s + 4 lines + debrief; bot rule 1 + `auto_depth` summary; check.ps1 assertion. As built: 6.22. **Numbers (hard):** every ref equal except S9 Auto (new ref `.check/ref_m50_4c1/`, 2 replays, 0 failures). | built (not committed) |
 | M51 | **S11 (without the event)** | *v9.1: the HUD build moved to M48.5;* `fork_hud` as data in S11's debrief (kept by the owner), the orbit and `well` lines; S11 as data with the three enemies mixed in, the orbit, `edit_enemies_flee`, the event cue as a no-op. **Numbers (hard):** the reversibility test for `edit_enemies_flee`; M48.5's no-overlap test still green. **Reported:** S11 mortal deaths per path | — |
 | M52 | **Gravity through the screen + look tier 2** | 1.11: the event, `GlassStack` (`PROCESS_MODE_ALWAYS`), the freeze on `set_pause` + `hold_clock`, `camera_push`, `crack` and its persistence, the sorry gift, the gentle variant; tier 2 for each look (1.7, v9.1: Pixel's CRT and HUD digits, Minimal's streaks and shatter, Splat's live heroes, mascot breathing and kill scatter, themed explosions; Splat's live instances ≤ 1000 and ≤ 0.5 ms). **Numbers (hard):** 16/16 S11 seeds per path play the event fully; **0 hits during it**; state hash before = after in 16/16; the same seed replays the event to the same hash twice; the 6 steps at fixed frames; the gentle variant creates no white node. **Windowed:** a `.check/glass_*.png` strip (grow, smack, pile, undo) per look; tier 2 sheets per look; bench ≥ 60 fps with tier 2. **Reported:** deaths in the 20 s after it against the control (`--events=none`) | — |
 | M53 | **S12 + S13 complete (v9.2)** | S12 as data (the HUD lands, the polish, `arena_boss`'s line, the Big Square dummy, no fork); S13 complete: both halves with every line of 3.2, the per-path tuning retuned after M50.1's depth pieces (they change DPS). **Numbers (hard):** the whole fight 120-200 s for the invincible bot on every path, max/min ≤ 1.4; M49a's and M49b's rules on every path; S13 replays to the same hash twice. **Reported:** mortal tries per path, deaths per half and per attack | — |
@@ -1692,6 +1693,102 @@ Built on `build/auto` (M50.4a), without the Stage 1 rework or Arcade. Source: se
 - **`BUILD = "M50.4b"`.**
 - **Still open (defaults taken):** see section 9 (items by 60 s, mortal S9 Auto, mortal S8 Auto).
 
+### 6.22 As built (M50.4c1): Auto depth, EVOLVE, the Minigun and the live nerf
+
+Built on `build/auto` (M50.4b), without the Stage 1 rework or Arcade. Source: section 11 of `.check/auto_depth/design.md` rev. 2, and the M50.4m mockup (`.check/mockups/cards/Auto_Choices.dc.html`, the EVOLVE card).
+
+- **Evolutions.** `WeaponDef` gains `base`, `catalyst`, `launch_values` and `is_evolution()`. `problems()` checks the catalyst, the launch fields and "not built yet (<where>)". There are 7 rows in `weapons/evolutions/`:
+  - Built: **Minigun** (Pistol + Haste). Aimed, cooldown 0.066 (4 ticks, 15 shots/s), damage 1.5, speed 1100, life 0.8 s. Mechanics: heavy_round, seeker, chain, and the new `sweep` (`weapons/traits/sweep.gd`: a fixed -6/-2/2/6/2/-2 degree pattern by shot count, no RNG). `launch_values {cooldown 0.033 (2 ticks, 30/s), damage 2.0, pierce 1}`.
+  - Rows only: Supernova (Nova + Might) and Thunderclap (Shotgun + Area), "M50.4c2"; Sunbeam and Barrage (with Duration / Amount); Halo and Singularity, "S11".
+  - `WeaponDB` adds `evolutions()`, `evolution_for(weapon)`, `evolution_built(id)` and `evolution_problems()`. The checks: the base is a base weapon, the catalyst pairs with it, a built row needs a built catalyst, and mechanics = the base's mechanics + a built signature. `get_weapon` resolves evolutions; `all()` / `ids()` stay the base weapons.
+- **Stats.** `value()` reads `Weapon.launch` (field -> value) first, then the item mods. `Weapon.label()` is the title in capitals ("MINIGUN"). The deep curve treats an evolution like a fusion: all mechanics at level 1.
+- **EVOLVE.** It is offered only when all of these hold: the `evolve` basic is live (it belongs to Auto, `Unlocks.CAMPAIGN_BASICS`), the base is at rank 6 (the cap), its catalyst is held, and the row is built.
+  - `PathRunner.evolve_option()` sets `PickOffer.evolve` on a level-up offer. EVOLVE is the choice **after** the cards (key `choose_(n+1)`) and is never a card, so the `pick_rng` draws never move.
+  - `_on_picked` with index `cards.size()` calls `_take_evolve`:
+    - `Loadout.evolve(from, into)` replaces the base in place and keeps the slot, the shots and the item mods.
+    - The level-up is spent (`picks`, `level_picks.evolve`) and an `evolved` event is logged.
+    - The first time: `SaveGame.learn_recipe` and a "New recipe: Minigun (pistol + haste)" patch note.
+    - Limits: one per weapon, 2 at most (`MAX_EVOLUTIONS`). An evolved base and a held evolution are never offered again.
+  - Steering: once `evolve` is live, a held weapon under rank 6 whose catalyst is held is the offer's first card (`steer()`).
+  - `evolve_ready_count` / `evolve_ready_t` count each time EVOLVE becomes available.
+- **The live nerf.**
+  - Action `nerf <s>` (it must sit on an `evolved` cue) applies the launch values to the evolution just made.
+  - `<s>` seconds of game time later (the pause stops the clock) they clear, with one glitch pulse (`_pulse`, which respects `reduce_flashing`; it does not count in `wipes`).
+  - The patch note is built from the effective numbers: "Balance: Minigun 30 -> 15 shots/s, damage 2 -> 1.5. It was too strong." With Might held, both damages are scaled; with Haste 5-6 it reads "30 -> 20".
+  - `stop()` lands a pending nerf; a path swap drops it.
+  - Whens: `evolve_ready N` (waits SAY_GAP after the last say, dropped once N evolutions exist), `evolved N`, `nerfed N`. Condition `evolved` (debrief). `SessionDef.problems()`: these need the `evolve` basic and `answer:path_auto`.
+  - The debrief changelog files a "Balance: " note under **Changed** ("~ Changed minigun 30 -> 15 shots/s, ...").
+- **S9 ("Fresh paint", Auto only).**
+  - At 84 s: `add evolve` and "New trick. A gun at rank six plus its passive evolves."
+  - `evolve_ready 1`: "It's glowing. Take EVOLVE."
+  - `evolved 1`: `nerf 8` and "Oh. Oh no. That came out strong."
+  - `nerfed 1`: "Too strong. Patched it down live. Still good, promise."
+  - Debrief, `answer:path_auto&evolved`: "You evolved one. I only nerfed it a little."
+  - `lines_stage2.md` regenerated (+5 lines). S8 has no `evolve` basic, so S8 Auto never steers or evolves.
+- **UI.**
+  - The gold EVOLVE card (`LevelCard.KIND_EVOLVE`, 264 x 356, flat and Pixel; Palette role `card_evolve`): the pink EVOLVE ribbon, the "PISTOL 6 MAX" + "HASTE" tiles, the merge arrows, the Minigun's own Pixel gun (`CardArt.GUNS`, from the mockup), the gold name plate, "fire rate x2.5, a sweeping stream", and "[n] evolve".
+  - The plain panel gets an "EVOLVE: ..." button.
+  - Raw HUD: a dim hint row ("EVOLVE next level: pistol lv 6 + haste -> MINIGUN", or "pistol lv 4/6 + haste -> MINIGUN"), inside the 60 px band.
+  - Rail ITEMS: an evolution's slot has a gold ring, a pink "EVO" tag and its name. The bottom line shows the hint (pink when EVOLVE is ready).
+  - The pause menu shows "Evolutions: Minigun (pistol + haste)" below the fusion recipes.
+  - Pixel shot `shot_minigun_player` (a warm tracer) and a tier-0 `minigun` glyph.
+- **Bot.**
+  - `auto_choice` rule 1: take EVOLVE when offered, unless `--probe=no_evolve`.
+  - The `[botrun] auto:` line adds `evolved= nerf= nerfed_line= launch_dps= pre_dps= launch_live= pre_live= evolve_kills=`. Damage is counted in the tool from `entity_damaged` (no sim change).
+  - A new `[botrun] auto_depth:` summary per set.
+  - `check.ps1`'s S9 Auto row asserts `evolved=1/1 ... nerf_landed=1/1 nerfed_before_clear=1/1`.
+- **Telemetry** (additive): `evolutions` ({id, t, from, catalyst}), `nerf`, `evolve_ready_s`.
+- **Deviations.**
+  1. The gate script was copied from `.check/m50_4b/gates.sh`, which is newer than the brief's `m48_5a`.
+  2. This branch has no S10, so S10's `add evolve` (design T18) is not built.
+  3. This branch has no `enemy_total` (S9 is "survive 150 s"). So the `human_pace` row "EVOLVE at <= 50 % of enemy_total killed" is measured as kills at EVOLVE / kills at the end (`evolve_half`). "Said before the clear" is measured as "the `nerfed 1` cue fired before the session ended": the line is queued at that point, and the speech queue runs on the wall clock, which a headless bot outruns.
+  4. `check.ps1` runs one seed, so its assertion is on that seed's summary (1/1), not the design's 14/16.
+  5. The EVOLVE card is 264 wide (the sheet's 256 + the gold rim). Its window is 88 high so the name plate and the effect line stay inside the card.
+  6. (Withdrawn by the review: the banner now counts EVOLVE, "pick 1 of n" with n = cards + 1, as in the mockup.)
+  7. `SaveGame.parse` keeps evolution ids in `recipes` (same key, design Q12).
+  8. New test file `test_evolve.gd` (26 tests) instead of growing `test_auto_items`.
+  9. The atlas digest moves (`shot_minigun_player`): `test_pixel_skin` now pins `95eb8f0b...` (was `d07379b4...`).
+- **Touch points with the Stage 1 rework and Arcade (for the merge):**
+  - `s2_03_paint.tres`: 6 cues and a debrief line appended. Move them to the rework's S9 timings; S10 gets `add evolve`.
+  - `campaign/cue.gd` (3 whens, `nerf`), `campaign/session_runner.gd` (ctx, `_waits`, the `nerf` branch of `_fire`), `campaign/session_def.gd` (evolve problems), `campaign/line.gd` (`evolved`), `campaign/campaign_db.gd` (`line_context.evolved`, telemetry).
+  - `core/unlocks.gd` (`evolve` basic), `paths/auto.tres` (basics), `core/save_game.gd` (recipes parse).
+  - `ui/pick_panel.gd` (the EVOLVE choice), `ui/level_card.gd`, `ui/debrief_screen.gd` (Balance -> Changed), `ui/pause_menu.gd`, `ui/rail/rail_state.gd` and `rail_modules.gd` (Arcade's rail T7 / T11), `systems/palette.gd` (`card_evolve`).
+  - `systems/skins/art/grids.gd` and `skins.gd`. The atlas digest moves, so Arcade's digest must be re-pinned after the merge.
+  - `tools/bot_runs.gd` (rule 1, `auto_depth`), `tools/check.ps1` (the S9 Auto assertion), `lines_stage2.md` (regenerate), `main.gd` (BUILD).
+- **Numbers.**
+  - GUT, one file at a time (no full suite): 41 files, 0 failing, 0 script errors (`.check/m50_4c1/gut_affected.txt`, `gut_affected2.txt`, `gut_affected3.txt`, `gut_evolve.log`). test_evolve passes 26/26.
+  - Gates (`.check/m50_4c1/gates.sh`): 88 summaries, 0 failures, sheet exit 0, no script error in any log.
+  - S9 Auto was recorded in `.check/ref_m50_4c1/`. Against `ref_m50_4b` it first differs at hash 716 / 512 (seeds 1 / 2). It replays equal twice, with skins off, in Pixel and in the shell (0 failures).
+  - S8 Auto is equal to `ref_m50_4b` and Arsenal to `ref_m50_1b`. S7, Survival, v6, gauntlet, campaign, S4, pixel, shell and pause are all equal.
+- **Bots (8 seeds; the design asks for 16; `.check/m50_4c1/bots/`).**
+
+  | Set | Result | Target (scaled to 8) | Met? |
+  |---|---|---|---|
+  | Invincible S9 Auto, evolved | 8/8, median 91.8 s (85.2-96.8) | >= 14/16 (7/8), median <= 100 s | yes |
+  | Invincible S9 Auto, nerf landed | 8/8 | n/n | yes |
+  | Invincible S9 Auto, `nerfed 1` before the end | 8/8 | >= 14/16 (7/8) | yes |
+  | Invincible S9 Auto, wins / level | 8/8, max level 17 | | |
+  | `human_pace` S9 Auto, EVOLVE in the first half of the kills | 5/8 (46-55 %); evolved 8/8, median 90.4 s, nerf 8/8 | >= 12/16 (6/8) | **no (by one seed)** |
+  | Mortal S9 Auto, deaths | 7/8, median 83.2 s (evolved 4/8); with `no_evolve` 7/8, 81.0 s | <= 8/16, within 6 of both | **no** (as M50.4b: 7/8) |
+  | Mortal S9 Arsenal / Survival | 3/8 / 1/8 | | |
+  | Invincible S8 Auto | 8/8 wins, evolved 0/8 (no basic) | unchanged | yes |
+  | Mortal S8 Auto | 6/8, 77.5 s | as M50.4b (6/8, 77.5 s) | equal |
+
+  - Damage spike (reported only), invincible S9: player damage per second in the launch window was 4.7-11.5, against 4.5-13.0 in the 8 s before. Median live enemies: 7-10 against 8-14. S9 is spawn-bound, so the 30/s stream shows as fewer enemies alive, not as more damage.
+  - `human_pace` misses by one seed. `add evolve` comes at 84 s of a 150 s survive session, so EVOLVE lands near half the kills whatever the pace. The design's fallback (`add evolve` at 0) was written for the rework's clear S9 and would move the beat, so it was not applied (AGENTS 6). See section 9.
+  - Mortal S9 Auto: EVOLVE does not change the deaths (7/8 with and without it). The runs die before 84 s or soon after. No retune.
+- **Captures.** Made with `.check/m50_4c1/capture_evolve.gd` (windowed, inert save, S9 Auto, seed 1, Pixel look) and `card_preview.gd`.
+  - `evolve_choice.png`: LEVEL 10 with Laser NEW, Haste 3 > 4, and the gold EVOLVE card (Pistol 6 MAX + Haste -> MINIGUN, "fire rate x2.5, a sweeping stream", "[3] evolve"). The HUD hint row is pink.
+  - `minigun_launch.png`: 2 s after EVOLVE. The rail slot reads EVO / MINIGUN.
+  - `minigun_nerfed.png` and `rail_items_evo.png`: after the nerf. Tracers on screen, the chat shows "Oh. Oh no. That came out strong.", ITEMS 2+1 with the EVO slot.
+  - `pause_recipes_evo.png`: "Evolutions: Minigun (pistol + haste)" below the pause buttons.
+  - `changelog_nerf.png`: the v0.8.2 patch slip with "+ Added new recipe: Minigun (pistol + haste)" and "~ Changed minigun 30 -> 15 shots/s, damage 2 -> 1.5. It was too strong.", and the debrief line "You evolved one. I only nerfed it a little."
+  - `preview_evolve_{flat,pixel}_{2,3}.png`: the panel alone with 2 and 3 cards (keys 3 / 4).
+  - In the capture only, the speech queue is made to keep up with game time, because `--fixed-fps` runs faster than the wall clock.
+- **Review (2 findings, 1 upheld, all fixed):** (1) the level-up banner left EVOLVE out of its choice count ("pick 1 of 2" over three choices, keys 1-3), against the approved `Auto_Choices` mockup ("pick 1 of 3" for 2 cards + EVOLVE): `PickPanel._build_dressed` now sets `_banner.count` to the cards plus 1 when the offer has EVOLVE. Presentation only, no hash moves. The new assert in `test_evolve_is_the_choice_after_the_cards_and_never_moves_the_draw` fails without the fix (1 vs 2); `test_a_level_up_opens_the_dressed_cards_flat_then_pixel` pins the plain count without EVOLVE. `evolve_choice.png` and the `preview_evolve_*` shots were re-taken and read "pick 1 of 3" (2 cards + EVOLVE) and "pick 1 of 4" (3 cards + EVOLVE). Not upheld: 1 finding.
+- **`BUILD = "M50.4c1"`.**
+- **Still open (defaults taken):** see section 9 (the `human_pace` EVOLVE share, mortal S9 Auto) and the design's Q3-Q6 and Q13 in PLAYTEST.
+
 ## 7. What v9 must answer (M43 report, G14a, G14b, G14)
 **Asked in the M43 report (one line each; none blocks M43–M50; unanswered = the default in 9):**
 1. **Length:** Stage 1 is ~7 min against ~20, Stage 2 is planned at 30–40 against 45, and the campaign target is ~2 h 30. Grow now (a session in a stage's middle) or later?
@@ -1754,6 +1851,8 @@ Built on `build/auto` (M50.4a), without the Stage 1 rework or Arcade. Source: se
 ---
 
 ## 9. Still open (each with a proposed default)
+- **M50.4c1, `human_pace` EVOLVE share (6.22):** in 5/8 runs EVOLVE comes within the first half of the kills (design: 12/16 against `enemy_total`, which this branch does not have). Default: no change here. Re-measure on the rework's clear S9 after the merge, then apply the design's fallbacks (nerf 8 -> 6, `add evolve` at 0).
+- **M50.4c1, mortal S9 Auto (6.22):** 7/8 deaths with or without EVOLVE (Arsenal 3/8, Survival 1/8). Default: no retune from bot numbers (AGENTS 6), as in M50.4b.
 - **M50.4b, items by 60 s (6.21):** in 1/8 invincible S8 Auto runs the bot holds 2 items by 60 s (design: 14/16). The second item arrives at the first level-up after the 42 s line where the bot rule picks it over a rank. Default: no change. At the playtest, ask whether the 42 s Area line should come with an Area card (a `give area` at 42 s).
 - **M50.4b, mortal S9 Auto (6.21):** 7/8 deaths, against Arsenal 3/8 and Survival 1/8 (design: Auto <= 8/16 and within 6 of both). Default: no retune from bot numbers (AGENTS 6). The design's "too weak" fallback (crowd spawn mult 1.6 -> 1.5) waits for the owner's S9 play.
 - **M50.4b, mortal S8 Auto (6.21, follows the M50.4a item):** 5/8 deaths, median 95.1 s, below the parent's 116.2 s; after the review's Area fix 6/8, 77.5 s (bot numbers). Default: same as above.

@@ -76,10 +76,24 @@ const GUN_LAUNCHER := ["...........LLLL..............", "...........LLLY........
 const GUN_LAUNCHER_LEGEND := {"D": &"warn_dk", "K": &"ink", "L": &"metal_lo", "M": &"metal", "W": &"warn",
 		"Y": &"gold", "b": &"crate_hi", "h": &"gold_hi", "w": &"warn_hi", "y": &"gold_lo"}
 
+## M50.4c1: the Minigun of the sheet's EVOLVE card (a drum, a barrel bundle with two gold
+## bands, an ammo belt hanging off the drum).
+const GUN_MINIGUN := ["...LLLLLLL.....................", "...L.....L.....................",
+		"...L.....L.....................", "...L.....L.....................", ".bbbbbbbbbb...hY.......YY......",
+		".bbbbbbbbbbmmmhYmmmmmmmYYmmm...", ".yyyyyyyyyymmmhYmmmmmmmYYmmm.Y.", ".yyyyyyyyyyCCChYCCCCCCCYYCCC.Y.",
+		".yyddddddyymmmhYmmmmmmmYYmmmmYh", ".yyyyyyyyyyMMMhYMMMMMMMYYMMMMYh", ".yyyyyyyyyyMMMhYMMMMMMMYYMMMMYh",
+		".yyddddddyyCCChYCCCCCCCYYCCC.Y.", ".yyyyyyyyyyLLLhYLLLLLLLYYLLL.Y.", ".yyyyyyyyyyLLLhYLLLLLLLYYLLL...",
+		".yyyyyyyyyy...hY.......yy......", ".dddddddddd....................", "...YYYY.yyy....................",
+		"...yyyy.yyy....................", "..YYYY..yyy....................", "..yyyy..yyy....................",
+		".YYYY..........................", ".yyyy..........................", "YYYY..........................."]
+const GUN_MINIGUN_LEGEND := {"C": &"cell", "L": &"metal_lo", "M": &"metal", "Y": &"gold", "b": &"crate_hi",
+		"d": &"crate_lo", "h": &"gold_hi", "m": &"metal_hi", "y": &"gold_lo"}
+
 ## Weapon icon -> [grid, legend].
 const GUNS := {
 	&"dot": [GUN_PISTOL, GUN_PISTOL_LEGEND], &"fan": [GUN_SHOTGUN, GUN_SHOTGUN_LEGEND],
 	&"line": [GUN_LASER, GUN_LASER_LEGEND], &"ball": [GUN_LAUNCHER, GUN_LAUNCHER_LEGEND],
+	&"minigun": [GUN_MINIGUN, GUN_MINIGUN_LEGEND],
 }
 
 static var _cache := {}

@@ -23,6 +23,11 @@ var fuse := {}
 ## it was drawn at and the path's rank cap, for the dressed cards (LevelCard). 0: a plain panel.
 var level := 0
 var cap := 0
+## M50.4c1 (Auto depth design 2.5): the level-up's EVOLVE choice ({} none): {from, into,
+## catalyst, rank, text}. Like Arsenal's FUSE it is the choice after the cards (key choose_4 on
+## 3 cards, choose_3 on 2) and never replaces one, so the pick_rng draws do not change. Taking it
+## spends the level-up (PathRunner._take_evolve).
+var evolve := {}
 
 const HP := &"hp"
 ## M50.4a (Auto depth design 2.8): the second filler, +Loadout.BOOST_STEP damage this session.
@@ -87,6 +92,10 @@ static func candidate(loadout: Loadout, def: PathDef, id: StringName) -> Diction
 	if w == null:
 		return {}
 	var held := loadout.held(id)
+	if held == null and loadout.shared_slots and loadout.evolution_of(id) != null:
+		return {}   # M50.4c1: evolved; the base never comes back
+	if held != null and w.is_evolution():
+		return {}   # M50.4c1: an evolution has no further ranks
 	if held != null:
 		var top := mini(Loadout.MAX_RANK, w.max_rank())
 		if held.deep():
@@ -149,6 +158,13 @@ static func card_line(w: WeaponDef, rank: int, upgrade: bool, deep := false) -> 
 	if upgrade:
 		return "%s  (%s -> %s)" % [text, ROMAN[rank - 2], ROMAN[rank - 1]]
 	return "%s  (new)" % text
+
+
+## M50.4c1: the EVOLVE choice's line, "EVOLVE: Pistol 6 + Haste -> MINIGUN: a stream of
+## bullets." (the plain panel's text and the logs').
+static func evolve_line(from: WeaponDef, item: ItemDef, into: WeaponDef, rank: int) -> String:
+	return "EVOLVE: %s %d + %s -> %s: %s" % [from.title, rank, item.title, into.title.to_upper(),
+			into.pitch.to_lower().trim_suffix(".") + "."]
 
 
 func ids() -> Array[StringName]:

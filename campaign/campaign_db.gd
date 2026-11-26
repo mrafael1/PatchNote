@@ -545,8 +545,11 @@ func line_context(s: SessionDef, outcome: StringName = &"", hits := -1, events: 
 	# M50.1b: the `fused` / `misfused` conditions (this attempt's run log; Arsenal only).
 	ctx.fused = false
 	ctx.misfused = false
+	ctx.evolved = false   # M50.4c1: an evolution this attempt (Auto only)
 	for e: Dictionary in RunState.run_log:
-		if e.get("event") == &"fused":
+		if e.get("event") == &"evolved":
+			ctx.evolved = true
+		elif e.get("event") == &"fused":
 			ctx.fused = true
 		elif e.get("event") == &"fuse_fail":
 			ctx.misfused = true
@@ -702,6 +705,10 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 			for it in lo.items:
 				items_end[String(it.def.id)] = it.level
 		out.items_end = items_end
+		# M50.4c1 (additive): the evolutions made, the nerf and when EVOLVE first lit (-1 never).
+		out.evolutions = (runner.get(&"evolutions") as Array).duplicate(true)
+		out.nerf = (runner.get(&"nerf") as Dictionary).duplicate()
+		out.evolve_ready_s = float(runner.get(&"evolve_ready_t"))
 	# M50.1a (additive, Arsenal's packs only): packs, what was taken, ranks at the end.
 	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
 		out.packs = int(runner.call(&"packs"))

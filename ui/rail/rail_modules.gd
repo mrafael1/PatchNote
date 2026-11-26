@@ -392,7 +392,11 @@ func _items(r: Rect2, d: Dictionary) -> void:
 		draw_rect(Rect2(Vector2(roundf(tick), bar.position.y), Vector2(p, bar.size.y)), Color(RailArt.c(&"ink"), 0.5))
 		tick += 38 * sc
 	_num(_d(r, Vector2(486, 177)), "%d%%" % roundi(100.0 * xp), 18, RailArt.c(&"text"))
-	_small(r, Vector2(bx, 198), "next level: pick 1 of 3", RailArt.c(&"gold"))
+	var hint := String(d.get("hint", ""))
+	if hint == "":
+		_small(r, Vector2(bx, 198), "next level: pick 1 of 3", RailArt.c(&"gold"))
+	else:   # M50.4c1: the evolve hint (pink when EVOLVE is ready, dim while ranking up)
+		_small(r, Vector2(bx, 198), hint, RailArt.c(&"pink") if hint.begins_with("EVOLVE") else RailArt.c(&"dim"))
 
 
 func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bool) -> void:
@@ -404,7 +408,8 @@ func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bo
 		RailFrame.text(self, sr.position + Vector2(0, 46 * sc), "+", RailLayout.text_px(24, sc), RailArt.c(&"hi"), true, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x)
 		return
 	var rank := int(item.rank)
-	var maxed := rank >= cap
+	var evo := bool(item.get("evo", false))   # M50.4c1: an evolution: gold ring, "EVO", no pips
+	var maxed := rank >= cap and not evo
 	RailArt.block(self, sr, RailArt.c(&"passive") if passive else RailArt.c(&"paper"), 2 * p, roundf(4 * sc),
 			RailArt.c(&"passive_lo") if passive else RailArt.c(&"paper_lo"))
 	if maxed and not passive:
@@ -412,6 +417,19 @@ func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bo
 				Rect2(Vector2(sr.end.x - 2 * p, sr.position.y), Vector2(2 * p, sr.size.y))]:
 			draw_rect(side, RailArt.c(&"gold"))
 	var fs := RailLayout.text_px(12, sc)
+	if evo:
+		for k in 2:
+			var g := sr.grow(-(k * 2 + 1) * p)
+			draw_rect(g, RailArt.c(&"gold") if k == 0 else RailArt.c(&"gold_hi"), false, p)
+		var ew := RailFrame.text_w("EVO", fs, true) + 6 * sc
+		var er := Rect2(Vector2(sr.position.x + 8 * sc, sr.position.y + 6 * sc), Vector2(ew, roundf(14 * sc)))
+		RailArt.block(self, er, RailArt.c(&"pink"), p)
+		RailFrame.text(self, er.position + Vector2(3 * sc, 0), "EVO", fs, RailArt.c(&"ink"), true)
+		WeaponGlyph.draw_card(self, item.icon, sr.position + Vector2(sr.size.x * 0.5, 46 * sc), roundf(minf(48.0, w - 12.0) * sc), Color.WHITE)
+		var et := String(item.title).to_upper()
+		RailFrame.text(self, sr.position + Vector2(0, 74 * sc), et, RailFrame.fit(et, RailLayout.text_px(16, sc), sr.size.x - 8 * sc, true, 8),
+				RailArt.c(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, sr.size.x)
+		return
 	RailFrame.text(self, sr.position + Vector2(8, 6) * sc, "LV %d" % rank, fs, RailArt.c(&"passive_ink") if passive else RailArt.c(&"lv_ink"), true)
 	if maxed:
 		var mw := RailFrame.text_w("MAX", fs, true) + 6 * sc

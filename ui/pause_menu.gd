@@ -279,17 +279,29 @@ func open() -> bool:
 
 
 ## M50.1b: "Recipes: Prism (shotgun + laser)" for the recipes the save knows ("" none).
+## M50.4c1: evolutions learned (same save key) go on their own "Evolutions:" line.
 static func recipes_text() -> String:
 	var parts: Array[String] = []
+	var evos: Array[String] = []
 	for id in SaveGame.recipes():
 		var f := WeaponDB.get_weapon(id)
 		if f == null:
+			continue
+		if f.is_evolution():
+			evos.append("%s (%s + %s)" % [f.title, f.base, f.catalyst])
+			continue
+		if not f.is_fusion():
 			continue
 		var names: Array[String] = []
 		for p in f.parents:
 			names.append(String(p))
 		parts.append("%s (%s)" % [f.title, " + ".join(names)])
-	return "Recipes: " + ", ".join(parts) if not parts.is_empty() else ""
+	var lines: Array[String] = []
+	if not parts.is_empty():
+		lines.append("Recipes: " + ", ".join(parts))
+	if not evos.is_empty():
+		lines.append("Evolutions: " + ", ".join(evos))
+	return "\n".join(lines)
 
 
 ## Resume.

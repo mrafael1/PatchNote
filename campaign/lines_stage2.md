@@ -107,6 +107,10 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal fused 1: (proud) A Prism! That recipe goes in the book.
 - answer:path_auto holds haste: (happy) Haste came back with you. Guns fire faster.
 - answer:path_auto at 94: (thinking) Might makes everything hit harder. Nova evolves with it.
+- answer:path_auto at 84: (happy) New trick. A gun at rank six plus its passive evolves.
+- answer:path_auto evolve_ready 1: (happy) It's glowing. Take EVOLVE.
+- answer:path_auto evolved 1: (surprised) Oh. Oh no. That came out strong.
+- answer:path_auto nerfed 1: (guilty) Too strong. Patched it down live. Still good, promise.
 ### Reveal lines (one per new enemy drawn in, in order)
 - (happy) Another one!
 - (proud) Drew that one too.
@@ -120,6 +124,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal (thinking) The gems are still in the drawer.
 - answer:path_survival (thinking) The cards are still in the drawer. And the gems.
 - answer:path_arsenal&fused (proud) You fused one. I'm keeping the recipe.
+- answer:path_auto&evolved (proud) You evolved one. I only nerfed it a little.
 
 ## fork_path
 - Question: Which shooter do we make?

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="WeaponDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://weapons/weapon_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"thunderclap"
+title = "Thunderclap"
+mode = &"aimed"
+icon = &"thunderclap"
+pitch = "Every volley claps a blast ahead."
+card_text = PackedStringArray("Thunderclap: Every volley claps a blast ahead.")
+base = &"shotgun"
+catalyst = &"area"
+built_in = "M50.4c2"

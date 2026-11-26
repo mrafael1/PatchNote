@@ -54,11 +54,17 @@ extends RefCounted
 ##   "fused 1: say ..."        once n fusions were made this session
 ## M50.4b review (Auto's passive items):
 ##   "holds haste: say ..."   once the player holds that item (a give only offers it first)
+## M50.4c1 (Auto's evolutions, Auto depth design 6):
+##   "evolve_ready 1: say ..."   the n-th time an EVOLVE choice became available (dropped once
+##                               n evolutions were made)
+##   "evolved 1: nerf 8"         once n evolutions were made; `nerf <s>` arms the evolution's
+##                               launch numbers and patches them down s seconds of game time later
+##   "nerfed 1: say ..."         once n nerfs landed
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
-		&"level", &"picked", &"fused", &"fuse_ready", &"holds"]
+		&"level", &"picked", &"fused", &"fuse_ready", &"holds", &"evolve_ready", &"evolved", &"nerfed"]
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
-		&"drop", &"look", &"boss", &"skin", &"release", &"fuse"]
+		&"drop", &"look", &"boss", &"skin", &"release", &"fuse", &"nerf"]
 ## The cue times that take no number (touch takes one or none: a deadline).
 const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
@@ -135,7 +141,7 @@ static func parse(p_source: String) -> Cue:
 			return c
 		c.value = head[1].to_int()
 		c.at_seconds = head[3].to_float() if head.size() == 4 else -1.0
-	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready"]:
+	elif c.when in [&"level", &"picked", &"boss_hp", &"fused", &"fuse_ready", &"evolve_ready", &"evolved", &"nerfed"]:
 		var low := 0 if c.when == &"boss_hp" else 1
 		var high := 100 if c.when == &"boss_hp" else 1000000
 		if head.size() != 2 or not head[1].is_valid_int() or head[1].to_int() < low or head[1].to_int() > high:
@@ -252,6 +258,11 @@ static func parse(p_source: String) -> Cue:
 		&"release":
 			if words.size() != 1:
 				c.problem = "cue '%s': release takes nothing" % p_source
+		&"nerf":
+			if words.size() != 2 or not words[1].is_valid_float() or words[1].to_float() <= 0.0:
+				c.problem = "cue '%s': nerf takes seconds (> 0)" % p_source
+			else:
+				c.seconds = words[1].to_float()
 		&"fuse":
 			if words.size() != 2 or words[1] != "fail":
 				c.problem = "cue '%s': fuse takes 'fail'" % p_source
@@ -323,6 +334,12 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("fused", 0)) >= int(value)
 		&"fuse_ready":
 			return int(ctx.get("fuse_ready", 0)) >= int(value)
+		&"evolve_ready":   # M50.4c1: PathRunner.evolve_ready_count
+			return int(ctx.get("evolve_ready", 0)) >= int(value)
+		&"evolved":
+			return int(ctx.get("evolved", 0)) >= int(value)
+		&"nerfed":
+			return int(ctx.get("nerfed", 0)) >= int(value)
 		&"holds":   # M50.4b review: the held item ids (PathRunner's Loadout; [] without one)
 			return held in (ctx.get("items", []) as Array)
 	return false
@@ -333,4 +350,6 @@ func due(ctx: Dictionary) -> bool:
 func expired(ctx: Dictionary) -> bool:
 	if when == &"fuse_ready":   # M50.1b review: the n-th link was already fused, so it is gone
 		return int(ctx.get("fused", 0)) >= int(value)
+	if when == &"evolve_ready":   # M50.4c1: the n-th EVOLVE was already taken
+		return int(ctx.get("evolved", 0)) >= int(value)
 	return when == &"touch" and value > 0.0 and float(ctx.get("clock", 0.0)) >= value

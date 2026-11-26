@@ -104,7 +104,13 @@ extends SceneTree
 ##   ammo_dry_share and crates taken per run: median min-max).
 ##   --probe=random_picks         (M50.4b) a level-up pick is always the pick_rng draw (no
 ##                                auto_choice rule: the M50.4a behaviour)
-##   --probe=no_evolve            (M50.4b) the EVOLVE choice is never taken (M50.4c1's; a no-op now)
+##   --probe=no_evolve            (M50.4b) the EVOLVE choice is never taken (M50.4c1)
+##   (M50.4c1) The "[botrun] auto:" line adds evolved=<id@t|-> nerf=<ok@t|pending|-> nerfed_line=
+##   <before_end|after_end|none> launch_dps= pre_dps= (player damage on enemies per second over the
+##   nerf's launch window and the 8 s before it, counted here from entity_damaged; no sim change)
+##   launch_live= pre_live= (median live enemies) evolve_kills=<kills at EVOLVE>/<kills at the end>,
+##   and an "auto_depth:" summary per run set: evolved=n/N median_t= nerf_landed=n/n
+##   nerfed_before_clear=n/N max_level= evolve_half=n/N (EVOLVE within the first half of the kills)
 ##   (M50.4b) human_pace and human also scale Auto's level thresholds x1.5 (threshold_mult)
 ##   (M50.4b) A level-up offer that shows an item card is chosen by BotRuns.auto_choice, one
 ##   static rule after the pick_rng draw, shared with tools/run_hash.gd
@@ -575,6 +581,12 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		var wid := String(p.get(&"weapon_id")) if p.get(&"weapon_id") != null else ""
 		if wid != "" and p.get(&"faction") == &"player":
 			(cards_run.shots as Dictionary)[wid] = int((cards_run.shots as Dictionary).get(wid, 0)) + 1)
+	# M50.4c1: player damage on enemies per tick (time, amount) and live enemies per second.
+	var dmg_run := {"hits": [], "live": []}
+	bus.entity_damaged.connect(func(target: Node, info: RefCounted) -> void:
+		if info.get(&"faction") == &"player" and is_instance_valid(target) and target.is_in_group(&"enemy"):
+			(dmg_run.hits as Array).append([float(run_state.game_time), float(info.get(&"amount"))]))
+	var auto_runs: Array = []      ## M50.4c1: per Auto (levelups) run, for the auto_depth summary
 	var arsenal_runs: Array = []   ## {offers, gaps, mean, tail, fired} per Arsenal run (M46)
 	var tryout_runs: Array = []    ## {swaps, leftovers, picked_at} per tryout run (M47)
 	for spec in specs:
@@ -607,6 +619,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		cards_run.offers = []
 		cards_run.cards_at = -1.0
 		cards_run.shots = {}
+		dmg_run.hits = []
+		dmg_run.live = []
+		var next_live := 0.0
 		var air := 0.0
 		var dash_name: String = "none" if dash_arg == "none" else String(game.player.dasher.style)
 		var aim_name := "aim" if game.player.dasher.aims else "move"
@@ -636,6 +651,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 				_force_loadout(loadout)
 				runner.call(&"freeze")
 			_choose_pick(game)
+			if float(run_state.game_time) >= next_live:
+				next_live += 1.0
+				(dmg_run.live as Array).append([float(run_state.game_time), get_nodes_in_group(&"enemy").size(), int(run_state.kills)])
 			if dash_arg == "none":
 				game.player.dash_locked = true   # a cue's apply_basics would unlock it
 			var t0: float = run_state.game_time
@@ -763,7 +781,9 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		# M50.4a (Auto depth design 9): Auto's own line, never on the session line.
 		var auto_def: Resource = runner.get(&"def") if path_text != "" else null
 		if tryout_text == "" and auto_def != null and auto_def.get(&"growth") == &"levelups":
-			print(_auto_line(only, run_seed, runner, loadout))
+			var depth := _auto_depth(runner, dmg_run, int(rec.get("kills", run_state.kills)), duration, game.session_runner)
+			auto_runs.append(depth)
+			print(_auto_line(only, run_seed, runner, loadout) + String(depth.text))
 		game.debrief.close()
 		root.remove_child(game)
 		game.free()
@@ -826,6 +846,18 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 				var vals: Array = surv.map(pair[1])
 				parts.append("%s median=%.2f (%.2f-%.2f)" % [pair[0], _median(vals), vals.min(), vals.max()])
 			print("[botrun] survival: %s n=%d %s" % [only, surv.size(), " ".join(parts)])
+	if not auto_runs.is_empty():
+		var evolved := auto_runs.filter(func(r: Dictionary) -> bool: return float(r.evolve_t) >= 0.0)
+		var landed := auto_runs.filter(func(r: Dictionary) -> bool: return bool(r.nerf_landed))
+		var armed := auto_runs.filter(func(r: Dictionary) -> bool: return bool(r.nerf_armed))
+		var before := auto_runs.filter(func(r: Dictionary) -> bool: return r.nerfed_line == "before_end")
+		var half := auto_runs.filter(func(r: Dictionary) -> bool: return bool(r.half))
+		print("[botrun] auto_depth: %s evolved=%d/%d median_t=%.1f nerf_landed=%d/%d nerfed_before_clear=%d/%d max_level=%d evolve_half=%d/%d per_seed_t=%s" % [
+			only, evolved.size(), auto_runs.size(),
+			_median(evolved.map(func(r: Dictionary) -> float: return float(r.evolve_t))) if not evolved.is_empty() else -1.0,
+			landed.size(), armed.size(), before.size(), auto_runs.size(),
+			auto_runs.map(func(r: Dictionary) -> int: return int(r.level)).max(), half.size(), auto_runs.size(),
+			",".join(auto_runs.map(func(r: Dictionary) -> String: return "%.1f" % float(r.evolve_t)))])
 	if not tryout_runs.is_empty():
 		var swaps_ok := tryout_runs.filter(func(r: Dictionary) -> bool: return r.swaps == tryout_runs[0].swaps).size()
 		var clean := tryout_runs.filter(func(r: Dictionary) -> bool: return int(r.leftovers) == 0).size()
@@ -1361,6 +1393,54 @@ static func _auto_line(session_id: StringName, run_seed: int, runner: Node, lo: 
 			int(lp.get("item_up", 0))] + " item_t=%s" % _item_times(runner)
 
 
+## M50.4c1: one Auto run's evolution fields (the auto: line's tail) and the summary's values.
+static func _auto_depth(runner: Node, dmg_run: Dictionary, kills_end: int, duration: float, sr: Node) -> Dictionary:
+	var evos: Array = runner.get(&"evolutions")
+	var nerf: Dictionary = runner.get(&"nerf")
+	var log_rs: Array = runner.get_node("/root/RunState").get(&"run_log")
+	var evolve_t := float(evos[0].t) if not evos.is_empty() else -1.0
+	var armed := not nerf.is_empty()
+	var landed_t := float(nerf.get("t_landed", -1.0)) if armed else -1.0
+	# The session's `nerfed 1` say cue fired (a cue fires only while the session runs).
+	var nerfed_line := "none"
+	var cues: Array = sr.get(&"_cues") if sr != null else []
+	for i in cues.size():
+		if cues[i].get(&"when") != &"nerfed":
+			continue
+		nerfed_line = "after_end" if landed_t >= 0.0 else "none"
+		for e: Dictionary in log_rs:
+			if e.get("event") == &"cue" and int(e.get("index", -1)) == i:
+				nerfed_line = "before_end"
+	var kills_at := -1
+	if evolve_t >= 0.0:
+		for l: Array in dmg_run.live:
+			if float(l[0]) <= evolve_t:
+				kills_at = int(l[2])
+	var launch_dps := 0.0
+	var pre_dps := 0.0
+	var launch_live := 0.0
+	var pre_live := 0.0
+	if armed and landed_t >= 0.0:
+		var t0 := float(nerf.t_armed)
+		var span := maxf(0.1, landed_t - t0)
+		for h: Array in dmg_run.hits:
+			if float(h[0]) >= t0 and float(h[0]) < landed_t:
+				launch_dps += float(h[1]) / span
+			elif float(h[0]) >= t0 - span and float(h[0]) < t0:
+				pre_dps += float(h[1]) / span
+		launch_live = _median((dmg_run.live as Array).filter(func(l: Array) -> bool:
+			return float(l[0]) >= t0 and float(l[0]) < landed_t).map(func(l: Array) -> int: return int(l[1])))
+		pre_live = _median((dmg_run.live as Array).filter(func(l: Array) -> bool:
+			return float(l[0]) >= t0 - span and float(l[0]) < t0).map(func(l: Array) -> int: return int(l[1])))
+	var text := " evolved=%s nerf=%s nerfed_line=%s launch_dps=%.1f pre_dps=%.1f launch_live=%.1f pre_live=%.1f evolve_kills=%s" % [
+			",".join(evos.map(func(e: Dictionary) -> String: return "%s@%.1f" % [e.id, float(e.t)])) if not evos.is_empty() else "-",
+			("ok@%.1f" % landed_t if landed_t >= 0.0 else "pending") if armed else "-", nerfed_line, launch_dps, pre_dps,
+			launch_live, pre_live, "%d/%d" % [kills_at, kills_end] if kills_at >= 0 else "-"]
+	return {"text": text, "evolve_t": evolve_t, "nerf_armed": armed, "nerf_landed": landed_t >= 0.0,
+			"nerfed_line": nerfed_line, "level": int(runner.call(&"level")),
+			"half": kills_at >= 0 and kills_at * 2 <= kills_end}
+
+
 ## M50.4b: when each item joined, "haste@39.2,area@43.0" (game time of its first pick), or "-".
 static func _item_times(runner: Node) -> String:
 	var db: GDScript = load("res://weapons/weapon_db.gd")
@@ -1406,6 +1486,10 @@ static func auto_choice(panel: Node, lo: Node, probe: String, drawn: int) -> int
 	var cards: Array = panel.get(&"offer").get(&"cards")
 	if probe in ["random_picks", "first_pick"] or lo == null or not is_instance_valid(lo):
 		return drawn
+	# (1) M50.4c1: EVOLVE (the choice after the cards) unless --probe=no_evolve
+	var ev: Dictionary = panel.get(&"offer").get(&"evolve")
+	if not ev.is_empty() and probe != "no_evolve":
+		return cards.size()
 	if not cards.any(func(c: Dictionary) -> bool: return bool(c.get("item", false))):
 		return drawn
 	# Loaded, not named: this tool compiles before the autoloads those classes reach.

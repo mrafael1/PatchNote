@@ -60,6 +60,15 @@ const RANK_KEYS_EXTRA: Array[String] = ["traits"]
 ## field). Empty: Weapon.DEFAULT_FIELDS (haste: cooldown, might: damage, area: blast_radius).
 ## The well sets {might: damage}: its `cooldown` is its field's life, never Haste's.
 @export var stat_fields: Dictionary = {}
+## M50.4c1 (Auto depth design 5): an evolved weapon (weapons/evolutions/<id>.tres) names its
+## base weapon and its catalyst item (ItemDef.pairs == base). It is held at rank 1 with all its
+## `mechanics` at level 1 (the base's A, B, C plus its signature), has no further ranks, and
+## `built_in` says when an unbuilt row plays. Empty `base`: not an evolution.
+@export var base: StringName = &""
+@export var catalyst: StringName = &""
+## M50.4c1: the "too strong" numbers of S9's first evolution (field -> value), read before the
+## item mods while Weapon.launch holds them (a `nerf` cue arms them, then patches them away).
+@export var launch_values: Dictionary = {}
 
 
 ## A field's value at `rank`: the rank's override, else the field.
@@ -95,6 +104,11 @@ func is_fusion() -> bool:
 	return not parents.is_empty()
 
 
+## M50.4c1: an evolved weapon (a base and a catalyst).
+func is_evolution() -> bool:
+	return base != &""
+
+
 ## M50.1b: `mechanics` covers inherited mechanic `name` (the same trait, or its variant).
 func covers(name: StringName) -> bool:
 	return mechanics.any(func(m: StringName) -> bool: return m == name or String(m).begins_with(String(name) + "_"))
@@ -125,6 +139,15 @@ func problems(file_id: StringName = id) -> Array[String]:
 		for name in inherits:
 			if not covers(name):
 				out.append("%s: no trait covers the inherited %s" % [where, name])
+	if is_evolution():
+		if catalyst == &"":
+			out.append("%s: an evolution needs a catalyst item" % where)
+		if built_in != "":
+			out.append("%s: not built yet (%s)" % [where, built_in])
+			return out
+		for k: Variant in launch_values:
+			if not String(k) in ["cooldown", "damage", "pierce", "speed", "lifetime", "pellets", "spread_deg", "blast_radius"]:
+				out.append("%s: launch_values sets %s, not a launch field" % [where, k])
 	if node_script != "" and not is_passive():
 		out.append("%s: node_script on an aimed weapon" % where)
 	if node_script != "" and not ResourceLoader.exists(node_script):

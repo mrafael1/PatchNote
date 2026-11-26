@@ -137,13 +137,16 @@ func _physics_process(_delta: float) -> void:
 			"picks": path_runner.picks_on_path if path_runner != null else 0,
 			"fused": path_runner.fusions.size() if path_runner != null else 0,
 			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0,
-			"items": _held_items()}
+			"items": _held_items(),
+			"evolve_ready": path_runner.evolve_ready_count if path_runner != null else 0,
+			"evolved": path_runner.evolutions.size() if path_runner != null else 0,
+			"nerfed": path_runner.nerfs_landed if path_runner != null else 0}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
 		if _cues[i].when == &"picked" and not _bound.has(i):
 			continue   # M47: not bound to a path yet
-		if _cues[i].when == &"fuse_ready" and _cues[i].expired(ctx):
+		if _cues[i].when in [&"fuse_ready", &"evolve_ready"] and _cues[i].expired(ctx):
 			_fired[i] = true   # M50.1b review: fused already; "the link's glowing" is stale
 			continue
 		if _cues[i].due(ctx) and not _waits(_cues[i]):
@@ -174,7 +177,9 @@ func on_path_started(_path_id: StringName) -> void:
 ## its line is read.
 func _waits(cue: Cue) -> bool:
 	# M50.1b: a fusion cue's line waits SAY_GAP after the previous say cue.
-	if cue.when in [&"fused", &"fuse_ready"] and genre != null and _last_say >= 0.0 \
+	# M50.4c1: an evolution cue's say too (its `nerf` lands at once).
+	if (cue.when in [&"fused", &"fuse_ready"] or (cue.when in [&"evolve_ready", &"evolved", &"nerfed"]
+			and cue.action == &"say")) and genre != null and _last_say >= 0.0 \
 			and genre.session_clock() < _last_say + SAY_GAP:
 		return true
 	if rule_book == null:
@@ -246,6 +251,10 @@ func _fire(cue: Cue, index: int) -> void:
 		&"release":
 			if genre.has_method(&"release_specimens"):
 				genre.call(&"release_specimens")
+		&"nerf":
+			# M50.4c1: the evolution just made starts too strong; the AI patches it later.
+			if path_runner == null or not path_runner.arm_nerf(cue.seconds):
+				push_warning("Session %s: nerf refused" % session.id)
 		&"fuse":
 			# M50.1b: the misfuse; skipped (logged by the runner) with fewer than 2 cards.
 			if path_runner != null:

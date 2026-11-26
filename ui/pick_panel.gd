@@ -29,6 +29,11 @@ extends CanvasLayer
 ## under a "LEVEL n" banner. Each is still a Button (keys, click, pad focus, the input delay); its
 ## text stays empty and the card's line lives in card_text() and the logs. The pack and gift
 ## branches are untouched.
+##
+## M50.4c1: a level-up offer that carries an EVOLVE choice (PickOffer.evolve) shows it after the
+## cards (key choose_4 on 3 cards, choose_3 on 2): the dressed gold EVOLVE card, or a gold-framed
+## button on the plain panel. Choosing it emits `picked` with index cards.size() (the PathRunner
+## evolves; it spends the level-up).
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
@@ -153,6 +158,8 @@ func _build() -> void:
 		_add_button(text, choose.bind(i), offer.pack and offer.cards[i].get("rarity") == BoosterPack.RARE)
 	if has_fuse():
 		_add_button(fuse_text(offer, Callable(), hints), choose.bind(offer.cards.size()), false, true)
+	if has_evolve():
+		_add_button(evolve_text(offer, Callable(), hints), choose.bind(offer.cards.size()), false, true)
 	if offer.pack:
 		_add_hand_preview()
 
@@ -190,7 +197,7 @@ func dressed() -> bool:
 func _build_dressed(hints: bool) -> void:
 	var pixel := Skins.is_on(&"ui_panel")
 	_banner.level = offer.level
-	_banner.count = offer.cards.size()
+	_banner.count = offer.cards.size() + (1 if has_evolve() else 0)   # EVOLVE is one of the choices
 	_banner.pixel = pixel
 	_banner.visible = true
 	_banner.queue_redraw()
@@ -216,6 +223,33 @@ func _build_dressed(hints: bool) -> void:
 		_frames.append(frame)
 		_buttons.append(b)
 		_cards_dressed.append(card)
+	if has_evolve():
+		_add_evolve_card(hints)
+
+
+## M50.4c1: the dressed EVOLVE card, the choice after the cards.
+func _add_evolve_card(hints: bool) -> void:
+	var n := offer.cards.size()
+	var key := InputSetup.expand_keys("{key:choose_%d}" % (n + 1)) if hints else ""
+	var frame := Control.new()
+	frame.custom_minimum_size = LevelCard.SIZE_EVO
+	var b := Button.new()
+	b.custom_minimum_size = LevelCard.SIZE_EVO
+	b.flat = true
+	b.disabled = true
+	b.tooltip_text = evolve_text(offer, Callable(), false)
+	for style: StringName in [&"normal", &"hover", &"pressed", &"disabled", &"focus", &"hover_pressed"]:
+		b.add_theme_stylebox_override(style, StyleBoxEmpty.new())
+	b.pressed.connect(choose.bind(n))
+	var card := LevelCard.new()
+	card.set_card(LevelCard.data_for_evolve(offer.evolve, key), Skins.is_on(&"ui_panel"))
+	card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	b.add_child(card)
+	frame.add_child(b)
+	_cards.add_child(frame)
+	_frames.append(frame)
+	_buttons.append(b)
+	_cards_dressed.append(card)
 
 
 ## M50.1a: the hand under a pack's cards, at HAND_SCALE.
@@ -261,6 +295,20 @@ func has_fuse() -> bool:
 ## mechanics, then "loses: ..." (BoosterPack.fuse_option's text).
 static func fuse_text(p_offer: PickOffer, to_label := Callable(), hints := true) -> String:
 	var text := String(p_offer.fuse.get("text", ""))
+	if not hints:
+		return text
+	var key := InputSetup.expand_keys("{key:choose_%d}" % (p_offer.cards.size() + 1), to_label)
+	return "[%s]  %s" % [key, text]
+
+
+## M50.4c1: a level-up offer with an EVOLVE choice (the choice after its cards).
+func has_evolve() -> bool:
+	return offer != null and not offer.pack and not offer.evolve.is_empty()
+
+
+## M50.4c1: the EVOLVE choice's text: "[4]  EVOLVE: Pistol 6 + Haste -> MINIGUN: ...".
+static func evolve_text(p_offer: PickOffer, to_label := Callable(), hints := true) -> String:
+	var text := String(p_offer.evolve.get("text", ""))
 	if not hints:
 		return text
 	var key := InputSetup.expand_keys("{key:choose_%d}" % (p_offer.cards.size() + 1), to_label)
@@ -413,6 +461,8 @@ func choose(i: int) -> void:
 			b.disabled = true
 		fuse_requested.emit(offer)
 		return
+	elif has_evolve() and i == offer.cards.size():
+		pass   # M50.4c1: EVOLVE, reported as the index after the cards
 	elif i < 0 or i >= offer.cards.size():
 		return
 	elif offer.pack and offer.cards[i].get("kind") == &"new" and offer.hand.size() >= offer.max_slots \

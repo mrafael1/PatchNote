@@ -19,6 +19,9 @@ var traits: Array[WeaponTrait] = []
 ## code. M50.4b: each role scales the field its def names (WeaponDef.stat_fields, else
 ## DEFAULT_FIELDS); `area` also reaches node knobs through stat_mult.
 var mods := {}
+## M50.4c1 (Auto depth design 6): the evolution's launch numbers (field -> value; its def's
+## launch_values) while a `nerf` cue holds them, read before mods; {} = the steady numbers.
+var launch := {}
 
 ## M50.4b: the field each item role scales when the def names none.
 const DEFAULT_FIELDS := {&"haste": &"cooldown", &"might": &"damage", &"area": &"blast_radius"}
@@ -60,6 +63,8 @@ func value(field: StringName) -> Variant:
 		if field == &"speed":
 			return Tuning.projectile_speed
 	var v: Variant = WeaponCurve.value(def, field, rank) if deep() else def.value(field, rank)
+	if not launch.is_empty() and launch.has(field):
+		v = launch[field]
 	if mods.is_empty():
 		return v
 	var map: Dictionary = def.stat_fields if not def.stat_fields.is_empty() else DEFAULT_FIELDS
@@ -86,8 +91,11 @@ func trait_level(trait_id: StringName) -> int:
 	return 0
 
 
-## "Shotgun II"; on the deep curve the digit ("Shotgun 7").
+## "Shotgun II"; on the deep curve the digit ("Shotgun 7"); M50.4c1: an evolution its name
+## ("MINIGUN": it has no ranks).
 func label() -> String:
+	if def.is_evolution():
+		return def.title.to_upper()
 	if deep():
 		return "%s %d" % [def.title, rank]
 	return "%s %s" % [def.title, ["I", "II", "III", "IV"][clampi(rank, 1, 4) - 1]]

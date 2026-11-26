@@ -11,14 +11,20 @@ extends RefCounted
 ## M50.4b (Auto depth design 4): the passive items live in weapons/items/<id>.tres (ItemDef)
 ## and load into their own list (items(), item(), has_item()); get_weapon() / has() never
 ## resolve them, so all(), ids() and every weapon check are unchanged.
+##
+## M50.4c1 (Auto depth design 5): the evolved weapons live in weapons/evolutions/<id>.tres and
+## load into their own list (evolutions(), evolution_for()); get_weapon() / has() resolve them
+## like the fusions, all() / ids() stay the base weapons. evolution_problems() checks the rows.
 
 const DIR := "res://weapons/"
 const FUSION_DIR := "res://weapons/fusions/"
 const ITEM_DIR := "res://weapons/items/"
+const EVO_DIR := "res://weapons/evolutions/"
 
 static var _by_id := {}
 static var _all: Array[WeaponDef] = []
 static var _fusions: Array[WeaponDef] = []
+static var _evolutions: Array[WeaponDef] = []
 static var _items: Array[ItemDef] = []
 static var _item_by_id := {}
 static var _loaded := false
@@ -79,6 +85,57 @@ static func fusion_problems() -> Array[String]:
 				var j := i * 2 + k
 				if j < f.inherits.size() and (mech.size() <= k or mech[k] != f.inherits[j]):
 					out.append("fusion %s: %s is not %s's rank-%d mechanic" % [f.id, f.inherits[j], p.id, 2 + 2 * k])
+	return out
+
+
+## M50.4c1: the evolved weapons, sorted by id (built or not).
+static func evolutions() -> Array[WeaponDef]:
+	_load()
+	return _evolutions.duplicate()
+
+
+## M50.4c1: the evolution of base weapon `weapon_id` (&"" for none; built or not).
+static func evolution_for(weapon_id: StringName) -> StringName:
+	_load()
+	for e in _evolutions:
+		if e.base == weapon_id:
+			return e.id
+	return &""
+
+
+## M50.4c1: an evolution that plays (its row is built).
+static func evolution_built(id: StringName) -> bool:
+	var e := get_weapon(id)
+	return e != null and e.is_evolution() and e.built_in == ""
+
+
+## M50.4c1: every evolution's problems. Its base is a base weapon, its catalyst an item that
+## pairs with it; a built one's catalyst is a built item, and its `mechanics` are the base's
+## three plus a built signature. An unbuilt row gives its one "not built yet" line.
+static func evolution_problems() -> Array[String]:
+	_load()
+	var out: Array[String] = []
+	for e in _evolutions:
+		out.append_array(e.problems())
+		var b := get_weapon(e.base)
+		if b == null or b.is_fusion() or b.is_evolution():
+			out.append("evolution %s: base %s is not a base weapon" % [e.id, e.base])
+			continue
+		var it := item(e.catalyst)
+		if it == null:
+			out.append("evolution %s: catalyst %s is not an item" % [e.id, e.catalyst])
+			continue
+		if it.pairs != e.base:
+			out.append("evolution %s: %s pairs with %s, not %s" % [e.id, e.catalyst, it.pairs, e.base])
+		if e.built_in != "":
+			continue
+		if not it.built():
+			out.append("evolution %s: its catalyst %s is %s" % [e.id, e.catalyst, it.built_in])
+		var mech := WeaponCurve.mechanics(b)
+		if e.mechanics.size() != mech.size() + 1 or e.mechanics.slice(0, mech.size()) != mech:
+			out.append("evolution %s: mechanics must be %s's %s plus a signature" % [e.id, b.id, mech])
+		elif not WeaponCurve.built(e.mechanics[e.mechanics.size() - 1]):
+			out.append("evolution %s: its signature %s is not built" % [e.id, e.mechanics[e.mechanics.size() - 1]])
 	return out
 
 
@@ -151,13 +208,16 @@ static func _load() -> void:
 	_by_id.clear()
 	_all.clear()
 	_fusions.clear()
+	_evolutions.clear()
 	_items.clear()
 	_item_by_id.clear()
 	_load_dir(DIR, _all)
 	_load_dir(FUSION_DIR, _fusions)
+	_load_dir(EVO_DIR, _evolutions)
 	_load_items()
 	_all.sort_custom(func(a: WeaponDef, b: WeaponDef) -> bool: return String(a.id) < String(b.id))
 	_fusions.sort_custom(func(a: WeaponDef, b: WeaponDef) -> bool: return String(a.id) < String(b.id))
+	_evolutions.sort_custom(func(a: WeaponDef, b: WeaponDef) -> bool: return String(a.id) < String(b.id))
 
 
 static func _load_dir(dir: String, into: Array[WeaponDef]) -> void:

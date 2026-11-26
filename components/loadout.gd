@@ -217,6 +217,42 @@ func fuse(a: StringName, b: StringName, fused_id: StringName, rank: int) -> bool
 	return true
 
 
+## M50.4c1 (Auto depth design 2.5): held weapon `from` becomes evolution `into` in place (the
+## same aimed slot or passive-mode position; an active slot stays active), its shots kept, the
+## item mods carried; a passive-mode one's node is rebuilt. The items stay. False unless `from`
+## is held and `into` is an evolution of it.
+func evolve(from: StringName, into: StringName) -> bool:
+	var def := WeaponDB.get_weapon(into)
+	var old := held(from)
+	if def == null or not def.is_evolution() or def.base != from or old == null or old == sidearm:
+		return false
+	var w := Weapon.new(def, 1, curve)
+	w.shots = old.shots
+	if boost > 0 or not items.is_empty():
+		w.mods = mods_now()
+	var i := slots.find(old)
+	if i >= 0:
+		slots[i] = w
+	else:
+		var j := passives.find(old)
+		if j < 0:
+			return false
+		passives[j] = w
+		_free_node(old.def.id)
+		if def.is_passive():
+			_attach(w)
+	EventBus.weapon_changed.emit(def.id, w.rank)
+	return true
+
+
+## M50.4c1: the held evolution of base weapon `id` (null: none).
+func evolution_of(id: StringName) -> Weapon:
+	for w in weapons():
+		if w.def.base == id:
+			return w
+	return null
+
+
 func rank_of(id: StringName) -> int:
 	var w := held(id)
 	return w.rank if w != null else 0

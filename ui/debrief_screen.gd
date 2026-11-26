@@ -560,6 +560,9 @@ static func changelog(s: SessionDef, pick: Change = null, more: Array[Change] = 
 				section = k
 				text = n.substr(k.length() + (2 if n.begins_with(k + ": ") else 1))
 				break
+		if n.begins_with("Balance: "):   # M50.4c1: the live nerf's note is a change
+			section = "Changed"
+			text = n.substr(9)
 		if text != "":
 			text = text.left(1).to_upper() + text.substr(1)
 		(out[section] as Array[String]).append(text)
