@@ -749,6 +749,10 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 			fired.filter(func(f: Dictionary) -> bool: return int(f.priority) == 2).size(),
 			heard.size(), p3.size(), "-" if gap == INF else "%.1f" % gap,
 			",".join(fired.map(func(f: Dictionary) -> String: return String(f.id))), landed_text])
+		# M50.4a (Auto depth design 9): Auto's own line, never on the session line.
+		var auto_def: Resource = runner.get(&"def") if path_text != "" else null
+		if tryout_text == "" and auto_def != null and auto_def.get(&"growth") == &"levelups":
+			print(_auto_line(only, run_seed, runner, loadout))
 		game.debrief.close()
 		root.remove_child(game)
 		game.free()
@@ -1323,6 +1327,24 @@ static func _path_text(runner: Node) -> String:
 	var id := String(runner.get(&"path_id"))
 	return " path=%s level=%d picks=%d pickups=%d" % [id if id != "" else "off", int(runner.call(&"level")),
 			int(runner.get(&"picks")), int(runner.get(&"pickups_taken"))]
+
+
+## M50.4a: "[botrun] auto: session=<id> seed=n level=n picks=n items=- ranks=pistol:6,nova:3
+## max_rank=n weapons=n fillers=n boost=n level_picks=upgrade:n,new:n,filler:n" (items, evolutions
+## and the nerf join in M50.4b / c1).
+static func _auto_line(session_id: StringName, run_seed: int, runner: Node, lo: Node) -> String:
+	var top := 0
+	var n := 0
+	if lo != null and is_instance_valid(lo):
+		for w: RefCounted in (lo.call(&"weapons") as Array):
+			top = maxi(top, int(w.get(&"rank")))
+			n += 1
+	var lp: Dictionary = runner.get(&"level_picks")
+	return "[botrun] auto: session=%s seed=%d level=%d picks=%d items=- ranks=%s max_rank=%d weapons=%d fillers=%d boost=%d level_picks=upgrade:%d,new:%d,filler:%d" % [
+			session_id, run_seed, int(runner.call(&"level")), int(runner.get(&"picks")),
+			String(lo.call(&"summary")) if lo != null and is_instance_valid(lo) else "-", top, n,
+			int(lp.get("filler", 0)), int(lo.get(&"boost")) if lo != null and is_instance_valid(lo) else 0,
+			int(lp.get("upgrade", 0)), int(lp.get("new", 0)), int(lp.get("filler", 0))]
 
 
 ## An open pick panel gets a card from RunState.pick_rng (PLAN v9 4). True if it chose.

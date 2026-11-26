@@ -199,7 +199,7 @@ func test_the_arsenal_data_is_valid() -> void:
 	for b in a.basics:
 		assert_true(b in Unlocks.CAMPAIGN_BASICS, String(b))
 		assert_eq(PathDB.owner_of_basic(b), &"arsenal")
-	assert_eq(PathDB.get_def(&"auto").full_line, "thinking: That's enough levels for one test.")
+	assert_eq(PathDB.get_def(&"auto").full_line, "", "M50.4a: Auto has no level cap, so no stop line")
 
 
 func test_path_def_problems_bite_on_a_cards_path() -> void:

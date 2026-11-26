@@ -138,8 +138,13 @@ func test_the_path_data_is_valid() -> void:
 	assert_eq(a.fire_mode, &"auto_all")
 	assert_eq(a.growth, &"levelups")
 	assert_eq(a.start, [&"pistol"] as Array[StringName])
-	assert_eq(a.max_slots, 4)
-	assert_eq(a.max_passives, 2)
+	# M50.4a (Auto depth): 3 shared weapon slots (nova / well take one), 2 item slots, the
+	# deep curve to rank 6, no level cap.
+	assert_eq(a.max_slots, 3)
+	assert_eq(a.max_passives, 0)
+	assert_eq(a.max_items, 2)
+	assert_true(a.shared_slots)
+	assert_eq([a.rank_curve, a.rank_cap, a.max_picks, a.full_line], [&"deep", 6, 0, ""])
 	assert_eq(a.basics, [&"levelups", &"crowd"] as Array[StringName])
 	assert_eq(a.kill_goal_mult, 2.0)
 	assert_eq(PathDB.owner_of_basic(&"crowd"), &"auto")
@@ -203,10 +208,12 @@ func test_apply_path_gives_the_pistol_at_rank_1_and_auto_mode() -> void:
 	lo.apply_path(_auto())
 	assert_eq(lo.summary(), "pistol:1")
 	assert_eq(lo.fire_mode, &"auto_all")
-	assert_eq(lo.max_slots, 4)
+	assert_eq(lo.max_slots, 3)
+	assert_true(lo.shared_slots)
 	lo.apply_path(null)
 	assert_eq(lo.fire_mode, &"manual_one")
 	assert_eq(lo.max_slots, 3)
+	assert_false(lo.shared_slots)
 
 
 func test_auto_fires_each_slot_at_a_target_in_range_only() -> void:
@@ -330,7 +337,8 @@ func test_the_gem_cap_merges_the_oldest() -> void:
 
 func test_the_meter_levels_and_stops_after_ten_picks() -> void:
 	var m := LevelMeter.new()
-	m.def = _auto()
+	m.def = _auto().duplicate()
+	m.def.max_picks = 10   # M50.4a: Auto itself has no cap now (test_auto_depth)
 	var levels: Array = []
 	var full := [0]
 	m.on_level = func() -> void: levels.append(1)   # never capture m: a cycle leaks
@@ -392,17 +400,20 @@ func test_an_offer_is_seeded_and_puts_the_given_weapon_first() -> void:
 		assert_eq(_offer(lo, pool, &"launcher", s).ids()[0], &"launcher")
 
 
-func test_ranks_stop_at_three_then_the_hp_filler() -> void:
+func test_ranks_stop_at_six_then_the_two_fillers() -> void:
 	await _arena()
 	var lo := _loadout()
 	lo.apply_path(_auto())
+	for i in 4:
+		lo.upgrade(&"pistol")
+		assert_eq(_offer(lo, [&"pistol"] as Array[StringName]).cards[0].kind, &"upgrade")
 	lo.upgrade(&"pistol")
-	assert_eq(_offer(lo, [&"pistol"] as Array[StringName]).cards[0].kind, &"upgrade")
-	lo.upgrade(&"pistol")
-	assert_eq(lo.summary(), "pistol:3")
+	assert_eq(lo.summary(), "pistol:6", "M50.4a: Auto ranks to 6")
+	assert_false(lo.upgrade(&"pistol"), "and no further")
 	var o := _offer(lo, [&"pistol"] as Array[StringName])
-	assert_eq(o.ids(), [PickOffer.HP] as Array[StringName])
-	assert_eq(o.cards[0].text, "+1 HP (this session)")
+	assert_eq(o.ids(), [PickOffer.HP, PickOffer.BOOST] as Array[StringName])
+	assert_eq(o.cards[0].text, "+1 max HP, heal 1")
+	assert_eq(o.cards[1].text, "+5% damage, every gun (this session)")
 
 
 func test_the_card_text_names_its_key() -> void:
@@ -577,13 +588,17 @@ func test_a_pick_makes_a_mascot_comment_and_hp_filler_heals() -> void:
 	await _session_game(STUB)
 	var r: PathRunner = game.path_runner
 	r.swap_now(&"auto")
-	_loadout().upgrade(&"pistol")
-	_loadout().upgrade(&"pistol")
+	for i in 5:
+		_loadout().upgrade(&"pistol")   # M50.4a: rank 6, Auto's top
 	var h := Component.find(player, Health) as Health
 	var top := h.max_hp()
 	_pick(r, 0)
-	assert_eq(r.offers[-1].ids(), [PickOffer.HP] as Array[StringName])
+	assert_eq(r.offers[-1].ids(), [PickOffer.HP, PickOffer.BOOST] as Array[StringName])
 	assert_almost_eq(h.max_hp(), top + 1.0, 0.0001)
+	assert_eq(r.level_picks.filler, 1, "M50.4a: telemetry's level_picks")
+	_pick(r, 1)
+	assert_eq(_loadout().boost, 1, "M50.4a: the boost filler")
+	assert_eq([r.level_picks.filler, r.level_picks.upgrade], [2, 0])
 	assert_true(r.said[-1] in PathRunner.PICK_LINES.map(func(s: String) -> String: return Line.parse(s).text))
 
 

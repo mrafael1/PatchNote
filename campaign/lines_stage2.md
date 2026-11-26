@@ -66,6 +66,8 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_survival at 80: (happy) I'm going to learn to draw. Give me a session.
 - answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. Gold ones count twice. No top rank.
 - answer:path_arsenal at 34: (worried) Two cards max. Anything new means letting one go.
+- answer:path_auto at 18: (thinking) New top: rank six. Every gun learns three tricks on the way.
+- answer:path_auto at 60: (worried) Three guns, two passives. That's the whole backpack.
 ### Debrief
 - won (happy) Day one. It works!
 - died (guilty) Day one bugs. Want another go, or should I just patch it?
@@ -126,6 +128,6 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 
 ## The paths
 - arsenal: warn "happy: New version. Your guns are cards." · full "thinking: That's enough cards for one test." · pick "Pack. Pick one."
-- auto: warn "worried: New version. Hands off the trigger." · full "thinking: That's enough levels for one test." · pick "Level up. Pick one."
+- auto: warn "worried: New version. Hands off the trigger." · full "" · pick "Level up. Pick one."
 - survival: warn "happy: New version. Guns are lying around." · full "" · pick "Level up. Pick one."
 - Pick lines: happy: Ooh, that one. · proud: Good pick.

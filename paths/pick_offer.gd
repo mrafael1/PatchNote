@@ -20,6 +20,8 @@ var max_slots := 0
 var fuse := {}
 
 const HP := &"hp"
+## M50.4a (Auto depth design 2.8): the second filler, +Loadout.BOOST_STEP damage this session.
+const BOOST := &"boost"
 ## Auto leans to the weapons it holds (D7): an upgrade card weighs this much more.
 const UPGRADE_LEAN := 1.4
 const ROMAN: Array[String] = ["I", "II", "III", "IV"]
@@ -27,8 +29,9 @@ const ROMAN: Array[String] = ["I", "II", "III", "IV"]
 
 ## The offer for `loadout` on path `def`. `pool`: the live pool (ids, in order). `first`: a
 ## weapon a `give` cue is waiting to offer first ("" for none). `taste`: the session's
-## (never saved). Upgrades stop at Loadout.MAX_RANK (rank 4 is M50.1); nothing to offer
-## gives the one filler, +1 HP.
+## (never saved). Upgrades stop at the top rank (classic: Loadout.MAX_RANK; deep: the
+## Loadout's rank_cap, M50.4a); nothing to offer gives the filler, +1 HP (M50.4a: on a
+## levelups path two fillers, +1 max HP and +5% damage; never padding an offer that has cards).
 static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], first: StringName,
 		rng: RandomNumberGenerator, taste: Taste) -> PickOffer:
 	var offer := PickOffer.new()
@@ -58,7 +61,11 @@ static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], first:
 				break
 		offer.cards.append(candidates[pick])
 		candidates.remove_at(pick)
-	if offer.cards.is_empty():
+	if offer.cards.is_empty() and def != null and def.growth == &"levelups" and def.shared_slots:
+		offer.cards.append({"id": HP, "rank": 0, "kind": HP, "text": "+1 max HP, heal 1"})
+		offer.cards.append({"id": BOOST, "rank": 0, "kind": BOOST,
+				"text": "+%d%% damage, every gun (this session)" % roundi(Loadout.BOOST_STEP * 100.0)})
+	elif offer.cards.is_empty():
 		offer.cards.append({"id": HP, "rank": 0, "kind": HP, "text": "+1 HP (this session)"})
 	offer.line = def.pick_line if def != null else "Level up. Pick one."
 	return offer
@@ -66,7 +73,8 @@ static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], first:
 
 ## One card for weapon `id`, or {} when it cannot be offered: held below its top rank (an
 ## upgrade to the next rank), or not held with a free slot (new, rank 1; passives against
-## def.max_passives).
+## def.max_passives). M50.4a: a deep weapon tops out at the Loadout's rank_cap (Auto 6), and
+## with shared slots a new weapon of any mode needs one of max_slots free.
 static func candidate(loadout: Loadout, def: PathDef, id: StringName) -> Dictionary:
 	var w := WeaponDB.get_weapon(id)
 	if w == null:
@@ -74,9 +82,16 @@ static func candidate(loadout: Loadout, def: PathDef, id: StringName) -> Diction
 	var held := loadout.held(id)
 	if held != null:
 		var top := mini(Loadout.MAX_RANK, w.max_rank())
+		if held.deep():
+			top = loadout.rank_cap if loadout.rank_cap > 0 else 1 << 20
 		if held.rank >= top:
 			return {}
-		return {"id": id, "rank": held.rank + 1, "kind": &"upgrade", "text": card_line(w, held.rank + 1, true)}
+		return {"id": id, "rank": held.rank + 1, "kind": &"upgrade",
+				"text": card_line(w, held.rank + 1, true, held.deep())}
+	if loadout.shared_slots:
+		if loadout.weapon_count() >= loadout.max_slots:
+			return {}
+		return {"id": id, "rank": 1, "kind": &"new", "text": card_line(w, 1, false, loadout.curve == WeaponCurve.DEEP)}
 	if w.is_passive():
 		if loadout.passives.size() >= (def.max_passives if def != null else 0):
 			return {}
@@ -86,7 +101,14 @@ static func candidate(loadout: Loadout, def: PathDef, id: StringName) -> Diction
 
 
 ## "Shotgun II: knockback.  (I -> II)" for an upgrade, the rank-1 line plus "(new)" else.
-static func card_line(w: WeaponDef, rank: int, upgrade: bool) -> String:
+## M50.4a: on the deep curve the digits and the gain ("Pistol 3 -> 4: seeker"); ROMAN is the
+## classic curve's only (ranks 2-3).
+static func card_line(w: WeaponDef, rank: int, upgrade: bool, deep := false) -> String:
+	if deep and upgrade:
+		var gain := WeaponCurve.gain_text(w, rank - 1, rank)
+		return "%s %d -> %d%s" % [w.title, rank - 1, rank, (": " + gain) if gain != "" else ""]
+	if deep:
+		return "%s  (new)" % (w.card_text[0] if not w.card_text.is_empty() else w.title)
 	var text := w.card_text[rank - 1] if rank - 1 < w.card_text.size() else w.title
 	if upgrade:
 		return "%s  (%s -> %s)" % [text, ROMAN[rank - 2], ROMAN[rank - 1]]

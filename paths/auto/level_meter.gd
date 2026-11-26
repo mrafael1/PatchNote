@@ -3,7 +3,8 @@ extends RefCounted
 ## Auto's levels (PLAN v9 1.5): gems taken fill it; each threshold crossed is a level-up
 ## (EventBus.level_up) and asks the PathRunner for a pick. A tryout levels on the path's
 ## taste list (S7: one level at 6 gems), then stops quietly. Elsewhere it stops after
-## max_picks level-ups with one line. Runtime only, never saved.
+## max_picks level-ups with one line (M50.4a: max_picks 0 never stops; Auto has no level
+## cap). Runtime only, never saved.
 
 var def: PathDef
 var tryout := false
@@ -31,7 +32,7 @@ func add(value: int) -> void:
 		EventBus.level_up.emit(level)
 		if on_level.is_valid():
 			on_level.call()
-		if level - 1 >= def.max_picks:
+		if def.max_picks > 0 and level - 1 >= def.max_picks:   # M50.4a: 0 = no cap
 			stopped = true
 			if not tryout and on_full.is_valid():
 				on_full.call()

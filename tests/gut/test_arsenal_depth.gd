@@ -303,7 +303,7 @@ func test_loadout_ranks_rare_and_no_cap_while_classic_clamps_at_3() -> void:
 	assert_true(lo.hand_full())
 	var classic := Loadout.new()
 	autofree(classic)
-	classic.apply_path(PathDB.get_def(&"auto"))
+	classic.apply_path(null)   # M50.4a: Auto is deep now; no path keeps the classic curve
 	assert_eq(classic.rank_cap, Loadout.MAX_RANK)
 	classic.set_weapon(&"pistol", 30)
 	assert_eq(classic.rank_of(&"pistol"), 3, "classic stops at 3")

@@ -135,14 +135,22 @@ static func _pack(runner: Node, def: PathDef) -> Dictionary:
 static func _items(runner: Node, lo: Loadout, def: PathDef) -> Dictionary:
 	var cap := lo.rank_cap if lo.rank_cap > 0 else Loadout.MAX_RANK
 	var weapons: Array[Dictionary] = []
-	for w in lo.slots:
-		weapons.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon})
 	var passives: Array[Dictionary] = []
-	for w in lo.passives:
-		passives.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon})
+	var passive_slots := def.max_passives
+	if def.shared_slots:
+		# M50.4a (Auto depth T7): every weapon (passive-mode ones too) in the shared weapon
+		# slots; the passive slots are the items' (M50.4b fills them).
+		for w in lo.weapons():
+			weapons.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon, "evo": false})
+		passive_slots = def.max_items
+	else:
+		for w in lo.slots:
+			weapons.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon})
+		for w in lo.passives:
+			passives.append({"title": w.def.title, "rank": w.rank, "icon": w.def.icon})
 	var meter: RefCounted = runner.call(&"meter")
 	return {"weapons": weapons, "passives": passives, "slots": maxi(1, def.max_slots),
-			"passive_slots": def.max_passives, "cap": cap,
+			"passive_slots": passive_slots, "cap": cap,
 			"level": int(meter.get(&"level")) if meter != null else 1,
 			"xp": float(meter.call(&"progress")) if meter != null and meter.has_method(&"progress") else 0.0}
 

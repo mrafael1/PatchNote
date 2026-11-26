@@ -285,7 +285,8 @@ func test_the_shotgun_at_rank_3_with_every_slot_full_stays_inside_the_budgets() 
 	var lo := _loadout()
 	for id: StringName in [&"pistol", &"shotgun", &"laser", &"launcher"]:
 		lo.set_weapon(id, 3)
-	assert_eq(lo.slots.size(), 4)
+	# M50.4a: 3 shared slots: the launcher took the weakest non-active slot (the laser).
+	assert_eq(lo.summary(), "pistol:3,shotgun:3,launcher:3")
 	var points: Array = game.arena.spawn_points
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 9
@@ -679,13 +680,14 @@ func test_nova_and_well_are_never_offered_before_a_tagged_say() -> void:
 	var lo := _loadout()
 	lo.clear()
 	lo.set_weapon(&"nova", 1)
-	lo.set_weapon(&"orbit", 1)   # F2's route: two passives held
+	lo.set_weapon(&"orbit", 1)   # F2's route: three weapons held (M50.4a: the shared slots)
+	assert_eq(lo.weapon_count(), 3)
 	seen.clear()
 	for i in 10:
 		var offer := _pick(r, i % 3)
 		seen.append_array(offer.ids())
-		assert_lte(lo.passives.size(), 2, "max_passives")
-	assert_false(&"well" in seen, "a third passive is never offered")
+		assert_lte(lo.weapon_count(), 3, "M50.4a: never a 4th weapon held")
+	assert_false(&"well" in seen, "a 4th weapon is never offered")
 
 
 # --- Telemetry ------------------------------------------------------------------------------
@@ -716,7 +718,7 @@ func _replay_hashes() -> Array:
 	await _auto_arena(11)
 	game.spawner.enabled = true
 	var lo := _loadout()
-	for id: StringName in [&"pistol", &"shotgun", &"nova", &"well"]:
+	for id: StringName in [&"pistol", &"nova", &"well"]:   # M50.4a: 3 shared slots
 		lo.set_weapon(id, 3)
 	var out: Array = []
 	for i in 90:   # 15 s

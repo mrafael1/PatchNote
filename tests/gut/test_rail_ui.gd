@@ -318,10 +318,10 @@ func test_auto_items_follow_the_loadout() -> void:
 	var rail := _pixel(h)
 	assert_eq(rail.snap.path.kind, &"items")
 	var items: Dictionary = rail.snap.path.items
-	assert_eq(int(items.slots), 4, "auto.tres max_slots")
-	assert_eq(int(items.passive_slots), 2)
-	assert_eq(int(items.cap), Loadout.MAX_RANK)
-	assert_eq((items.weapons as Array).size(), h.game.path_runner.loadout().slots.size())
+	assert_eq(int(items.slots), 3, "auto.tres max_slots (M50.4a: 3 shared)")
+	assert_eq(int(items.passive_slots), 2, "M50.4a: the 2 item slots (max_items)")
+	assert_eq(int(items.cap), 6, "M50.4a: Auto ranks to 6")
+	assert_eq((items.weapons as Array).size(), h.game.path_runner.loadout().weapon_count())
 	assert_eq(int(items.level), h.game.path_runner.level())
 
 

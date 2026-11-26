@@ -62,7 +62,9 @@ func _newest() -> Pickup:
 
 ## The oldest gem on the floor goes into its nearest gem (value kept). False: fewer than two.
 func merge_oldest() -> bool:
-	_mine = _mine.filter(func(g: Pickup) -> bool: return is_instance_valid(g) and not g.is_queued_for_deletion())
+	# M50.4a: untyped, then assign(): a freed gem in the list made a typed lambda fail, so
+	# filter() returned an untyped [] that a typed var refused (S9 Auto reached the cap with one).
+	_mine.assign(_mine.filter(func(g: Variant) -> bool: return is_instance_valid(g) and not (g as Node).is_queued_for_deletion()))
 	var gems: Array[Pickup] = []
 	for n in get_tree().get_nodes_in_group(Pickup.GEM_GROUP):
 		if n is Pickup and not n.is_queued_for_deletion():

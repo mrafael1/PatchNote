@@ -42,6 +42,13 @@ var switch_locked := false
 var misfuse_skin: StringName = &""
 var misfuse_shots := 0
 var _battery := {}                          ## M47: passive id -> seconds left (manual_ammo)
+## M50.4a (Auto depth design 2.1): every weapon, aimed or passive-mode, takes one of max_slots
+## (PathDef.shared_slots, set by apply_path; false elsewhere). _add enforces it.
+var shared_slots := false
+## M50.4a: the `boost` filler's stacks (+BOOST_STEP damage each, every held weapon, this
+## session; Weapon.mods). 0 = none: every value() is the old one.
+var boost := 0
+const BOOST_STEP := 0.05
 
 var _drawn := false
 
@@ -324,6 +331,7 @@ func clear() -> void:
 	active = 0
 	_drawn = false
 	_battery.clear()
+	boost = 0
 	if sidearm != null:
 		sidearm = slots[0]   # M47: manual_ammo keeps a sidearm
 	EventBus.weapon_changed.emit(PISTOL, 1)
@@ -341,6 +349,7 @@ func apply_path(def: PathDef) -> void:
 	_battery.clear()
 	fire_mode = def.fire_mode if def != null else &"manual_one"
 	max_slots = def.max_slots if def != null else 3
+	shared_slots = def != null and def.shared_slots
 	if def == null or def.start.is_empty():
 		return
 	slots.clear()
@@ -376,6 +385,41 @@ func auto_tick() -> int:
 	return fired
 
 
+## M50.4a: every held weapon, aimed slots then passive-mode ones (the shared slots' order).
+func weapons() -> Array[Weapon]:
+	return slots + passives
+
+
+func weapon_count() -> int:
+	return slots.size() + passives.size()
+
+
+## M50.4a: the `boost` filler: one more stack on every held weapon (a node weapon re-reads its
+## numbers, its clock kept: reconfigure).
+func add_boost() -> void:
+	boost += 1
+	_apply_mods()
+
+
+## M50.4a: the role multipliers every held weapon gets now ({} with no boost).
+func mods_now() -> Dictionary:
+	return {} if boost <= 0 else {&"might": 1.0 + BOOST_STEP * boost}
+
+
+func _apply_mods() -> void:
+	var m := mods_now()
+	for w in weapons():
+		w.mods = m.duplicate()
+	for w in passives:
+		var node: Node = _passive_nodes.get(w.def.id)
+		if not is_instance_valid(node):
+			continue
+		if node.has_method(&"reconfigure"):
+			node.call(&"reconfigure", w)
+		elif &"damage" in node:
+			node.set(&"damage", float(w.value(&"damage")))
+
+
 ## "pistol:1,shotgun:2" (slot order, then passives).
 func summary() -> String:
 	var parts: Array[String] = []
@@ -390,6 +434,10 @@ func passive_node(id: StringName) -> Node:
 
 func _add(def: WeaponDef, rank: int) -> void:
 	var w := Weapon.new(def, rank, curve)
+	if boost > 0:
+		w.mods = mods_now()
+	if shared_slots and fire_mode != &"manual_ammo" and weapon_count() >= max_slots:
+		_drop_weakest()   # M50.4a: never a 4th weapon (give, F2, --loadout, the bench)
 	if fire_mode == &"manual_ammo":
 		_add_survival(w)
 	elif def.is_passive():
@@ -406,6 +454,32 @@ func _add(def: WeaponDef, rank: int) -> void:
 				weakest = i
 		slots[weakest] = w
 	EventBus.weapon_changed.emit(def.id, rank)
+
+
+## M50.4a (shared slots full): the weakest weapon that is not the active one goes, across
+## weapons() (lowest rank; ties: the last in weapons() order); a passive-mode one's node is
+## freed. The active slot never goes.
+func _drop_weakest() -> void:
+	var cur := current()
+	var victim: Weapon = null
+	for x in weapons():
+		if x == cur:
+			continue
+		if victim == null or x.rank <= victim.rank:
+			victim = x
+	if victim == null:
+		return
+	var i := slots.find(victim)
+	if i >= 0:
+		slots.remove_at(i)
+		if i < active:
+			active -= 1
+		active = clampi(active, 0, maxi(0, slots.size() - 1))
+	else:
+		passives.erase(victim)
+		_free_node(victim.def.id)
+		_battery.erase(victim.def.id)
+	RunState.log_event(&"weapon_dropped", {"weapon": String(victim.def.id), "rank": victim.rank})
 
 
 ## M47 (manual_ammo): an aimed weapon replaces slots[0] (the sidearm stays), a passive

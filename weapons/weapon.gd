@@ -14,6 +14,9 @@ var ammo_left := -1
 var ready_in := 0.0        ## seconds until it may fire again (its own cooldown)
 var shots := 0             ## shots fired (heavy round counts them)
 var traits: Array[WeaponTrait] = []
+## M50.4a (Auto depth design 4): role -> multiplier from the path's items and boost (Loadout
+## writes it). Empty (every path but Auto with a boost): value() is exactly the old code.
+var mods := {}
 
 
 func _init(p_def: WeaponDef = null, p_rank := 1, p_curve: StringName = &"classic") -> void:
@@ -51,9 +54,15 @@ func value(field: StringName) -> Variant:
 			return Tuning.shoot_cooldown
 		if field == &"speed":
 			return Tuning.projectile_speed
-	if deep():
-		return WeaponCurve.value(def, field, rank)
-	return def.value(field, rank)
+	var v: Variant = WeaponCurve.value(def, field, rank) if deep() else def.value(field, rank)
+	if not mods.is_empty() and field == &"damage" and mods.has(&"might"):
+		return float(v) * float(mods[&"might"])
+	return v
+
+
+## M50.4a: the multiplier of role `role` (1.0 without it), for knobs that are not a field.
+func stat_mult(role: StringName) -> float:
+	return float(mods.get(role, 1.0))
 
 
 func has_trait(trait_id: StringName) -> bool:

@@ -689,6 +689,13 @@ func path_record(s: SessionDef, runner: Node = null) -> Dictionary:
 		out.fp_tastes = (runner.get(&"taste_fps") as Dictionary).duplicate()
 	elif String(out.path) != "":
 		out.fp = runner.call(&"fingerprint")
+	# M50.4a (additive, Auto's level-ups only, not a tryout): levels reached, what each
+	# level-up took, ranks at the end.
+	var pdef: PathDef = runner.get(&"def")
+	if not tryout and pdef != null and pdef.growth == &"levelups" and String(out.path) != "":
+		out.levels = int(runner.call(&"level"))
+		out.level_picks = (runner.get(&"level_picks") as Dictionary).duplicate()
+		out.ranks_end = (out.weapons as Dictionary).duplicate()
 	# M50.1a (additive, Arsenal's packs only): packs, what was taken, ranks at the end.
 	if runner.has_method(&"pack_path") and bool(runner.call(&"pack_path")):
 		out.packs = int(runner.call(&"packs"))

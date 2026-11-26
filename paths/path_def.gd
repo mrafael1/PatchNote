@@ -7,7 +7,8 @@ extends Resource
 ##
 ## M45a adds data fields to 1.5's list: `basics` (the path's own campaign basics, for the
 ## "path basic under another path" problem), `level_thresholds` / `taste_thresholds`
-## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there),
+## (Auto's levels; a tryout levels on the taste list), `max_picks` (the meter stops there;
+## M50.4a: 0 = no cap),
 ## `warn_line` (the `path` cue's fallback warning; M47 gives each S7 cue its own) and
 ## `max_passives`. M46 adds `full_line`, `pick_line` and `quick_draw_mult` (Arsenal). M47 adds
 ## Survival (paths/survival.tres: `manual_ammo`, `pickups`, one slot, no thresholds).
@@ -43,6 +44,8 @@ const THRESHOLD_STEP := 20
 @export var level_thresholds: PackedInt32Array = PackedInt32Array()
 ## In a tryout (S7's taste): the only levels, then the meter stops quietly.
 @export var taste_thresholds: PackedInt32Array = PackedInt32Array()
+## The session cap on picks (the meter stops there). M50.4a: 0 = no cap on a levelups path
+## (Auto: no level cap; a tryout still stops after its taste list).
 @export var max_picks := 10
 ## Line syntax: the mascot's warning before a `path` cue swaps to this path.
 @export var warn_line := ""
@@ -66,6 +69,14 @@ const THRESHOLD_STEP := 20
 ## mechanics, no top).
 @export var rank_curve: StringName = &"classic"
 
+## M50.4a (Auto depth design 2): weapons of every mode (aimed and passive-mode: nova, well,
+## orbit) share max_slots (Loadout.shared_slots; max_passives is then unused, 0). Auto only.
+@export var shared_slots := false
+## M50.4a: passive items held (Loadout items, built in M50.4b; 0 = none).
+@export var max_items := 0
+## M50.4a: every level threshold x this, rounded (a tool knob: --probe=human_pace, M50.4b).
+@export var threshold_mult := 1.0
+
 const RANK_CURVES: Array[StringName] = [&"classic", &"deep"]
 
 
@@ -74,13 +85,16 @@ const RANK_CURVES: Array[StringName] = [&"classic", &"deep"]
 func threshold(level: int, tryout := false) -> int:
 	var list := taste_thresholds if tryout and not taste_thresholds.is_empty() else level_thresholds
 	var i := level - 1
+	var need := -1
 	if i < list.size():
-		return list[i]
-	if tryout and not taste_thresholds.is_empty():
+		need = list[i]
+	elif tryout and not taste_thresholds.is_empty():
 		return -1
-	if list.is_empty():
+	elif list.is_empty():
 		return -1
-	return list[list.size() - 1] + THRESHOLD_STEP * (i - list.size() + 1)
+	else:
+		need = list[list.size() - 1] + THRESHOLD_STEP * (i - list.size() + 1)
+	return need if threshold_mult == 1.0 else roundi(need * threshold_mult)
 
 
 func warn() -> Line:
@@ -144,4 +158,12 @@ func problems(file_id: StringName = id) -> Array[String]:
 		out.append("%s: unknown rank_curve %s (%s)" % [where, rank_curve, RANK_CURVES])
 	if rank_curve == &"classic" and (rank_cap == 0 or rank_cap > Loadout.MAX_RANK):
 		out.append("%s: the classic curve stops at rank %d" % [where, Loadout.MAX_RANK])
+	if max_items < 0:
+		out.append("%s: max_items must be >= 0" % where)
+	if threshold_mult <= 0.0:
+		out.append("%s: threshold_mult must be > 0" % where)
+	if shared_slots and max_passives != 0:
+		out.append("%s: shared_slots counts passive-mode weapons in max_slots: max_passives must be 0" % where)
+	if max_picks == 0 and growth == &"cards" and pack_every <= 0:
+		out.append("%s: max_picks 0 (no cap) needs packs or level-ups" % where)
 	return out

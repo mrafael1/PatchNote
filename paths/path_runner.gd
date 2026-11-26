@@ -97,6 +97,9 @@ var leftover_checks: Array = []
 var wipes := 0                  ## M47 review: one per swap (a glitch pulse, or the fade)
 ## M50.1a (packs): what was taken, for the telemetry and the bot's line.
 var pack_picks := {"upgrade": 0, "rare": 0, "new": 0, "replace": 0, "back": 0, "fuse": 0}
+## M50.4a (levelups picks): what each level-up took, for the telemetry and the bot's line.
+## item_new / item_up (M50.4b) and evolve (M50.4c1) stay 0 until those are built.
+var level_picks := {"upgrade": 0, "new": 0, "item_new": 0, "item_up": 0, "evolve": 0, "filler": 0}
 ## M50.1b: each fusion made: {id, t, from: ["shotgun:5", "laser:4"], rank}.
 var fusions: Array[Dictionary] = []
 ## M50.1b: the times FUSE became available (the `fuse_ready n` cues read it) and the ticks it
@@ -733,6 +736,11 @@ func _on_picked(offer: PickOffer, index: int) -> void:
 		lo.upgrade(card.id)
 	elif card.kind == PickOffer.HP:
 		_one_more_hp()
+	elif card.kind == PickOffer.BOOST and lo != null:
+		lo.add_boost()
+	if not offer.pack and def != null and def.growth == &"levelups":
+		var key := String(card.kind) if card.kind in [&"upgrade", &"new"] else "filler"
+		level_picks[key] = int(level_picks[key]) + 1
 	for c in offer.cards:
 		taste._nudge_raw(c.id, [], Taste.PICK if c == card else Taste.PASS)
 	RunState.log_event(&"pick", {"offer": offer.ids().map(func(i: StringName) -> String: return String(i)),

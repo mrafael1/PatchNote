@@ -32,6 +32,13 @@ func configure(w: Weapon) -> void:
 	dps = float(w.value(&"damage"))
 
 
+## M50.4a review: the `boost` filler (Loadout._apply_mods) re-reads the numbers in place, the
+## node kept. Fields already on the ground keep the bite they were made with.
+func reconfigure(w: Weapon) -> void:
+	life = float(w.value(&"cooldown"))
+	dps = float(w.value(&"damage"))
+
+
 func _ready() -> void:
 	EventBus.enemy_killed.connect(_on_enemy_killed)
 
