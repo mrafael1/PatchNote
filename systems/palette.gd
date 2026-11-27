@@ -182,6 +182,25 @@ const CHAT_LOG := Color("#8cffa6")                ## the build.log strip's text
 const CHAT_LOG_BG := Color("#0e0b1e")
 const CHAT_LEGACY := Color("#120f24")             ## the collapsed terminal tab
 const CHAT_ACCENT := Color("#a48cff")             ## the version tag, the dots
+# --- M51b: the version odometer title (title mockup v2, concept B; tier-0 constants) ---
+const ODO_BG := Color("#2a1e38")                  ## the plum backdrop
+const ODO_GRID := Color("#33254a")                ## its 48 px grid
+const ODO_INK := Color("#1e1424")                 ## outlines, drops, the wheel windows' shade
+const ODO_HOUSING := Color("#4a3466")             ## the odometer's housing
+const ODO_HOUSING_HI := Color("#5d4580")
+const ODO_HOUSING_LO := Color("#372747")
+const ODO_PAPER := Color("#f4e8c8")               ## a wheel's face
+const ODO_PAPER_SHADE := Color("#ddcba4")         ## a card at rest
+const ODO_DIGIT := Color("#3a2450")               ## a wheel's plum digit
+const ODO_GOLD := Color("#ffd84a")                ## the v and dots, Continue, the sparks
+const ODO_GOLD_DARK := Color("#c98a1e")
+const ODO_GOLD_HI := Color("#fff2a8")
+const ODO_RED := Color("#ff5c7a")                 ## New game: the roll back to v0.0.0
+const ODO_RED_DARK := Color("#b03050")
+const ODO_TEAL := Color("#5fe0b0")                ## Replay: an old build
+const ODO_TEAL_DARK := Color("#2aa888")
+const ODO_LAV := Color("#d8c6e8")                 ## Options, Quit, the readout's second line
+const ODO_LAV_DIM := Color("#9c88b4")
 
 ## 1.7's roles: every look must name each of these (test_pixel_skin).
 const CORE: Array[StringName] = [&"bg", &"grid", &"wall", &"player", &"player_shot", &"enemy",

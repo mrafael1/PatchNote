@@ -64,8 +64,10 @@ static func render() -> String:
 		for c: Change in fork.changes():
 			out.append("- %s · %s · %s" % [c.title, c.pitch, c.take.line if c.take != null else ""])
 	out.append("")
-	out.append("## The title (M47.4)")
-	out.append("- One per launch, by sessions done: %s" % " · ".join(TitleScreen.TITLE_LINES))
+	out.append("## The title (M51b, the version odometer)")
+	out.append("- The boot lands: %s" % TitleScreen.LANDED_LINE)
+	for k: StringName in TitleOdometer.KINDS:
+		out.append("- Focus %s: %s" % [k, TitleScreen.FOCUS_LINES[k]])
 	out.append("- The unveil: %s" % TitleScreen.UNVEIL_LINE)
 	out.append("")
 	out.append("## The paths")

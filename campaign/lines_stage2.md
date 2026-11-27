@@ -179,8 +179,13 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - Path: Auto · Auto. It shoots for you; you pick upgrades and dodge. · Auto! I'll make more enemies. Many more.
 - Path: Survival (scavenger) · Scavenge. Guns on the ground, ammo runs out, kills heal you. · Scavenger. Good. I'll hide guns everywhere.
 
-## The title (M47.4)
-- One per launch, by sessions done: happy: Welcome back. I kept the lights on. · proud: Look! A real menu. · thinking: I fixed three bugs while you were gone. I made two. · idle: Ready when you are.
+## The title (M51b, the version odometer)
+- The boot lands: proud: Landed. Every number there is something we shipped.
+- Focus continue: happy: The last 1% needs a player.
+- Focus new: worried: All the way back? I'll rebuild it all.
+- Focus replay: thinking: Old builds still run. Pick one.
+- Focus options: proud: Change anything. It saves.
+- Focus quit: surprised: I'll keep it right here.
 - The unveil: guilty: You missed it. I made this while you were away.
 
 ## The paths
