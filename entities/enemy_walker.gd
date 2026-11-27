@@ -26,6 +26,19 @@ var hp_mult := 1.0
 ## on its max HP after every overlay (a splitter's minis: 1).
 var variant: StringName = &""
 var min_hp := 0.0
+## M50.3c (PLAN v9 1.9): what the variant's data sets, read once in _ready (the plain base:
+## 1.0 and no shield). The shielder's shield covers `_shield_arc` degrees around `facing`,
+## which turns toward the player at Tuning.shielder_turn_deg a second.
+var _speed_mult := 1.0
+var _shield_arc := 0.0
+## The flank-rule contract (BotInput.flank_step, M46): the shield's arc in degrees (0: none).
+var shield_arc_deg: float:
+	get:
+		return _shield_arc
+var facing := Vector2.RIGHT
+var blocked := 0   ## shots its shield stopped (tests)
+var _faced := false
+var _arc: ShieldArc
 ## M48b (PLAN 1.7.1, D9): a `spawn ... specimen` cue's enemy: it stands still, shows no rim,
 ## takes no damage (Health.take) and deals none until a `release` cue clears it.
 var specimen := false:
@@ -59,6 +72,8 @@ func _ready() -> void:
 	half_width *= size_mult
 	EnemyCommon.apply_size(self, size_mult)
 	health.died.connect(_on_died)
+	if variant != &"":
+		_apply_variant()
 	mover.jump_held = true
 	mover.accel = Tuning.enemy_accel
 	mover.knockback_scale = _tuned("knockback_scale")
@@ -74,6 +89,49 @@ func _tuned(suffix: String) -> float:
 	return float(Tuning.get("%s_%s" % [archetype, suffix]))
 
 
+## M50.3c: the variant's speed and shield (a splitter has neither: 1.0 and none).
+func _apply_variant() -> void:
+	var v := EnemyDB.variant(variant)
+	if v == null:
+		return
+	_speed_mult = v.speed_mult
+	if v.shield_arc_deg > 0.0:
+		_shield_arc = v.shield_arc_deg
+		health.guard = shield_blocks
+		_arc = ShieldArc.new()
+		_arc.name = "ShieldArc"
+		_arc.arc_deg = _shield_arc
+		_arc.radius = half_width + 14.0
+		add_child(_arc)
+
+
+## The shield turns toward the player (at once on its first tick, then at the turn rate).
+func _turn_shield(to_player: Vector2, delta: float) -> void:
+	if to_player == Vector2.ZERO:
+		return
+	var want := to_player.angle()
+	var a := want if not _faced else rotate_toward(facing.angle(), want, deg_to_rad(Tuning.shielder_turn_deg) * delta)
+	_faced = true
+	facing = Vector2.from_angle(a)
+	if _arc != null:
+		_arc.facing = facing
+
+
+## Health.guard: a player's shot that hits the front and does not pierce stops on the shield.
+## Blasts, beams, burns, orbit shards and piercing shots (other kinds, or `pierces`) pass.
+func shield_blocks(info: DamageInfo) -> bool:
+	if _shield_arc <= 0.0 or info.kind != &"projectile" or info.faction != &"player" or info.pierces:
+		return false
+	var from := info.pos - global_position
+	if from == Vector2.ZERO or absf(facing.angle_to(from)) > deg_to_rad(_shield_arc) * 0.5:
+		return false
+	blocked += 1
+	RunState.shield_blocks += 1
+	if _arc != null:
+		_arc.blocked()
+	return true
+
+
 func _physics_process(delta: float) -> void:
 	if specimen:
 		mover.wish = Vector2.ZERO   # M48b: held still and harmless until `release`
@@ -86,7 +144,7 @@ func _physics_process(delta: float) -> void:
 		mover.wish = Vector2.ZERO   # B2: the turn logic moves it and resolves its attacks
 		visual.rim = 0.0
 		return
-	mover.speed = _tuned("speed") * RunState.rules.enemy_speed_mult
+	mover.speed = _tuned("speed") * RunState.rules.enemy_speed_mult * _speed_mult
 	_hop_cooldown = maxf(0.0, _hop_cooldown - delta)
 	var player := EnemyCommon.find_player(self)
 	if player == null:
@@ -95,6 +153,8 @@ func _physics_process(delta: float) -> void:
 		return
 	var to_player := player.global_position - global_position
 	var distance := to_player.length()
+	if _shield_arc > 0.0:
+		_turn_shield(to_player, delta)
 	if _attack_step(delta, to_player, distance):
 		return
 	var reach := contact_reach()

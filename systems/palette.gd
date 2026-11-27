@@ -101,6 +101,26 @@ const WINDOW_BODY := Color(0.92, 0.94, 0.97)
 const WINDOW_BAR := Color(0.24, 0.45, 0.95)
 const WINDOW_PANIC := Color(0.86, 0.26, 0.28)
 const WINDOW_GUILTY := Color(0.5, 0.53, 0.6)
+# M51a: the creature bodies (the owner-approved "Mascot creatures" mockup's ramps).
+const CREATURE_INK := Color("#1e1424")            ## outlines, eyes, mouths
+const CREATURE_GLINT := Color("#ffffff")          ## the eyes' glint
+const CREATURE_CHEEK := Color("#ff8fb4")          ## cheeks and tongues
+const CREATURE_SWEAT := Color("#27c0e0")          ## a sweat drop
+const CURSOR_HOOD := Color("#f4f6ff")
+const CURSOR_HOOD_SHADE := Color("#b8c0e0")
+const CURSOR_FEET := Color("#ffaa22")
+const WINDOW_CAP := Color("#4a78ff")              ## the title-bar cap and the ears
+const WINDOW_CAP_LIGHT := Color("#cfe0ff")        ## the title strip
+const WINDOW_BUTTON := Color("#ffffff")           ## the cap's three buttons
+const WINDOW_FACE := Color("#eef0fa")
+const WINDOW_FACE_SHADE := Color("#c2c8e0")
+const WINDOW_FEET := Color("#4a78ff")
+const BLOB_BODY := Color("#5fe0b0")
+const BLOB_SHADE := Color("#2aa888")
+const BLOB_LIGHT := Color("#b6ffe0")
+const BLOB_SHINE := Color("#ffffff")
+const BLOB_LEAF := Color("#8cf06a")
+const BLOB_FEET := Color("#2aa888")
 
 # --- M47.5a: the raw dev terminal (always on, pre-UI; tier-0 constants, not look roles) ---
 const TERM_BG := Color(0.039, 0.039, 0.047)       ## #0a0a0c, the terminal's back
@@ -211,6 +231,13 @@ const TIER_0 := {
 	&"blob_cheek": BLOB_CHEEK, &"cursor_fill": CURSOR_FILL, &"cursor_caret": CURSOR_CARET,
 	&"window_body": WINDOW_BODY, &"window_bar": WINDOW_BAR, &"window_panic": WINDOW_PANIC,
 	&"window_guilty": WINDOW_GUILTY,
+	&"creature_ink": CREATURE_INK, &"creature_glint": CREATURE_GLINT,
+	&"creature_cheek": CREATURE_CHEEK, &"creature_sweat": CREATURE_SWEAT,
+	&"cursor_hood": CURSOR_HOOD, &"cursor_hood_shade": CURSOR_HOOD_SHADE, &"cursor_feet": CURSOR_FEET,
+	&"window_cap": WINDOW_CAP, &"window_cap_light": WINDOW_CAP_LIGHT, &"window_button": WINDOW_BUTTON,
+	&"window_face": WINDOW_FACE, &"window_face_shade": WINDOW_FACE_SHADE, &"window_feet": WINDOW_FEET,
+	&"blob_body": BLOB_BODY, &"blob_shade": BLOB_SHADE, &"blob_light": BLOB_LIGHT,
+	&"blob_shine": BLOB_SHINE, &"blob_leaf": BLOB_LEAF, &"blob_feet": BLOB_FEET,
 }
 
 

@@ -10,8 +10,10 @@ extends Resource
 ## dash: the player's dash (PLAN v8 6.8, fork_dash); its take's id is a style (DASHES).
 ## dash_aim: where the dash goes (PLAN v8 6.9, fork_dash_aim); its take's id is in DASH_AIMS.
 ## path: the shooter path (PLAN v9 1.12, fork_path, M47); its take's id is a PathDB id.
+## layout: a level's shape (PLAN v9 1.8, fork_layout, M50.3c); its take's preset is a StageSet
+## (the v6 sets, under campaign names). Never the v6 `stages` kind: no genre, campaign only.
 const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic", &"stages", &"mascot", &"dash",
-		&"dash_aim", &"path"]
+		&"dash_aim", &"path", &"layout"]
 ## The mascot bodies a mascot change can pick (MascotBody.IDS draws them).
 const MASCOTS: Array[StringName] = [&"cursor", &"window", &"blob"]
 ## The dash styles a dash change can pick (Dasher.style plays them).

@@ -22,6 +22,9 @@ extends Control
 const SIZE := Vector2(240, 316)     ## the mockup's 176 x 232 at 1.36 (the game view is drawn scaled down in the rail)
 const MINI_HAND := Vector2(200, 56)
 const MINI_TOAST := Vector2(118, 86)
+const MINI_CHOICE := Vector2(280, 78)   ## M50.7: a give / replace step's hand card (MINI_HAND's shape)
+const MINI_CHIP := Vector2(200, 52)     ## M50.7: "Keep your hand" / "Back to the pack"
+const MINI_SOCKET := Vector2(34, 56)    ## M50.7: the link socket between the hand preview's cards
 const REVEAL_STEP := 0.08
 const FLIP_TIME := 0.1
 const FLASH_TIME := 0.12
@@ -30,6 +33,7 @@ const SHINE_TIME := 0.45
 const PIPS := 8
 const MIN_FS := 6.0     ## M50.2c review: the smallest FUSE text (card units)
 const RIBBON_CELL := 2.0   ## M50.6a: one cell of the Pixel ribbon's block capitals (card units)
+const NEXT_CELL := 2.0     ## M50.7 review: one cell of the Pixel NEXT tag's block capitals (screen px)
 
 ## The card shown: {style, title, rank, from, icon, icon_a, icon_b, tag, ribbon, gain, foot}.
 var face := {}
@@ -40,6 +44,8 @@ var back := false       ## face-down (before or during the first half of the fli
 var flash := 0.0        ## the landing flash's alpha
 var shine := -1.0       ## the rare shine's sweep 0..1, < 0 none
 var lit := false        ## the focused / hovered choice
+var offset := Vector2.ZERO   ## M50.7: the slot-in / fuse slide (drawn offset, px)
+var shrink := 1.0            ## M50.7: the slot-in's scale
 ## M50.2c review: the last drawn FUSE text box: {text, fs, height, box} (gain_fit). Read by tests.
 var fuse_drawn := {}
 ## M50.6a (tests): the last ribbon drawn: {text, rect, cell} (cell 0 = the look's font).
@@ -47,6 +53,12 @@ var ribbon_drawn := {}
 ## M50.5a: the pictures drawn in the last _draw, in order: [icon, how] with how = &"gun" (CardArt's
 ## pixel gun), &"flat" (WeaponGlyph's flat gun) or &"glyph" (the shot glyph). Read by tests.
 var art_drawn: Array = []
+## M50.7 (tests): the "NEXT: ..." teaser drawn on the art box ("" none).
+var next_drawn := ""
+## M50.7 review (tests): the NEXT tag's rows as drawn (Pixel: block capitals, wrapped).
+var next_rows_drawn: Array[String] = []
+## M50.7 review (tests): the gain text as drawn (whole sentences that fit two lines).
+var gain_drawn := ""
 
 
 ## The face for a pack card c (BoosterPack.card's dict); `key` its hint ("[1]") or "".
@@ -65,10 +77,29 @@ static func face_of(c: Dictionary, key := "", give := false) -> Dictionary:
 	elif tier == BoosterPack.EPIC:
 		style = &"card_epic"
 	var ribbon := "GOLD CARD" if give else String(tier).to_upper()
+	# M50.7: the mechanic an upgrade's rank unlocks or strengthens (the gain line's pink icon).
+	var mech: StringName = &""
+	if upgrade and w != null and not w.is_fusion() and not w.is_evolution():
+		mech = LevelCard.gained_mechanic(w, from, rank, true)
+	# M50.7: a numbers-only rank's ", next: <mechanic>" (WeaponCurve.gain_text) is a tag on the art
+	# box, so the gain line keeps its breakpoints within its two lines.
+	var gain := String(c.get("gain", c.get("text", "")))
+	var nxt := ""
+	var at := gain.rfind("next: ")
+	if at >= 0:
+		nxt = gain.substr(at + 6).strip_edges()
+		gain = gain.substr(0, at).strip_edges().trim_suffix(",")
 	return {"style": style, "title": String(w.title) if w != null else String(c.get("id", "")),
 			"rank": rank, "from": from, "icon": w.icon if w != null else &"",
 			"tag": "%d > %d" % [from, rank] if upgrade else "NEW", "ribbon": ribbon,
-			"gain": String(c.get("gain", c.get("text", ""))), "foot": key}
+			"gain": gain, "next": nxt, "foot": key, "mech": mech,
+			"mech_name": String(mech).replace("_", " ").capitalize() if mech != &"" else ""}
+
+
+## M50.7: pip k (0-based) is tall: a mechanic rank (2/4/6 unlock, 8/10/12... strengthen), as
+## the Auto cards draw them.
+static func tall_pip(k: int) -> bool:
+	return (k + 1) % 2 == 0
 
 
 ## The FUSE card's face from BoosterPack.fuse_option's dict.
@@ -136,14 +167,23 @@ func _draw() -> void:
 	art_drawn.clear()
 	match mini:
 		&"hand":
+			draw_set_transform(offset, 0.0, Vector2.ONE)
 			_draw_hand()
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			return
 		&"toast":
 			_draw_toast()
 			return
+		&"choice":
+			_draw_choice()
+			return
+		&"socket":
+			_draw_socket()
+			return
 	var w := size.x
 	var lift := -8.0 * _u() if lit else 0.0
-	draw_set_transform(Vector2(w * 0.5 * (1.0 - flip_sx), lift), 0.0, Vector2(flip_sx, 1.0))
+	var sx := flip_sx * shrink
+	draw_set_transform(offset + Vector2(w * 0.5 * (1.0 - sx), lift + size.y * 0.5 * (1.0 - shrink)), 0.0, Vector2(sx, shrink))
 	if back:
 		_draw_back()
 	elif pixel():
@@ -171,8 +211,15 @@ func _font(bold := false) -> Font:
 func _text(at: Vector2, t: String, fs: float, color: Color, bold := false, align := HORIZONTAL_ALIGNMENT_LEFT,
 		width := -1.0) -> void:
 	var f := _font(bold)
-	var s := int(roundf(fs * _u()))
+	var s := _px(fs)
 	draw_string(f, Vector2(at.x, at.y + f.get_ascent(s)), t, align, width, s, color)
+
+
+## M50.7: a size in card units as screen px; on Pixel never one where Pixelify closes C, E, F,
+## G or 1 (UiTheme.pixel_size, as the rail's text does).
+func _px(fs: float) -> int:
+	var s := int(roundf(fs * _u()))
+	return UiTheme.pixel_size(s) if pixel() else s
 
 
 # --- Pixel ----------------------------------------------------------------------------------
@@ -217,6 +264,7 @@ func _draw_pixel() -> void:
 		var tr := Rect2(Vector2(art.end.x - tw - 6 * u, art.position.y + 6 * u), Vector2(tw, 18 * u))
 		draw_rect(tr, ink)
 		_text(tr.position + Vector2(5 * u, 2 * u), tag, fs, CardFaceArt.px(&"gold") if tag == "NEW" or tag == "FUSE" else CardFaceArt.px(&"paper"), true)
+	_next_tag(art, ink, CardFaceArt.px(&"pink"), 12.0)
 	# The name bar.
 	var nb := _r(8, 80 if fuse else 126, 160, 22)
 	draw_rect(nb, ink)
@@ -231,10 +279,7 @@ func _draw_pixel() -> void:
 		_fuse_text(_r(12, 110, 152, 98), 12, CardFaceArt.px(&"text"), CardFaceArt.px(&"red"))
 	else:
 		_pips(Vector2(12, 156), true)
-		var gain := String(face.get("gain", ""))
-		var gf := int(roundf(12 * u))
-		draw_multiline_string(_font(), Vector2(12 * u, 174 * u + _font().get_ascent(gf)), gain, HORIZONTAL_ALIGNMENT_LEFT,
-				152 * u, gf, 2, CardFaceArt.px(&"text"))
+		_gain(Vector2(12, 174), 152, 12, CardFaceArt.px(&"text"), CardFaceArt.px(&"pink"))
 	_foot(Vector2(12, 211) * u, 13, 134 * u, CardFaceArt.px(&"rare_foot") if rare else (CardFaceArt.px(&"epic_foot") if epic else CardFaceArt.px(&"foot")))
 	var gem := _r(152, 212, 12, 12)
 	draw_rect(gem.grow(2 * u), ink)
@@ -348,7 +393,100 @@ func _ribbon() -> void:
 		_text(r.position + Vector2(0, 4 * u), t, fs, ink, true, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
 
 
-## Rank pips: the held ranks on, this card's new ranks in pink, then "+N".
+## M50.7: the gain line (two lines at most): on a mechanic rank the pink mechanic icon and its
+## bold name first (CardArt.MECHS on Pixel, a pink diamond on tier 0).
+func _gain(at: Vector2, width: float, fs: float, col: Color, pink: Color) -> void:
+	var u := _u()
+	var gain := String(face.get("gain", ""))
+	var mech: StringName = face.get("mech", &"")
+	var x := at.x * u
+	if mech != &"":
+		if pixel():
+			CardArt.draw_mech(self, mech, Vector2(x, at.y * u + 1 * u), maxf(1.0, roundf(2 * u)))
+		else:
+			var c := Vector2(x + 7 * u, at.y * u + 8 * u)
+			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -6) * u, c + Vector2(6, 0) * u, c + Vector2(0, 6) * u,
+					c + Vector2(-6, 0) * u]), pink)
+		x += 22 * u
+	var gf := _px(fs)
+	var mech_name := String(face.get("mech_name", ""))
+	if mech_name != "" and gain.to_lower().begins_with(mech_name.to_lower() + ":"):
+		gain = gain.substr(mech_name.length() + 1).strip_edges()
+	# M50.7 review: a gain longer than two lines drops its last whole sentences ("joins your hand:
+	# The gun you started with." not "... It still"); one sentence still too long ends in "...".
+	var p := _gain_paragraph(mech_name, gain, at.x * u + width * u - x, gf)
+	while p.get_line_count() > 2 and gain.rfind(". ") > 0:
+		gain = gain.substr(0, gain.rfind(". ") + 1)
+		p = _gain_paragraph(mech_name, gain, at.x * u + width * u - x, gf)
+	gain_drawn = gain
+	p.max_lines_visible = 2
+	p.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	p.draw(get_canvas_item(), Vector2(x, at.y * u), col)
+
+
+func _gain_paragraph(mech_name: String, gain: String, width: float, gf: int) -> TextParagraph:
+	var p := TextParagraph.new()
+	p.width = width
+	if mech_name != "":
+		p.add_string(mech_name + ": ", _font(true), gf)
+	p.add_string(gain, _font(), gf)
+	return p
+
+
+## M50.7: the next mechanic a numbers-only rank leads to ("NEXT: +SEEKER"), bottom left of the
+## art box on a `bg` block in `col`.
+func _next_tag(art: Rect2, bg: Color, col: Color, fs: float) -> void:
+	next_drawn = ""
+	var nxt := String(face.get("next", ""))
+	if nxt == "":
+		return
+	var u := _u()
+	var t := "NEXT: " + nxt.to_upper()
+	var room := art.size.x - 12 * u
+	if pixel():
+		# M50.7 review: the rail's block capitals (Pixelify's small C read as O and G as B), the
+		# words wrapped to a second row rather than cut at the art box's edge.
+		var rows := next_rows("NEXT " + nxt.to_upper(), room - 10.0, NEXT_CELL)
+		var wmax := 0.0
+		for row in rows:
+			wmax = maxf(wmax, RailArt.digits_width(row, NEXT_CELL))
+		var h := rows.size() * 7.0 * NEXT_CELL + (rows.size() - 1) * 3.0 + 8.0
+		var br := Rect2(Vector2(art.position.x + 6 * u, art.end.y - 6 * u - h), Vector2(minf(room, wmax + 10.0), h))
+		draw_rect(br, bg)
+		for k in rows.size():
+			RailArt.draw_digits(self, (br.position + Vector2(5.0, 4.0 + k * (7.0 * NEXT_CELL + 3.0))).round(), rows[k],
+					NEXT_CELL, col)
+		next_drawn = t
+		next_rows_drawn = rows
+		return
+	# Flat: the whole tag, its size stepped down until it fits (never cut).
+	var f := _font(true)
+	var s := _px(fs)
+	while s > 7 and f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x + 10 * u > room:
+		s -= 1
+	var tw := minf(room, f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x + 10 * u)
+	var tr := Rect2(Vector2(art.position.x + 6 * u, art.end.y - 24 * u), Vector2(tw, 18 * u))
+	draw_rect(tr, bg)
+	draw_string(f, Vector2(tr.position.x + 5 * u, tr.position.y + 2 * u + f.get_ascent(s)), t, HORIZONTAL_ALIGNMENT_LEFT, -1, s, col)
+	next_drawn = t
+	next_rows_drawn = [t]
+
+
+## M50.7 review: `text` in rows of block capitals at `cell`, none wider than `width` (word wrap;
+## a word longer than a row keeps a row of its own).
+static func next_rows(text: String, width: float, cell: float) -> Array[String]:
+	var rows: Array[String] = [""]
+	for w in text.split(" ", false):
+		var cand := w if rows[-1] == "" else rows[-1] + " " + w
+		if rows[-1] != "" and RailArt.digits_width(cand, cell) > width:
+			rows.append(w)
+		else:
+			rows[-1] = cand
+	return rows
+
+
+## Rank pips: the held ranks on, this card's new ranks in pink, then "+N". M50.7: a mechanic
+## rank's pip is taller (tall_pip), as the Auto cards draw them.
 func _pips(at: Vector2, square: bool) -> void:
 	var u := _u()
 	var rank := int(face.get("rank", 1))
@@ -361,9 +499,16 @@ func _pips(at: Vector2, square: bool) -> void:
 		if rank > PIPS and from > 0:
 			on_col = gold if k < PIPS - mini(rank - from, PIPS) else fresh
 		var c := (at + Vector2(k * 16, 0)) * u
+		var rk := k + 1 + (rank - PIPS if rank > PIPS else 0)   # the rank this pip stands for
+		var tall := tall_pip(rk - 1)
 		if square:
-			draw_rect(Rect2(c, Vector2(11, 11) * u).grow(2 * u), CardFaceArt.px(&"ink"))
-			draw_rect(Rect2(c, Vector2(11, 11) * u), on_col)
+			var pr := Rect2(c - Vector2(0, 5 * u if tall else 0.0), Vector2(11, 16 if tall else 11) * u)
+			draw_rect(pr.grow(2 * u), CardFaceArt.px(&"ink"))
+			draw_rect(pr, on_col)
+		elif tall:
+			var m := c + Vector2(5.5, 5.5) * u
+			draw_colored_polygon(PackedVector2Array([m + Vector2(0, -8) * u, m + Vector2(6, 0) * u, m + Vector2(0, 7) * u,
+					m + Vector2(-6, 0) * u]), on_col)
 		else:
 			draw_circle(c + Vector2(5.5, 5.5) * u, 5.5 * u, on_col)
 	if rank > from:
@@ -468,6 +613,7 @@ func _draw_flat() -> void:
 		draw_style_box(tb, tr)
 		_text(tr.position + Vector2(0, 3 * u), tag, 10, CardFaceArt.flat(&"gold") if tag == "NEW" or tag == "FUSE" else CardFaceArt.flat(&"text"), true,
 				HORIZONTAL_ALIGNMENT_CENTER, tr.size.x)
+	_next_tag(art, CardFaceArt.flat(&"back"), CardFaceArt.flat(&"pink"), 10.0)
 	var title := String(face.get("title", ""))
 	var ty := 80.0 if fuse else 130.0
 	_text(Vector2(14, ty) * u, title, 17, CardFaceArt.flat(&"text"), true)
@@ -478,9 +624,7 @@ func _draw_flat() -> void:
 		_fuse_text(_r(14, 110, 150, 102), 11, CardFaceArt.flat(&"text"), CardFaceArt.flat(&"red"))
 	else:
 		_pips(Vector2(14, 162), false)
-		var gf := int(roundf(11 * u))
-		draw_multiline_string(_font(), Vector2(14 * u, 182 * u + _font().get_ascent(gf)), String(face.get("gain", "")),
-				HORIZONTAL_ALIGNMENT_LEFT, 150 * u, gf, 2, CardFaceArt.flat(&"text"))
+		_gain(Vector2(14, 182), 150, 11, CardFaceArt.flat(&"text"), CardFaceArt.flat(&"pink"))
 	_foot(Vector2(14, 216) * u, 11, 136 * u, CardFaceArt.flat(&"dim"))
 	_badge(_r(-8, -8, 36, 36))
 	_ribbon()
@@ -549,6 +693,131 @@ func _draw_hand() -> void:
 		draw_string(f, Vector2(52 * u, 8 * u + f.get_ascent(s)), title, HORIZONTAL_ALIGNMENT_LEFT, -1, s, CardFaceArt.flat(&"text"))
 		draw_string(f, Vector2(52 * u, 28 * u + f.get_ascent(int(11 * u))), "rank %d" % rank, HORIZONTAL_ALIGNMENT_LEFT,
 				-1, int(11 * u), CardFaceArt.flat(&"gold"))
+
+
+## M50.7: a give / replace step's choice. A hand card (MINI_HAND's strip at MINI_CHOICE) with its
+## key chip top right and its verb ("replace", or the kept partner's "keep"); the focus is a gold
+## ring outside the card; the recipe partner (`link`) a mint edge and the socket with its note; the
+## locked partner (`lock`) dimmed under a lock, never lit. The chip (style &"chip"): Keep your hand
+## or Back, its key on the left.
+func _draw_choice() -> void:
+	var px := pixel()
+	var gold := CardFaceArt.px(&"gold") if px else CardFaceArt.flat(&"gold")
+	var ink := CardFaceArt.px(&"ink")
+	var mint := CardFaceArt.px(&"mint")
+	var r := Rect2(Vector2.ZERO, size)
+	var u := size.y / 50.0
+	if lit:
+		draw_rect(r.grow(7), ink)
+		draw_rect(r.grow(5), gold)
+	var key := String(face.get("foot", ""))
+	if face.get("style") == &"chip":
+		if px:
+			draw_rect(r, ink)
+			draw_rect(r.grow(-3), CardFaceArt.px(&"paper_lo") if lit else CardFaceArt.px(&"cell"))
+		else:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = CardFaceArt.flat(&"face")
+			sb.border_color = CardFaceArt.flat(&"edge")
+			sb.set_border_width_all(2)
+			sb.set_corner_radius_all(int(size.y * 0.5))
+			draw_style_box(sb, r)
+		var f := UiTheme.pixel_font(true) if px else UiTheme.font()
+		var s := UiTheme.pixel_size(17) if px else 17
+		var x := 12.0
+		if key != "":
+			x += _key_chip(Vector2(x, (size.y - 26) * 0.5), key) + 10.0
+		var tc := ink if px and lit else (CardFaceArt.px(&"paper") if px else CardFaceArt.flat(&"text"))
+		draw_string(f, Vector2(x, size.y * 0.5 + f.get_ascent(s) * 0.4), String(face.get("title", "")), HORIZONTAL_ALIGNMENT_LEFT,
+				size.x - x - 8, s, tc)
+		return
+	_draw_hand()
+	var linked := bool(face.get("link", false))
+	var locked := bool(face.get("lock", false))
+	if linked:
+		draw_rect(r.grow(-1), mint, false, 3.0)
+	if key != "":
+		_key_chip(Vector2(size.x - 8 - _key_w(key), 6), key)
+	var f2 := UiTheme.pixel_font(true) if px else UiTheme.font()
+	var s2 := UiTheme.pixel_size(int(roundf(11 * u))) if px else int(roundf(11 * u))
+	var verb := String(face.get("verb", "")).to_upper()
+	var note := String(face.get("note", ""))
+	var vx := 57.0 * u + 56.0 * u
+	var vy := 28.0 * u + f2.get_ascent(s2)
+	if linked:   # M50.7 review: the mint word on an ink chip (mint on the cream card was faint)
+		var vw := f2.get_string_size(verb, HORIZONTAL_ALIGNMENT_LEFT, -1, s2).x
+		draw_rect(Rect2(Vector2(vx - 4, vy - f2.get_ascent(s2) - 2), Vector2(vw + 8, f2.get_height(s2) + 4)), ink)
+	draw_string(f2, Vector2(vx, vy), verb, HORIZONTAL_ALIGNMENT_LEFT, -1, s2,
+			mint if linked else (ink if px else CardFaceArt.flat(&"dim")))
+	if note != "":
+		var sock := Vector2(size.x - 18, size.y - 14)
+		_socket(sock, 2 if not locked else 1, 6.0)
+		# Under the card, clear of the focus ring (inside, "links with the Laser" was cut short).
+		var ns := s2 - 1
+		draw_string(f2, Vector2(-20, size.y + 10 + f2.get_ascent(ns)), note, HORIZONTAL_ALIGNMENT_CENTER, size.x + 40, ns,
+				mint if linked else (gold if px else CardFaceArt.flat(&"dim")))
+	if locked:
+		draw_rect(r, Color(ink, 0.45))
+		var c := Vector2(size.x - 26, size.y * 0.5 + 4)
+		draw_arc(c + Vector2(0, -7), 6.0, PI, TAU, 10, gold, 3.0)
+		draw_rect(Rect2(c + Vector2(-9, -6), Vector2(18, 14)), gold)
+		draw_rect(Rect2(c + Vector2(-2, -2), Vector2(4, 6)), ink)
+
+
+## M50.7: a chip's width for `title` and `key` (its key chip, the gap, the text, the margins),
+## at least MINI_CHIP's: "Back to the pack" no longer cut short.
+static func chip_width(title: String, key: String) -> float:
+	var f := UiTheme.pixel_font(true) if pixel() else UiTheme.font()
+	var s := UiTheme.pixel_size(17) if pixel() else 17
+	var kw := 0.0
+	if key != "":
+		kw = maxf(26.0, f.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 12.0) + 10.0
+	return maxf(MINI_CHIP.x, ceilf(12.0 + kw + f.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, s).x + 16.0))
+
+
+func _key_w(key: String) -> float:
+	var f := UiTheme.pixel_font(true) if pixel() else UiTheme.font()
+	return maxf(26.0, f.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 12.0)
+
+
+## M50.7: the key chip (an ink block, the key in gold); returns its width.
+func _key_chip(at: Vector2, key: String) -> float:
+	var f := UiTheme.pixel_font(true) if pixel() else UiTheme.font()
+	var w := _key_w(key)
+	var kr := Rect2(at, Vector2(w, 26))
+	draw_rect(kr, CardFaceArt.px(&"ink"))
+	draw_rect(Rect2(kr.position, Vector2(kr.size.x, 2)), CardFaceArt.px(&"gold_lo"))
+	draw_string(f, Vector2(kr.position.x, kr.position.y + 5 + f.get_ascent(15)), key, HORIZONTAL_ALIGNMENT_CENTER, w, 15,
+			CardFaceArt.px(&"gold"))
+	return w
+
+
+## M50.7: the hand preview's link socket (face.link 1 dim, 2 ready: gold and "fuse ready").
+func _draw_socket() -> void:
+	var state := int(face.get("link", 0))
+	if state <= 0:
+		return
+	_socket(Vector2(size.x * 0.5, size.y * 0.4), state, 9.0)
+	if state == 2:
+		if pixel():   # M50.7 review: block capitals (Pixelify at 11 px read "Pueeready")
+			var w := RailArt.digits_width("READY", 2.0)
+			draw_rect(Rect2(Vector2((size.x - w) * 0.5 - 3.0, size.y - 19.0), Vector2(w + 6.0, 18.0)), CardFaceArt.px(&"ink"))
+			RailArt.draw_digits(self, Vector2(roundf((size.x - w) * 0.5), size.y - 17.0), "READY", 2.0, CardFaceArt.px(&"gold"))
+			return
+		var f := UiTheme.font()
+		draw_string(f, Vector2(-20, size.y - 2), "fuse ready", HORIZONTAL_ALIGNMENT_CENTER, size.x + 40, 11, CardFaceArt.px(&"gold"))
+
+
+## The socket: two half rings joined by a bar (dim plum, or gold when ready).
+func _socket(c: Vector2, state: int, rad: float) -> void:
+	var col := CardFaceArt.px(&"gold") if state == 2 else CardFaceArt.px(&"gem")
+	draw_circle(c, rad + 3, CardFaceArt.px(&"ink"))
+	draw_arc(c + Vector2(-rad * 0.45, 0), rad * 0.55, PI * 0.5, PI * 1.5, 8, col, 3.0)
+	draw_arc(c + Vector2(rad * 0.45, 0), rad * 0.55, -PI * 0.5, PI * 0.5, 8, col, 3.0)
+	draw_line(c - Vector2(rad * 0.5, 0), c + Vector2(rad * 0.5, 0), col, 3.0)
+	if state == 1:
+		var f := UiTheme.pixel_font(true) if pixel() else UiTheme.font()
+		draw_string(f, c + Vector2(-rad, rad + 14), str(BoosterPack.FUSE_RANK), HORIZONTAL_ALIGNMENT_CENTER, rad * 2, 12, col)
 
 
 ## The 1-card pack's toast: the rail's `pack` icon (RailArt, read, not copied), then the card

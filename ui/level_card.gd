@@ -23,6 +23,13 @@ extends Control
 ## diamonds); the effect line leads with the mechanic's icon and bold name; an item's pair row
 ## shows the paired gun and READY when EVOLVE is on offer; the focused card's key reads
 ## "focused"; the flat cards draw flat guns. Still steady: nothing pulses.
+##
+## M50.7 (polish): the card lights under the mouse as under the focus; the card the session gave
+## (PickOffer.given, S9's haste) wears a GIFT tag; a weapon's breakpoints read the path's enemy
+## HP (Auto 0.7) and the item mods held, a multi-pellet gun says "per pellet"; Haste reads the
+## real shots/s on the 60 Hz clock (haste_rate_text: a 0% step says so); EVOLVE says its real
+## start; the Pixel name plates draw in the rail's block capitals (plate_drawn); the banner's
+## "pick 1 of n" is solid.
 
 const SIZE := Vector2(232, 356)    ## the card (316) and its key row (40: clear of the focus ring)
 const CARD_H := 316.0
@@ -34,11 +41,15 @@ const KIND_EVOLVE := &"evolve"
 const SIZE_EVO := Vector2(264, 356)   ## M50.4c1: the EVOLVE card (the sheet's 256 + its gold rim)
 const EFFECT_PX := 16      ## M50.4f: the Pixel effect line (the sheet's 16 px)
 const EFFECT_FLAT := 15    ## M50.4f: the flat effect line
+const BLOCK_CELL := 2.0    ## M50.7 review: the Pixel header's block capitals (tags, the LV badge)
+const CHEVRON := ["#....", ".#...", "..#..", "...#.", "..#..", ".#...", "#...."]
 
 ## {kind, kind_label, title, icon, from, to, cap, new, max, effect, mech, mech_name, pair,
 ## pair_icon, paired, ready, key}
 var data := {}
 var pixel := false
+## M50.7 (tests): the last name plate drawn: {text, cell} (cell 0 = the look's font).
+var plate_drawn := {}
 
 static var _bold_flat: FontVariation
 
@@ -50,17 +61,24 @@ func _ready() -> void:
 	if b != null:
 		b.focus_entered.connect(queue_redraw)
 		b.focus_exited.connect(queue_redraw)
+		b.mouse_entered.connect(queue_redraw)   # M50.7: lit under the mouse too
+		b.mouse_exited.connect(queue_redraw)
 
 
 ## The card's dictionary for offer card `card` (PickOffer's) on a path capped at `cap`, with
 ## `key` its key label. The texts come from the defs, never from card.text (that stays the
 ## plain panel's and the logs'). M50.4f: `evolve` is the offer's EVOLVE choice ({} none): an
 ## item that is its catalyst reads READY.
-static func data_for(card: Dictionary, cap: int, key: String, evolve := {}) -> Dictionary:
+## M50.7: `ctx` (PickPanel.card_ctx; {} in tests) adds what the card reads beyond the offer:
+## `given` (the id the session gave: the GIFT tag), `hp_mult` (the live enemy HP multiplier),
+## `loadout` (the item mods and the real fire rates). Presentation only.
+static func data_for(card: Dictionary, cap: int, key: String, evolve := {}, ctx := {}) -> Dictionary:
 	var d := {"kind": KIND_WEAPON, "kind_label": "WEAPON", "title": "", "icon": &"", "from": 0,
 			"to": int(card.get("rank", 1)), "cap": maxi(1, cap), "new": card.get("kind") == &"new",
 			"max": false, "effect": String(card.get("text", "")), "mech": &"", "mech_name": "",
-			"pair": "", "pair_icon": &"", "paired": false, "ready": false, "key": key}
+			"pair": "", "pair_icon": &"", "paired": false, "ready": false, "key": key,
+			"given": StringName(ctx.get("given", &"")) != &"" and StringName(ctx.get("given", &"")) == StringName(card.get("id", &""))}
+	var lo: Loadout = ctx.get("loadout") if ctx.get("loadout") is Loadout else null
 	var kind: StringName = card.get("kind", &"")
 	if kind == PickOffer.HP or kind == PickOffer.BOOST:
 		d.kind = KIND_FILLER
@@ -83,8 +101,16 @@ static func data_for(card: Dictionary, cap: int, key: String, evolve := {}) -> D
 		d.title = it.title
 		d.icon = it.icon
 		d.effect = it.effect(int(d.to)) + ("" if d.new else " (was %s)" % it.pct(int(d.from)))
-		var w := WeaponDB.get_weapon(it.pairs)
-		d.pair = "pairs with %s" % (w.title if w != null else String(it.pairs))
+		# M50.7 review: once the paired gun has evolved (Pistol -> Minigun), the card reads the gun held.
+		var pair_id := paired_now(it.pairs, lo)
+		if it.stat == &"haste":   # M50.7: the real shots/s of the paired gun (ticks, not percent)
+			var pw := lo.held(pair_id) if lo != null else null
+			var pdef := WeaponDB.get_weapon(pair_id)
+			if pdef != null:
+				var cd := float(pw.value(&"cooldown")) / maxf(0.01, pw.stat_mult(&"haste")) if pw != null else pdef.cooldown
+				d.effect = "%s: %s" % [pdef.title, haste_rate_text(cd, int(d.from), int(d.to), it.per_level)]
+		var w := WeaponDB.get_weapon(pair_id)
+		d.pair = "pairs with %s" % (w.title if w != null else String(pair_id))
 		d.pair_icon = w.icon if w != null else &""
 		d.paired = bool(card.get("paired", false))
 		d.ready = d.paired and StringName(evolve.get("catalyst", &"")) == StringName(card.id)
@@ -98,6 +124,15 @@ static func data_for(card: Dictionary, cap: int, key: String, evolve := {}) -> D
 		d.effect = wd.card_text[0] if not wd.card_text.is_empty() else wd.pitch
 	elif cap > Loadout.MAX_RANK:
 		var gain := WeaponCurve.gain_text(wd, int(d.from), int(d.to))
+		# M50.7: the breakpoints against the enemies as they are on this path (Auto's 0.7 HP) and
+		# with the mods held (Might); a multi-pellet gun counts per pellet.
+		var hp_mult := float(ctx.get("hp_mult", 1.0))
+		var might := float(lo.mods_now().get(&"might", 1.0)) if lo != null else 1.0
+		if (hp_mult != 1.0 or might != 1.0) and WeaponCurve.mult(int(d.to)) != WeaponCurve.mult(int(d.from)):
+			gain = live_damage_gain(wd, int(d.from), int(d.to), gain, hp_mult, might)
+		if wd.pellets > 1 and gain != "" and not gain.contains("per pellet") and WeaponCurve.mult(int(d.to)) != WeaponCurve.mult(int(d.from)):
+			var cut := gain.find(", next: ")   # review: after the damage, not after the teaser
+			gain = gain.insert(cut, " (per pellet)") if cut >= 0 else gain + " (per pellet)"
 		d.effect = gain if gain != "" else "rank %d" % int(d.to)
 	elif int(d.to) - 1 < wd.card_text.size():
 		d.effect = wd.card_text[int(d.to) - 1]
@@ -132,8 +167,49 @@ func mechanic_rank(k: int) -> bool:
 	return k >= 2
 
 
+## M50.7 review: the damage part of gain_text (its breakpoints, or "damage a -> b" when it has
+## none) swapped for the one against enemies at `hp_mult` with `might` held; the rest of `gain` kept.
+static func live_damage_gain(wd: WeaponDef, from: int, to: int, gain: String, hp_mult: float, might: float) -> String:
+	var old_bp := WeaponCurve.breakpoint_text(wd, from, to)
+	var head := old_bp if old_bp != "" else "damage %s -> %s" % [WeaponCurve.num(wd.damage * WeaponCurve.mult(from)),
+			WeaponCurve.num(wd.damage * WeaponCurve.mult(to))]
+	if not gain.begins_with(head):
+		return gain
+	var rest := gain.substr(head.length()).trim_prefix(", ")
+	var bp := WeaponCurve.breakpoint_text(wd, from, to, hp_mult, might)
+	if bp == "":
+		bp = "damage %s -> %s" % [WeaponCurve.num(wd.damage * WeaponCurve.mult(from) * might),
+				WeaponCurve.num(wd.damage * WeaponCurve.mult(to) * might)]
+	return bp + (", " + rest if rest != "" else "")
+
+
+## M50.7 review: the gun an item pairs with now: `pairs`, or the evolution of it the loadout holds.
+static func paired_now(pairs: StringName, lo: Loadout) -> StringName:
+	if lo == null or lo.held(pairs) != null:
+		return pairs
+	var evo := lo.evolution_of(pairs)
+	return evo.def.id if evo != null else pairs
+
+
+## M50.7: Haste from level `from` to `to` on a gun firing every `cd` s: the real shots/s on the
+## 60 Hz clock before and after (a cooldown rounds up to whole ticks, so a step can change
+## nothing), then the next level that does: "5.5/s -> 5.5/s (lv 3: 6/s)".
+static func haste_rate_text(cd: float, from: int, to: int, per_level: float) -> String:
+	var a := PathRunner.fire_rate(cd * (1.0 + per_level * from))
+	var b := PathRunner.fire_rate(cd * (1.0 + per_level * to))
+	var t := "%s/s -> %s/s" % [WeaponCurve.num(a), WeaponCurve.num(b)]
+	if b <= a:
+		for lv in range(to + 1, to + 7):
+			var c := PathRunner.fire_rate(cd * (1.0 + per_level * lv))
+			if c > b:
+				return t + " (lv %d: %s/s)" % [lv, WeaponCurve.num(c)]
+	return t
+
+
 ## M50.4c1: the EVOLVE choice's dictionary from PickOffer.evolve ({from, into, catalyst, rank}).
-static func data_for_evolve(ev: Dictionary, key: String) -> Dictionary:
+## M50.7: `nerf_s` > 0 (the session patches the launch numbers that long after the evolution)
+## says the real start: "30/s for 8 s, then 15/s"; else the real rates "6/s -> 15/s".
+static func data_for_evolve(ev: Dictionary, key: String, nerf_s := 0.0) -> Dictionary:
 	var d := {"kind": KIND_EVOLVE, "kind_label": "EVOLVE", "title": "", "icon": &"", "from": 0, "to": 0,
 			"cap": 0, "new": false, "max": false, "effect": "", "pair": "", "paired": true, "key": key,
 			"key_word": "evolve", "from_title": "", "from_icon": &"", "rank": int(ev.get("rank", 0)),
@@ -151,8 +227,15 @@ static func data_for_evolve(ev: Dictionary, key: String) -> Dictionary:
 	d.item_icon = it.icon
 	var before := PathRunner.fire_rate(float(WeaponCurve.value(base, &"cooldown", int(d.rank))))
 	var after := PathRunner.fire_rate(into.cooldown)
-	d.effect = "fire rate x%s, a sweeping stream" % WeaponCurve.num(snappedf(after / maxf(0.1, before), 0.5)) \
-			if after > before * 1.2 and &"sweep" in into.mechanics else into.pitch   # M50.4c2: the others' pitch
+	if after > before * 1.2 and &"sweep" in into.mechanics:
+		var launch := float(into.launch_values.get("cooldown", into.launch_values.get(&"cooldown", 0.0)))
+		if nerf_s > 0.0 and launch > 0.0:
+			d.effect = "%s/s for %s s, then %s/s, a sweeping stream" % [WeaponCurve.num(PathRunner.fire_rate(launch)),
+					WeaponCurve.num(nerf_s), WeaponCurve.num(after)]
+		else:
+			d.effect = "fire rate %s/s -> %s/s, a sweeping stream" % [WeaponCurve.num(before), WeaponCurve.num(after)]
+	else:
+		d.effect = into.pitch   # M50.4c2: the others' pitch
 	return d
 
 
@@ -169,7 +252,7 @@ func set_card(p_data: Dictionary, p_pixel: bool) -> void:
 
 func _focused() -> bool:
 	var b := get_parent() as Button
-	return b != null and b.has_focus() and not b.disabled
+	return b != null and b.has_focus() and not b.disabled   # M50.7 review: the mouse moves the focus (PickPanel._hover)
 
 
 ## M50.4f: the word under the card: "focused" on the focused card, else its own ("choose",
@@ -218,21 +301,23 @@ func _draw_pixel() -> void:
 	draw_rect(Rect2(Vector2(head.position.x, head.end.y - 4), Vector2(head.size.x, 4)), CardArt.c(&"ink"))
 	var kx := head.position.x + 10
 	var tag := "NEW" if data.new else ("MAX" if maxed else "")
-	if tag != "":
-		var tw := RailFrame.text_w(tag, 12, true) + 10
-		RailArt.block(self, Rect2(Vector2(kx, head.position.y + 7), Vector2(tw, 16)),
-				CardArt.c(&"pink") if data.new else CardArt.c(&"gold"), 2.0)
-		RailFrame.text(self, Vector2(kx + 5, head.position.y + 8), tag, 12, CardArt.c(&"ink"), true)
+	if bool(data.get("given", false)):
+		tag = "GIFT"   # M50.7: the card the session gave
+	if tag != "":   # M50.7 review: block capitals (Pixelify at 12 px read GIFT as "BIFT")
+		var tw := block_w(tag, BLOCK_CELL) + 10
+		RailArt.block(self, Rect2(Vector2(kx, head.position.y + 7), Vector2(tw, 18)),
+				CardArt.c(&"pink") if data.new and tag != "GIFT" else CardArt.c(&"gold"), 2.0)
+		block_text(self, Vector2(kx + 5, head.position.y + 9), tag, BLOCK_CELL, CardArt.c(&"ink"))
 		kx += tw + 8
 	RailFrame.text(self, Vector2(kx, head.position.y + 9), data.kind_label, 11,
 			CardArt.c(&"warn") if item else CardArt.c(&"gold"), true)
-	var badge := _badge_text()
-	if badge != "":
-		var bw := RailFrame.text_w(badge, 14, true) + 12
-		var br := Rect2(Vector2(head.end.x - 8 - bw, head.position.y + 5), Vector2(bw, 20))
+	var badge := _badge_text().replace(" > ", ">")
+	if badge != "":   # M50.7 review: block capitals ("LV 1" read "LV !")
+		var bw := block_w(badge, BLOCK_CELL) + 12
+		var br := Rect2(Vector2(head.end.x - 8 - bw, head.position.y + 5), Vector2(bw, 22))
 		draw_rect(br, CardArt.c(&"ink"))
-		RailFrame.text(self, br.position + Vector2(6, 2), badge, 14, CardArt.c(&"gold") if data.new or data.cap == 0 or maxed \
-				else CardArt.c(&"paper"), true)
+		block_text(self, br.position + Vector2(6, 4), badge, BLOCK_CELL, CardArt.c(&"gold") if data.new or data.cap == 0 or maxed \
+				else CardArt.c(&"paper"))
 	# The window: the sheet's backdrop, then the big card art at the window's own scale.
 	var win := Rect2(r.position + Vector2(10, 42), Vector2(r.size.x - 20, 106))
 	RailArt.block(self, win, CardArt.c(&"sunk") if not item else CardArt.c(&"base"), 4.0)
@@ -241,9 +326,7 @@ func _draw_pixel() -> void:
 	# The name plate.
 	var plate := Rect2(Vector2(r.position.x + 20, win.end.y + 12), Vector2(r.size.x - 40, 28))
 	RailArt.block(self, plate, CardArt.c(&"paper"), 4.0, 4.0, CardArt.c(&"paper_lo"))
-	var title := String(data.title).to_upper()
-	RailFrame.text(self, plate.position + Vector2(0, 4), title, RailFrame.fit(title, 16, plate.size.x - 8, true, 9),
-			CardArt.c(&"ink"), true, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x)
+	_plate_text(plate, String(data.title).to_upper(), CardArt.c(&"ink"))
 	# Pips, the effect, the pair row.
 	var y := plate.end.y + 10
 	if int(data.cap) > 0:
@@ -386,14 +469,15 @@ func _draw_flat() -> void:
 		var br := Rect2(Vector2(r.end.x - 12 - bw, r.position.y + 10), Vector2(bw, 22))
 		draw_style_box(pill, br)
 		draw_string(font, br.position + Vector2(8, 16), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, text)
-	if data.new or maxed:
+	var gift := bool(data.get("given", false))   # M50.7: the card the session gave
+	if data.new or maxed or gift:
 		var tag := StyleBoxFlat.new()
-		tag.bg_color = Palette.color(&"hit") if data.new else Palette.color(&"card_evolve")
+		tag.bg_color = Palette.color(&"hit") if data.new and not gift else Palette.color(&"card_evolve")
 		tag.set_corner_radius_all(8)
 		var tr := Rect2(r.position + Vector2(90, 10), Vector2(46, 20))
 		draw_style_box(tag, tr)
-		draw_string(font, tr.position + Vector2(0, 15), "NEW" if data.new else "MAX", HORIZONTAL_ALIGNMENT_CENTER, tr.size.x, 12,
-				text if data.new else Palette.color(&"shadow"))
+		draw_string(font, tr.position + Vector2(0, 15), "GIFT" if gift else ("NEW" if data.new else "MAX"), HORIZONTAL_ALIGNMENT_CENTER,
+				tr.size.x, 12, text if data.new and not gift else Palette.color(&"shadow"))
 	var win := Rect2(r.position + Vector2(14, 42), Vector2(r.size.x - 28, 106))
 	var wbox := StyleBoxFlat.new()
 	wbox.bg_color = Color(Palette.color(&"shadow"), 0.35)
@@ -549,9 +633,7 @@ func _draw_evolve_pixel() -> void:
 	var plate := Rect2(Vector2(r.position.x + 28, win.end.y + 14), Vector2(r.size.x - 56, 26))
 	RailArt.block(self, plate, gold, 4.0, 5.0, CardArt.c(&"gold_lo"))
 	draw_rect(Rect2(plate.position, Vector2(plate.size.x, 4)), CardArt.c(&"gold_hi"))
-	var title := String(data.title).to_upper()
-	RailFrame.text(self, plate.position + Vector2(0, 4), title, RailFrame.fit(title, 16, plate.size.x - 8, true, 9), ink, true,
-			HORIZONTAL_ALIGNMENT_CENTER, plate.size.x)
+	_plate_text(plate, String(data.title).to_upper(), ink)
 	_paragraph("", String(data.effect), Vector2(r.position.x + 22, plate.end.y + 8), r.size.x - 44, 2, 14, 10,
 			CardArt.c(&"paper"), UiTheme.pixel_font(false), UiTheme.pixel_font(true), HORIZONTAL_ALIGNMENT_CENTER)
 	_key_row(CardArt.c(&"gold"), ink, CardArt.c(&"gold"), true, w, CardArt.c(&"gold_lo"))
@@ -620,6 +702,46 @@ func _draw_evolve_flat() -> void:
 
 # --- Shared -----------------------------------------------------------------------------------
 
+## M50.7: a Pixel name plate's text in the rail's block capitals (RailArt.DIGITS, as the Arcade
+## ribbons since M50.6a: Pixelify at plate size misread MINIGUN, HASTE), the largest whole cell
+## that fits (3, else 2); a character the block set lacks falls back to the pixel font.
+func _plate_text(plate: Rect2, title: String, color: Color) -> void:
+	var block := true
+	for ch in title:
+		if not RailArt.DIGITS.has(ch):
+			block = false
+	if not block:
+		plate_drawn = {"text": title, "cell": 0.0}
+		RailFrame.text(self, plate.position + Vector2(0, 4), title, RailFrame.fit(title, 16, plate.size.x - 8, true, 9),
+				color, true, HORIZONTAL_ALIGNMENT_CENTER, plate.size.x)
+		return
+	var cell := 3.0
+	if RailArt.digits_width(title, cell) > plate.size.x - 10 or 7 * cell > plate.size.y - 6:
+		cell = 2.0
+	var w := RailArt.digits_width(title, cell)
+	plate_drawn = {"text": title, "cell": cell}
+	RailArt.draw_digits(self, (plate.position + (plate.size - Vector2(w, 7 * cell)) * 0.5).round(), title, cell, color)
+
+
+## M50.7 review: `text` in the rail's block capitals (RailArt.DIGITS) at `cell`, top-left at
+## `at`; ">" draws as a chevron (the set has none). Returns the width drawn.
+static func block_text(ci: CanvasItem, at: Vector2, text: String, cell: float, color: Color) -> float:
+	var x := at.x
+	for ch in text:
+		var g: Array = CHEVRON if ch == ">" else RailArt.DIGITS.get(ch, RailArt.DIGITS[" "])
+		for y in 7:
+			var row: String = g[y]
+			for cx in 5:
+				if row[cx] == "#":
+					ci.draw_rect(Rect2(Vector2(x + cx * cell, at.y + y * cell).round(), Vector2(cell, cell)), color)
+		x += 6.0 * cell
+	return x - at.x - cell
+
+
+static func block_w(text: String, cell: float) -> float:
+	return RailArt.digits_width(text, cell)
+
+
 ## M50.4f: the effect after the bold mechanic name (a describe() that repeats the name drops it).
 func effect_body() -> String:
 	var body := String(data.get("effect", ""))
@@ -646,6 +768,8 @@ func _paragraph(name: String, body: String, at: Vector2, width: float, lines: in
 	if width <= 8.0:
 		return
 	var fs := size
+	# M50.7 review: a rate never wraps inside its unit ("6/" then "s)"): a word joiner after the slash.
+	body = body.replace("/s", "/" + char(0x2060) + "s")
 	var p := TextParagraph.new()
 	while true:
 		p = TextParagraph.new()
@@ -691,6 +815,7 @@ class Banner:
 	var level := 0
 	var count := 3
 	var pixel := false
+	var sub_drawn := ""   ## M50.7 review (tests): the Pixel sub line as drawn in block capitals
 
 	func _ready() -> void:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -714,9 +839,19 @@ class Banner:
 			draw_rect(Rect2(plate.position, Vector2(plate.size.x, 4)), CardArt.c(&"gold_hi"))
 			RailFrame.text(self, plate.position + Vector2(0, 7), title, 32, CardArt.c(&"ink"), true,
 					HORIZONTAL_ALIGNMENT_CENTER, plate.size.x)
-			RailFrame.text(self, Vector2(0, 66), sub, 13, CardArt.c(&"dim"), false, HORIZONTAL_ALIGNMENT_CENTER, w)
+			# M50.7: solid (the dim line's digit faded into the dim screen). Review: block capitals
+			# (Pixelify's 1 read as "!"), "PICK 1 OF 3" then a dot and "GAME PAUSED".
+			var a := "PICK 1 OF %d" % count
+			var b := "GAME PAUSED"
+			var gap := 22.0
+			var total := LevelCard.block_w(a, 2.0) + gap + LevelCard.block_w(b, 2.0)
+			var x0 := roundf((w - total) * 0.5)
+			LevelCard.block_text(self, Vector2(x0, 64), a, 2.0, CardArt.c(&"paper"))
+			draw_rect(Rect2(Vector2(x0 + LevelCard.block_w(a, 2.0) + gap * 0.5 - 2.0, 70), Vector2(4, 4)), CardArt.c(&"dim"))
+			LevelCard.block_text(self, Vector2(x0 + LevelCard.block_w(a, 2.0) + gap, 64), b, 2.0, CardArt.c(&"dim"))
+			sub_drawn = a + " · " + b
 			return
 		var font := ThemeDB.fallback_font
 		draw_string(font, Vector2(0, 46), title, HORIZONTAL_ALIGNMENT_CENTER, w, 44, Palette.color(&"ui_text"))
 		draw_rect(Rect2(Vector2(w * 0.5 - 80, 56), Vector2(160, 4)), Palette.color(&"info"))
-		draw_string(font, Vector2(0, 78), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 14, Palette.color(&"ui_dim"))
+		draw_string(font, Vector2(0, 78), sub, HORIZONTAL_ALIGNMENT_CENTER, w, 15, Palette.color(&"ui_text"))

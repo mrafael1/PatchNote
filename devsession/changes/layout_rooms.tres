@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="Change" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+[ext_resource type="Resource" path="res://levels/stages/breakout.tres" id="3"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"breakout"
+title = "Rooms"
+line = "Rooms. Doors. Keys? No keys."
+preset = ExtResource("3")
+
+[resource]
+script = ExtResource("1")
+id = &"layout_rooms"
+title = "Levels: Rooms"
+pitch = "Rooms. Clear one, the door opens, next one."
+kind = &"layout"
+tags = Array[StringName]([&"layout"])
+take = SubResource("take")

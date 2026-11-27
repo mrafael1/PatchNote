@@ -129,6 +129,17 @@ if ($failures.Count -eq 0) {
         elseif ($text9 -notmatch "answers .*fork_path=path_$p") { $failures += "boot S9 ${p}: --answer did not answer fork_path" }
         else { Write-Host "    boot S9: session s2_03_paint, path $p, clean log" }
     }
+    # M50.3c: S10 (Level one, three parts) on each path.
+    foreach ($p in @('arsenal', 'auto', 'survival')) {
+        $bootLog10 = Join-Path $logDir "export_boot_s10_$p.log"
+        cmd /c "`"$exe`" --headless --quit-after 300 -- --autostart --session=s2_04_levels --answer=fork_path=path_$p > `"$bootLog10`" 2>&1"
+        $text10 = Get-Content $bootLog10 -Raw
+        if ($LASTEXITCODE -ne 0) { $failures += "boot S10 ${p}: exit code $LASTEXITCODE" }
+        if (Select-String -Path $bootLog10 -Pattern $errorPattern) { $failures += "boot S10 ${p}: error lines in log" }
+        if ($text10 -notmatch ', session s2_04_levels ') { $failures += "boot S10 ${p}: the export did not jump to S10" }
+        elseif ($text10 -notmatch "answers .*fork_path=path_$p") { $failures += "boot S10 ${p}: --answer did not answer fork_path" }
+        else { Write-Host "    boot S10: session s2_04_levels, path $p, clean log" }
+    }
     Copy-Item (Join-Path $root 'PLAYTEST.md') $outDir -Force
     # M47 (0.4): the Stage 2 lines file goes next to the sheet (the owner edits tone there).
     Copy-Item (Join-Path $root 'campaign\lines_stage2.md') $outDir -Force

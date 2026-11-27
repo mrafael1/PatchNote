@@ -203,7 +203,7 @@ func test_the_buses_exist_and_sounds_route_to_them() -> void:
 		var want := &"SFX"
 		if key in [&"compile", &"glitch", &"edit_warn"]:
 			want = &"Voice"
-		elif key in [&"click", &"prompt", &"release_candidate"]:
+		elif key in [&"click", &"prompt", &"release_candidate", &"pack_tear", &"card_flip", &"card_slot", &"fuse_chime"]:
 			want = &"UI"
 		assert_eq(p.bus, want, String(key))
 		assert_eq(p.volume_db, -6.0, String(key) + " stays at -6 dB")

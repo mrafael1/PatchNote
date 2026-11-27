@@ -159,7 +159,9 @@ static func epic_card(loadout: Loadout, id: StringName) -> Dictionary:
 			top = maxi(top, w.rank)
 	var rank := FUSE_RANK
 	var kind: StringName = &"new"
-	var gain := ("joins your hand" if not loadout.hand_full() else "replaces a card") + " (%s)" % " + ".join(names)
+	# M50.7: the epic card names its recipe as a fusion ("fusion of Shotgun + Laser; replaces a card").
+	var recipe := "fusion of %s" % " + ".join(names)
+	var gain := recipe + ("; joins your hand" if not loadout.hand_full() else "; replaces a card")
 	if held_parents.size() == 2:
 		rank = maxi(FUSE_RANK, ceili(sum / 2.0))
 		kind = &"absorb"
@@ -167,7 +169,7 @@ static func epic_card(loadout: Loadout, id: StringName) -> Dictionary:
 	elif held_parents.size() == 1:
 		rank = maxi(FUSE_RANK, top)
 		kind = &"absorb"
-		gain = "takes your %s's slot" % parts[0]
+		gain = recipe + "; takes your %s's slot" % parts[0]
 	rank = loadout.cap(rank)
 	var title := "%s %d" % [f.title, rank]
 	var c := {"id": id, "rank": rank, "from": 0, "kind": kind, "rarity": EPIC, "title": title, "gain": gain,

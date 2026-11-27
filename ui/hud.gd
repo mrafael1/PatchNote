@@ -274,7 +274,9 @@ func _process(delta: float) -> void:
 	if turn_clock and turn_clock.active:
 		_label.text += "\nTurn %d%s" % [turn_clock.turns, "   [E] wait" if turn_clock.is_waiting() else ""]
 	if run_loop and run_loop.stages and run_loop.stages.size() > 1:
-		_label.text += "\nStage %d/%d" % [run_loop.stage_index + 1, run_loop.stages.size()]
+		# M50.3c: a session's level is in parts; the v6 run's are stages.
+		_label.text += "\n%s %d/%d" % ["Part" if RunState.session != null else "Stage", run_loop.stage_index + 1,
+				run_loop.stages.size()]
 		if run_loop.exit_open and not run_loop.exit_reached:
 			_label.text += "   EXIT OPEN: reach it"
 	if run_loop and run_loop.smoke_time_left() >= 0.0:

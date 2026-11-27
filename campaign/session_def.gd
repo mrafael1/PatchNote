@@ -58,6 +58,10 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var path: StringName = &""
 ## The weapons this session may hand out (M44).
 @export var weapons: Array[StringName] = []
+## M50.3c: the weapons (and Auto's extras) the AI announced in earlier sessions: in the
+## path's live pool from the start, so offers may hold them with no new line. Each is one of
+## `weapons` or a path's offer_pool_extra. Empty (every session before S10): nothing.
+@export var known: Array[StringName] = []
 ## "" = the single arena; a stage set id or "fork:<id>" (goal stages, M50).
 @export var stages: StringName = &""
 ## "" = today's corner text, or "fork:<id>" (M51).
@@ -262,9 +266,29 @@ func _parse() -> void:
 	_end_line = Line.parse(end_line) if end_line.strip_edges() != "" else null
 
 
-## The arena this session plays.
+## The arena this session plays (M50.3c: with a stage set, its first part's).
 func arena_def() -> ArenaDef:
+	var set := stage_set()
+	if set != null and set.size() > 0 and set.stage(0).arena != null:
+		return set.stage(0).arena
 	return arena if arena != null else load(StageSet.ARENA_0) as ArenaDef
+
+
+## M50.3c (PLAN v9 1.8): the stage set a session with `stages` plays: the named set, or a
+## "fork:<id>" answer's take's preset. While that fork is unanswered (an old save that passed
+## its debrief, a jump) the fork's first option stands. null for every other session.
+func stage_set() -> StageSet:
+	if stages == &"":
+		return null
+	var fork_id := fork_of(stages)
+	if fork_id == &"":
+		return StageSet.named(stages)
+	var answer := Unlocks.answer(fork_id)
+	if answer == null:
+		var f := ChangeDB.get_fork(fork_id)
+		var options: Array[Change] = f.changes() if f != null else ([] as Array[Change])
+		answer = options[0] if not options.is_empty() else null
+	return answer.take.preset as StageSet if answer != null and answer.take != null else null
 
 
 ## The archetypes that may spawn, with "fork:fork_enemy" resolved from the save (the
@@ -355,6 +379,9 @@ func _weapon_problems(where: String) -> Array[String]:
 		seen[w] = true
 	if not weapons.is_empty() and not Loadout.PISTOL in weapons:
 		out.append("%s: weapons must list %s (the start weapon)" % [where, Loadout.PISTOL])
+	for k in known:
+		if not k in weapons and not PathDB.all().any(func(p: PathDef) -> bool: return k in p.offer_pool_extra):
+			out.append("%s: known: %s is not in the session's weapons or a path's offer_pool_extra" % [where, k])
 	for c in cue_list():
 		if c.problem != "" or c.action != &"give":
 			continue
@@ -874,8 +901,15 @@ func _field_problems(where: String) -> Array[String]:
 		out.append("%s: unknown path %s (%s)" % [where, path, PATHS])
 	if stages != &"" and fork_of(stages) == &"" and not ResourceLoader.exists(STAGE_SETS_DIR + "%s.tres" % stages):
 		out.append("%s: no stage set %s" % [where, stages])
-	if (goal == STAGES) != (stages != &""):
+	# M50.3c: a stage set plays under goal stages or, in parts on enemy counts, under clear.
+	if (goal == STAGES and stages == &"") or (stages != &"" and not goal in [STAGES, CLEAR]):
 		out.append("%s: goal stages and a stage set go together" % where)
+	var fork_id := fork_of(stages)
+	if fork_id != &"":
+		var f := ChangeDB.get_fork(fork_id)
+		for c in (f.changes() if f != null else ([] as Array[Change])):
+			if c.take == null or not c.take.preset is StageSet:
+				out.append("%s: stages: %s's option %s has no stage set" % [where, fork_id, c.id])
 	if goal == BOSS and (boss == &"" or not checkpoint):
 		out.append("%s: goal boss needs a boss and checkpoint" % where)
 	if boss != &"" and goal != BOSS:

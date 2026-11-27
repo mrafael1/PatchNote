@@ -146,7 +146,8 @@ func _physics_process(_delta: float) -> void:
 			"evolve_ready": path_runner.evolve_ready_count if path_runner != null else 0,
 			"evolved": path_runner.evolutions.size() if path_runner != null else 0,
 			"nerfed": path_runner.nerfs_landed if path_runner != null else 0,
-			"give_choices": path_runner.give_steps() if path_runner != null else 0}
+			"give_choices": path_runner.give_steps() if path_runner != null else 0,
+			"room": room(), "room_clock": room_clock()}
 	for i in _cues.size():
 		if _fired[i]:
 			continue
@@ -418,9 +419,28 @@ func pending_spawns() -> int:
 	var n := 0
 	for i in _cues.size():
 		var c := _cues[i]
-		if not _fired[i] and c.action == &"spawn" and not c.specimen and c.when in [&"at", &"kills"]:
+		if _fired[i] or c.action != &"spawn" or c.specimen:
+			continue
+		# M50.3c: this part's own `room N` spawn cues hold its end too (never another part's).
+		if c.when in [&"at", &"kills"] or (c.when == &"room" and int(c.value) == room()):
 			n += c.count
 	return n
+
+
+## M50.3c (PLAN v9 1.3): the part being played, 1-based (-1 outside a level in parts), and
+## the game seconds since it began: what `room N [at s]` cues read.
+func room() -> int:
+	var loop: Variant = genre.get(&"run_loop") if genre != null else null
+	if loop == null or loop.stages == null or loop.stages.size() <= 1:
+		return -1
+	return int(loop.stage_index) + 1
+
+
+func room_clock() -> float:
+	var loop: Variant = genre.get(&"run_loop") if genre != null else null
+	if loop == null or room() < 0 or loop.phase != RunLoop.PLAY:
+		return -1.0
+	return RunState.game_time - float(loop.stage_started_at)
 
 
 ## M47.6c1: the script part a `script` ending waits for: every `at` cue fired (or expired), and

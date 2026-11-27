@@ -66,8 +66,9 @@ func detach(t: TerminalPanel) -> void:
 
 
 ## A live edit's `$ <cmd>` row (queued now, shown on a later frame) becomes a hotfix slip.
-func mark_hotfix(prefix: String, label: String) -> void:
-	_pending[prefix] = label
+## M50.7: `body` (a live nerf's patch note) is what the slip says instead of the command.
+func mark_hotfix(prefix: String, label: String, body := "") -> void:
+	_pending[prefix] = [label, body]
 
 
 static func kind_of(r: Node) -> int:
@@ -115,7 +116,10 @@ func step() -> void:
 				if not c.has_meta(&"hotfix"):
 					for prefix: String in _pending:
 						if t.begins_with(prefix):
-							c.set_meta(&"hotfix", _pending[prefix])
+							var pend: Array = _pending[prefix]
+							c.set_meta(&"hotfix", pend[0])
+							if String(pend[1]) != "":
+								c.set_meta(&"hotfix_body", pend[1])
 							_pending.erase(prefix)
 							break
 				if t.begins_with(PATCH) or c.has_meta(&"hotfix"):
@@ -158,7 +162,7 @@ func draw_layer(ci: Control) -> void:
 			TerminalPanel.Row.CMD:
 				var t := label_text(c)
 				if c.has_meta(&"hotfix"):
-					_hotfix(ci, spine_x, r, String(c.get_meta(&"hotfix")), t)
+					_hotfix(ci, spine_x, r, String(c.get_meta(&"hotfix")), t, String(c.get_meta(&"hotfix_body", "")))
 				elif t.begins_with(PATCH):
 					var last := r
 					var j := i
@@ -222,10 +226,10 @@ func _patch(ci: Control, spine_x: float, head: Rect2, last: Rect2, version: Stri
 	_slip(ci, spine_x, card, head, "patch", version + "  hot-reload")
 
 
-func _hotfix(ci: Control, spine_x: float, r: Rect2, label: String, text: String) -> void:
+func _hotfix(ci: Control, spine_x: float, r: Rect2, label: String, text: String, note := "") -> void:
 	var sc: float = frame.s()
 	var card := Rect2(r.position - Vector2(8, 2) * sc, Vector2(r.size.x + 12 * sc, r.size.y + 4 * sc))
-	var body := text.trim_prefix("$ ").trim_suffix(" ... ok")
+	var body := note if note != "" else text.trim_prefix("$ ").trim_suffix(" ... ok")
 	_slip(ci, spine_x, card, r, "hotfix", label, body)
 
 
@@ -255,7 +259,23 @@ func _slip(ci: Control, spine_x: float, card: Rect2, strip_row: Rect2, kind: Str
 	RailFrame.text(ci, Vector2(strip.position.x + 8 * sc, ty), kind + " " + version, fs, RailArt.c(&"ink"), true)
 	var bx := strip.end.x + 8 * sc
 	var big := terminal.font_size()
-	RailFrame.text(ci, Vector2(bx, card.position.y + 2 * sc), body, RailFrame.fit(body, big, card.end.x - bx - 4 * sc, false, 8), RailArt.c(&"body"))
+	# M50.7 review: never under the strip's own size (at 8 px "1.5" read "1 5"): the slip already says
+	# hotfix, so "Balance: " goes, then whole ", " parts from the end until the rest fits.
+	var least := RailLayout.text_px(12, sc)
+	var room := card.end.x - bx - 4 * sc
+	body = slip_body(body, room, least)
+	RailFrame.text(ci, Vector2(bx, card.position.y + 2 * sc), body, maxi(least, RailFrame.fit(body, big, room, false, least)),
+			RailArt.c(&"body"))
+
+
+## M50.7 review: a hotfix slip's note for `room` px at `least` px: without its "Balance: " lead, then
+## dropping whole ", " parts from the end until it fits (the first part always stays).
+static func slip_body(body: String, room: float, least: int) -> String:
+	body = body.trim_prefix("Balance: ")
+	var parts := body.split(", ")
+	while parts.size() > 1 and RailFrame.text_w(", ".join(parts), least) > room:
+		parts.resize(parts.size() - 1)
+	return ", ".join(parts)
 
 
 ## The log header's live text: the speaker in gold caps, the subtitle, the live dot.

@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s2_04_levels"
+stage = 2
+title = "Level one"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits", &"version"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy"])
+spawn_rate = 1.3
+spawn_cap = 1.3
+path = &"fork:fork_path"
+weapons = Array[StringName]([&"pistol", &"shotgun", &"laser", &"launcher"])
+known = Array[StringName]([&"shotgun", &"laser", &"nova"])
+stages = &"fork:fork_layout"
+hp_floor = 0
+skin = &"pixel"
+goal = &"clear"
+time_limit = 300.0
+enemy_total = 170
+enemy_total_by_path = Dictionary[StringName, int]({
+&"arsenal": 170,
+&"auto": 300,
+&"survival": 100
+})
+fresh_start = true
+face = true
+intro = PackedStringArray("answer:layout_rooms happy: Three rooms. Clear one, the door opens.", "answer:layout_gauntlet happy: Three arenas. Hold each one.", "answer:layout_shifting happy: One arena. It rebuilds itself. Three times.", "!answer:layout_rooms&!answer:layout_gauntlet&!answer:layout_shifting happy: Three rooms. Clear one, the door opens.", "thinking: And I brought a launcher. It's loud.")
+cues = PackedStringArray("answer:path_arsenal at 0: add cards", "answer:path_arsenal at 0: add quick_draw", "answer:path_arsenal at 0: add fusion", "answer:path_auto at 0: add levelups", "answer:path_auto at 0: add crowd", "answer:path_auto at 0: add evolve", "answer:path_survival at 0: add pickups", "answer:path_survival at 0: add kill_heal", "at 4: give launcher", "answer:path_arsenal at 4: say happy: New card: the launcher. Rank it up. Two, it sticks. Four, it pulls.", "!answer:path_arsenal at 4: say happy: A launcher. Slow shells, big booms.", "answer:path_auto at 7: say happy: It's in your next level-up. It aims at the biggest crowd.", "answer:path_survival at 7: say happy: It's in a crate. Ten shells. Make them count.", "answer:path_auto at 12 [haste]: say thinking: Your passives are back. Haste first.", "answer:path_auto at 20 [area]: say happy: Area too. Launcher blasts get bigger.", "answer:path_auto at 36 [might]: say thinking: Might's back too. Everything hits harder.", "answer:path_arsenal at 20: say thinking: I wrote a second recipe. Shotgun plus launcher. Go find it.", "answer:path_arsenal fuse_ready 1: say happy: Link's lit. Next pack, fuse them.", "answer:path_arsenal fused 1: say made:cluster proud: A Cluster! Shells full of shells.", "answer:path_arsenal fused 1: say made:prism happy: Prism again. A classic.", "room 1 at 26: spawn shielder 2", "room 1 at 26: say surprised: New enemy, number one. It has a shield. Go around it.", "answer:enemy_tank room 1 at 32: say thinking: Remember your tank? This is its big brother.", "answer:enemy_bomber room 1 at 32: say thinking: Nothing here explodes. Yet.", "room 1 at 40: spawn shielder 2", "room 2 at 4: spawn sniper 2", "room 2 at 4: say worried: Number two stays far away. Don't stand on the red line.", "answer:enemy_lancer room 2 at 10: say thinking: This one draws lines too.", "room 2 at 18: spawn shielder 2", "room 2 at 28: spawn sniper 2", "room 3 at 2: say happy: Last one. You've got this.", "room 3 at 6: spawn swarm 2", "room 3 at 6: say panic: Number three is five tiny ones!", "room 3 at 12: spawn shielder 2", "room 3 at 16: spawn sniper 2", "room 3 at 20: edit edit_hot_edges", "room 3 at 36: spawn swarm 3")
+debrief = PackedStringArray("won proud: That's a level. You just played a level!", "died guilty: Level design is hard. That one's on me.", "thinking: I tried to pick one enemy to keep. I couldn't. They all stay.", "answer:path_arsenal&made:cluster proud: Two recipes in the book now.", "answer:path_arsenal&!fused thinking: No fusion today. The recipes keep.")
+before_play = PackedStringArray("happy: Level one. Three parts. Type play.")
+bump = &"patch"
+notes = PackedStringArray("Levels, in three parts", "The launcher", "Three new enemies (all of them stay)")

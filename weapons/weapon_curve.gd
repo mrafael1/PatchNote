@@ -135,14 +135,16 @@ static func hits_to_kill(hp: float, damage: float) -> int:
 
 ## What crossing from rank `from` to `to` changes in kill counts against the roster (per
 ## pellet for the shotgun): "one-shots chasers and lancers", "tank in 3". "" when nothing.
-static func breakpoint_text(def: WeaponDef, from: int, to: int) -> String:
-	var before := def.damage * mult(from)
-	var after := def.damage * mult(to)
+## M50.7: `hp_mult` (the path's enemy HP: Auto 0.7) and `dmg_mult` (Might's mod) make the counts
+## the ones the run sees; 1.0 and 1.0 are the M50.1a text.
+static func breakpoint_text(def: WeaponDef, from: int, to: int, hp_mult := 1.0, dmg_mult := 1.0) -> String:
+	var before := def.damage * mult(from) * dmg_mult
+	var after := def.damage * mult(to) * dmg_mult
 	var ones: Array[String] = []
 	var others := {}   # count -> names
 	var order: Array[int] = []
 	for e in EnemyDB.READING:
-		var hp := roster_hp(e)
+		var hp := roster_hp(e) * hp_mult
 		var a := hits_to_kill(hp, before)
 		var b := hits_to_kill(hp, after)
 		if b >= a:
@@ -181,13 +183,34 @@ static func gain_text(def: WeaponDef, from: int, to: int) -> String:
 					var t := WeaponTrait.make(mech[i], lv[i], true)
 					parts.append(("%s" if lv[i] == 1 else "+%s") % t.describe(lv[i]))
 		lv_from = lv
+	var numbers_only := parts.is_empty()
 	if mult(to) != mult(dmg_from):
 		var bp := breakpoint_text(def, dmg_from, to)
 		if bp != "":
 			parts.push_front(bp)
 		else:
 			parts.push_front("damage %s -> %s" % [num(def.damage * mult(dmg_from)), num(def.damage * mult(to))])
+	if numbers_only and not parts.is_empty():   # M50.7: a numbers-only rank teases the next mechanic
+		var nxt := next_mechanic(def, to)
+		if nxt != "":
+			parts.append("next: " + nxt)
 	return ", ".join(parts)
+
+
+## M50.7: what the next rank after `rank` that changes a mechanic brings: "heavy round" (an
+## unlock) or "+seeker" (a strengthen); "" with none within 6 ranks or not built.
+static func next_mechanic(def: WeaponDef, rank: int) -> String:
+	var mech := mechanics(def)
+	var lv0 := levels_of(def, rank)
+	for r in range(rank + 1, rank + 7):
+		var lv := levels_of(def, r)
+		for i in mech.size():
+			if i < lv.size() and i < lv0.size() and lv[i] != lv0[i]:
+				if not built(mech[i]):
+					return ""
+				var n := String(mech[i]).replace("_", " ")
+				return n if lv0[i] == 0 else "+" + n
+	return ""
 
 
 ## What a card at `rank` has (a new card's line): its unlocked mechanics, or the pitch.

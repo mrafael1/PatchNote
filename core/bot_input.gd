@@ -17,6 +17,13 @@ var keep_distance := 220.0
 var policy: StringName = &""
 var probe: StringName = &""
 var _tick := 0
+## M50.7: the path policies (Arsenal, Auto, Survival) walk to the last enemies once a clear
+## session's set is all out (_hunting), as the default policy does since M47.6c1. Off by
+## default: tools/run_hash.gd keeps the old bot byte for byte (its refs stay put); tools/bot_runs.gd
+## turns it on (--probe=nohunt keeps it off).
+var hunt_last := false
+## M50.7 (--probe=human_open, measure only): a stacked pack is asked for once every this many ticks.
+const HUMAN_OPEN_TICKS := 480
 
 ## Auto's kiting: the sectors around the bot and how far it looks.
 const SECTORS := 8
@@ -57,6 +64,8 @@ func _physics_process(_delta: float) -> void:
 	# M50.6: the bot opens a stacked pack as soon as it may (asked every tick; the PathRunner
 	# opens on its first free tick, so a seed replays). `afk` and `hoard` never open one.
 	open_pack_pressed = probe != &"afk" and probe != &"hoard"
+	if probe == &"human_open":
+		open_pack_pressed = _tick % HUMAN_OPEN_TICKS == 0
 	if RunState.rules.turn_based:
 		_turn_policy()
 		return
@@ -117,6 +126,18 @@ func _physics_process(_delta: float) -> void:
 const HUNT_EVERY := 15
 var _hunt_field: PickupField
 var _hunt_tick := -1000000
+var _hunt_def: ArenaDef
+var _field_def: ArenaDef
+
+
+## M50.3c: the arena played right now (a level in parts swaps it): the live Arena's layout,
+## else the session's. One arena for a whole session is the same resource either way.
+func _arena_def() -> ArenaDef:
+	var genre: Node = RunState.world.get_parent() if is_instance_valid(RunState.world) else null
+	var arena: Variant = genre.get(&"arena") if genre != null else null
+	if arena is Arena and (arena as Arena).def != null:
+		return (arena as Arena).def
+	return RunState.session.arena_def() if RunState.session != null else null
 
 
 func _hunting() -> bool:
@@ -124,8 +145,11 @@ func _hunting() -> bool:
 
 
 func _hunt_dir(here: Vector2, target: Node2D) -> Vector2:
-	if _hunt_field == null:
-		_hunt_field = PickupField.new(RunState.session.arena_def())
+	var def := _arena_def()
+	if _hunt_field == null or def != _hunt_def:
+		_hunt_field = PickupField.new(def)
+		_hunt_def = def
+		_hunt_tick = -1000000
 	if _tick - _hunt_tick >= HUNT_EVERY:
 		var sources: Array[Vector2] = [target.global_position]
 		_hunt_field.build(sources)
@@ -169,13 +193,30 @@ func _auto_policy() -> void:
 		move = -_densest_dir(here, aim_dir).rotated(0.6)
 	elif gem != null and to_enemy.length() > GEM_CLEAR:
 		move = (gem.global_position - here).normalized()
+	elif hunt_last and _hunting():
+		move = _hunt_dir(here, nearest)   # M50.7: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
+	if _level_hunting() and (to_enemy.length() >= keep_distance or RunState.survivors_chase):
+		move = _hunt_dir(here, nearest)   # M50.3c: a lane wall can hide the last chaser
 	if gate:
 		move = gate.direction_from(here)
 	jump_pressed = _tick % 90 == 0
 	dash_pressed = _tick % 150 == 75
 	jump_held = _tick % 90 < 12
+
+
+## M50.3c: the path bots hunt the last of a part only in a level in parts (S10): its later
+## arenas have long lane walls a chaser can stall behind while the orbit never comes round.
+## Within keep_distance it still kites, until the last few chase (RunState.survivors_chase):
+## then it closes in too (a sniper kept a lane wall between them, and the bot kited forever).
+## One-arena sessions (S8, S9: their refs) keep today's orbit.
+func _level_hunting() -> bool:
+	if not _hunting():
+		return false
+	var genre: Node = RunState.world.get_parent() if is_instance_valid(RunState.world) else null
+	var loop: Variant = genre.get(&"run_loop") if genre != null else null
+	return loop != null and bool(loop.call(&"in_parts"))
 
 
 ## Arsenal (PLAN v9 4, M46): today's movement, aim and fire (aim nearest, hold fire, kite at
@@ -208,6 +249,8 @@ func _arsenal_policy() -> void:
 	fire = true
 	if to_enemy.length() < keep_distance:
 		move = -aim_dir.rotated(0.6)
+	elif hunt_last and _hunting():
+		move = _hunt_dir(here, nearest)   # M50.7: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
 	var lo := Component.find(get_parent(), Loadout) as Loadout
@@ -218,6 +261,8 @@ func _arsenal_policy() -> void:
 		for i in lo.slots.size():
 			if lo.slots[i].def.id == _card and i != lo.active:
 				select_slot = i
+	if _level_hunting() and (to_enemy.length() >= keep_distance or RunState.survivors_chase):
+		move = _hunt_dir(here, nearest)   # M50.3c: as Auto's, in a level in parts only
 	var step := flank_step(here, nearest)
 	if step != Vector2.ZERO:
 		move = step
@@ -264,8 +309,12 @@ func _survival_policy() -> void:
 		move = to_pickup
 	elif to_enemy.length() < keep_distance:
 		move = -aim_dir.rotated(0.6)
+	elif hunt_last and _hunting():
+		move = _hunt_dir(here, nearest)   # M50.7: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
+	if _level_hunting() and (to_enemy.length() >= keep_distance or RunState.survivors_chase):
+		move = _hunt_dir(here, nearest)   # M50.3c: as Auto's, in a level in parts only
 	var step := flank_step(here, nearest)
 	if step != Vector2.ZERO:
 		move = step
@@ -293,9 +342,13 @@ func _pickup_dir(here: Vector2) -> Vector2:
 	var sources := wanted if not wanted.is_empty() else others
 	if sources.is_empty():
 		return Vector2.ZERO
+	var def := _arena_def()
+	if _field != null and def != _field_def:
+		_field = null   # M50.3c: another part, another arena
 	if _field == null or _tick - _field_tick >= FIELD_EVERY:
 		if _field == null:
-			_field = PickupField.new(RunState.session.arena_def() if RunState.session != null else null)
+			_field = PickupField.new(def)
+			_field_def = def
 		_field.build(sources)
 		_field_tick = _tick
 	var dir := _field.direction_from(here)
@@ -417,13 +470,19 @@ func _around(at: Vector2, radius: float) -> int:
 ## The flank rule (M46 contract, M50's shielder): Vector2.ZERO unless `target` exposes
 ## shield_arc_deg > 0 and facing, and its front arc covers `here`; then the unit step 90
 ## degrees around it, toward the nearer edge of the arc (ties: counter-clockwise).
+## M50.3c: only within FLANK_REACH. Farther out a live shield turns faster (90 degrees a
+## second) than a step around it can travel, so the bot held its fire for nothing (S10
+## Survival hit the hidden cap on 6 of 8 seeds); out there it fights as usual.
+const FLANK_REACH := 240.0   ## 5 tiles (Tuning.TILE 48)
+
+
 static func flank_step(here: Vector2, target: Node2D) -> Vector2:
 	var arc: Variant = target.get(&"shield_arc_deg")
 	var facing: Variant = target.get(&"facing")
 	if arc == null or facing == null or float(arc) <= 0.0 or (facing as Vector2) == Vector2.ZERO:
 		return Vector2.ZERO
 	var v := here - target.global_position
-	if v == Vector2.ZERO:
+	if v == Vector2.ZERO or v.length() > FLANK_REACH:
 		return Vector2.ZERO
 	var off := (facing as Vector2).angle_to(v)
 	if absf(off) >= deg_to_rad(float(arc)) / 2.0:

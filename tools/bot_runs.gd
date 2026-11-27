@@ -100,6 +100,11 @@ extends SceneTree
 ##                                it asks every tick, so a pack opens on the first free tick.
 ##                                The --only line adds opened= left= stack_peak= epics= after
 ##                                rares_shown=, the "packs:" summary opened_per_seed= left_per_seed=
+##   --probe=nohunt               (M50.7) the bot never hunts the last enemies (BotInput.hunt_last
+##                                off: the bot of tools/run_hash.gd and of every run before M50.7).
+##                                By default the bot here walks to the last enemies of a closed set.
+##   --probe=human_open           (M50.7, measure only) a stacked pack is opened only every
+##                                BotInput.HUMAN_OPEN_TICKS (8 s), a human's hoarding cadence
 ##   --probe=give_keep            (M50.2b) a give step always keeps the hand
 ##   --probe=give_swap            (M50.2b) a give step replaces the given card's recipe partner
 ##   (M50.2b) A give step is chosen by BotRuns.give_choice (shared with tools/run_hash.gd); the
@@ -223,7 +228,7 @@ var probe_arg := ""                          ## --probe (M45a): "" or afk; M46 n
 var fp_arg := false                          ## --fp (M46)
 var max_sessions := 0                        ## --max-sessions (M47): 0 = no limit
 const PROBES := ["afk", "no_switch", "first_pick", "no_pickup", "no_fuse", "skip_new", "human_pace", "human",
-		"random_picks", "no_evolve", "give_keep", "give_swap", "hoard"]
+		"random_picks", "no_evolve", "give_keep", "give_swap", "hoard", "nohunt", "human_open"]
 ## M50.4b: human_pace's Auto level thresholds (PathDef.threshold_mult).
 const HUMAN_PACE_LEVELS := 1.5
 ## M50.1a: the packs a run should open (invincible; reported, the bot is a proxy).
@@ -527,6 +532,14 @@ func _hit_kinds() -> Dictionary:
 	return kinds
 
 
+## M50.7: the bot on, hunting the last enemies of a closed set (BotInput.hunt_last) unless
+## --probe=nohunt. tools/run_hash.gd never sets it, so its refs keep the old bot: bot_runs and
+## run_hash play slightly differently from M50.7 on (bot numbers are bot numbers).
+func _bot_on(game: Node) -> void:
+	game.player.set_bot(true)
+	game.player.input.set(&"hunt_last", probe_arg != "nohunt")
+
+
 ## Skips the game's stage card if it is open (PLAN v9 2: the bot never waits on the
 ## paused tree). Returns the card's stage, or 0 when none was shown.
 func _skip_card(game: Node) -> int:
@@ -624,7 +637,7 @@ func _run_only_condition(specs: PackedStringArray, cond: String, times := {}) ->
 		await physics_frame
 		_skip_card(game)
 		run_state.invincible = invincible
-		game.player.set_bot(true)
+		_bot_on(game)
 		if probe_arg != "":
 			game.player.input.set(&"probe", StringName(probe_arg))
 		dash_count.uses = 0
@@ -1259,7 +1272,7 @@ func _run_campaign(spec: String, lines_before: int) -> int:
 			print("[botrun] campaign FAILED: the game runs no session")
 			return failures + 1
 		run_state.invincible = invincible
-		game.player.set_bot(true)
+		_bot_on(game)
 		var attempt: int = db.attempt(session.id)
 		var card_stage := _skip_card(game)
 		var opened := false
@@ -1899,7 +1912,7 @@ func _play(game: Node, run_seed: int, invincible: bool) -> String:
 	if run_state.run_seed != run_seed:
 		return "[botrun] seed=%d FAILED: game started with seed %d" % [run_seed, run_state.run_seed]
 	run_state.invincible = invincible
-	game.player.set_bot(true)
+	_bot_on(game)
 	if start_big != &"":
 		run_state.swap_big(root.get_node("MutationDB").get_mutation(start_big))
 	if start_apply != &"":

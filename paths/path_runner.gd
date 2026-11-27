@@ -78,6 +78,9 @@ extends Node
 signal started(path_id: StringName)
 ## M47.6d1: a `path` cue landed (its warning starts): the title card (PathTitle) shows.
 signal swap_requested(path_id: StringName)
+## M50.7: the live nerf landed (its patch note and the weapon): the rail chat's hotfix slip and the
+## flat HUD's toast listen. Presentation only: emitted after the run log's two events.
+signal nerf_landed(text: String, weapon: StringName)
 
 const Gems := preload("res://paths/auto/gems.gd")
 const LevelMeter := preload("res://paths/auto/level_meter.gd")
@@ -334,6 +337,14 @@ func pack_stack() -> int:
 	return _want if pack_path() else 0
 
 
+## M50.7: 1 while a pack's panel is open (opened, so counted in packs_opened, but still on the
+## stack until its pick lands), else 0. The rail counts that pack once. Read-only.
+func pack_on_screen() -> int:
+	if not pack_path() or panel == null or not is_instance_valid(panel) or not panel.is_open():
+		return 0
+	return 1 if panel.offer != null and panel.offer.pack and not panel.offer.give_step else 0
+
+
 ## M50.6: asks for the top pack of the stack (the open_pack action; tests). It opens on the
 ## next physics tick if it may. False with no pack stacked or when nothing may open now.
 func open_pack() -> bool:
@@ -517,6 +528,10 @@ func _apply(id: StringName) -> void:
 		for w in def.start:
 			if not w in live_pool:
 				live_pool.append(w)
+		# M50.3c: what earlier sessions announced (SessionDef.known) is in the pool from the start.
+		if RunState.session != null:
+			for w in RunState.session.known:
+				announce(w)
 		_grow()
 	starts += 1
 	started.emit(id)
@@ -923,12 +938,14 @@ func _open_offer() -> void:
 			return
 	else:
 		var first := _first
+		var given := _first   # M50.7: the card a `give` put first wears GIFT (presentation only)
 		if first == &"" and _cards_growth():
 			first = most_fired(lo)   # Arsenal: the most-fired card's upgrade first (1.5, D7)
 		if first == &"" and evolve_live():
 			first = steer(lo)   # M50.4c1: a weapon whose catalyst is held ranks first
 		offer = PickOffer.draw(lo, def, offer_pool(), first, RunState.pick_rng, taste)
 		_first = &""
+		offer.given = given
 		if def != null and def.growth == &"levelups":
 			# M50.4b: the dressed cards' banner and pips (presentation only).
 			offer.level = level()
@@ -1080,7 +1097,8 @@ func _pick(offer: PickOffer, index: int) -> void:
 	if offer.pack:
 		# M50.1a: no "good pick" each pack (the `picked n` cues speak).
 		return
-	_speak(Line.parse(PICK_LINES[(picks - 1) % PICK_LINES.size()]), 1)
+	if pick_line_due(picks):   # M50.7: fewer pick lines (presentation: speech is not hashed)
+		_speak(Line.parse(PICK_LINES[(picks - 1) % PICK_LINES.size()]), 1)
 
 
 # --- Evolution (M50.4c1) -------------------------------------------------------------------
@@ -1226,6 +1244,42 @@ func _land_nerf() -> void:
 	RunState.log_event(&"patch_note", {"text": nerf.text})
 	RunState.log_event(&"nerfed", {"weapon": String(w.def.id)})
 	_pulse()
+	nerf_landed.emit(String(nerf.text), w.def.id)
+
+
+## M50.7: the session's launch window for the next evolution (its `evolved n: nerf <s>` cue's
+## seconds; 0 with none), for the EVOLVE card's text. Reads the session data only.
+func nerf_window() -> float:
+	if RunState.session == null:
+		return 0.0
+	var n := evolutions.size() + 1
+	var rx := RegEx.create_from_string("evolved (\\d+): nerf ([0-9.]+)")
+	for c: String in RunState.session.cues:
+		var m := rx.search(c)
+		if m != null and int(m.get_string(1)) == n and path_cond_fits(c.substr(0, m.get_start()), path_id):
+			return float(m.get_string(2))
+	return 0.0
+
+
+## M50.7 review: a cue's condition (the words before its trigger) holds on path `path`: every
+## `answer:path_<p>` term names it, every `!answer:path_<p>` term names another (the other terms
+## are not about the path: they pass). Read-only.
+static func path_cond_fits(cond: String, path: StringName) -> bool:
+	for raw in cond.strip_edges().split("&", false):
+		var t := raw.strip_edges()
+		var neg := t.begins_with("!")
+		t = t.trim_prefix("!")
+		if not t.begins_with("answer:path_"):
+			continue
+		if (t == "answer:path_%s" % String(path)) == neg:
+			return false
+	return true
+
+
+## M50.7: a level-up's "Ooh, that one." / "Good pick." is said on the first two picks of a
+## session, then every 5th (picks 7, 12, ...): ten picks say three.
+static func pick_line_due(picks: int) -> bool:
+	return picks <= 2 or (picks - 2) % 5 == 0
 
 
 ## The changed numbers of a live nerf, from the launch `keys` and the effective `before` values

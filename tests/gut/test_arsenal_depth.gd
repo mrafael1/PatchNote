@@ -300,7 +300,7 @@ func test_card_lines_name_breakpoints_and_mechanics() -> void:
 	var lo := _deep([&"pistol"], [6])
 	var c := BoosterPack.card(lo, &"pistol")
 	assert_eq(c.title, "Pistol 6 -> 7")
-	assert_eq(c.gain, "one-shots chasers and lancers, tank in 4")
+	assert_eq(c.gain, "one-shots chasers and lancers, tank in 4, next: +heavy round", "M50.7: a numbers-only rank teases the next mechanic")
 	assert_eq(BoosterPack.tags(c), "COMMON", "M50.6: the tier, never a bonus")
 	assert_eq(int(c.rank) - int(c.from), 1)
 	lo.set_weapon(&"pistol", 5)

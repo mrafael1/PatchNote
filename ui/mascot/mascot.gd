@@ -29,6 +29,9 @@ signal line_cut(line: Line)
 ## its body, its queue and its timing. M47.6a (PLAN v9.4 2.4): hosted, Main turns it on
 ## while a session plays and off for the beat (the chat logs every line either way).
 var bubble_enabled := true
+## M50.7: a pick panel is open: the bubble hides (the line still types and times out as usual)
+## and shows again when the panel closes, if the line is still up.
+var _parked := false
 var body: MascotBody
 var face := false
 var body_id: StringName = MascotBody.DEFAULT
@@ -226,6 +229,18 @@ func keep_out(view: Vector2) -> Rect2:
 	return Rect2(origin + r.position * s, r.size * s)
 
 
+## M50.7: parks (hides) the bubble while a pick panel is open; unparking shows the line still up.
+func park_bubble(on: bool) -> void:
+	_parked = on
+	if _bubble != null:
+		_bubble.visible = bubble_enabled and not on and _current != null
+
+
+## M50.7: the bubble is on screen (tests).
+func bubble_shown() -> bool:
+	return _bubble != null and _bubble.visible
+
+
 ## M47.2: the bubble's screen rect for `text` on a canvas of size `view` (it grows left
 ## from W - MARGIN - SIZE - 10 and down from TOP + 14).
 static func bubble_rect(text: String, view: Vector2) -> Rect2:
@@ -366,7 +381,7 @@ func _start(line: Line, priority: int) -> void:
 	var w := _bubble.get_combined_minimum_size().x
 	_bubble.offset_left = _bubble.offset_right - w
 	_bubble.offset_bottom = _bubble.offset_top
-	_bubble.visible = bubble_enabled
+	_bubble.visible = bubble_enabled and not _parked
 	body.set_expression(line.expression)
 	body.say_start()
 	line_started.emit(line, priority)

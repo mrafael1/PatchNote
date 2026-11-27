@@ -115,10 +115,10 @@ func test_s9_is_data_and_matches_the_plan() -> void:
 	var s := CampaignDB.get_session(S9)
 	assert_eq(s.problems(), [] as Array[String])
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.index_of(S9), 9, "after S8, the last playable session")
+	assert_eq(CampaignDB.index_of(S9), 9, "after S8")
 	# M47.6d2 (PLAN v9.4 0.8, design 3): a fixed set per path, a hidden 210 s cap, always cold.
 	assert_eq([s.stage, s.path, s.goal, s.time_limit, s.skin, s.look_reveal, s.spawn_after, s.bump, s.fork, s.look],
-			[2, &"fork:fork_path", SessionDef.CLEAR, 210.0, &"pixel", &"manual", 9.0, &"patch", &"", ""])
+			[2, &"fork:fork_path", SessionDef.CLEAR, 210.0, &"pixel", &"manual", 9.0, &"patch", &"fork_layout", ""])   # M50.3c: the layout is asked in S9's debrief
 	assert_eq(s.enemy_total_by_path, {&"arsenal": 120, &"auto": 220, &"survival": 70} as Dictionary[StringName, int])
 	assert_true(s.fresh_start, "the specimen is placed from player_start: S9 never takes a carried spot")
 	assert_eq(s.weapons, [&"pistol", &"shotgun", &"laser"] as Array[StringName])

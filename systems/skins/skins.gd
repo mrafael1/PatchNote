@@ -46,7 +46,10 @@ static var ENEMY_IDS: Array[StringName] = _enemy_ids()
 
 
 static func _body_ids() -> Array[StringName]:
-	var out := EnemyDB.all()
+	var out: Array[StringName] = []
+	for id in EnemyDB.all():
+		if not id in EnemyDB.PLAIN:   # M50.3c: drawn as their base
+			out.append(id)
 	out.append_array([&"splitter_mini", &"hunter"] as Array[StringName])
 	return out
 

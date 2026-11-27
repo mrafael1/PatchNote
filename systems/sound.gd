@@ -132,6 +132,13 @@ func _build_all() -> void:
 	streams[&"hook_miss"] = _wav(_tone(0.04, 500, 400, Wave.TRIANGLE, 0.14))
 	streams[&"teleport"] = _wav(_tone(0.1, 1200, 300, Wave.SINE, 0.22))
 	streams[&"teleport_fizzle"] = _wav(_tone(0.05, 200, 160, Wave.SQUARE, 0.12))
+	# M50.7: the pack beats (PickPanel), appended after the dashes for the same reason: a foil
+	# crinkle on the tear, a soft flip as the cards are dealt, a thud on the slot-in, a chime on
+	# the fuse. UI sounds (the UI bus).
+	streams[&"pack_tear"] = _wav(_mix(_chatter(0.16, 0.08), _tone(0.16, 0, 0, Wave.NOISE, 0.18, 2.2)))
+	streams[&"card_flip"] = _wav(_tone(0.05, 0, 0, Wave.NOISE, 0.12, 2.5, 0.01))
+	streams[&"card_slot"] = _wav(_mix(_tone(0.12, 180, 70, Wave.SINE, 0.32), _tone(0.05, 0, 0, Wave.NOISE, 0.1, 3.0)))
+	streams[&"fuse_chime"] = _wav(_seq([784, 988, 1319], 0.08, Wave.TRIANGLE, 0.22))
 
 
 ## One voice: frequency sweeps exponentially from f0 to f1, the envelope rises over
