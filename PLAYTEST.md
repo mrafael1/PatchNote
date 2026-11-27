@@ -28,6 +28,17 @@ One-liners (defaults taken): which layout did you pick, and was it fun? About 3-
 
 ---
 
+# Next playtest: M51a, creature mascots
+
+What changed since M50.6b (looks only; play is the same):
+- **The AI's three bodies are little creatures now**, from the mockup you approved: the cursor is a pointed white hood on orange feet, the window has blue ears, a cap with its three buttons, stub arms and feet, the blob is round and green with a leaf sprout and feet.
+- **One set of faces for all three**, with cheeks: happy, proud, thinking, worried and surprised from the mockup, plus idle, guilty and panic in the same style. They blink, talk, and move over planted feet (happy hops, worried shivers, surprised jumps). With "reduce flashing" on they do not shiver or shake.
+- **Both looks.** Without a look they are smooth; in the Pixel look they are the mockup's pixel grids.
+
+One-liners (defaults taken): are they cute enough, and which one would you pick now? Keep the names Cursor, Window and Blob, or use the mockup's Pip, Tab and Mochi? Do the idle, guilty and panic faces read? In Pixel the corner creature is a bit smaller than before: fine?
+
+---
+
 # Next playtest: M50.6b, pixel projectiles
 
 What changed since M50.6a (the Pixel look only; play is the same):

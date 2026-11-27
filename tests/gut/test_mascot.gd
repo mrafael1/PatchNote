@@ -69,6 +69,126 @@ func test_the_bodies_are_the_mascot_changes_bodies() -> void:
 		assert_eq(ChangeDB.problems(c), [] as Array[String])
 
 
+# --- M51a: the creatures ------------------------------------------------------------
+
+const FACE_LETTERS := "EGRC."
+
+
+## Each pickable body is a creature and draws every mood the game uses, in the flat look
+## and the pixel look, still, talking, blinking and pointing.
+func test_each_creature_draws_every_mood_in_both_looks() -> void:
+	for id in Change.MASCOTS:
+		for px: bool in [false, true]:
+			var b := MascotBody.make(id) as CreatureBody
+			assert_not_null(b, "%s is a creature" % id)
+			b.frozen = true
+			b.pixel = px
+			b.scale = Vector2.ONE * 0.373
+			add_child_autofree(b)
+			for e in Line.EXPRESSIONS:
+				b.set_expression(e)
+				assert_true(CreatureBody.FACES.has(e), "%s has a face" % e)
+				for step: float in [0.0, 0.5, 2.25]:
+					b.advance(step)
+					var rows := b.face_grid()
+					assert_eq(rows.size(), 6)
+					for r: String in rows:
+						assert_eq(r.length(), 10, "%s %s: %s" % [id, e, r])
+						for ch in r:
+							assert_true(ch in FACE_LETTERS, "%s: %s" % [e, ch])
+					assert_gt(b.flat_face().size(), 2, "%s %s: a flat face" % [id, e])
+				b.say_start()
+				b.advance(0.07)
+				b.say_end()
+			b.point_at(b.position + Vector2(-80, 40), 1.0)
+			b.advance(0.1)
+			for r: String in b.grid():
+				assert_eq(r.length(), (b.grid()[0] as String).length(), "%s: one width" % id)
+			await wait_process_frames(1)   # the draws ran without an error
+
+
+## The eight moods have eight different faces, in the grids and in the flat look.
+func test_the_faces_differ() -> void:
+	assert_eq(CreatureBody.FACES.size(), Line.EXPRESSIONS.size())
+	var b := MascotBody.make(&"blob") as CreatureBody
+	b.frozen = true
+	add_child_autofree(b)
+	var grids := {}
+	var flats := {}
+	for e in Line.EXPRESSIONS:
+		b.set_expression(e)
+		b.t = 1.0   # eyes open (not a blink), mouth shut
+		assert_false(b.blinking())
+		grids["|".join(PackedStringArray(b.face_grid()))] = e
+		flats[var_to_str(b.flat_face())] = e
+	assert_eq(grids.size(), Line.EXPRESSIONS.size(), "every grid face is its own")
+	assert_eq(flats.size(), Line.EXPRESSIONS.size(), "every flat face is its own")
+	b.set_expression(&"idle")
+	var open := b.face_grid()
+	b.t = 2.25   # fmod(2.25 + 0.7, 2.9) < 0.17: a blink
+	assert_true(b.blinking())
+	assert_ne(b.face_grid(), open, "a blink shuts the eyes")
+	b.pixel = true
+	b.say_start()
+	b.t = 0.0
+	assert_ne(b.face_grid(), open, "talking opens the mouth")
+
+
+## The feet stay planted while the body moves; reduce_flashing drops the shivers.
+func test_the_feet_stay_planted_and_gentle_drops_the_shakes() -> void:
+	for px: bool in [false, true]:
+		var b := MascotBody.make(&"cursor") as CreatureBody
+		b.pixel = px
+		add_child_autofree(b)
+		b.set_expression(&"happy")
+		var moved := false
+		for i in 40:
+			b.t = i * 0.05
+			moved = moved or b.motion() != Vector2.ZERO
+			assert_eq(b.pose()["offset"], Vector2.ZERO, "the feet never move with a mood")
+		assert_true(moved, "happy hops")
+		b.set_expression(&"worried")
+		var shook := false
+		for i in 40:
+			b.t = i * 0.05
+			shook = shook or b.motion().x != 0.0
+		assert_true(shook, "worried shivers")
+		b.gentle = true
+		for e: StringName in [&"worried", &"panic"]:
+			b.set_expression(e)
+			for i in 40:
+				b.t = i * 0.05
+				assert_eq(b.motion().x, 0.0, "gentle: no shake (%s)" % e)
+
+
+## The pixel look draws whole viewport pixels per cell, never larger than the flat cell, and
+## a small holder gets finer pixels so a cell still covers one.
+func test_the_pixel_look_draws_whole_cells() -> void:
+	for s: float in [0.35, 0.62, 1.12, 3.0]:
+		var b := MascotBody.make(&"window") as CreatureBody
+		var v := PixelBodyView.wrap(b, s)
+		add_child_autofree(v)
+		await wait_process_frames(1)
+		assert_true(b.pixel)
+		var n := b._cu() * b.scale.x
+		assert_almost_eq(n, roundf(n), 0.001, "scale %s: whole pixels" % s)
+		assert_gte(roundf(n), 1.0)
+		assert_lte(b._cu(), CreatureBody.C + 0.001)
+		assert_eq(v.shown_rect().size, Vector2(v._vp.size) * v.pixel)
+	var expect := {Mascot.SIZE / 100.0: PixelBodyView.PIXEL, 0.62: 2, 0.35: 1}
+	for s: float in expect:
+		var body := MascotBody.make(&"blob")
+		var v := PixelBodyView.wrap(body, s)
+		assert_eq(v.pixel, expect[s], "scale %s" % s)
+		body.free()
+		v.free()
+	var caret := MascotBody.make(&"caret")
+	var cv := PixelBodyView.wrap(caret, 0.35)
+	assert_eq(cv.pixel, PixelBodyView.PIXEL, "no grid: 3x")
+	caret.free()
+	cv.free()
+
+
 # --- The corner ---------------------------------------------------------------------
 
 func test_before_the_face_it_is_a_caret() -> void:
