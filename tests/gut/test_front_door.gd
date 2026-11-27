@@ -203,7 +203,10 @@ func test_the_owner_save_shows_the_unveil_exactly_once() -> void:
 	first.free()
 	var second := await _screen()
 	assert_false(second.title.unveiling(), "once")
-	assert_eq(second.title.mascot_text(), Line.parse(TitleScreen.launch_line()).text)
+	# M51b: the launch line became the odometer's boot roll, then its landing line.
+	assert_true(second.title.odometer.booting(), "the boot roll")
+	_drive(second.title, second.title.odometer.land_at() + 0.05)
+	assert_eq(second.title.mascot_text(), Line.parse(TitleScreen.LANDED_LINE).text)
 	second.free()
 	assert_eq(FileAccess.get_file_as_string(OWNER), fixture, "the fixture is never written")
 

@@ -1,3 +1,15 @@
+# Next playtest: M51b, the version odometer title
+
+What changed since M50.6b (the title screen only, from S7 on; play is the same):
+- **The title is your version.** A big odometer shows it (v + three wheels). When the title opens, the wheels rewind to v0.0.0 and tick through every version you shipped, naming what each session added ("Movement", "Enemies", ... "A new look: Pixel"), then land on your version with a thunk and sparks. The mascot drops onto the odometer.
+- **The menu is a row of five cards.** Moving the focus (arrows, pad or mouse) rolls the wheels to where the card leads: Continue spins the last wheel as "?", New game rolls all the way back to v0.0.0 in red, Replay rolls to the build that session started on, Options shows a gear and Quit a lock. A line under the odometer explains each, and the mascot walks to the wheel that changes and says one line.
+- Everything else works as before: New game still asks "Start over? Your progress goes; your settings stay.", Replay (session, path, seed) appears once S8 is done, Esc goes back.
+- With "reduce flashing" on there is no roll, no spin and no sparks: the wheels just change.
+
+One-liners (defaults taken): is the boot roll (about 4 s) too long to sit through every launch? Should a key skip it? Should the name "Patch Notes" appear anywhere on the title? The module names are each session's first patch note: right words?
+
+---
+
 # Next playtest: M50.6b, pixel projectiles
 
 What changed since M50.6a (the Pixel look only; play is the same):
