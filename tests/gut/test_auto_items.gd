@@ -351,7 +351,7 @@ func test_the_shipped_sessions_carry_the_item_lines() -> void:
 	assert_true("answer:path_auto at 42 [area]: say thinking: And area: bigger blasts, longer shotgun reach. Two passive slots. Choose." in s8.cues)
 	assert_true(s8.debrief.has("answer:path_auto thinking: A maxed gun and its passive... I have an idea for next time."))
 	assert_true("answer:path_auto at 9: give haste" in s9.cues)
-	assert_true("answer:path_auto at 94 [might]: say thinking: Might makes everything hit harder. Nova evolves with it." in s9.cues)
+	assert_true("answer:path_auto at 94 [might]: say thinking: Might makes everything hit harder. Nova evolves with it, one day." in s9.cues)
 	# M50.4b review: a give only puts Haste first in the next offer, so its line waits for the pick.
 	assert_true("answer:path_auto holds haste: say happy: Haste came back with you. Guns fire faster." in s9.cues)
 	assert_false(s9.cues.has("answer:path_auto at 18: say happy: Haste came back with you. Guns fire faster."))
@@ -440,7 +440,7 @@ func test_level_card_data_for_each_kind() -> void:
 	var item := LevelCard.data_for({"id": &"haste", "rank": 3, "kind": &"upgrade", "item": true, "paired": true}, 6, "3")
 	assert_eq([item.kind, item.kind_label, item.title, item.icon, item.pair, item.paired],
 			[LevelCard.KIND_ITEM, "PASSIVE", "Haste", &"haste", "pairs with Pistol", true])
-	assert_eq(item.effect, "guns fire 18% faster (was 12%)")
+	assert_eq(item.effect, "Pistol: 6/s -> 6.7/s", "M50.7: the pistol's real shots a second (tick-rounded)")
 	var hp := LevelCard.data_for({"id": PickOffer.HP, "rank": 0, "kind": PickOffer.HP}, 6, "1")
 	var boost := LevelCard.data_for({"id": PickOffer.BOOST, "rank": 0, "kind": PickOffer.BOOST}, 6, "2")
 	assert_eq([hp.kind, hp.title, hp.icon, hp.cap], [LevelCard.KIND_FILLER, "+1 MAX HP", &"hp", 0])

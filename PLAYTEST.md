@@ -1,3 +1,20 @@
+# Next playtest: M50.7, polish on packs, fuses and Auto cards
+
+What changed since M50.6b (play S8 and S9 on Arcade and on Auto):
+- **Opening a pack has beats.** The pack drops, tears open, then the cards are dealt; your pick slides into your hand. With "reduce flashing" each beat is short and only fades. New sounds for the tear, the deal, the slot and a fuse.
+- **A fuse shows its two cards first**, then the fused gun.
+- **The give and replace steps show your real hand cards.** The one you point at has the gold ring; the one that makes a recipe has a green edge; a locked card is dim with a lock.
+- **Hovering a card picks it out** (no more tooltip).
+- **Your hand reacts.** A card that ranks up flashes "RANK 5!"; a new pack in the stack pulses once. On the rail, the PACK module counts packs you carried over, says "pick 1 of 2" when a pack holds two cards, and PRISM READY says "[F] open a pack to fuse".
+- **Auto cards say more truth.** Breakpoints count the path's enemy HP; Haste shows the shots a second you really get; odd ranks tease the next trick ("next: ..."); a card the AI gave you says GIFT.
+- **The live nerf is a hotfix** in the chat (`$ hotfix minigun`), with its patch note.
+- **F2 has ITEMS and EVOLUTIONS rows**: try the Supernova and the Thunderclap in S9 Auto.
+- The AI says "Good pick" less often, and its bubble hides while a pick panel is open.
+
+Please judge: **Auto S8 difficulty** (not retuned on purpose; is it too hard, too easy, fine?). One-liners (defaults taken): are the pack beats too long when you open three in a row? Is "Good pick" now rare enough? Do the block-capital names on Auto's Pixel cards read? Does moving the mouse over a pack card light only that card (no capture could show it)? When space is short the hotfix slip keeps only the first part of the note ("Minigun 30 -> 15 shots/s"): fine, or wrap to two lines?
+
+---
+
 # Next playtest: M50.3c, S10 "Level one" (the new last session)
 
 What is new since M50.6b (play S9 to its end):
@@ -140,7 +157,7 @@ One page. The G13 sheet is kept below for reference.
 
 ## What to play
 1. **S7 "Three games"** once (2.5 min, you can't lose). The AI swaps the whole game twice: cards (Arsenal), guns on the floor (Survival), then auto-fire (Auto). At the end it asks which one to build.
-2. **S8 "Day one"** on the path you picked (2 min, 1:30 on Survival; you can lose; Retry or Move on).
+2. **S8 "Day one"** on the path you picked (it ends when you clear its enemies; 1:30 on Survival; you can lose; Retry or Move on).
 3. Back on the title screen, the **Replay** row (new): pick S8 and another path, then Replay. Do it for both other paths. A replay never touches your save: it plays a copy, and the title restores it.
 
 ## Controls added
@@ -170,7 +187,7 @@ One page. The G13 sheet is kept below for reference.
 - M50.4c1 (Auto, S9): at 84 s the AI adds EVOLVE. Pistol 6 + Haste turns into the Minigun (a sweeping stream), at 30 shots/s for 8 s, then the AI patches it to 15/s live ("Too strong. Patched it down live.") and the debrief changelog lists the change. Questions, one line each: (Q3) should EVOLVE be free like FUSE, instead of spending the level-up? (Q4) too easy with the passive at any level, or should it need the passive maxed? (Q5) did the nerf read as a joke, or did it feel like losing something? (Q6) too much in S9 (paint + evolve): move evolve to S10? (Q13) do the EVOLVE card and the level-up cards look right?
 - M50.4b (Auto): level-ups now show dressed cards and two passive slots (Haste, Area; Might in S9). Do the cards read at a glance, and does S8 offer the second passive soon enough after the 42 s line?
 - Arsenal's first card in S8 comes at 25 kills (the plan said 15): ok?
-- Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it; nothing offers it before S9.)
+- Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it, and since M50.7 F2 EVOLUTIONS gives the Supernova; nothing offers it before S9.)
 - Path line budget (250 own lines per path): nova and well counted as shared code (Auto 182) or as Auto's own (315, over)? Survival is at 250 exactly (paths/survival/) on the first reading, or about 485 if its shared Loadout / Pickup / bot / pickup-field lines count as its own.
 - S7's timings moved from the plan: the swaps cue at 13 / 56 / 99 / 143 s (planned 2 / 48 / 96 / 143), because the three intro lines take 12 s and no swap may start while the AI is still talking. Each line inside a taste moved 1-12 s with it; the tastes are 43 / 43 / 44 s instead of ~48 / 46 / 47. Ok?
 - The "AI cooking" beat now plays on S7's stage card, before its title ("Building v0.8.0", four progress lines, the bar fills). Is that what you meant by "the AI cooking on the chat screen", or did you mean S6's debrief tail?

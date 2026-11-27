@@ -68,7 +68,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - !answer:path_survival at 86: (happy) I'm going to learn to draw. Give me a session.
 - answer:path_survival at 74: (thinking) You know what? It still looks like a prototype.
 - answer:path_survival at 80: (happy) I'm going to learn to draw. Give me a session.
-- answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. No top rank. Gold cards are rarer.
+- answer:path_arsenal at 16: (thinking) A copy of a card ranks it up. No top rank.
 - answer:path_arsenal at 34: (worried) Two cards max. Anything new means letting one go.
 - answer:path_auto at 18: (thinking) New top: rank six. Every gun learns three tricks on the way.
 - answer:path_auto at 60: (worried) Three guns, two passives. That's the whole backpack.
@@ -116,9 +116,9 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal give_choice 1: give_taken&!paired (thinking) Laser and pistol. No recipe for those two. Yet.
 - answer:path_arsenal at 94: !paired (thinking) Real fusion now. The laser and the shotgun make something. Hold both.
 - answer:path_auto holds haste: (happy) Haste came back with you. Guns fire faster.
-- answer:path_auto at 94: (thinking) Might makes everything hit harder. Nova evolves with it.
+- answer:path_auto at 94: (thinking) Might makes everything hit harder. Nova evolves with it, one day.
 - answer:path_auto at 84: (happy) New trick. A gun at rank six plus its passive evolves.
-- answer:path_auto evolve_ready 1: (happy) It's glowing. Take EVOLVE.
+- answer:path_auto evolve_ready 1: (happy) It's ready. Take EVOLVE.
 - answer:path_auto evolved 1: (surprised) Oh. Oh no. That came out strong.
 - answer:path_auto nerfed 1: (guilty) Too strong. Patched it down live. Still good, promise.
 ### Reveal lines (one per new enemy drawn in, in order)

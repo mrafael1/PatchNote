@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M50.3c"
+const BUILD := "M50.7"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
@@ -283,6 +283,10 @@ func ensure_path_runner() -> PathRunner:
 	path_runner.game = self
 	path_runner.panel = pick_panel
 	pick_panel.runner = path_runner   # M50.4f: the flat slot bar under the dressed cards
+	pick_panel.mascot = mascot        # M50.7: its bubble parks under an open panel
+	pick_panel.sound = sound          # M50.7: the pack beats' sounds
+	pick_panel.hand_target = pick_hand_target   # M50.7 review: the slot-in flies to the real hand
+	path_runner.nerf_landed.connect(_on_nerf_row)
 	path_runner.muted = session_runner != null and session_runner.muted
 	add_child(path_runner)
 	if session_runner != null:
@@ -513,6 +517,44 @@ func _on_edit_row(edit: RuleEdit) -> void:
 
 static func edit_row_text(edit: RuleEdit) -> String:
 	return edit.cmd_text if edit.cmd_text != "" else "patch %s" % edit.title.to_lower()
+
+
+## M50.7 (plan item 8): the live nerf's row, like a rule edit's: `$ hotfix minigun ... ok` in the
+## terminal (the rail draws it as a hotfix slip carrying the patch note), and on the flat HUD
+## (no rail) the note as a toast. Presentation only: no cue, no say, no RunState write.
+func _on_nerf_row(text: String, weapon: StringName) -> void:
+	var rail: Node = host.get(&"rail") if host != null else null
+	if host != null:
+		var row := nerf_row_text(weapon)
+		if rail != null and is_instance_valid(rail) and bool(rail.get(&"on")):
+			rail.call(&"mark_nerf", "$ " + row, text)
+		host.terminal.cmd(row, "ok")
+	if rail == null or not is_instance_valid(rail) or not bool(rail.get(&"on")):
+		pick_panel.note(text)
+
+
+## M50.7 review: where a pack's chosen card flies, in the game view's coordinates: the rail's HAND
+## module when the rail shows (below the game column, so the card leaves the view toward it),
+## else the flat hand widget's first card. null: the panel's default. Presentation only.
+func pick_hand_target() -> Variant:
+	var view := get_viewport().get_visible_rect().size
+	var rail: Node = host.get(&"rail") if host != null else null
+	if rail != null and is_instance_valid(rail) and bool(rail.get(&"on")):
+		var mods: Node = rail.get(&"modules")
+		var g: Rect2 = host.game_rect()
+		if mods != null and mods.has_method(&"cell_rect") and g.size.x > 0.0 and g.size.y > 0.0:
+			var cell: Rect2 = mods.call(&"cell_rect", &"path")
+			if cell.size.x > 0.0:
+				return (cell.get_center() - g.position) * view / g.size
+	var w: Control = path_runner.widget() if path_runner != null else null
+	if w != null and is_instance_valid(w) and w.is_visible_in_tree() and w.has_method(&"card_rect"):
+		var r: Rect2 = w.call(&"card_rect", 0, view)
+		return r.get_center()
+	return null
+
+
+static func nerf_row_text(weapon: StringName) -> String:
+	return "hotfix %s" % String(weapon)
 
 
 func _on_event_row(id: StringName) -> void:

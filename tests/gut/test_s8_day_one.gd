@@ -26,7 +26,7 @@ const AUDIT := [
 	["s2_01_tryout", "auto", "^at 89: add levelups$", "gems / LV"],
 	["s2_01_tryout", "-", "hp_floor=1", "hp_floor 1"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 10: add cards$", "card meter"],
-	["s2_02_day_one", "arsenal", "ranks it up\\. No top rank\\. Gold cards are rarer", "weapon ranks (card text)"],
+	["s2_02_day_one", "arsenal", "ranks it up\\. No top rank", "weapon ranks (card text)"],
 	["s2_02_day_one", "arsenal", "^answer:path_arsenal at 20: add quick_draw$", "quick-draw"],
 	["s2_02_day_one", "auto", "Don't touch the trigger", "Auto fire button off"],
 	["s2_02_day_one", "auto", "^answer:path_auto at 10: add levelups$", "gems / LV"],

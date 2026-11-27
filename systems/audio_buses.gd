@@ -10,7 +10,8 @@ const SFX := &"SFX"
 const UI := &"UI"
 const VOICE := &"Voice"
 const VOICE_KEYS: Array[StringName] = [&"compile", &"glitch", &"edit_warn"]
-const UI_KEYS: Array[StringName] = [&"click", &"prompt", &"release_candidate"]
+const UI_KEYS: Array[StringName] = [&"click", &"prompt", &"release_candidate", &"pack_tear", &"card_flip",
+		&"card_slot", &"fuse_chime"]   # M50.7: the pack beats
 
 
 ## Adds SFX, UI and Voice when missing (idempotent).

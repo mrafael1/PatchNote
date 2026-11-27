@@ -25,6 +25,11 @@ extends Control
 ## + Laser") and 4 mechanic dots. The misfuse draws both cards as one wobbling card ("Pistgun?",
 ## both glyphs overlapped, a glitch frame; no wobble under reduce_flashing) that glitches out
 ## when the AI patches it.
+##
+## M50.7 (polish): a rank-up (a pack's +1, a give) bursts on its card for RANK_TIME: a gold ring
+## and a "RANK n!" tag over it, fading (a steady highlight under reduce flashing); a landed pack
+## pulses the stack chip once (STACK_PULSE; steady under reduce flashing), and the "[F] open"
+## prompt reads larger on tier 0.
 
 const CARD := Vector2(64, 92)
 const GAP := 8.0
@@ -58,6 +63,12 @@ var _misfuse := false
 var _glitch_out := 0.0       ## M50.1b: seconds left of the misfuse's glitch-out
 
 const GLITCH_OUT := 0.3
+const RANK_TIME := 0.6      ## M50.7: the rank-up burst
+const STACK_PULSE := 0.5    ## M50.7: the stack chip's pulse on a landed pack
+var _ranks: Array[int] = []
+var _rank_up: Array[float] = []
+var _stack_seen := -1        ## -1: not read yet (a session's carried packs do not pulse)
+var _stack_pulse := 0.0
 const WOBBLE_HZ := 2.0
 const WOBBLE_DEG := 5.0
 const PULSE_HZ := 0.8
@@ -87,7 +98,14 @@ func _process(delta: float) -> void:
 func step(delta: float) -> void:
 	_clock += delta
 	_glitch_out = maxf(0.0, _glitch_out - delta)
+	for i in _rank_up.size():
+		_rank_up[i] = maxf(0.0, _rank_up[i] - delta)
+	_stack_pulse = maxf(0.0, _stack_pulse - delta)
 	_sync()
+	var stack := stack_count()
+	if _stack_seen >= 0 and stack > _stack_seen:
+		_stack_pulse = STACK_PULSE
+	_stack_seen = stack
 	for i in _lift.size():
 		_lift[i] = move_toward(_lift[i], 1.0 if i == equipped() else 0.0, delta / RAISE_TIME)
 		_join[i] = move_toward(_join[i], 0.0, delta / JOIN_TIME)
@@ -101,15 +119,62 @@ func _sync() -> void:
 		_ids.pop_back()
 		_lift.pop_back()
 		_join.pop_back()
+		_ranks.pop_back()
+		_rank_up.pop_back()
 	for i in slots.size():
 		var id := slots[i].def.id
 		if i >= _ids.size():
 			_ids.append(id)
 			_lift.append(0.0)
 			_join.append(1.0)
+			_ranks.append(slots[i].rank)
+			_rank_up.append(0.0)
 		elif _ids[i] != id:
 			_ids[i] = id
 			_join[i] = 1.0
+			_ranks[i] = slots[i].rank
+			_rank_up[i] = 0.0
+		elif slots[i].rank > _ranks[i]:   # M50.7: the same card ranked up
+			_ranks[i] = slots[i].rank
+			_rank_up[i] = RANK_TIME
+		else:
+			_ranks[i] = slots[i].rank
+
+
+## M50.7: seconds left of card i's rank-up burst (0 none).
+func rank_up_left(i: int) -> float:
+	return _rank_up[i] if i < _rank_up.size() else 0.0
+
+
+## M50.7: the burst's tag ("RANK 5!"; "" with none).
+func rank_tag(i: int) -> String:
+	return "RANK %d!" % card_rank(i) if rank_up_left(i) > 0.0 and i < card_count() else ""
+
+
+## M50.7: the burst's strength 0..1 now: a quick swell then a fade; a steady 0.8 under reduce
+## flashing (no pulse).
+func rank_glow(i: int) -> float:
+	var left := rank_up_left(i)
+	if left <= 0.0:
+		return 0.0
+	if SaveGame.reduce_flashing():
+		return 0.8
+	var k := 1.0 - left / RANK_TIME
+	return minf(1.0, k * 6.0) * (1.0 - k)
+
+
+## M50.7: seconds left of the stack chip's pulse.
+func stack_pulse() -> float:
+	return _stack_pulse
+
+
+## M50.7: the stack chip's brightness 0..1 (1 at rest): the pulse dips and swells once; under
+## reduce flashing it stays 1.
+func stack_glow() -> float:
+	if SaveGame.reduce_flashing() or _stack_pulse <= 0.0:
+		return 1.0
+	var k := 1.0 - _stack_pulse / STACK_PULSE
+	return 0.55 + 0.45 * absf(cos(k * PI * 1.5))
 
 
 func _slots() -> Array[Weapon]:
@@ -176,7 +241,7 @@ func text() -> String:
 		else:
 			out.append("[%s] %s %s" % [key_label(i), card_title(i), pips(card_rank(i))])
 	out.append(meter_text())
-	if stack_count() > 0:
+	if waiting_count() > 0:
 		out.append("%s %s" % [stack_text(), stack_hint()])
 	return "\n".join(out)
 
@@ -187,13 +252,20 @@ func stack_count() -> int:
 	return int(runner.call(&"pack_stack")) if runner != null and is_instance_valid(runner) and runner.has_method(&"pack_stack") else 0
 
 
+## M50.7 review: the packs still waiting (the stack less the pack whose panel is open), what the
+## "n packs [F] open" line counts.
+func waiting_count() -> int:
+	var showing := int(runner.call(&"pack_on_screen")) if runner != null and is_instance_valid(runner) 			and runner.has_method(&"pack_on_screen") else 0
+	return maxi(0, stack_count() - showing)
+
+
 func stack_text() -> String:
-	var n := stack_count()
+	var n := waiting_count()
 	return "" if n <= 0 else "%d pack%s" % [n, "" if n == 1 else "s"]
 
 
 func stack_hint() -> String:
-	if stack_count() <= 0:
+	if waiting_count() <= 0:
 		return ""
 	return "[%s] open" % PathRunner.open_key() if Settings.key_hints() else "open one"
 
@@ -370,6 +442,14 @@ func _draw() -> void:
 		WeaponGlyph.draw(self, w.def.icon, r.position + Vector2(CARD.x * 0.5, 74), 26.0, ink)
 		if w.def.is_fusion():
 			_draw_fused(w, r, ink, font, a)
+		var rg := rank_glow(i)
+		if rg > 0.0:   # M50.7: the rank-up burst and its tag
+			draw_rect(r.grow(3.0), Color(Palette.color(&"card_rare"), rg), false, 3.0)
+			var tag := rank_tag(i)
+			var tw := font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x + 10.0
+			var tr := Rect2(Vector2(r.get_center().x - tw * 0.5, r.position.y - 22.0), Vector2(tw, 18.0))
+			draw_rect(tr, Color(Palette.color(&"card_rare"), maxf(rg, 0.6)))
+			draw_string(font, tr.position + Vector2(5, 14), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Palette.color(&"shadow"))
 		if _glitch_out > 0.0 and not SaveGame.reduce_flashing():
 			var k := _glitch_out / GLITCH_OUT
 			draw_rect(Rect2(r.position + Vector2(6.0 * k, 10.0), Vector2(r.size.x, 6.0)), Color(Palette.color(&"danger"), 0.5 * k))
@@ -378,9 +458,13 @@ func _draw() -> void:
 	var m := meter_rect(view)
 	m.position -= position
 	draw_string(font, m.position + Vector2(0, 14), meter_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, DIM)
-	if stack_count() > 0:   # M50.6: the stack, over the meter
-		draw_string(font, m.position + Vector2(0, -24), stack_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, LIT)
-		draw_string(font, m.position + Vector2(0, -6), stack_hint(), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, LIT)
+	if waiting_count() > 0:   # M50.6: the stack, over the meter (M50.7: larger, pulsing once per pack)
+		var sg := stack_glow()
+		var big := not Skins.is_on(&"ui_panel")
+		draw_string(font, m.position + Vector2(0, -30 if big else -24), stack_text(), HORIZONTAL_ALIGNMENT_LEFT, -1,
+				20 if big else 16, Color(LIT, sg))
+		draw_string(font, m.position + Vector2(0, -8 if big else -6), stack_hint(), HORIZONTAL_ALIGNMENT_LEFT, -1,
+				19 if big else 14, Color(LIT, sg))
 	var bar_at := Rect2(m.position + Vector2(0, m.size.y - BAR.y), BAR)
 	draw_rect(bar_at, Color(1, 1, 1, 0.15))
 	draw_rect(Rect2(bar_at.position, Vector2(BAR.x * clampf(bar(), 0.0, 1.0), BAR.y)), BAR_FILL)
