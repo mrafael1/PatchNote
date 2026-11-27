@@ -170,8 +170,10 @@ if ($BotRuns) {
     # S8 starts where S7 ended (the carry reaches Stage 2), S9 always at player_start (fresh_start).
     if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_02_day_one attempt=1 \(invincible\) outcome=won t=\d+\.\d .*choice=next_session .*version=v0\.8\.0->v0\.8\.1 path=arsenal .* end=cleared spawned=100/100 start=(?!1584\.00,672\.00)\d+\.\d\d,\d+\.\d\d\r?$') { $failures += 'bot_campaign: S8 did not clear its 100 on Arsenal to v0.8.1 from the carried spot' }
     if ($camp.Text -match '\[botrun\] session=s2_02_day_one .* card=') { $failures += 'bot_campaign: S8 showed a stage card' }
-    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_03_paint attempt=1 \(invincible\) outcome=won t=\d+\.\d .*choice=to_be_continued .*version=v0\.8\.1->v0\.8\.2 path=arsenal .* end=cleared spawned=120/120 start=1584\.00,672\.00\r?$') { $failures += 'bot_campaign: S9 did not clear its 120 on Arsenal to v0.8.2 from player_start' }
+    if ($camp.Text -notmatch '(?m)\[botrun\] session=s2_03_paint attempt=1 \(invincible\) outcome=won t=\d+\.\d .*choice=next_session .*version=v0\.8\.1->v0\.8\.2 path=arsenal .* end=cleared spawned=120/120 start=1584\.00,672\.00\r?$') { $failures += 'bot_campaign: S9 did not clear its 120 on Arsenal to v0.8.2 from player_start' }
     if ($camp.Text -match '\[botrun\] session=s2_03_paint .* card=') { $failures += 'bot_campaign: S9 showed a stage card' }
+    # M50.3c: S9 now leads to S10 ("Level one": three parts, three new enemies), the last playable session.
+    if ($camp.Text -notmatch '\[botrun\] session=s2_04_levels attempt=1 \(invincible\) outcome=won .*choice=to_be_continued .*version=v0\.8\.2->v0\.8\.3 path=arsenal .* end=cleared ') { $failures += 'bot_campaign: S10 did not clear its level on Arsenal as the last session (v0.8.3)' }
     if ($camp.Text -notmatch "\[botrun\] chain: sessions=$playableCount ") { $failures += 'bot_campaign: no chain total' }
     Select-String -Path $camp.Log -Pattern '^\[botrun\] chain:' | ForEach-Object { Write-Host "    $($_.Line)" }
     # PLAN v8 M38: S3's debrief asks fork_mascot; the pick gives the AI its body.
@@ -287,6 +289,15 @@ if ($BotRuns) {
         if ($s9.Text -notmatch '\[botrun\] summary: s2_03_paint x1, .* 0 failures') { $failures += "bot_s9_${p}: run failed" }
         # M50.4c1: on Auto the one seed evolves the pistol, the live nerf lands and its line is said in the run.
         if ($p -eq 'auto' -and $s9.Text -notmatch '\[botrun\] auto_depth: s2_03_paint evolved=1/1 .*nerf_landed=1/1 nerfed_before_clear=1/1 ') { $failures += "bot_s9_auto: no evolution, nerf or nerf line" }
+    }
+    # M50.3c: S10 (the level in three parts) is cleared on each path; an invincible run never hits the hidden cap.
+    foreach ($p in @('arsenal', 'auto', 'survival')) {
+        $s10 = Invoke-Godot "bot_s10_$p" "--fixed-fps 60 -s tools/bot_runs.gd -- --campaign --only=s2_04_levels --answer=fork_path=path_$p --save=user://m50_3c_check/s10_$p.json --log=user://m50_3c_check/s10_$p.jsonl 3i"
+        Test-Errors "bot_s10_$p" $s10
+        Select-String -Path $s10.Log -Pattern '^\[botrun\] session=s2_04_levels' | ForEach-Object { Write-Host "    $($_.Line)" }
+        if ($s10.Text -notmatch "outcome=win t=(\d+\.\d) .*path=$p .* end=cleared spawned=(\d+)/(\d+) " -or $Matches[2] -ne $Matches[3]) { $failures += "bot_s10_${p}: did not clear its three parts on $p" }
+        if ($s10.Text -match 'session=s2_04_levels .* end=limit') { $failures += "bot_s10_${p}: an invincible run ended on the hidden cap" }
+        if ($s10.Text -notmatch '\[botrun\] summary: s2_04_levels x1, .* 0 failures') { $failures += "bot_s10_${p}: run failed" }
     }
     # M47.5a (PLAN v9.3): the campaign hosted in the always-on GameHost hashes as the M43.3 refs,
     # and S8 hosted at a 1560x878 view with the handoff held matches the M50.1b ref (Arsenal's

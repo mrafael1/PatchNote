@@ -23,7 +23,21 @@ static func read(game: Node, peak: Dictionary) -> Dictionary:
 	out.hp = _hp(game, player)
 	out.dash = _dash(player, peak)
 	out.path = _path(game)
+	out.parts = _parts(game)
 	return out
+
+
+## M50.3c: a level in parts: {part, of, door} (of 0 = one arena, nothing shown).
+static func _parts(game: Node) -> Dictionary:
+	var d := {"part": 0, "of": 0, "door": false}
+	var genre: Variant = game.get(&"genre") if game != null else null
+	var loop: Variant = genre.get(&"run_loop") if genre is Node and is_instance_valid(genre) else null
+	if RunState.session == null or loop == null or loop.stages == null or loop.stages.size() <= 1:
+		return d
+	d.part = int(loop.stage_index) + 1
+	d.of = int(loop.stages.size())
+	d.door = bool(loop.exit_open) and not bool(loop.exit_reached)
+	return d
 
 
 static func _hp(game: Node, player: Node) -> Dictionary:
@@ -74,6 +88,7 @@ static func _path(game: Node) -> Dictionary:
 		return d
 	var def: PathDef = runner.get(&"def")
 	d.id = runner.get(&"path_id")
+	d["title"] = def.title if def.title != "" else String(d.id)   # M50.7: the caption's word
 	var lo: Loadout = runner.call(&"loadout")
 	if lo == null:
 		return d
@@ -103,11 +118,24 @@ static func _hand(runner: Node, lo: Loadout) -> Dictionary:
 				"levels": WeaponCurve.levels_of(w.def, w.rank) if w.deep() else ([] as Array[int]),
 				"fused": w.def.is_fusion(), "parents": parents, "icon": w.def.icon,
 				"key": InputSetup.expand_keys("{key:weapon_%d}" % (i + 1))})
+	# M50.7 review: while the pack's fuse shows its two parents, the rail's hand shows them too
+	# (the fused card would give the result away before it flips in).
+	var panel: Node = runner.get(&"panel")
+	if is_instance_valid(panel) and panel.has_method(&"fuse_hand"):
+		var parents: Array = panel.call(&"fuse_hand")
+		if not parents.is_empty():
+			cards.clear()
+			for h: Dictionary in parents:
+				var pw := WeaponDB.get_weapon(h.id)
+				cards.append({"title": String(h.title), "rank": int(h.rank), "active": false, "deep": false,
+						"levels": [] as Array[int], "fused": false, "parents": [] as Array[String],
+						"icon": pw.icon if pw != null else &"", "key": ""})
 	var link := int(runner.call(&"link_state")) if runner.has_method(&"link_state") else 0
 	var widget: Node = runner.call(&"widget")
 	var misfuse := is_instance_valid(widget) and widget.has_method(&"misfusing") and bool(widget.call(&"misfusing"))
 	var d := {"cards": cards, "max": maxi(lo.max_slots, 1), "link": link, "misfuse": misfuse,
-			"misfuse_title": String(widget.call(&"misfuse_title")) if misfuse else "", "recipe": "", "pair": ""}
+			"misfuse_title": String(widget.call(&"misfuse_title")) if misfuse else "", "recipe": "", "pair": "",
+			"pack_open": runner.has_method(&"pack_on_screen") and int(runner.call(&"pack_on_screen")) > 0}
 	if link > 0:
 		var pair := BoosterPack.recipe_pair(lo)
 		if pair.size() == 3:
@@ -121,7 +149,7 @@ static func _pack(runner: Node, def: PathDef) -> Dictionary:
 	var meter: RefCounted = runner.call(&"meter")
 	var every := maxi(1, def.pack_every)
 	var d := {"on": def.pack_every > 0 and meter != null and meter.has_method(&"kills_left"),
-			"x": 0, "every": every, "left": -1, "next": 1, "stack": 0, "key": ""}
+			"x": 0, "every": every, "left": -1, "next": 1, "stack": 0, "key": "", "waiting": 0, "cards_next": 3}
 	if not d.on:
 		return d
 	# M50.6: the packs waiting on the stack and the key that opens the top one.
@@ -131,8 +159,32 @@ static func _pack(runner: Node, def: PathDef) -> Dictionary:
 	var cards := int(meter.get(&"cards"))
 	d.x = clampi(kills - cards * every, 0, every)
 	d.left = int(meter.call(&"kills_left"))
-	d.next = cards + 1
+	# M50.7: "pack N" is the next one earned after those opened and those waiting (carried from
+	# the last session included), and the next pack's real card count (S8's pool shows 2).
+	# The pack on screen is in packs_opened and still on the stack until its pick: counted once.
+	var showing := int(runner.call(&"pack_on_screen")) if runner.has_method(&"pack_on_screen") else 0
+	d.waiting = maxi(0, d.stack - showing)
+	var opened: int = int(runner.get(&"packs_opened")) if runner.get(&"packs_opened") != null else cards - d.stack
+	d.next = maxi(cards, opened + d.stack - showing) + 1
+	var lo: Loadout = runner.call(&"loadout") if runner.has_method(&"loadout") else null
+	d["cards_max"] = d.cards_next
+	if lo != null and runner.has_method(&"offer_pool"):
+		var pool: Array[StringName] = runner.call(&"offer_pool")
+		var n := BoosterPack.candidates(lo, pool).size()
+		d.cards_next = mini(3, n)
+		# M50.7 review: an epic card (a built fusion, its own roll) can add one more; the rail cannot
+		# know the roll, so it says both.
+		var epics: bool = def.epic_chance > 0.0 and runner.has_method(&"fusion_live") and bool(runner.call(&"fusion_live")) 				and not BoosterPack.epic_ids(lo, pool).is_empty()
+		d.cards_max = mini(3, n + (1 if epics else 0))
 	return d
+
+
+## M50.7: the PACK module's line for a pack of n cards: "pick 1 of 2" (a 1-card pack applies by
+## itself: "1 card: no choice"). Review: `most` > n when an epic card may join ("pick 1 of 2 or 3").
+static func pick_line(n: int, most := -1) -> String:
+	if most > n:
+		return "pick 1 of %d or %d" % [n, most] if n >= 2 else "1 card, or pick 1 of %d" % most
+	return "pick 1 of %d" % n if n >= 2 else "1 card: no choice"
 
 
 static func _items(runner: Node, lo: Loadout, def: PathDef) -> Dictionary:

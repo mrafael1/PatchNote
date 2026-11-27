@@ -87,6 +87,12 @@ var script_done_at := -1.0
 var end_reason: StringName = &""
 var session_runner: Node
 
+## M50.3c (PLAN v9 1.8): a clear session played in parts (a stage set of more than one stage).
+## The set's total splits evenly over the parts (part_budget); the session's own spawn
+## multipliers ride on each stage's preset.
+var rate_mult := 1.0
+var cap_mult := 1.0
+
 var _report_at := -1.0
 var _clear_until := -1.0
 var _spawner_on := true
@@ -246,6 +252,9 @@ func _update_goal() -> void:
 ## script is done (the spawner goes quiet, the bubble says end_line) and closes end_after game
 ## seconds later; a clear set ends won; a clear session's time_limit is a hidden cap.
 func _update_endings(now: float) -> void:
+	if in_parts() and not is_last_stage():
+		_update_part()
+		return
 	if has_end(SessionDef.CLEAR) and enemy_total >= 0:
 		var closed := wave_closed()
 		RunState.wave_closed = closed
@@ -285,6 +294,53 @@ func _update_endings(now: float) -> void:
 
 ## M47.6c1: the survivors chase you once this few are left of a closed set.
 const CHASE_AT := 3
+
+
+## M50.3c: a clear session whose stage set has several parts.
+func in_parts() -> bool:
+	return goal != &"" and stages != null and stages.size() > 1 and has_end(SessionDef.CLEAR) and enemy_total >= 0
+
+
+## M50.3c: the spawner's budget up to the end of part `index` (cumulative; the last is the total).
+func part_budget(index: int) -> int:
+	if stages == null or stages.size() <= 1:
+		return enemy_total
+	return int(roundf(float(enemy_total) * float(index + 1) / float(stages.size())))
+
+
+## M50.3c: this part's share is out: its budget is spent and no spawn cue of this part (or
+## an `at` / `kills` one) is still to fire.
+func part_closed() -> bool:
+	if spawner == null or not spawner.budget_spent():
+		return false
+	return session_runner == null or int(session_runner.call(&"pending_spawns")) == 0
+
+
+## M50.3c: a part before the last. Its share dead: an EXIT stage opens its gate and waits
+## for the player; any other moves on at once (the stage-clear beat, then the next arena).
+## The last part ends the session as any clear session does. The hidden cap still holds.
+func _update_part() -> void:
+	var closed := part_closed()
+	RunState.wave_closed = closed
+	if closed and not RunState.survivors_chase and enemies_left() <= CHASE_AT:
+		RunState.survivors_chase = true
+		RunState.log_event(&"survivors_chase")
+	if closed and enemies_left() == 0:
+		var stage := current_stage()
+		if stage != null and stage.goal == StageDef.EXIT and not exit_reached:
+			if not exit_open:
+				_open_exit()
+		else:
+			_clear_stage()
+			return
+	if time_limit > 0.0 and goal_clock >= time_limit:
+		end_reason = &"limit"
+		end(STOPPED)
+
+
+func _apply_part_budget() -> void:
+	if in_parts() and spawner:
+		spawner.budget = part_budget(stage_index)
 
 
 func _open_script_window(now: float) -> void:
@@ -330,9 +386,10 @@ func begin() -> void:
 	stage_index = 0
 	stage_started_at = RunState.game_time
 	stage_starts = [stage_started_at]
-	if stages.size() > 1 and director:
+	if stages.size() > 1 and director and goal == &"":
 		director.begin_stage(current_stage().prompt_count(), true)
 	_apply_spawn_preset()
+	_apply_part_budget()
 
 
 func current_stage() -> StageDef:
@@ -363,7 +420,7 @@ func _stage_done() -> bool:
 func _open_exit() -> void:
 	exit_open = true
 	RunState.log_event(&"exit_open", {"stage": stage_index})
-	if transition:
+	if transition and goal == &"":   # M50.3c: in a session the AI speaks, not the banner
 		transition.say(Dialogue.EXIT_OPEN)
 	exit_opened.emit(stage_index)
 
@@ -384,7 +441,7 @@ func _clear_stage() -> void:
 		spawner.enabled = false
 	RunState.start_grace(Tuning.stage_clear_time + Tuning.stage_start_grace)
 	RunState.log_event(&"stage_clear", {"stage": stage_index})
-	if transition:
+	if transition and goal == &"":
 		transition.say(Dialogue.STAGE_CLEAR % [stage_index + 1, stages.size()])
 	stage_cleared.emit(stage_index)
 	phase_changed.emit(phase)
@@ -398,11 +455,16 @@ func _start_stage(index: int) -> void:
 	exit_reached = false
 	phase = PLAY
 	stage_starting.emit(index, current_stage())
-	if director:
+	if director and goal == &"":
 		director.begin_stage(current_stage().prompt_count(), false)
 	if spawner:
 		spawner.enabled = _spawner_on
 	_apply_spawn_preset()
+	if in_parts():
+		_apply_part_budget()
+		RunState.wave_closed = false
+		RunState.survivors_chase = false
+		_clock_last = RunState.game_time   # the beat between two parts is not on the session clock
 	RunState.log_event(&"stage_start", {"stage": index})
 	phase_changed.emit(phase)
 
@@ -410,8 +472,8 @@ func _start_stage(index: int) -> void:
 func _apply_spawn_preset() -> void:
 	var stage := current_stage()
 	if spawner and stage:
-		spawner.phase_rate = stage.spawn_rate
-		spawner.phase_cap = stage.spawn_cap
+		spawner.phase_rate = stage.spawn_rate * rate_mult
+		spawner.phase_cap = stage.spawn_cap * cap_mult
 
 
 func _start_release_candidate() -> void:

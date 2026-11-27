@@ -219,6 +219,15 @@ func _on_edit_landed(edit: RuleEdit) -> void:
 		hotfix = {"module": m, "version": label, "n": hotfixes}
 
 
+## M50.7: a live nerf (main's _on_nerf_row): a hotfix like a rule edit's, its slip carrying the
+## patch note ("Balance: Minigun ..."), tagged on the path module.
+func mark_nerf(prefix: String, note: String) -> void:
+	hotfixes += 1
+	var label := hotfix_label(snap.get("version", SaveGame.version().label()), hotfixes)
+	chat.call(&"mark_hotfix", prefix, label, note)
+	hotfix = {"module": &"path", "version": label, "n": hotfixes}
+
+
 ## "v0.8.1+2": the session's version and its n-th live hotfix.
 static func hotfix_label(version: String, n: int) -> String:
 	return "%s+%d" % [version, n]
@@ -501,7 +510,8 @@ func _module_x(info: Dictionary, m: StringName) -> float:
 	return -1.0
 
 
-## The caption under the game: "stage 2 · paint · arsenal" (the version is on the rail).
+## The caption under the game: "stage 2 · fresh paint · arcade" (the version is on the rail).
+## M50.7: the path's title as the player reads it (ARCADE), not its id (arsenal).
 func caption() -> String:
 	var parts: Array[String] = []
 	if int(snap.get("stage", 0)) > 0:
@@ -509,5 +519,11 @@ func caption() -> String:
 		parts.append(String(snap.title).to_lower())
 	var path: Dictionary = snap.get("path", {})
 	if path.get("id", &"") != &"":
-		parts.append(String(path.id))
+		parts.append(String(path.get("title", path.id)).to_lower())
+	# M50.3c: a level in parts names the part, and the door once it is open.
+	var level: Dictionary = snap.get("parts", {})
+	if int(level.get("of", 0)) > 1:
+		parts.append("part %d/%d" % [int(level.part), int(level.of)])
+		if level.get("door", false):
+			parts.append("door open")
 	return " · ".join(parts)

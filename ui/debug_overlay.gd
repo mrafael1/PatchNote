@@ -14,6 +14,8 @@ var _buttons := {}
 var _edit_buttons := {}   ## rule edit id -> Button (PLAN v8 1.4; a campaign session only)
 var _event_buttons := {}  ## scripted event id -> Button (PLAN v8 1.5)
 var _weapon_buttons := {}  ## weapon id -> Button (M44)
+var _item_buttons := {}     ## M50.7: item id -> Button (built items)
+var _evolution_buttons := {}   ## M50.7: evolution id -> Button
 var _frame := 0
 
 
@@ -70,6 +72,36 @@ func _ready() -> void:
 		fb.disabled = f.built_in != ""
 		fb.pressed.connect(give_weapon.bind(f.id))
 		fusion_row.add_child(fb)
+	# M50.7: the passive items (give at level 1, then +1 a press; built ones only) and the
+	# evolutions (the evolved weapon straight into the loadout; an unbuilt one shows where it
+	# lands, disabled), so the owner can reach Supernova and Thunderclap in S9 Auto.
+	var item_row := HBoxContainer.new()
+	box.add_child(item_row)
+	var item_label := Label.new()
+	item_label.text = "ITEMS:"
+	item_row.add_child(item_label)
+	for it in WeaponDB.items():
+		if not it.built():
+			continue
+		var ib := Button.new()
+		ib.focus_mode = Control.FOCUS_NONE
+		ib.text = it.title
+		ib.pressed.connect(give_item.bind(it.id))
+		item_row.add_child(ib)
+		_item_buttons[it.id] = ib
+	var evo_row := HBoxContainer.new()
+	box.add_child(evo_row)
+	var evo_label := Label.new()
+	evo_label.text = "EVOLUTIONS:"
+	evo_row.add_child(evo_label)
+	for e in WeaponDB.evolutions():
+		var eb := Button.new()
+		eb.focus_mode = Control.FOCUS_NONE
+		eb.text = e.title if e.built_in == "" else "%s (%s)" % [e.title, e.built_in]
+		eb.disabled = e.built_in != ""
+		eb.pressed.connect(give_evolution.bind(e.id))
+		evo_row.add_child(eb)
+		_evolution_buttons[e.id] = eb
 	# PATH (M45a): switch the live path now, no warning (debug only; the v6 loop too).
 	var path_heading := Label.new()
 	path_heading.text = "PATH (switch live, debug only)"
@@ -168,6 +200,28 @@ func loadout() -> Loadout:
 func give_weapon(id: StringName) -> bool:
 	var lo := loadout()
 	var ok := lo != null and lo.give(id)
+	_refresh_weapons()
+	return ok
+
+
+## M50.7: F2's ITEMS row: item `id` joins at level 1, or one level up when held.
+func give_item(id: StringName) -> bool:
+	var lo := loadout()
+	if lo == null:
+		return false
+	var ok := lo.level_item(id) if lo.item(id) != null else lo.add_item(id)
+	_refresh_weapons()
+	return ok
+
+
+## M50.7: F2's EVOLUTIONS row: the held base weapon evolves in place; without it the evolved
+## weapon joins the loadout. Debug only (no EVOLVE pick, no recipe learned, no nerf).
+func give_evolution(id: StringName) -> bool:
+	var lo := loadout()
+	var e := WeaponDB.get_weapon(id)
+	if lo == null or e == null or not e.is_evolution() or not WeaponDB.evolution_built(id):
+		return false
+	var ok := lo.evolve(e.base, id) if lo.held(e.base) != null else lo.give(id)
 	_refresh_weapons()
 	return ok
 

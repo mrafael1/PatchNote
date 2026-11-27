@@ -152,7 +152,9 @@ func _hit_entity(target: Node, pos: Vector2, dir: Vector2, rid := RID()) -> bool
 	var health := Component.find(target, Health) as Health
 	var applied := false
 	if health:
-		applied = health.take(DamageInfo.make(damage, &"projectile", faction, pos, source_patch))
+		var info := DamageInfo.make(damage, &"projectile", faction, pos, source_patch)
+		info.pierces = pierce_left > 0
+		applied = health.take(info)
 	if applied:
 		var mover := Component.find(target, Mover) as Mover
 		if mover:

@@ -34,6 +34,9 @@ var evolve := {}
 ## straight on the replace step, whose last choice is "Keep your hand". It draws nothing and is
 ## not a pack pick (`pack` is set only for the hand preview and the bot's chooser).
 var give_step := false
+## M50.7: the id a session `give` put first on this level-up (&"" none): its card wears GIFT.
+## Presentation only (the draw is unchanged).
+var given: StringName = &""
 
 const HP := &"hp"
 ## M50.4a (Auto depth design 2.8): the second filler, +Loadout.BOOST_STEP damage this session.
@@ -45,8 +48,8 @@ const ROMAN: Array[String] = ["I", "II", "III", "IV"]
 
 ## The offer for `loadout` on path `def`. `pool`: the live pool (ids, in order). `first`: a
 ## weapon a `give` cue is waiting to offer first ("" for none). `taste`: the session's
-## (never saved). Upgrades stop at the top rank (classic: Loadout.MAX_RANK; deep: the
-## Loadout's rank_cap, M50.4a); nothing to offer gives the filler, +1 HP (M50.4a: on a
+## (never saved). Upgrades stop at the top rank (classic: Loadout.MAX_RANK, 3; deep: the
+## Loadout's rank_cap, M50.4a, 6 on Auto; a cap of 0 means no top rank, Arcade since M50.1a); nothing to offer gives the filler, +1 HP (M50.4a: on a
 ## levelups path two fillers, +1 max HP and +5% damage; never padding an offer that has cards).
 static func draw(loadout: Loadout, def: PathDef, pool: Array[StringName], first: StringName,
 		rng: RandomNumberGenerator, taste: Taste) -> PickOffer:

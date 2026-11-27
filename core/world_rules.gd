@@ -27,6 +27,7 @@ extends Resource
 @export var enemy_hp_add := 0.0              ## added to an enemy's max HP (after enemy_hp_mult)
 @export var enemy_hp_one := false            ## caps an enemy's max HP at 1
 @export var wall_bounce := false             ## bodies bounce off walls with a short kick
+@export var hot_edge_tiles := 0              ## M50.3c: the arena's outer tiles hurt (HotEdges); 0 = off
 # PLAN v9 1.2 (M43): the campaign session's HP floor. Base, not composition: run_state
 # sets it from the session before the stack; no patch touches it. 0 is an exact no-op.
 @export var hp_floor := 0                    ## the player's HP never drops below it (Health)

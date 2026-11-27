@@ -17,6 +17,7 @@ var spawner: Spawner
 var turn_clock: TurnClock
 var run_loop: RunLoop
 var stages: StageSet
+var hot_edges: HotEdges
 
 
 ## World nodes a stage change keeps where they are (the player is always kept).
@@ -75,7 +76,11 @@ func build(p_shell: Node) -> void:
 	super(p_shell)
 	# A smoke-test build (PLAN v5 4.8) is one short stage, whatever the set. A campaign
 	# session (PLAN v8) plays one stage on its own arena.
-	if RunState.session != null:
+	# M50.3c (PLAN v9 1.8): a session with `stages` plays that set (the layout the player
+	# picked); the set is shared data, so the session's spawn multipliers go to the run loop.
+	if RunState.session != null and RunState.session.stage_set() != null:
+		stages = RunState.session.stage_set()
+	elif RunState.session != null:
 		stages = StageSet.single(RunState.session.arena_def())
 		stages.stage(0).spawn_rate = RunState.session.spawn_rate
 		stages.stage(0).spawn_cap = RunState.session.spawn_cap
@@ -142,6 +147,12 @@ func build(p_shell: Node) -> void:
 	run_loop.start_point = player.position   # M47.6c2: the record's and the bot line's start
 	add_child(run_loop)
 
+	# M50.3c: edit_hot_edges' band (inert while the rule is 0).
+	hot_edges = HotEdges.new()
+	hot_edges.name = "HotEdges"
+	hot_edges.genre = self
+	add_child(hot_edges)
+
 
 func begin_run() -> void:
 	run_loop.build = shell.BUILD
@@ -172,6 +183,9 @@ func begin_run() -> void:
 		run_loop.set_endings(session.end_kinds(), enemy_total_now(session) if session.has_end(SessionDef.CLEAR) else -1,
 				session.end_after)
 		run_loop.script_window_opened.connect(_sync_spawner)
+		if stages.size() > 1:
+			run_loop.rate_mult = session.spawn_rate   # M50.3c: on top of each part's preset
+			run_loop.cap_mult = session.spawn_cap
 		shell.director.enabled = false
 	run_loop.begin()
 	var missing := Unlocks.missing_basics()
@@ -340,7 +354,15 @@ func spawn_archetype(archetype: StringName, count: int) -> bool:
 		var params := {&"from_spawner": true}
 		if v != null:
 			params.merge({&"variant": v.id, &"size_mult": v.scale, &"hp_mult": v.hp_mult})
-		RunState.spawn(Spawner.SCENES[base], spawner.pick_point() + jitter, params)
+			if v.min_hp > 0.0:
+				params[&"min_hp"] = v.min_hp
+		var at := spawner.pick_point()
+		RunState.spawn(Spawner.SCENES[base], at + jitter, params)
+		# M50.3c: a pack variant (the swarm): the rest of its pack around the same marker.
+		for j in (v.pack - 1 if v != null else 0):
+			var spread := Tuning.swarm_spread
+			var off := Vector2(rng.randf_range(-spread, spread), rng.randf_range(-spread, spread))
+			RunState.spawn(Spawner.SCENES[base], at + off, params.duplicate())
 	return true
 
 

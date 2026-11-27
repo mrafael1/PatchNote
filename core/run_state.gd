@@ -40,6 +40,8 @@ var player_shots_refused := 0
 ## Never set outside a clear session with a budget, so every other run plays as before.
 var wave_closed := false
 var survivors_chase := false
+## M50.3c: shots a shielder's shield stopped this run (a counter: it changes no play).
+var shield_blocks := 0
 var run_seed := 0
 var director_rng := RandomNumberGenerator.new()
 var gameplay_rng := RandomNumberGenerator.new()
@@ -542,6 +544,7 @@ func reset(new_seed: int, new_genre: StringName = &"") -> void:
 	player_shots_refused = 0
 	wave_closed = false
 	survivors_chase = false
+	shield_blocks = 0
 	genre = new_genre if GenreDB.get_genre(new_genre) != null else GenreDB.default_id()
 	director_rng.seed = hash([new_seed, "director"])
 	gameplay_rng.seed = hash([new_seed, "gameplay"])
