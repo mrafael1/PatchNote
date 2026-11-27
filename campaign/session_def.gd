@@ -72,8 +72,12 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 @export var checkpoint := false
 ## Allows `path` cues (S7 only).
 @export var tryout := false
-## Archetype -> weight; empty = today's Tuning chances (first used M50).
+## Archetype -> weight; empty = today's Tuning chances (first used M50). M51: a variant id
+## (shielder, sniper, swarm) spawns its base with its data and pack.
 @export var spawn_weights: Dictionary = {}
+## M51 (PLAN v9 3.1, S11's breather): a level in parts' spawn-rate factor per part, on top of
+## spawn_rate; empty = 1.0 for every part. Set: one value > 0 per part of the stage set.
+@export var part_rate := PackedFloat32Array()
 ## The player's HP never goes below this in this session (WorldRules.hp_floor; 0 = none).
 @export var hp_floor := 0
 ## M48b (PLAN 1.7.1, D1): the code-drawn art this session wears: "" keeps whatever the
@@ -558,7 +562,7 @@ func problems() -> Array[String]:
 		elif c.action == &"spawn" and String(c.archetype).begins_with("fork:") and ChangeDB.get_fork(
 				StringName(String(c.archetype).trim_prefix("fork:"))) == null:
 			out.append("%s: cue '%s': no fork %s" % [where, c.source, String(c.archetype).trim_prefix("fork:")])
-		elif c.action == &"event" and EventDB.get_event(c.target) == null:
+		elif c.action == &"event" and EventDB.get_event(c.target) == null and not c.target in Cue.PLACEHOLDER_EVENTS:
 			out.append("%s: cue '%s': unknown event %s" % [where, c.source, c.target])
 		elif c.action == &"say" and reads_event(c.line.when):
 			out.append("%s: cue '%s': a cue line cannot depend on an event" % [where, c.source])
@@ -578,7 +582,7 @@ func problems() -> Array[String]:
 			out.append("%s: cue '%s': hp needs the health basic" % [where, c.source])
 		elif c.when in [&"fused", &"fuse_ready"] and not _has_basic(&"fusion"):
 			out.append("%s: cue '%s': %s needs the fusion basic" % [where, c.source, c.when])
-		elif c.when == &"holds" and not WeaponDB.item_built(c.held):
+		elif c.when == &"holds" and not WeaponDB.item_built(c.held) and not WeaponDB.has(c.held):
 			out.append("%s: cue '%s': holds %s: no built item" % [where, c.source, c.held])
 		elif c.action == &"fuse" and not _has_basic(&"cards"):
 			out.append("%s: cue '%s': fuse needs the cards basic (a pack path)" % [where, c.source])
@@ -933,4 +937,34 @@ func _field_problems(where: String) -> Array[String]:
 		out.append("%s: spawn_weights must sum below 1 (%.2f)" % [where, weight_sum])
 	if hp_floor < 0:
 		out.append("%s: hp_floor must be >= 0" % where)
+	out.append_array(_part_rate_problems(where))
+	return out
+
+
+## M51: part_rate is empty, or one value > 0 per part of every stage set the session can play
+## (a "fork:<id>" stages: each option's set).
+func _part_rate_problems(where: String) -> Array[String]:
+	var out: Array[String] = []
+	if part_rate.is_empty():
+		return out
+	if stages == &"":
+		out.append("%s: part_rate needs a stage set" % where)
+		return out
+	for r in part_rate:
+		if r <= 0.0:
+			out.append("%s: part_rate values must be > 0" % where)
+			break
+	var sets: Array[StageSet] = []
+	var fork_id := fork_of(stages)
+	if fork_id == &"":
+		if ResourceLoader.exists(STAGE_SETS_DIR + "%s.tres" % stages):
+			sets.append(StageSet.named(stages))
+	else:
+		var f := ChangeDB.get_fork(fork_id)
+		for c in (f.changes() if f != null else ([] as Array[Change])):
+			if c.take != null and c.take.preset is StageSet:
+				sets.append(c.take.preset as StageSet)
+	for s in sets:
+		if s != null and s.size() != part_rate.size():
+			out.append("%s: part_rate has %d values for %s's %d parts" % [where, part_rate.size(), s.id, s.size()])
 	return out

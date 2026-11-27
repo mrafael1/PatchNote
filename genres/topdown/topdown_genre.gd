@@ -186,6 +186,7 @@ func begin_run() -> void:
 		if stages.size() > 1:
 			run_loop.rate_mult = session.spawn_rate   # M50.3c: on top of each part's preset
 			run_loop.cap_mult = session.spawn_cap
+			run_loop.part_rate = session.part_rate    # M51: S11's part 3 at x0.8
 		shell.director.enabled = false
 	run_loop.begin()
 	var missing := Unlocks.missing_basics()
@@ -216,7 +217,8 @@ static func spawn_weights_for(session: SessionDef) -> Dictionary:
 	var out := {}
 	for k: Variant in session.spawn_weights:
 		var arch := SessionRunner._resolve_archetype(StringName(String(k)))
-		if arch != &"" and Spawner.SCENES.has(arch):
+		# M51 (PLAN v9 1.9): a variant (S11's shielder / sniper / swarm) keeps its weight too.
+		if arch != &"" and (Spawner.SCENES.has(arch) or EnemyDB.variant(arch) != null):
 			out[arch] = float(out.get(arch, 0.0)) + float(session.spawn_weights[k])
 	return out
 
@@ -351,18 +353,13 @@ func spawn_archetype(archetype: StringName, count: int) -> bool:
 	for i in count:
 		var rng := RunState.gameplay_rng
 		var jitter := Vector2(rng.randf_range(-16, 16), rng.randf_range(-16, 16))
-		var params := {&"from_spawner": true}
-		if v != null:
-			params.merge({&"variant": v.id, &"size_mult": v.scale, &"hp_mult": v.hp_mult})
-			if v.min_hp > 0.0:
-				params[&"min_hp"] = v.min_hp
 		var at := spawner.pick_point()
-		RunState.spawn(Spawner.SCENES[base], at + jitter, params)
-		# M50.3c: a pack variant (the swarm): the rest of its pack around the same marker.
-		for j in (v.pack - 1 if v != null else 0):
-			var spread := Tuning.swarm_spread
-			var off := Vector2(rng.randf_range(-spread, spread), rng.randf_range(-spread, spread))
-			RunState.spawn(Spawner.SCENES[base], at + off, params.duplicate())
+		if v == null:
+			RunState.spawn(Spawner.SCENES[base], at + jitter, {&"from_spawner": true})
+		else:
+			# M50.3c: a pack variant (the swarm) brings the rest of its pack around the same
+			# marker. M51: through the spawner's helper (the same draws in the same order).
+			Spawner.spawn_variant(v, at, jitter)
 	return true
 
 

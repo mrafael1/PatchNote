@@ -220,6 +220,8 @@ func problems(c: Change) -> Array[String]:
 		out.append("Path change '%s' has no take naming a path (%s)" % [c.id, PathDB.ids()])
 	if c.kind == &"layout" and (c.take == null or not c.take.preset is StageSet):
 		out.append("Layout change '%s' has no take with a stage set" % c.id)
+	if c.kind == &"hud" and (c.take == null or not c.take.id in Change.HUDS):
+		out.append("Hud change '%s' has no take naming a style (%s)" % [c.id, Change.HUDS])
 	if c.kind == &"stages":
 		if c.take == null or not c.take.preset is StageSet:
 			out.append("Stages change '%s' has no take with a stage set" % c.id)

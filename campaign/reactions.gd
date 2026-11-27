@@ -167,9 +167,13 @@ func _on_entity_spawned(entity: Node) -> void:
 	if not entity.is_in_group(&"enemy"):
 		return
 	var arch := entity.scene_file_path.get_file().get_basename().trim_prefix("enemy_")
-	if arch != "" and not _seen.has(arch):
-		# Seen during a hold (an event): never announced, so no stale "X seen" after it.
-		_seen[arch] = -INF if held() else _free_time
+	# M51 (PLAN 3.3 "enemy_seen sniper"): a variant is seen under its own id too; its base's
+	# key is kept as before.
+	var variant: Variant = entity.get(&"variant")
+	for key: String in [arch, String(variant) if variant is StringName else ""]:
+		if key != "" and not _seen.has(key):
+			# Seen during a hold (an event): never announced, so no stale "X seen" after it.
+			_seen[key] = -INF if held() else _free_time
 
 
 ## A shot that reached the player was not a miss, even when the hit did no damage

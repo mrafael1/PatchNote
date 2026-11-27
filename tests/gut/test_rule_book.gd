@@ -7,8 +7,9 @@ const Fx := preload("res://tests/gut/fixtures.gd")
 const CHASER := preload("res://entities/enemy_chaser.tscn")
 const SHOOTER := preload("res://entities/enemy_shooter.tscn")
 const PROJECTILE := preload("res://entities/projectile.tscn")
-const ALL := [&"edit_big_enemies", &"edit_bouncy_walls", &"edit_enemy_speed", &"edit_gift_explode", &"edit_gravity_down",
-		&"edit_gravity_left", &"edit_gravity_up", &"edit_hot_edges", &"edit_inverted", &"edit_slowmo", &"edit_tiny_enemies"]   # M50.3c: + edit_hot_edges
+const ALL := [&"edit_big_enemies", &"edit_bouncy_walls", &"edit_enemies_flee", &"edit_enemy_speed", &"edit_gift_explode",
+		&"edit_gravity_down", &"edit_gravity_left", &"edit_gravity_up", &"edit_hot_edges", &"edit_inverted", &"edit_slowmo",
+		&"edit_tiny_enemies"]   # M50.3c: + edit_hot_edges; M51: + edit_enemies_flee
 const TICKS := 60
 
 

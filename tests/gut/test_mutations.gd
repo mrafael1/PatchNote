@@ -321,6 +321,11 @@ func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
 			if path.begins_with("res://paths/") and path.ends_with(".tres"):
 				continue
 			var text := FileAccess.get_file_as_string(path)
+			# M51: a session's weapons / known lists name orbit (S11), PLAN v9 1.4's weapon id;
+			# those lists never reach RunState.apply / MutationDB. Only those two lines of
+			# campaign/sessions/*.tres are skipped: the cues and the rest stay linted.
+			if path.begins_with("res://campaign/sessions/") and path.ends_with(".tres"):
+				text = _without_weapon_lists(text)
 			if text.contains("\"%s\"" % m.id) or text.contains("mutations/%s" % m.id):
 				# requires/conflicts on another mutation's resource are the allowed form, and
 				# so is a change's unlocks field (PLAN v5 1.2).
@@ -330,6 +335,17 @@ func test_no_mutation_id_is_referenced_outside_its_own_folder() -> void:
 					continue
 				fail_test("%s names mutation '%s'" % [path, m.id])
 	pass_test("%d files checked" % files.size())
+
+
+## A session's text without its `weapons = ` and `known = ` lines (weapon ids, M51).
+func _without_weapon_lists(text: String) -> String:
+	var kept: PackedStringArray = []
+	for line in text.split("
+"):
+		if not line.begins_with("weapons = ") and not line.begins_with("known = "):
+			kept.append(line)
+	return "
+".join(kept)
 
 
 ## Every line of a change resource that names id is its unlocks field.

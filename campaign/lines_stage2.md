@@ -173,6 +173,26 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal&made:cluster (proud) Two recipes in the book now.
 - answer:path_arsenal&!fused (thinking) No fusion today. The recipes keep.
 
+## s2_05_depth: Depth
+### Before play (in the chat, at the play gate)
+- (happy) Depth. Three parts again. Type play.
+### Intro
+- (happy) The three new ones are regulars now. All mixed in.
+- died_in:s2_04_levels (worried) The level got you last time. This one's kinder. Mostly.
+### Cues
+- !answer:path_auto room 1: (happy) Little shields that spin. I made them for you.
+- answer:path_auto holds orbit: (happy) Little shields that spin. I made them for you.
+- answer:path_survival room 1: (thinking) Yours run on a battery. Twenty seconds. Grab more.
+- answer:path_auto room 1: (happy) And a well. Things get pulled in.
+- answer:path_arsenal fuse_ready 1: (happy) Link's lit. Next pack, fuse them.
+- answer:path_arsenal fused 1: made:cluster (proud) A Cluster! Shells full of shells.
+- answer:path_arsenal fused 1: made:prism (happy) Prism again. A classic.
+- room 3: (thinking) You've earned a break.
+### Debrief
+- won (proud) All three at once. You handled it.
+- died (guilty) That's on me.
+- (thinking) You keep looking for your health. Let me fix the screen.
+
 ## fork_path
 - Question: Which shooter do we make?
 - Path: Arcade (cards) · Cards. Every gun is a card; upgrade the card, upgrade the gun. · Cards it is. I'll start printing.

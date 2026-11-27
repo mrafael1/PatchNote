@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="SessionDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://campaign/session_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"s2_05_depth"
+stage = 2
+title = "Depth"
+basics = Array[StringName]([&"movement", &"shooting", &"dash", &"enemies", &"level", &"health", &"hits", &"version"])
+enemies = Array[StringName]([&"chaser", &"shooter", &"fork:fork_enemy", &"shielder", &"sniper", &"swarm"])
+spawn_rate = 1.3
+spawn_cap = 1.3
+path = &"fork:fork_path"
+weapons = Array[StringName]([&"pistol", &"shotgun", &"laser", &"launcher", &"orbit"])
+known = Array[StringName]([&"shotgun", &"laser", &"launcher", &"nova", &"haste", &"area", &"might"])
+stages = &"fork:fork_layout"
+spawn_weights = {
+&"shielder": 0.15,
+&"sniper": 0.15,
+&"swarm": 0.15
+}
+part_rate = PackedFloat32Array(1, 1, 0.8)
+hp_floor = 0
+skin = &"pixel"
+goal = &"clear"
+time_limit = 300.0
+enemy_total = 150
+enemy_total_by_path = Dictionary[StringName, int]({
+&"arsenal": 150,
+&"auto": 270,
+&"survival": 80
+})
+fresh_start = true
+face = true
+intro = PackedStringArray("happy: The three new ones are regulars now. All mixed in.", "died_in:s2_04_levels worried: The level got you last time. This one's kinder. Mostly.")
+cues = PackedStringArray("answer:path_arsenal at 0: add cards", "answer:path_arsenal at 0: add quick_draw", "answer:path_arsenal at 0: add fusion", "answer:path_auto at 0: add levelups", "answer:path_auto at 0: add crowd", "answer:path_auto at 0: add evolve", "answer:path_survival at 0: add pickups", "answer:path_survival at 0: add kill_heal", "room 1 at 15: give orbit", "!answer:path_auto room 1 at 15: say happy: Little shields that spin. I made them for you.", "answer:path_auto holds orbit: say happy: Little shields that spin. I made them for you.", "answer:path_survival room 1 at 16: say thinking: Yours run on a battery. Twenty seconds. Grab more.", "answer:path_auto room 1 at 30 [well]: say happy: And a well. Things get pulled in.", "answer:path_survival room 1 at 36: drop battery", "answer:path_survival room 2 at 30: drop battery", "answer:path_survival room 3 at 12: drop battery", "answer:path_arsenal fuse_ready 1: say happy: Link's lit. Next pack, fuse them.", "answer:path_arsenal fused 1: say made:cluster proud: A Cluster! Shells full of shells.", "answer:path_arsenal fused 1: say made:prism happy: Prism again. A classic.", "room 2 at 20: event gravity_through_screen", "room 3 at 6: say thinking: You've earned a break.", "room 3 at 8: edit edit_enemies_flee")
+debrief = PackedStringArray("won proud: All three at once. You handled it.", "died guilty: That's on me.", "thinking: You keep looking for your health. Let me fix the screen.")
+before_play = PackedStringArray("happy: Depth. Three parts again. Type play.")
+bump = &"patch"
+fork = &"fork_hud"
+notes = PackedStringArray("Three new regulars", "Spinning shields")

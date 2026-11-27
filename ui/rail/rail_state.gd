@@ -297,6 +297,14 @@ static func _ammo(runner: Node, lo: Loadout) -> Dictionary:
 			"sidearm": side, "on_sidearm": lo.on_sidearm(), "crates": 0, "magazine": 0, "mag": 0, "reload": -1.0}
 	if runner.has_method(&"crates_taken"):
 		d.crates = int(runner.call(&"crates_taken"))
+	# M51 review: a passive on a battery (S11's orbit): its title and seconds left (0: out).
+	d.battery_title = ""
+	d.battery = -1.0
+	for pw in lo.passives:
+		if lo.battery(pw.def.id) >= 0.0:
+			d.battery_title = pw.def.title
+			d.battery = lo.battery(pw.def.id)
+			break
 	if w == null:
 		return d
 	d.title = w.label()

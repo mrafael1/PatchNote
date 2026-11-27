@@ -1129,8 +1129,11 @@ func _answer_forks(session: Resource, run_seed: int) -> String:
 func _event_cue_at(runner: Node) -> float:
 	if not runner.call(&"has_cue", &"event"):
 		return -1.0
+	# M51: a placeholder event (S11's slot before M52) plays nothing: no event report. Cue is
+	# loaded at run time (a class name here compiles before the autoloads exist).
+	var placeholders: Array = (load("res://campaign/cue.gd") as GDScript).get_script_constant_map()[&"PLACEHOLDER_EVENTS"]
 	for c: RefCounted in runner.get(&"_cues"):
-		if c.get(&"action") == &"event":
+		if c.get(&"action") == &"event" and not StringName(c.get(&"target")) in placeholders:
 			return float(c.get(&"value"))
 	return -1.0
 

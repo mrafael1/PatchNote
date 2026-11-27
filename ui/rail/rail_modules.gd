@@ -612,6 +612,12 @@ func _ammo(r: Rect2, d: Dictionary) -> void:
 	RailArt.draw_grid(self, RailArt.CRATE, RailArt.CRATE_LEGEND, _d(r, Vector2(384, 44)), roundf(4 * sc))
 	RailFrame.text(self, _d(r, Vector2(428, 42)), "ammo crate", RailLayout.text_px(16, sc), RailArt.c(&"text"))
 	RailFrame.text(self, _d(r, Vector2(384, 76)), "%d taken" % int(d.crates), RailLayout.text_px(16, sc), RailArt.c(&"dim"))
+	if String(d.get("battery_title", "")) != "":
+		# M51 review: the orbit's battery (Survival, S11): seconds left, or out until a pickup.
+		var left := float(d.battery)
+		var btxt := "%s · %d s" % [String(d.battery_title).to_lower(), ceili(left)] if left > 0.0 				else "%s · battery out" % String(d.battery_title).to_lower()
+		RailFrame.text(self, _d(r, Vector2(384, 112)), btxt, RailLayout.text_px(16, sc),
+				RailArt.c(&"warn") if left > 0.0 else RailArt.c(&"dim"))
 	var row := Rect2(_d(r, Vector2(192, 168)), (Vector2(364, 32) * sc).round())
 	RailArt.block(self, row, RailArt.c(&"base"), p)
 	var fs := RailLayout.text_px(16, sc)

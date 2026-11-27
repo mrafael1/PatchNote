@@ -532,6 +532,9 @@ func _owner_rules(path: String) -> void:
 	assert_eq(CampaignDB.current().id, &"s2_04_levels", "M50.3c: S10 follows S9")
 	CampaignDB.complete(CampaignDB.current())
 	assert_eq(SaveGame.version().label(), "v0.8.3")
+	assert_eq(CampaignDB.current().id, &"s2_05_depth", "M51: S11 follows S10")
+	CampaignDB.complete(CampaignDB.current())
+	assert_eq(SaveGame.version().label(), "v0.8.4")
 	assert_true(CampaignDB.is_done())
 	assert_eq(FileAccess.get_file_as_string(path), before, "a snapshot never writes")
 

@@ -8,13 +8,14 @@ extends GutTest
 const TEST_PATH := "user://save_session_test/save.json"
 const ALL: Array[String] = ["basic_movement", "basic_world", "dash_classic", "dash_grapple",
 		"dash_teleport", "dashdir_aim", "dashdir_move", "enemy_bomber", "enemy_lancer",
-		"enemy_tank", "layout_gauntlet", "layout_rooms", "layout_shifting",   # M50.3c: fork_layout's answers
+		"enemy_tank", "hud_arcade", "hud_clean", "hud_onyou",   # M51: fork_hud's answers
+		"layout_gauntlet", "layout_rooms", "layout_shifting",   # M50.3c: fork_layout's answers
 		"look_1_arcade", "look_1_clean", "look_1_punchy", "mascot_blob",
 		"mascot_cursor", "mascot_window", "patch_auto_attack",
 		"patch_echo", "patch_elite", "patch_horde_mode", "patch_hunter", "patch_magnet",
 		"patch_motion_time", "patch_orbit", "patch_well", "path_arsenal", "path_auto", "path_survival",
 		"stages_breakout", "stages_gauntlet", "stages_shifting"]
-const FORKS: Array[String] = ["fork_dash", "fork_dash_aim", "fork_enemy", "fork_layout", "fork_mascot", "fork_path", "look_1",
+const FORKS: Array[String] = ["fork_dash", "fork_dash_aim", "fork_enemy", "fork_hud", "fork_layout", "fork_mascot", "fork_path", "look_1",
 		"stages"]
 ## The questions the v6 loop asks (fork_mascot, fork_dash and fork_dash_aim are campaign-only).
 const LOOP_FORKS: Array[String] = ["fork_enemy", "look_1", "stages"]
@@ -138,9 +139,9 @@ func test_the_changes_and_forks_are_valid() -> void:
 	# Looks, enemies, the Stages step and the campaign's mascot and dash answer a question; basics
 	# and in-run patches answer none (the AI builds those itself, owner feedback after M34).
 	for c in ChangeDB.all:
-		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash", &"dash_aim", &"path", &"layout"]
+		var asked := c.kind in [&"look", &"enemy", &"stages", &"mascot", &"dash", &"dash_aim", &"path", &"layout", &"hud"]
 		assert_eq(c.fork != &"", asked,
-				"%s: in a fork only if a look, an enemy, stages, a mascot, a dash, a dash direction, a path (M47) or a layout (M50.3c)" % c.id)
+				"%s: in a fork only if a look, an enemy, stages, a mascot, a dash, a dash direction, a path (M47), a layout (M50.3c) or a HUD (M51)" % c.id)
 	assert_eq(DevSession.new_patches_left().map(func(c: Change) -> String: return String(c.id)), NEW_PATCHES,
 			"a fresh save: every in-run patch is still to build")
 	var look := _fork(&"look_1")
