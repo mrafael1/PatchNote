@@ -160,12 +160,22 @@ func _physics_process(delta: float) -> void:
 	var reach := contact_reach()
 	var harmless: bool = player.get(&"damage_locked") == true   # no `health` yet (M39.2)
 	visual.rim = 0.0 if not _shows_rim() or harmless else EnemyCommon.contact_warning(distance - reach)
-	_track_progress(distance, delta)
-
 	var rules := RunState.rules
+	if rules.enemies_flee > 0 and not rules.gravity_enabled:
+		# M51 review: fleeing never gets closer, so the stuck detector would start wanders (a
+		# gameplay_rng draw each) that outlive the edit. Off while fleeing; it starts fresh after.
+		_wander_left = 0.0
+		_stuck_time = 0.0
+		_best_distance = INF
+	else:
+		_track_progress(distance, delta)
+
 	var steer: Vector2
 	if rules.gravity_enabled:
 		steer = _steer_with_gravity(to_player, rules.gravity_dir.normalized())
+	elif rules.enemies_flee > 0:
+		# M51 (edit_enemies_flee): away from the player, feeling around walls the same way.
+		steer = _steer_around_walls(-to_player.normalized(), Tuning.avoid_probe)
 	elif _wander_left > 0.0:
 		steer = _wander_dir
 	else:

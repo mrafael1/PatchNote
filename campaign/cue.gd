@@ -58,6 +58,7 @@ extends RefCounted
 
 ## M50.4b review (Auto's passive items):
 ##   "holds haste: say ..."   once the player holds that item (a give only offers it first)
+##   "holds orbit: say ..."   M51: a weapon id too (held in a slot or as a passive)
 ## M50.4c1 (Auto's evolutions, Auto depth design 6):
 ##   "evolve_ready 1: say ..."   the n-th time an EVOLVE choice became available (dropped once
 ##                               n evolutions were made)
@@ -78,7 +79,12 @@ const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event",
 const BARE_WHENS: Array[StringName] = [&"hit"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
 ## M47: what a `drop` cue drops besides a weapon id.
-const DROP_KINDS: Array[StringName] = [&"ammo", &"heal"]
+## M51: + battery (S11: Survival's orbit runs on one; Scavenge refills it).
+const DROP_KINDS: Array[StringName] = [&"ammo", &"heal", &"battery"]
+## M51: events a session may cue before they are built. The cue parses and validates, and
+## SessionRunner only logs `event_placeholder` (no EventPlayer, nothing marked seen, no clock
+## hold, no pause). M52 builds gravity_through_screen and removes it from this list.
+const PLACEHOLDER_EVENTS: Array[StringName] = [&"gravity_through_screen"]
 ## Parsed and validated, but nothing runs them yet: CampaignDB.problems() refuses each in
 ## the campaign's data ("not built yet"). Each later milestone shrinks these lists.
 ## M44: give runs (SessionRunner -> Loadout.give). M45a: path (PathRunner; Arsenal and
@@ -234,9 +240,9 @@ static func parse(p_source: String) -> Cue:
 		&"drop":
 			if words.size() < 2 or words.size() > 3 or (words.size() == 3 and (not words[2].is_valid_int()
 					or words[2].to_int() < 1)):
-				c.problem = "cue '%s': drop takes a weapon, ammo or heal and optionally a count" % p_source
+				c.problem = "cue '%s': drop takes a weapon, ammo, heal or battery and optionally a count" % p_source
 			elif not (StringName(words[1]) in DROP_KINDS or WeaponDB.has(StringName(words[1]))):
-				c.problem = "cue '%s': drop %s: not a weapon, ammo or heal" % [p_source, words[1]]
+				c.problem = "cue '%s': drop %s: not a weapon, ammo, heal or battery" % [p_source, words[1]]
 			else:
 				c.target = StringName(words[1])
 				c.count = words[2].to_int() if words.size() == 3 else 1
@@ -352,7 +358,7 @@ func due(ctx: Dictionary) -> bool:
 		&"nerfed":
 			return int(ctx.get("nerfed", 0)) >= int(value)
 		&"holds":   # M50.4b review: the held item ids (PathRunner's Loadout; [] without one)
-			return held in (ctx.get("items", []) as Array)
+			return held in (ctx.get("items", []) as Array) or held in (ctx.get("weapons", []) as Array)
 		&"give_choice":   # M50.2b: give steps closed this attempt (PathRunner.give_steps)
 			return int(ctx.get("give_choices", 0)) >= int(value)
 	return false

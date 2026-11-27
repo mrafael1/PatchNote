@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="CampaignDef" load_steps=14 format=3]
+[gd_resource type="Resource" script_class="CampaignDef" load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://campaign/campaign_def.gd" id="1"]
 [ext_resource type="Script" path="res://campaign/session_def.gd" id="2"]
@@ -13,10 +13,11 @@
 [ext_resource type="Resource" path="res://campaign/sessions/s2_02_day_one.tres" id="s8"]
 [ext_resource type="Resource" path="res://campaign/sessions/s2_03_paint.tres" id="s9"]
 [ext_resource type="Resource" path="res://campaign/sessions/s2_04_levels.tres" id="s10"]
+[ext_resource type="Resource" path="res://campaign/sessions/s2_05_depth.tres" id="s11"]
 
 [resource]
 script = ExtResource("1")
-sessions = Array[ExtResource("2")]([ExtResource("s0"), ExtResource("s1"), ExtResource("s2"), ExtResource("s3"), ExtResource("s4"), ExtResource("s5"), ExtResource("s6"), ExtResource("s7"), ExtResource("s8"), ExtResource("s9"), ExtResource("s10")])
+sessions = Array[ExtResource("2")]([ExtResource("s0"), ExtResource("s1"), ExtResource("s2"), ExtResource("s3"), ExtResource("s4"), ExtResource("s5"), ExtResource("s6"), ExtResource("s7"), ExtResource("s8"), ExtResource("s9"), ExtResource("s10"), ExtResource("s11")])
 stage_titles = Dictionary[int, String]({
 1: "The prototype",
 2: "The shooter"

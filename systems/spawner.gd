@@ -61,10 +61,40 @@ func budget_spent() -> bool:
 func spawn_one() -> Node:
 	var rng := RunState.gameplay_rng
 	var jitter := Vector2(rng.randf_range(-16, 16), rng.randf_range(-16, 16))
-	var node := RunState.spawn(SCENES[pick_type()], pick_point() + jitter, {&"from_spawner": true})
+	var id := pick_type()
+	var v := EnemyDB.variant(id)
+	var node: Node
+	if v == null:
+		# A base: the same draws and the same spawn as before M51 (every older hash).
+		node = RunState.spawn(SCENES[id], pick_point() + jitter, {&"from_spawner": true})
+	else:
+		# M51 (PLAN v9 1.9): a weighted variant spawns its base with its data, and its pack.
+		node = spawn_variant(v, pick_point(), jitter)
 	if node != null:
-		spawned += 1
+		spawned += 1   # M51: a pack (the swarm) is one budget unit
 	return node
+
+
+## M51: the spawn params a variant's base carries (M47: its id, size and HP; a floor on HP).
+static func variant_params(v: EnemyVariant) -> Dictionary:
+	var params := {&"from_spawner": true, &"variant": v.id, &"size_mult": v.scale, &"hp_mult": v.hp_mult}
+	if v.min_hp > 0.0:
+		params[&"min_hp"] = v.min_hp
+	return params
+
+
+## M51 (shared with the genre's spawn cue): one variant at `at + jitter`, then the rest of
+## its pack around `at` (M50.3c: the swarm's offsets, gameplay_rng). The first enemy, or null.
+static func spawn_variant(v: EnemyVariant, at: Vector2, jitter: Vector2) -> Node:
+	var scene: PackedScene = SCENES[v.base]
+	var params := variant_params(v)
+	var first := RunState.spawn(scene, at + jitter, params)
+	var rng := RunState.gameplay_rng
+	for j in v.pack - 1:
+		var spread := Tuning.swarm_spread
+		var off := Vector2(rng.randf_range(-spread, spread), rng.randf_range(-spread, spread))
+		RunState.spawn(scene, at + off, params.duplicate())
+	return first
 
 
 ## One roll per pick. Archetypes the save has not unlocked (Unlocks.enemies, PLAN v5

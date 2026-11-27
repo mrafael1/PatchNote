@@ -92,6 +92,8 @@ var session_runner: Node
 ## multipliers ride on each stage's preset.
 var rate_mult := 1.0
 var cap_mult := 1.0
+## M51: the session's per-part spawn-rate factor (SessionDef.part_rate; empty = 1.0 each).
+var part_rate := PackedFloat32Array()
 
 var _report_at := -1.0
 var _clear_until := -1.0
@@ -473,6 +475,8 @@ func _apply_spawn_preset() -> void:
 	var stage := current_stage()
 	if spawner and stage:
 		spawner.phase_rate = stage.spawn_rate * rate_mult
+		if stage_index < part_rate.size():
+			spawner.phase_rate *= part_rate[stage_index]
 		spawner.phase_cap = stage.spawn_cap * cap_mult
 
 

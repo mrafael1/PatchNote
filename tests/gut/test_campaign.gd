@@ -62,7 +62,7 @@ func _session(id: StringName, goal := SessionDef.SURVIVE, value := 10.0) -> Sess
 
 func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.problems(), [] as Array[String])
-	assert_eq(CampaignDB.size(), 11)
+	assert_eq(CampaignDB.size(), 12)
 	assert_eq(CampaignDB.session(0).id, &"s1_00_nothing", "S0: nothing")
 	assert_eq(CampaignDB.index_of(&"s1_03_shooting"), 3)
 	assert_eq(CampaignDB.session(4).id, &"s1_04_level")
@@ -72,7 +72,8 @@ func test_the_campaign_has_no_problems() -> void:
 	assert_eq(CampaignDB.session(8).id, &"s2_02_day_one", "S8 (M47)")
 	assert_eq(CampaignDB.session(9).id, &"s2_03_paint", "S9 (M48b)")
 	assert_eq(CampaignDB.session(10).id, &"s2_04_levels", "S10 (M50.3c)")
-	assert_null(CampaignDB.session(11))
+	assert_eq(CampaignDB.session(11).id, &"s2_05_depth", "S11 (M51)")
+	assert_null(CampaignDB.session(12))
 	assert_null(CampaignDB.cooking(), "M47: nothing cooks")
 
 
@@ -328,6 +329,9 @@ func test_the_last_session_offers_to_be_continued() -> void:
 	var d := _debrief()
 	d.open(last, &"win", 0)
 	d.finish_lines()
+	if d.fork() != null:   # M51: S11 asks fork_hud first
+		assert_true(d.pick(0))
+		d.finish_lines()
 	assert_eq(d.choices(), [DebriefScreen.LAST])
 	d.close()
 	d = _debrief()
@@ -391,8 +395,8 @@ func test_done_campaign_shows_to_be_continued() -> void:
 			assert_eq(CampaignDB.version_after(CampaignDB.session(i)).label(), "v0.8.0", "S7: v0.8.0")
 		CampaignDB.complete(CampaignDB.session(i))
 	assert_true(CampaignDB.is_done())
-	assert_eq(SaveGame.version().label(), "v0.8.3", "S8, S9 and S10 (M50.3c) are patches")
-	assert_true(StartScreen.campaign_line().ends_with("v0.8.3 · to be continued"), StartScreen.campaign_line())
+	assert_eq(SaveGame.version().label(), "v0.8.4", "S8, S9, S10 (M50.3c) and S11 (M51) are patches")
+	assert_true(StartScreen.campaign_line().ends_with("v0.8.4 · to be continued"), StartScreen.campaign_line())
 	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)
 	assert_eq(CookingScreen.after_campaign_scene(), StartScreen.TITLE_SCENE, "nothing cooks: the title")
 	var screen := await _screen()

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_enemies_flee/edit_enemies_flee.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_enemies_flee"
+title = "Scared enemies"
+description = "Walking enemies steer away from you. Shooters still shoot."
+conflicts = Array[StringName]([])
+target = &"enemies"
+warn_line = "thinking: What if they were scared of you?"
+done_line = "happy: Brave again. Sorry."
+warn_seconds = 1.5
+duration = 10.0
+point_at = &"nearest_enemy"
+photosensitive = false
+cmd_text = "set enemies.fear on"

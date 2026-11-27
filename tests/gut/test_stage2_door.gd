@@ -27,6 +27,8 @@ const OLD_SESSIONS := {
 	&"tank_seen": [5, 5], &"wave_cleared": [3, -1],
 	# M47.6c1: the fixed sets from S3 on (M47.6d2: S8 / S9 clear too, so no end).
 	&"wave_done": [3, -1], &"last_two": [3, -1], &"last_one": [3, -1],
+	# M51 review: S11 only (PLAN 3.3), never in Stage 1.
+	&"sniper_seen": [99, 99],
 }
 ## PLAN 1.13's audit: gated off on Auto (camping stays on every path, D8).
 const AUTO_GATED: Array[StringName] = [&"not_shooting", &"crowd_12", &"kills_50", &"streak_3", &"streak_4",
@@ -106,6 +108,9 @@ func test_a_save_with_next_reads_the_id() -> void:
 	_load({"index": 10, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint"], "next": ""})
 	assert_eq(CampaignDB.current().id, &"s2_04_levels", "M50.3c: after S9 comes S10")
 	_load({"index": 11, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint", "s2_04_levels"], "next": ""})
+	assert_eq(CampaignDB.current().id, &"s2_05_depth", "M51: after S10 comes S11")
+	_load({"index": 12, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint", "s2_04_levels",
+			"s2_05_depth"], "next": ""})
 	assert_true(CampaignDB.is_done(), "next \"\": after the furthest done")
 	_load({"done": _done(2), "next": "s9_gone"})
 	assert_eq(CampaignDB.current().id, &"s1_02_enemies", "an unknown id: after the furthest done")
@@ -433,7 +438,10 @@ func test_the_clamp_holds_for_every_save_past_stage_1() -> void:
 	_load({"index": 10, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint"], "next": ""})
 	assert_false(CampaignDB.is_done(), "M50.3c: after S9, S10 plays")
 	_load({"index": 11, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint", "s2_04_levels"], "next": ""})
-	assert_true(CampaignDB.is_done(), "after S10: to be continued")
+	assert_false(CampaignDB.is_done(), "M51: after S10, S11 plays")
+	_load({"index": 12, "done": _done(7) + ["s2_01_tryout", "s2_02_day_one", "s2_03_paint", "s2_04_levels",
+			"s2_05_depth"], "next": ""})
+	assert_true(CampaignDB.is_done(), "after S11: to be continued")
 	_load({"index": 5, "done": _done(5), "next": "s1_05_wrong"})
 	assert_false(CampaignDB.is_done(), "mid Stage 1: playable")
 	assert_eq(StartScreen.continue_target(), StartScreen.GAME_SCENE)

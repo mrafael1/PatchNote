@@ -1,3 +1,19 @@
+# Next playtest: M51, S11 "Depth" (the new last session; no event yet)
+
+What is new since M50.3c (play S10 to its end):
+- **S10 now offers Next.** S11 "Depth" (v0.8.4) plays your layout's three parts again.
+- **The three new enemies are regulars:** shielders, snipers and swarms now come mixed in with the others, about one spawn in seven each, from the start. No new lines for them.
+- **The orbit** arrives 15 s into part 1 on every path: two little shields that spin around you. On Arcade it fills the passive slot; on Auto it leads your next level-up (the AI mentions it once you take it); on Survival it is a crate, and it runs on a 20 s battery (three batteries are dropped near you during the level; the AMMO panel shows the seconds left).
+- **The well** joins Auto's level-ups 30 s into part 1.
+- **Part 3 is a breather:** fewer spawns, and about 8 s in, for 10 s, the enemies are scared of you and walk away (shooters still shoot).
+- **Snipers get a line:** the first one in S11 makes the AI shout "Red line! Move!".
+- **The debrief asks a new question:** "How should the screen show things?" Clean / Arcade / On you. The cards are text only for now; nothing changes until a later session shows your pick.
+- Not in this build: the event planned for part 2 ("depth"). Its slot is silent, so part 2 plays like part 1 in your layout's next arena.
+
+One-liners (defaults taken): could you see the orbit, and did the Survival battery make sense? Does part 3 feel like a break, or like the enemies ran off? About 3 minutes: right? Which HUD did you pick, from text alone?
+
+---
+
 # Next playtest: M50.3c, S10 "Level one" (the new last session)
 
 What is new since M50.6b (play S9 to its end):

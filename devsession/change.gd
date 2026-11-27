@@ -12,8 +12,12 @@ extends Resource
 ## path: the shooter path (PLAN v9 1.12, fork_path, M47); its take's id is a PathDB id.
 ## layout: a level's shape (PLAN v9 1.8, fork_layout, M50.3c); its take's preset is a StageSet
 ## (the v6 sets, under campaign names). Never the v6 `stages` kind: no genre, campaign only.
+## hud: the HUD style (PLAN v9 1.8, fork_hud, asked in S11 at M51); its take's id is in HUDS.
+## Nothing reads the answer until S12 (M53).
 const KINDS: Array[StringName] = [&"patch", &"enemy", &"look", &"basic", &"stages", &"mascot", &"dash",
-		&"dash_aim", &"path", &"layout"]
+		&"dash_aim", &"path", &"layout", &"hud"]
+## The HUD styles a hud change can pick (M51; the styles themselves come with M53).
+const HUDS: Array[StringName] = [&"clean", &"arcade", &"onyou"]
 ## The mascot bodies a mascot change can pick (MascotBody.IDS draws them).
 const MASCOTS: Array[StringName] = [&"cursor", &"window", &"blob"]
 ## The dash styles a dash change can pick (Dasher.style plays them).

@@ -687,11 +687,18 @@ func _show_cards(f: Fork, ask := true) -> void:
 		if ask:
 			var rows: Array[String] = []
 			for c in options:
-				rows.append("%s  %s" % [c.short_name().to_lower(), c.pitch])
+				rows.append(card_row(c))
 			terminal.ask(rows)
 		_show_boxes(options)
 		return
 	_focus_card.call_deferred()
+
+
+## A card's terminal row: "<name>  <pitch>". M51 review: a pitch that opens with the card's
+## name ("Clean. Small numbers in a corner.") is not prefixed with it again.
+static func card_row(c: Change) -> String:
+	var nm := c.short_name().to_lower()
+	return c.pitch if c.pitch.to_lower().begins_with(nm) else "%s  %s" % [nm, c.pitch]
 
 
 ## M47.5a: the raw preview boxes over the frozen game: a 1 px grey frame, "[n]" and what the

@@ -94,7 +94,7 @@ func _variant(id: StringName) -> Array:
 
 func test_s10_is_the_last_session_and_s9_asks_the_layout() -> void:
 	assert_eq(CampaignDB.index_of(S10), 10)
-	assert_eq(CampaignDB.size(), 11, "S10 is the last session")
+	assert_eq(CampaignDB.size(), 12, "M51: S11 follows S10")
 	var s := CampaignDB.get_session(S10)
 	assert_eq(s.problems(), [] as Array[String])
 	assert_eq(CampaignDB.problems(), [] as Array[String], "nothing in the campaign is unbuilt or wrong")

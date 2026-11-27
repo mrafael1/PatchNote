@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Change" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://devsession/change.gd" id="1"]
+[ext_resource type="Script" path="res://devsession/mockup_take.gd" id="2"]
+
+[sub_resource type="Resource" id="take"]
+script = ExtResource("2")
+id = &"onyou"
+title = "On you"
+line = "On you. Look at you. Literally."
+
+[resource]
+script = ExtResource("1")
+id = &"hud_onyou"
+title = "HUD: On you"
+pitch = "On you. No boxes; it's all around you."
+kind = &"hud"
+tags = Array[StringName]([&"hud"])
+take = SubResource("take")

@@ -143,6 +143,7 @@ func _physics_process(_delta: float) -> void:
 			"fused": path_runner.fusions.size() if path_runner != null else 0,
 			"fuse_ready": path_runner.fuse_ready_count if path_runner != null else 0,
 			"items": _held_items(),
+			"weapons": _held_weapons(),
 			"evolve_ready": path_runner.evolve_ready_count if path_runner != null else 0,
 			"evolved": path_runner.evolutions.size() if path_runner != null else 0,
 			"nerfed": path_runner.nerfs_landed if path_runner != null else 0,
@@ -221,6 +222,18 @@ func _held_items() -> Array:
 	return out
 
 
+## M51: the weapon ids held (slots and passives), for "holds <weapon>:" cues (S11: Auto's
+## orbit line waits for its level-up pick).
+func _held_weapons() -> Array:
+	var out := []
+	var lo := path_runner.loadout() if path_runner != null else null
+	if lo != null:
+		for w: Weapon in lo.slots + lo.passives:
+			if w != null and w.def != null:
+				out.append(w.def.id)
+	return out
+
+
 ## The player's HP for "hp N:" cues; -1 without the health basic (nothing can hurt yet).
 func _player_hp() -> float:
 	if not Unlocks.has_basic(&"health") or genre == null or not is_instance_valid(genre.player):
@@ -291,7 +304,10 @@ func _fire(cue: Cue, index: int) -> void:
 			if rule_book == null or not rule_book.request(cue.target, &"cue", cue.seconds, not cue.quiet):
 				push_warning("Session %s: edit %s refused" % [session.id, cue.target])
 		&"event":
-			if event_player == null:
+			if cue.target in Cue.PLACEHOLDER_EVENTS and EventDB.get_event(cue.target) == null:
+				# M51: S11's event slot before M52 builds it: logged, nothing else.
+				RunState.log_event(&"event_placeholder", {"id": String(cue.target)})
+			elif event_player == null:
 				push_warning("Session %s: no event player for %s" % [session.id, cue.target])
 			else:
 				event_player.play(cue.target, &"cue")   # false: seen (skipped) or busy
