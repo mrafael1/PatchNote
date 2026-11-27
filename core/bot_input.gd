@@ -17,6 +17,13 @@ var keep_distance := 220.0
 var policy: StringName = &""
 var probe: StringName = &""
 var _tick := 0
+## M50.7: the path policies (Arsenal, Auto, Survival) walk to the last enemies once a clear
+## session's set is all out (_hunting), as the default policy does since M47.6c1. Off by
+## default: tools/run_hash.gd keeps the old bot byte for byte (its refs stay put); tools/bot_runs.gd
+## turns it on (--probe=nohunt keeps it off).
+var hunt_last := false
+## M50.7 (--probe=human_open, measure only): a stacked pack is asked for once every this many ticks.
+const HUMAN_OPEN_TICKS := 480
 
 ## Auto's kiting: the sectors around the bot and how far it looks.
 const SECTORS := 8
@@ -57,6 +64,8 @@ func _physics_process(_delta: float) -> void:
 	# M50.6: the bot opens a stacked pack as soon as it may (asked every tick; the PathRunner
 	# opens on its first free tick, so a seed replays). `afk` and `hoard` never open one.
 	open_pack_pressed = probe != &"afk" and probe != &"hoard"
+	if probe == &"human_open":
+		open_pack_pressed = _tick % HUMAN_OPEN_TICKS == 0
 	if RunState.rules.turn_based:
 		_turn_policy()
 		return
@@ -184,6 +193,8 @@ func _auto_policy() -> void:
 		move = -_densest_dir(here, aim_dir).rotated(0.6)
 	elif gem != null and to_enemy.length() > GEM_CLEAR:
 		move = (gem.global_position - here).normalized()
+	elif hunt_last and _hunting():
+		move = _hunt_dir(here, nearest)   # M50.7: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
 	if _level_hunting() and (to_enemy.length() >= keep_distance or RunState.survivors_chase):
@@ -238,6 +249,8 @@ func _arsenal_policy() -> void:
 	fire = true
 	if to_enemy.length() < keep_distance:
 		move = -aim_dir.rotated(0.6)
+	elif hunt_last and _hunting():
+		move = _hunt_dir(here, nearest)   # M50.7: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
 	var lo := Component.find(get_parent(), Loadout) as Loadout
@@ -296,6 +309,8 @@ func _survival_policy() -> void:
 		move = to_pickup
 	elif to_enemy.length() < keep_distance:
 		move = -aim_dir.rotated(0.6)
+	elif hunt_last and _hunting():
+		move = _hunt_dir(here, nearest)   # M50.7: the set is all out: go and get them
 	else:
 		move = aim_dir.rotated(1.2) * 0.6
 	if _level_hunting() and (to_enemy.length() >= keep_distance or RunState.survivors_chase):

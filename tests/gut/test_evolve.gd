@@ -408,7 +408,7 @@ func test_s9_carries_the_evolution_beat() -> void:
 	var s := CampaignDB.get_session(&"s2_03_paint")
 	var src := Array(s.cues)
 	for want: String in ["answer:path_auto at 84: add evolve", "answer:path_auto evolved 1: nerf 8",
-			"answer:path_auto evolve_ready 1: say happy: It's glowing. Take EVOLVE.",
+			"answer:path_auto evolve_ready 1: say happy: It's ready. Take EVOLVE.",
 			"answer:path_auto nerfed 1: say guilty: Too strong. Patched it down live. Still good, promise."]:
 		assert_true(want in src, want)
 	assert_true("answer:path_auto&evolved proud: You evolved one. I only nerfed it a little." in Array(s.debrief))
@@ -475,7 +475,7 @@ func test_the_evolve_card_data_and_both_looks_draw() -> void:
 	_ready_to_evolve(r)
 	var d := LevelCard.data_for_evolve(r.evolve_option(), "4")
 	assert_eq([d.kind, d.title, d.from_title, d.item_title, d.rank, d.icon], [LevelCard.KIND_EVOLVE, "Minigun", "Pistol", "Haste", 6, &"minigun"])
-	assert_eq(String(d.effect), "fire rate x2.5, a sweeping stream", "pistol 6 (6/s) -> Minigun steady (15/s)")
+	assert_eq(String(d.effect), "fire rate 5.5/s -> 15/s, a sweeping stream", "M50.7: pistol 6 (5.5/s after tick rounding) -> Minigun steady (15/s)")
 	assert_true(Palette.has(&"card_evolve"))
 	assert_ne(Palette.tier_0(&"card_evolve"), Color.MAGENTA)
 	r.announce(&"shotgun")

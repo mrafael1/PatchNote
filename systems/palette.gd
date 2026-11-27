@@ -101,6 +101,26 @@ const WINDOW_BODY := Color(0.92, 0.94, 0.97)
 const WINDOW_BAR := Color(0.24, 0.45, 0.95)
 const WINDOW_PANIC := Color(0.86, 0.26, 0.28)
 const WINDOW_GUILTY := Color(0.5, 0.53, 0.6)
+# M51a: the creature bodies (the owner-approved "Mascot creatures" mockup's ramps).
+const CREATURE_INK := Color("#1e1424")            ## outlines, eyes, mouths
+const CREATURE_GLINT := Color("#ffffff")          ## the eyes' glint
+const CREATURE_CHEEK := Color("#ff8fb4")          ## cheeks and tongues
+const CREATURE_SWEAT := Color("#27c0e0")          ## a sweat drop
+const CURSOR_HOOD := Color("#f4f6ff")
+const CURSOR_HOOD_SHADE := Color("#b8c0e0")
+const CURSOR_FEET := Color("#ffaa22")
+const WINDOW_CAP := Color("#4a78ff")              ## the title-bar cap and the ears
+const WINDOW_CAP_LIGHT := Color("#cfe0ff")        ## the title strip
+const WINDOW_BUTTON := Color("#ffffff")           ## the cap's three buttons
+const WINDOW_FACE := Color("#eef0fa")
+const WINDOW_FACE_SHADE := Color("#c2c8e0")
+const WINDOW_FEET := Color("#4a78ff")
+const BLOB_BODY := Color("#5fe0b0")
+const BLOB_SHADE := Color("#2aa888")
+const BLOB_LIGHT := Color("#b6ffe0")
+const BLOB_SHINE := Color("#ffffff")
+const BLOB_LEAF := Color("#8cf06a")
+const BLOB_FEET := Color("#2aa888")
 
 # --- M47.5a: the raw dev terminal (always on, pre-UI; tier-0 constants, not look roles) ---
 const TERM_BG := Color(0.039, 0.039, 0.047)       ## #0a0a0c, the terminal's back
@@ -162,6 +182,25 @@ const CHAT_LOG := Color("#8cffa6")                ## the build.log strip's text
 const CHAT_LOG_BG := Color("#0e0b1e")
 const CHAT_LEGACY := Color("#120f24")             ## the collapsed terminal tab
 const CHAT_ACCENT := Color("#a48cff")             ## the version tag, the dots
+# --- M51b: the version odometer title (title mockup v2, concept B; tier-0 constants) ---
+const ODO_BG := Color("#2a1e38")                  ## the plum backdrop
+const ODO_GRID := Color("#33254a")                ## its 48 px grid
+const ODO_INK := Color("#1e1424")                 ## outlines, drops, the wheel windows' shade
+const ODO_HOUSING := Color("#4a3466")             ## the odometer's housing
+const ODO_HOUSING_HI := Color("#5d4580")
+const ODO_HOUSING_LO := Color("#372747")
+const ODO_PAPER := Color("#f4e8c8")               ## a wheel's face
+const ODO_PAPER_SHADE := Color("#ddcba4")         ## a card at rest
+const ODO_DIGIT := Color("#3a2450")               ## a wheel's plum digit
+const ODO_GOLD := Color("#ffd84a")                ## the v and dots, Continue, the sparks
+const ODO_GOLD_DARK := Color("#c98a1e")
+const ODO_GOLD_HI := Color("#fff2a8")
+const ODO_RED := Color("#ff5c7a")                 ## New game: the roll back to v0.0.0
+const ODO_RED_DARK := Color("#b03050")
+const ODO_TEAL := Color("#5fe0b0")                ## Replay: an old build
+const ODO_TEAL_DARK := Color("#2aa888")
+const ODO_LAV := Color("#d8c6e8")                 ## Options, Quit, the readout's second line
+const ODO_LAV_DIM := Color("#9c88b4")
 
 ## 1.7's roles: every look must name each of these (test_pixel_skin).
 const CORE: Array[StringName] = [&"bg", &"grid", &"wall", &"player", &"player_shot", &"enemy",
@@ -192,6 +231,13 @@ const TIER_0 := {
 	&"blob_cheek": BLOB_CHEEK, &"cursor_fill": CURSOR_FILL, &"cursor_caret": CURSOR_CARET,
 	&"window_body": WINDOW_BODY, &"window_bar": WINDOW_BAR, &"window_panic": WINDOW_PANIC,
 	&"window_guilty": WINDOW_GUILTY,
+	&"creature_ink": CREATURE_INK, &"creature_glint": CREATURE_GLINT,
+	&"creature_cheek": CREATURE_CHEEK, &"creature_sweat": CREATURE_SWEAT,
+	&"cursor_hood": CURSOR_HOOD, &"cursor_hood_shade": CURSOR_HOOD_SHADE, &"cursor_feet": CURSOR_FEET,
+	&"window_cap": WINDOW_CAP, &"window_cap_light": WINDOW_CAP_LIGHT, &"window_button": WINDOW_BUTTON,
+	&"window_face": WINDOW_FACE, &"window_face_shade": WINDOW_FACE_SHADE, &"window_feet": WINDOW_FEET,
+	&"blob_body": BLOB_BODY, &"blob_shade": BLOB_SHADE, &"blob_light": BLOB_LIGHT,
+	&"blob_shine": BLOB_SHINE, &"blob_leaf": BLOB_LEAF, &"blob_feet": BLOB_FEET,
 }
 
 

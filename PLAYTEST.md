@@ -14,6 +14,35 @@ One-liners (defaults taken): could you see the orbit, and did the Survival batte
 
 ---
 
+# Next playtest: M51b, the version odometer title
+
+What changed since M50.6b (the title screen only, from S7 on; play is the same):
+- **The title is your version.** A big odometer shows it (v + three wheels). When the title opens, the wheels rewind to v0.0.0 and tick through every version you shipped, naming what each session added ("Movement", "Enemies", ... "A new look: Pixel"), then land on your version with a thunk and sparks. The mascot drops onto the odometer.
+- **The menu is a row of five cards.** Moving the focus (arrows, pad or mouse) rolls the wheels to where the card leads: Continue spins the last wheel as "?", New game rolls all the way back to v0.0.0 in red, Replay rolls to the build that session started on, Options shows a gear and Quit a lock. A line under the odometer explains each, and the mascot walks to the wheel that changes and says one line.
+- Everything else works as before: New game still asks "Start over? Your progress goes; your settings stay.", Replay (session, path, seed) appears once S8 is done, Esc goes back.
+- With "reduce flashing" on there is no roll, no spin and no sparks: the wheels just change.
+
+One-liners (defaults taken): is the boot roll (about 4 s) too long to sit through every launch? Should a key skip it? Should the name "Patch Notes" appear anywhere on the title? The module names are each session's first patch note: right words?
+
+---
+
+# Next playtest: M50.7, polish on packs, fuses and Auto cards
+
+What changed since M50.6b (play S8 and S9 on Arcade and on Auto):
+- **Opening a pack has beats.** The pack drops, tears open, then the cards are dealt; your pick slides into your hand. With "reduce flashing" each beat is short and only fades. New sounds for the tear, the deal, the slot and a fuse.
+- **A fuse shows its two cards first**, then the fused gun.
+- **The give and replace steps show your real hand cards.** The one you point at has the gold ring; the one that makes a recipe has a green edge; a locked card is dim with a lock.
+- **Hovering a card picks it out** (no more tooltip).
+- **Your hand reacts.** A card that ranks up flashes "RANK 5!"; a new pack in the stack pulses once. On the rail, the PACK module counts packs you carried over, says "pick 1 of 2" when a pack holds two cards, and PRISM READY says "[F] open a pack to fuse".
+- **Auto cards say more truth.** Breakpoints count the path's enemy HP; Haste shows the shots a second you really get; odd ranks tease the next trick ("next: ..."); a card the AI gave you says GIFT.
+- **The live nerf is a hotfix** in the chat (`$ hotfix minigun`), with its patch note.
+- **F2 has ITEMS and EVOLUTIONS rows**: try the Supernova and the Thunderclap in S9 Auto.
+- The AI says "Good pick" less often, and its bubble hides while a pick panel is open.
+
+Please judge: **Auto S8 difficulty** (not retuned on purpose; is it too hard, too easy, fine?). One-liners (defaults taken): are the pack beats too long when you open three in a row? Is "Good pick" now rare enough? Do the block-capital names on Auto's Pixel cards read? Does moving the mouse over a pack card light only that card (no capture could show it)? When space is short the hotfix slip keeps only the first part of the note ("Minigun 30 -> 15 shots/s"): fine, or wrap to two lines?
+
+---
+
 # Next playtest: M50.3c, S10 "Level one" (the new last session)
 
 What is new since M50.6b (play S9 to its end):
@@ -24,6 +53,17 @@ What is new since M50.6b (play S9 to its end):
 - **Hot edges** in part 3: the outer two tiles hurt.
 
 One-liners (defaults taken): which layout did you pick, and was it fun? About 3-4 minutes: right? Could you tell the shielder, sniper and swarm apart (they wear their old bodies plus an arc or a line)? Too hard compared with S9? Cluster or Prism: did you feel a choice?
+
+---
+
+# Next playtest: M51a, creature mascots
+
+What changed since M50.6b (looks only; play is the same):
+- **The AI's three bodies are little creatures now**, from the mockup you approved: the cursor is a pointed white hood on orange feet, the window has blue ears, a cap with its three buttons, stub arms and feet, the blob is round and green with a leaf sprout and feet.
+- **One set of faces for all three**, with cheeks: happy, proud, thinking, worried and surprised from the mockup, plus idle, guilty and panic in the same style. They blink, talk, and move over planted feet (happy hops, worried shivers, surprised jumps). With "reduce flashing" on they do not shiver or shake.
+- **Both looks.** Without a look they are smooth; in the Pixel look they are the mockup's pixel grids.
+
+One-liners (defaults taken): are they cute enough, and which one would you pick now? Keep the names Cursor, Window and Blob, or use the mockup's Pip, Tab and Mochi? Do the idle, guilty and panic faces read? In Pixel the corner creature is a bit smaller than before: fine?
 
 ---
 
@@ -156,7 +196,7 @@ One page. The G13 sheet is kept below for reference.
 
 ## What to play
 1. **S7 "Three games"** once (2.5 min, you can't lose). The AI swaps the whole game twice: cards (Arsenal), guns on the floor (Survival), then auto-fire (Auto). At the end it asks which one to build.
-2. **S8 "Day one"** on the path you picked (2 min, 1:30 on Survival; you can lose; Retry or Move on).
+2. **S8 "Day one"** on the path you picked (it ends when you clear its enemies; 1:30 on Survival; you can lose; Retry or Move on).
 3. Back on the title screen, the **Replay** row (new): pick S8 and another path, then Replay. Do it for both other paths. A replay never touches your save: it plays a copy, and the title restores it.
 
 ## Controls added
@@ -186,7 +226,7 @@ One page. The G13 sheet is kept below for reference.
 - M50.4c1 (Auto, S9): at 84 s the AI adds EVOLVE. Pistol 6 + Haste turns into the Minigun (a sweeping stream), at 30 shots/s for 8 s, then the AI patches it to 15/s live ("Too strong. Patched it down live.") and the debrief changelog lists the change. Questions, one line each: (Q3) should EVOLVE be free like FUSE, instead of spending the level-up? (Q4) too easy with the passive at any level, or should it need the passive maxed? (Q5) did the nerf read as a joke, or did it feel like losing something? (Q6) too much in S9 (paint + evolve): move evolve to S10? (Q13) do the EVOLVE card and the level-up cards look right?
 - M50.4b (Auto): level-ups now show dressed cards and two passive slots (Haste, Area; Might in S9). Do the cards read at a glance, and does S8 offer the second passive soon enough after the 42 s line?
 - Arsenal's first card in S8 comes at 25 kills (the plan said 15): ok?
-- Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it; nothing offers it before S9.)
+- Auto's nova shakes the screen every 3 s: ok? (F2 WEAPONS gives it, and since M50.7 F2 EVOLUTIONS gives the Supernova; nothing offers it before S9.)
 - Path line budget (250 own lines per path): nova and well counted as shared code (Auto 182) or as Auto's own (315, over)? Survival is at 250 exactly (paths/survival/) on the first reading, or about 485 if its shared Loadout / Pickup / bot / pickup-field lines count as its own.
 - S7's timings moved from the plan: the swaps cue at 13 / 56 / 99 / 143 s (planned 2 / 48 / 96 / 143), because the three intro lines take 12 s and no swap may start while the AI is still talking. Each line inside a taste moved 1-12 s with it; the tastes are 43 / 43 / 44 s instead of ~48 / 46 / 47. Ok?
 - The "AI cooking" beat now plays on S7's stage card, before its title ("Building v0.8.0", four progress lines, the bar fills). Is that what you meant by "the AI cooking on the chat screen", or did you mean S6's debrief tail?

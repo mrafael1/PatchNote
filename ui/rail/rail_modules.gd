@@ -6,11 +6,39 @@ extends Control
 ## reading changes.
 
 var frame: Node   ## the RailFrame
+## M50.7: a hand card's rank-up highlight (title -> rank seen, title -> msec it changed) and the
+## stack chip's pulse on a landed pack (real time; steady under reduce flashing).
+var _ranks := {}
+var _ranked_at := {}
+var _stack_seen := 0
+var _stack_at := -100000
+const FLASH_MS := 600
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+## M50.7: keeps drawing while a rank-up or pack highlight is fading (the frame redraws only on a
+## new reading).
+func _process(_delta: float) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _stack_at < FLASH_MS + 50:
+		queue_redraw()
+		return
+	for t: String in _ranked_at:
+		if now - int(_ranked_at[t]) < FLASH_MS + 50:
+			queue_redraw()
+			return
+
+
+## M50.7: 1 at a change fading to 0 over FLASH_MS (a steady 1 until then under reduce flashing).
+func _glow(at_ms: int) -> float:
+	var k := float(Time.get_ticks_msec() - at_ms) / FLASH_MS
+	if k < 0.0 or k >= 1.0:
+		return 0.0
+	return 1.0 if SaveGame.reduce_flashing() else 1.0 - k
 
 
 ## The modules shown now (their basic or path live), in rail order.
@@ -259,7 +287,12 @@ func _hand(r: Rect2, d: Dictionary) -> void:
 		if link == 2:
 			RailArt.block(self, strip, RailArt.c(&"gold"), p, roundf(3 * sc), RailArt.c(&"gold_lo"))
 			RailFrame.text(self, strip.position + Vector2(8, 2) * sc, "%s READY" % String(d.recipe).to_upper(), fs, RailArt.c(&"ink"), true)
-			RailFrame.text(self, strip.position + Vector2(0, 2 * sc), d.pair + "  ", fs, RailArt.c(&"ink"), false, HORIZONTAL_ALIGNMENT_RIGHT, strip.size.x)
+			# M50.7: how to fuse, with the open key (as the pack module names it).
+			var how := "[%s] open a pack to fuse  " % PathRunner.open_key() if Settings.key_hints() else "open a pack to fuse  "
+			if bool(d.get("pack_open", false)):   # M50.7 review: the pack is already open
+				how = "FUSE is in this pack  "
+			RailFrame.text(self, strip.position + Vector2(0, 2 * sc), how, RailFrame.fit(how, fs, strip.size.x * 0.55, false, 8),
+					RailArt.c(&"ink"), false, HORIZONTAL_ALIGNMENT_RIGHT, strip.size.x)
 		else:
 			RailArt.block(self, strip, RailArt.c(&"sunk"), p)
 			RailFrame.text(self, strip.position + Vector2(8, 3) * sc, "%s at rank 4" % String(d.recipe).to_lower(), RailLayout.text_px(12, sc), RailArt.c(&"mute"))
@@ -273,6 +306,16 @@ func _card(cr: Rect2, c: Dictionary) -> void:
 	var p: float = frame.px()
 	var lit: bool = c.active
 	RailArt.block(self, cr, RailArt.c(&"paper"), 2 * p)
+	# M50.7: a rank-up lights the card for FLASH_MS (steady under reduce flashing).
+	var title_key := String(c.title)
+	# Review: only a rise is a rank-up (a new session's rank 1, or a card back after a fuse, is not).
+	if _ranks.has(title_key) and int(c.rank) > int(_ranks[title_key]):
+		_ranked_at[title_key] = Time.get_ticks_msec()
+	_ranks[title_key] = int(c.rank)
+	var g := _glow(int(_ranked_at.get(title_key, -100000)))
+	if g > 0.0:
+		draw_rect(cr.grow(3 * p), Color(RailArt.c(&"gold"), 0.85 * g), false, 3 * p)
+		draw_rect(cr, Color(RailArt.c(&"gold_hi"), 0.35 * g))
 	if lit:
 		for side: Rect2 in [Rect2(cr.position, Vector2(cr.size.x, 2 * p)), Rect2(cr.position, Vector2(2 * p, cr.size.y)),
 				Rect2(Vector2(cr.end.x - 2 * p, cr.position.y), Vector2(2 * p, cr.size.y))]:
@@ -308,14 +351,18 @@ func _card(cr: Rect2, c: Dictionary) -> void:
 	var n := rank if c.deep else Loadout.MAX_RANK
 	var shown := mini(n, 8)
 	var pip := roundf(12 * sc)
+	# M50.7 review: the "+N" chip stays inside the card (the pips close up to make room for it).
+	var more := "+%d" % (n - 8) if n > 8 else ""
+	var cell := maxf(1.0, roundf(2 * sc))
+	var chip_w := RailArt.digits_width(more, cell) + 6 * sc + 2 * sc if more != "" else 0.0
+	var step := minf(16.0, (cr.size.x / sc - 20.0 - chip_w / sc) / 8.0) if more != "" else 16.0
 	for k in shown:
 		var on_pip: bool = c.deep or k < rank
-		RailArt.block(self, Rect2((cr.position + Vector2(10 + k * 16, 112) * sc).round(), Vector2(pip, pip)),
+		RailArt.block(self, Rect2((cr.position + Vector2(10 + k * step, 112) * sc).round(), Vector2(minf(pip, (step - 2) * sc), pip)),
 				(RailArt.c(&"gold") if lit else RailArt.c(&"warn")) if on_pip else RailArt.c(&"pip_off"), p)
-	if n > 8:
-		var t := "+%d" % (n - 8)
-		var cell := maxf(1.0, roundf(2 * sc))
-		var at := (cr.position + Vector2(10 + 8 * 16 + 2, 110) * sc).round()
+	if more != "":
+		var t := more
+		var at := (cr.position + Vector2(10 + 8 * step + 2, 110) * sc).round()
 		draw_rect(Rect2(at, Vector2(RailArt.digits_width(t, cell) + 6 * sc, roundf(16 * sc))), RailArt.c(&"ink"))
 		RailArt.draw_digits(self, at + Vector2(3 * sc, roundf(1 * sc)), t, cell, RailArt.c(&"gold"))
 
@@ -342,7 +389,14 @@ func _misfuse(r: Rect2, d: Dictionary) -> void:
 func _pack(r: Rect2, d: Dictionary) -> void:
 	var sc: float = frame.s()
 	var stack := int(d.get("stack", 0))
-	_cell(r, "PACK", "x%d" % stack if stack > 0 else "")   # M50.6: the stack's count
+	var waiting := int(d.get("waiting", stack))   # M50.7: not the pack on screen
+	_cell(r, "PACK", "x%d" % waiting if waiting > 0 else "")   # M50.6: the stack's count (M50.7 review: waiting)
+	if stack > _stack_seen:   # M50.7: a landed pack pulses the module once
+		_stack_at = Time.get_ticks_msec()
+	_stack_seen = stack
+	var pg := _glow(_stack_at)
+	if pg > 0.0:
+		draw_rect(r.grow(2 * frame.px()), Color(RailArt.c(&"gold"), pg), false, 3 * frame.px())
 	RailArt.draw_grid(self, RailArt.PACK, RailArt.PACK_LEGEND, _d(r, Vector2(16, 40)), roundf(5 * sc), true)
 	var pw := _num(_d(r, Vector2(84, 46)), str(int(d.x)), 56, RailArt.c(&"gold"))
 	_num(_d(r, Vector2(84, 46)) + Vector2(pw, 0), "/%d" % int(d.every), 56, RailArt.c(&"dim"))
@@ -352,15 +406,16 @@ func _pack(r: Rect2, d: Dictionary) -> void:
 	var left := int(d.left)
 	var line := "%d kill%s to pack %d" % [left, "" if left == 1 else "s", int(d.next)] if left >= 0 else "no more packs"
 	RailFrame.text(self, _d(r, Vector2(14, 146)), line, RailLayout.text_px(16, sc), RailArt.c(&"text"))
-	if stack <= 0:
-		RailFrame.text(self, _d(r, Vector2(14, 174)), "pick 1 of 3", RailLayout.text_px(16, sc), RailArt.c(&"dim"))
+	if waiting <= 0:   # M50.7: the next pack's real card count
+		RailFrame.text(self, _d(r, Vector2(14, 174)), RailState.pick_line(int(d.get("cards_next", 3)), int(d.get("cards_max", -1))), RailLayout.text_px(16, sc),
+				RailArt.c(&"dim"))
 		return
 	# M50.6: packs wait until the player opens one: the key chip, then how many are stacked.
 	var at := _d(r, Vector2(14, 171))
 	var key := String(d.get("key", ""))
 	if key != "":
 		at.x += _key(at, key.to_upper(), true) + roundf(6 * sc)
-	RailFrame.text(self, Vector2(at.x, _d(r, Vector2(14, 174)).y), "open  -  %d stacked" % stack, RailLayout.text_px(16, sc),
+	RailFrame.text(self, Vector2(at.x, _d(r, Vector2(14, 174)).y), "open  -  %d waiting" % waiting, RailLayout.text_px(16, sc),
 			RailArt.c(&"gold"))
 
 
@@ -417,8 +472,11 @@ func _items(r: Rect2, d: Dictionary) -> void:
 	var hint := String(d.get("hint", ""))
 	var legend := String(d.get("legend", ""))
 	if picking and legend != "":   # M50.4f: the open level-up's per-key legend
-		RailFrame.text(self, _d(r, Vector2(bx, 198)), legend,
-				RailFrame.fit(legend, RailLayout.text_px(12, sc), r.end.x - _d(r, Vector2(bx, 0)).x - 8 * sc, false, 7), RailArt.c(&"gold"))
+		# M50.7: never under the module's small text size (it shrank to 7 px); from the cell's left.
+		var lx := _d(r, Vector2(12, 198)).x
+		RailFrame.text(self, Vector2(lx, _d(r, Vector2(12, 198)).y), legend,
+				maxi(RailLayout.text_px(12, sc), RailFrame.fit(legend, RailLayout.text_px(16, sc), r.end.x - lx - 8 * sc, false, 8)),
+				RailArt.c(&"gold"))
 	elif hint == "":
 		_small(r, Vector2(bx, 198), "next level: pick 1 of 3", RailArt.c(&"gold"))
 	else:   # M50.4c1: the evolve hint (pink when EVOLVE is ready, dim while ranking up)
