@@ -5,10 +5,10 @@ extends Node2D
 ## debrief, a card in fork_mascot). Real time drives it, so it moves while the game is
 ## paused (the debrief).
 ##
-## Every body carries the 8 expressions (Line.EXPRESSIONS) the same way: a pose (bounce,
-## tilt, squash) from pose(), eyes from draw_eye() and a mouth from draw_mouth(). A body
-## only draws its shape around them in _paint(). talking opens and closes the mouth;
-## point_at() leans toward a spot; glitch() splits the colours for a moment.
+## Every body carries the 8 expressions (Line.EXPRESSIONS): a pose from pose() and its own
+## shape and face in _paint(). M51a: the three pickable bodies are CreatureBody (feet,
+## cheeks, one shared set of faces); the caret keeps this file's pose. talking opens and
+## closes the mouth; point_at() leans toward a spot; glitch() splits the colours for a moment.
 
 const IDS: Array[StringName] = Change.MASCOTS
 const CARET := &"caret"   ## before the face (SessionDef.face = false): a blinking caret
@@ -21,9 +21,7 @@ const SCRIPTS := {
 	&"caret": "res://ui/mascot/bodies/caret_body.gd",
 }
 
-const INK := Palette.MASCOT_INK
-const EYE_WHITE := Palette.MASCOT_EYE
-const SWEAT := Palette.MASCOT_SWEAT
+const INK := Palette.MASCOT_INK   ## the bubble's text and frame (Mascot)
 
 var id: StringName = &""
 var expression: StringName = &"idle"
@@ -34,6 +32,9 @@ var expr_t := 0.0     ## seconds since the expression changed
 var frozen := false
 ## reduce_flashing (set by whoever holds the body): a glitch only wobbles.
 var gentle := false
+## M51a: set by PixelBodyView. A body with a grid (grid_unit() > 0) then draws whole
+## viewport pixels per cell, with no rotation; the flat look (false) draws smooth shapes.
+var pixel := false
 
 ## M47.2 (owner G14a): the highest the drawn body may reach, in this node's own (posed)
 ## space's y (-INF: no limit). The corner sets it so a hop, a pop or a pointing lean never
@@ -119,13 +120,13 @@ func _draw() -> void:
 	if glitching() and not gentle:
 		var k := 3.0 + 2.0 * sin(t * 40.0)
 		_tint = Palette.GLITCH_RED
-		draw_set_transform(p["offset"] + Vector2(k, 0), p["angle"], p["scale"])
+		draw_set_transform(_snap(p["offset"] + Vector2(k, 0)), p["angle"], p["scale"])
 		_paint()
 		_tint = Palette.GLITCH_CYAN
-		draw_set_transform(p["offset"] - Vector2(k, 0), p["angle"], p["scale"])
+		draw_set_transform(_snap(p["offset"] - Vector2(k, 0)), p["angle"], p["scale"])
 		_paint()
 	_tint = Color.WHITE
-	draw_set_transform(p["offset"], p["angle"], p["scale"])
+	draw_set_transform(_snap(p["offset"]), p["angle"], p["scale"])
 	_paint()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -133,6 +134,17 @@ func _draw() -> void:
 ## The body's shape, eyes and mouth, in the posed space. Each body overrides it.
 func _paint() -> void:
 	pass
+
+
+## M51a: a draw offset as drawn (CreatureBody snaps it to whole viewport pixels in `pixel`).
+func _snap(v: Vector2) -> Vector2:
+	return v
+
+
+## M51a: the body's grid cell in flat body units (0: no grid). PixelBodyView sizes its
+## pixels so a cell is at least one of them.
+func grid_unit() -> float:
+	return 0.0
 
 
 ## M47.2: points (body space, before the pose) that bound everything _paint() draws at this
@@ -243,124 +255,6 @@ func pose() -> Dictionary:
 	if glitching():
 		off.x += 4.0 * sin(t * 61.0) if not gentle else 2.0 * sin(t * 9.0)
 	return {"offset": off, "angle": ang, "scale": sc}
-
-
-## Eyes closed for a moment every few seconds (idle and thinking only).
-func blinking() -> bool:
-	if not expression in [&"idle", &"thinking", &"proud"]:
-		return false
-	return fmod(t + 0.7, 3.3) < 0.12
-
-
-## Where the pupils look, as a fraction of the eye's radius.
-func look() -> Vector2:
-	if pointing():
-		return _point_dir * 0.4
-	match expression:
-		&"guilty":
-			return Vector2(-0.35, 0.45)
-		&"thinking":
-			return Vector2(0.4, -0.45)
-		&"panic":
-			return Vector2(0.3 * sin(t * 37.0), 0.3 * cos(t * 29.0))
-		&"worried":
-			return Vector2(0.0, 0.25)
-	return Vector2(0.12 * sin(t * 0.7), 0.0)
-
-
-## One eye at c, radius r. side is -1 for the left eye, 1 for the right.
-func draw_eye(c: Vector2, r: float, side: float, skin: Color) -> void:
-	var w := maxf(1.5, r * 0.28)
-	if blinking():
-		draw_line(c + Vector2(-r, 0), c + Vector2(r, 0), col(INK), w, true)
-		return
-	match expression:
-		&"happy":
-			draw_arc(c + Vector2(0, r * 0.35), r * 0.85, PI + 0.25, TAU - 0.25, 12, col(INK), w * 1.2, true)
-			return
-		&"proud":
-			# Half-closed: the lower half of the eye under a flat lid.
-			var pts := PackedVector2Array()
-			for i in 9:
-				var a := PI * float(i) / 8.0
-				pts.append(c + Vector2(cos(a), sin(a)) * r)
-			draw_colored_polygon(pts, col(EYE_WHITE))
-			draw_circle(c + Vector2(0.15 * r * side, 0.45 * r), r * 0.42, col(INK))
-			draw_line(c + Vector2(-r * 1.1, 0), c + Vector2(r * 1.1, 0), col(INK), w, true)
-			return
-	var rr := r
-	var pupil := 0.5
-	if expression == &"surprised":
-		rr = r * 1.25
-		pupil = 0.28
-	elif expression == &"panic":
-		rr = r * 1.2
-		pupil = 0.25
-	draw_circle(c, rr, col(EYE_WHITE))
-	draw_arc(c, rr, 0.0, TAU, 20, col(INK), w * 0.6, true)
-	draw_circle(c + look() * rr * 0.55, rr * pupil, col(INK))
-	draw_circle(c + look() * rr * 0.55 + Vector2(-0.3, -0.3) * rr * pupil, rr * pupil * 0.3, col(EYE_WHITE))
-	# Brows carry worry, guilt, thought and panic.
-	var inner := -side   # toward the face's middle
-	match expression:
-		&"worried", &"guilty", &"panic":
-			var lift := 1.55 if expression == &"panic" else 1.4
-			draw_line(c + Vector2(r * side * 0.9, -r * 1.25), c + Vector2(r * inner * 0.7, -r * lift - r * 0.35), col(INK), w, true)
-		&"thinking":
-			if side > 0:
-				draw_line(c + Vector2(-r * 0.8, -r * 1.7), c + Vector2(r * 0.8, -r * 1.9), col(INK), w, true)
-			else:
-				draw_line(c + Vector2(-r * 0.8, -r * 1.35), c + Vector2(r * 0.8, -r * 1.35), col(INK), w, true)
-	if expression in [&"guilty", &"panic"] and side > 0:
-		_sweat(c + Vector2(r * 1.6, -r * 0.6), r * 0.55)
-	var _unused := skin
-
-
-func _sweat(c: Vector2, s: float) -> void:
-	var drip := fmod(t * 0.8, 1.0) * s * 1.5 if expression == &"panic" else 0.0
-	var at := c + Vector2(0, drip)
-	draw_colored_polygon(PackedVector2Array([at + Vector2(0, -s * 1.6), at + Vector2(s * 0.75, 0), at + Vector2(-s * 0.75, 0)]), col(SWEAT))
-	draw_circle(at, s * 0.78, col(SWEAT))
-
-
-## The mouth at c, width w. Talking opens and closes it, whatever the expression.
-func draw_mouth(c: Vector2, w: float) -> void:
-	var lw := maxf(1.5, w * 0.12)
-	if talking:
-		var open := 0.25 + 0.75 * absf(sin(t * 13.0))
-		_ellipse(c, Vector2(w * 0.38, w * 0.3 * open + 1.0), col(INK))
-		return
-	match expression:
-		&"idle":
-			draw_arc(c + Vector2(0, -w * 0.25), w * 0.4, 0.5, PI - 0.5, 10, col(INK), lw, true)
-		&"happy":
-			var pts := PackedVector2Array()
-			for i in 11:
-				var a := PI * float(i) / 10.0
-				pts.append(c + Vector2(cos(a) * w * 0.5, sin(a) * w * 0.42))
-			draw_colored_polygon(pts, col(INK))
-			draw_circle(c + Vector2(0, w * 0.26), w * 0.16, col(Palette.MASCOT_BLUSH))
-		&"proud":
-			draw_polyline(PackedVector2Array([c + Vector2(-w * 0.4, 0), c + Vector2(w * 0.15, w * 0.08), c + Vector2(w * 0.45, -w * 0.15)]), col(INK), lw, true)
-		&"worried":
-			var pts := PackedVector2Array()
-			for i in 9:
-				var x := -0.45 + 0.9 * float(i) / 8.0
-				pts.append(c + Vector2(x * w, sin(float(i) * 1.6) * w * 0.06))
-			draw_polyline(pts, col(INK), lw, true)
-		&"surprised":
-			_ellipse(c, Vector2(w * 0.17, w * 0.22), col(INK))
-		&"guilty":
-			draw_arc(c + Vector2(0, w * 0.3), w * 0.3, PI + 0.6, TAU - 0.6, 10, col(INK), lw, true)
-		&"thinking":
-			draw_line(c + Vector2(w * 0.0, w * 0.05), c + Vector2(w * 0.35, -w * 0.02), col(INK), lw, true)
-		&"panic":
-			var pts := PackedVector2Array()
-			for i in 7:
-				var x := -0.45 + 0.9 * float(i) / 6.0
-				pts.append(c + Vector2(x * w, (w * 0.1) * (1.0 if i % 2 == 0 else -1.0)))
-			_ellipse(c, Vector2(w * 0.5, w * 0.24), col(INK))
-			draw_polyline(pts, col(EYE_WHITE), lw * 0.8, true)
 
 
 func _ellipse(c: Vector2, radii: Vector2, color: Color) -> void:
