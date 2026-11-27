@@ -72,6 +72,11 @@ const THRESHOLD_STEP := 20
 ## and once when the stack reaches Tuning.pack_nudge_at.
 @export var pack_first_line := ""
 @export var pack_stack_line := ""
+## M50.6a: in a tryout's taste (S7) a pack opens by itself on the first free tick, as before
+## M50.6: a player who never presses the key still gets the taste's cards. The key and the
+## stack are taught where the path is built for real (S8's first pack). The pack lines above
+## are not said while this holds.
+@export var taste_auto_open := false
 ## The top rank (0 = none). Classic paths keep Loadout.MAX_RANK (3).
 @export var rank_cap := 3
 ## &"classic" (WeaponDef.ranks 2-3) or &"deep" (WeaponCurve: odd ranks damage, even ranks

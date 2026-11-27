@@ -25,7 +25,8 @@ extends Node
 ##
 ## M50.1a (Arsenal depth): a path with PathDef.pack_every > 0 deals booster packs (PackMeter,
 ## BoosterPack on RunState.pack_rng) instead of the card meter's cards: no session cap, owed
-## packs queue and open at least PACK_GAP s apart, and the pick counts feed the telemetry.
+## packs queue (until M50.6 they opened by themselves, PACK_GAP s apart; now see M50.6 below),
+## and the pick counts feed the telemetry.
 ##
 ## M50.1b (fusion): once the `fusion` basic is live, a hand that is a built recipe pair with
 ## both cards at rank 4+ gets a FUSE choice in its packs (BoosterPack.fuse_option): FUSE melts
@@ -53,14 +54,14 @@ extends Node
 ## live) no longer queues in the next packs (G4 is retired here): it opens the give step on the
 ## first free tick (can_open_now(), never on the misfuse's last tick, before an owed pack): the
 ## replace step on the given card alone, "Replace <card>" per slot or "Keep your hand". It
-## draws nothing, is not a pack pick (no `picked`, no pick_offered, PackMeter untouched), and
-## an owed pack waits PACK_GAP after it. Keep leaves the weapon in the live pool.
+## draws nothing, is not a pack pick (no `picked`, no pick_offered, PackMeter untouched). Keep
+## leaves the weapon in the live pool. (M50.6: a stacked pack after it waits for the key.)
 ##
 ## M50.6 (stacked packs and weapon rarity): a pack no longer opens by itself. Each pack the
 ## meter deals goes on the stack (pack_stack(); the same count as pending_picks()); the player's
 ## open_pack action (PlayerInput.open_pack_pressed, or open_pack()) opens the top one on that
 ## tick when can_open_now() holds, with the same panel and pause as before. One press, one
-## pack: nothing chains, and PACK_GAP is gone (the press is the gap). The bot asks every tick,
+## pack: nothing chains, and no timer spaces packs (the press is the gap). The bot asks every tick,
 ## so its packs open on the first free tick and a seed replays. A waiting give step still opens
 ## by itself, before a pack. Unopened packs carry to the path's next session (bank_packs() at a
 ## session the player moves on from, SaveGame.packs_banked() when the pack meter is built; never
@@ -69,6 +70,10 @@ extends Node
 ## card (BoosterPack.epic_card, only once `fusion` is live) is a ready-made fusion: taken, it
 ## melts the held parents (Loadout.fuse / absorb) or joins / replaces like a new card, and is
 ## recorded like a fusion made (`fusions` with epic: true, the recipe learned).
+##
+## M50.6a: in a tryout whose path sets PathDef.taste_auto_open (S7's Arsenal taste), every tick
+## counts as asked: the taste's packs open by themselves on the first free tick (what the bot
+## does everywhere), and the pack lines that teach the key wait for S8.
 
 signal started(path_id: StringName)
 ## M47.6d1: a `path` cue landed (its warning starts): the title card (PathTitle) shows.
@@ -783,12 +788,19 @@ func want_pick() -> void:
 		return
 	_want = mini(_want + 1, Tuning.pack_stack_max)
 	stack_peak = maxi(stack_peak, _want)
+	if auto_opens():
+		return   # M50.6a: nothing to teach, the taste's packs open by themselves
 	if not first_pack_said and def.pack_first_line != "":
 		first_pack_said = true
 		_speak(SessionRunner.with_keys(Line.parse(def.pack_first_line)), SessionRunner.PRIORITY, true)
 	elif not stack_nudged and _want >= Tuning.pack_nudge_at and def.pack_stack_line != "":
 		stack_nudged = true
 		_speak(SessionRunner.with_keys(Line.parse(def.pack_stack_line)), SessionRunner.PRIORITY, true)
+
+
+## M50.6a: this path's packs open by themselves here (a tryout's taste, PathDef.taste_auto_open).
+func auto_opens() -> bool:
+	return def != null and def.taste_auto_open and _tryout() and pack_path()
 
 
 func _on_meter_full() -> void:
@@ -864,7 +876,7 @@ func _physics_process(_delta: float) -> void:
 		_evolve_was_ready = ready_e
 	# M50.6: a stacked pack opens only when asked on this tick (the player's key, the bot's
 	# standing ask, open_pack()); any other pick opens by itself, as before.
-	var asked := _open_req or not pack_path()
+	var asked := _open_req or not pack_path() or auto_opens()
 	_open_req = false
 	if not asked and is_instance_valid(p):
 		var input := p.get(&"input") as PlayerInput
@@ -973,8 +985,8 @@ func _open_give() -> void:
 
 
 ## M50.2b: the give step closed: `slot` replaced by the given card, or -1 (the hand kept; the
-## weapon stays in the live pool, so a later pack can show it as NEW). An owed pack waits
-## PACK_GAP.
+## weapon stays in the live pool, so a later pack can show it as NEW). M50.6: a stacked pack
+## after it waits to be asked, like any other.
 func _on_give_done(offer: PickOffer, slot: int) -> void:
 	fp.menu_close()
 	var p: Node = game.get(&"player") if game != null else null

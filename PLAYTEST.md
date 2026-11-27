@@ -1,3 +1,24 @@
+# Next playtest: M50.6b, pixel projectiles
+
+What changed since M50.6a (the Pixel look only; play is the same):
+- **Every shot is redrawn from your projectile sheet.** The pistol fires a pointed bolt, the shotgun shards, the laser a lance, the launcher a finned shell with a flame, Prism a three-colour beam, the Minigun a thin warm tracer, Cluster a shell with gold bomblets. Tails trail behind whatever the heading.
+- **Enemy orbs pulse.**
+- **A muzzle flash and a cyan hit spark**, drawn as sprites. With "reduce flashing" on there is no muzzle flash and the spark is dimmer.
+
+One-liners (defaults taken): do the shots read at game size, and does any look bigger or smaller than what it hits? Prism's beam is thinner than on the sheet, so five of them read: fine? Is the flash too much on the Minigun?
+
+---
+
+# Next playtest: M50.6a, readable ribbons (small fixes on M50.6)
+
+What changed since M50.6 (Arcade only):
+- **Card ribbons read right on Pixel.** "COMMON", "RARE" and "EPIC" are drawn letter by letter now ("DOMMON" and "EPID" are gone). The rail's small labels ("PACK", "CURSOR") no longer close their C on a 1280 px window.
+- **The try-out's pack opens by itself again.** In S7's Arcade taste a pack opens when you earn it, as before M50.6. From S8 on packs wait for F; the AI teaches the key at your first S8 pack.
+
+One-liners (defaults taken): any letter still misread on a card or the rail? Should the try-out teach F too?
+
+---
+
 # Next playtest: M50.6, stacked packs and weapon rarity (Arcade)
 
 What is new since M50.5a (Arcade path only; play S7 to S9 as usual):

@@ -1,9 +1,15 @@
 ## Pixel look (PLAN 1.7, owner brief 2026-11-25): simple pixel art, vibrant warm colours,
 ## 1 px near-black plum outline baked into every sprite. Pure data, drawn in code.
 ## Faction rule: enemies and enemy shots are warm (red/orange/magenta/purple/crimson);
-## the player (mint, white scarf) and player shots (cyan bars with white-hot heads) are the
-## only cool accents. Shape rule too (colour-blind safe): player shots are angular (bars, square
-## rings, an X), enemy shots are round (orbs, an orb chain, a thick ring with a hot dot).
+## the player (mint, white scarf) and player shots (cyan bolts with white-hot tips) are the
+## only cool accents. Shape rule too (colour-blind safe): player shots are angular (pointed
+## bolts and lances, a finned shell, square rings, an X), enemy shots are round (a pulsing orb,
+## a teardrop, an orb chain, a thick ring with a hot dot). The shape rule is the one that never
+## bends: the Minigun's tracer and the revolver's slug are warm, and they are still bars.
+## M50.6b shots (the owner's projectile sheet): a grid points along +x and turns with the shot's
+## heading. Its outlined body is what the shot hits with; loose pixels behind it (an exhaust, a
+## flame) carry no outline, and the grid's "tail" key counts their columns so the body, not the
+## whole grid, is centred on the shot. The muzzle flash and the hit spark are effects, not shots.
 ## Pickups are icons, never round orange/red orbs; gems are emerald.
 ## Light from the top-left: H highlight upper-left, S shade lower-right.
 ## Bodies 16x16 at 2x (tank 24, hunter 20, elite/gate 24). Floor tiles 16x16 at 3x; wall and
@@ -434,14 +440,17 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#c8fcff", "S": "#6ad8f0", "H": "#ffffff", "A": "#ffffff"},
 	},
+	# M50.6b: the pistol's bolt: a pointed bar with a white-hot tip and three loose exhaust pixels.
 	"shot_dot_player": {
 		"grid": [
-			".KKKKKK.",
-			"KSPPHHHK",
-			"KSPPHHHK",
-			".KKKKKK.",
+			"....KKKKK..",
+			".S.KSPPHHK.",
+			"S.SKPPHHWWK",
+			".S.KSPPHHK.",
+			"....KKKKK..",
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+		"tail": 3,
 	},
 	"shot_cylinder_player": {
 		"grid": [
@@ -454,23 +463,30 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#ffd36a", "S": "#d08a1e", "H": "#fff4c8", "A": "#ffffff"},
 	},
+	# M50.6b: the shotgun's shard: a short pointed chip, one loose pixel behind it.
 	"shot_fan_player": {
 		"grid": [
-			".KKKK.",
-			"KSPHHK",
-			"KSPHHK",
-			".KKKK.",
+			"..KKK..",
+			".KPHHK.",
+			"SKPHWWK",
+			".KSPHK.",
+			"..KKK..",
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+		"tail": 1,
 	},
+	# M50.6b: the laser's lance: a long pointed bar, white-hot along its front half, a comb of
+	# exhaust behind it.
 	"shot_line_player": {
 		"grid": [
-			".KKKKKKKKKK.",
-			"KSSPPPPHHHHK",
-			"KSSPPPPHHHHK",
-			".KKKKKKKKKK.",
+			"......KKKKKKKKKK..",
+			"S.S.SKSSPPPPHHHHK.",
+			"S.SSSKSPPPHHHWWWWK",
+			"S.S.SKSSPPPPHHHHK.",
+			"......KKKKKKKKKK..",
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+		"tail": 5,
 	},
 	"shot_ball_player": {
 		"grid": [
@@ -485,38 +501,54 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
 	},
+	# M50.6b: the enemy orb pulses: its second frame is one cell bigger all round.
 	"shot_dot_enemy": {
 		"grid": [
-			"..KKKK..",
-			".KPHHPK.",
-			"KPHAAHPK",
-			"KHAAAAHK",
-			"KHAAAAHK",
-			"KPHAAHSK",
-			".KSHHSK.",
-			"..KKKK..",
+			"..........",
+			"...KKKK...",
+			"..KPHHPK..",
+			".KPHAAHPK.",
+			".KHAAAAHK.",
+			".KHAAAAHK.",
+			".KPHAAHSK.",
+			"..KSHHSK..",
+			"...KKKK...",
+			"..........",
+		],
+		"frames": [
+			"....KK....",
+			"..KKHPKK..",
+			".KPHHHPSK.",
+			".KHHAAHPK.",
+			"KHHAAAAPPK",
+			"KPHAAAAPSK",
+			".KPHAAPSK.",
+			".KPPHPSSK.",
+			"..KKPSKK..",
+			"....KK....",
 		],
 		"ramp": {"P": "#ff5a30", "S": "#b8241e", "H": "#ffaa22", "A": "#fff4b0"},
 	},
+	# M50.6b: the enemy spread pellet: a teardrop, round head first.
 	"shot_fan_enemy": {
 		"grid": [
-			".KKKK.",
-			"KPHHPK",
-			"KHAAHK",
-			"KHAAHK",
-			"KSHHSK",
-			".KKKK.",
+			"...KKK.",
+			"SKKPHHK",
+			"KSPHAAK",
+			"SKKPHHK",
+			"...KKK.",
 		],
 		"ramp": {"P": "#ff5a30", "S": "#b8241e", "H": "#ffaa22", "A": "#fff4b0"},
 	},
+	# M50.6b: the enemy chain: three orbs of falling size, the biggest first.
 	"shot_line_enemy": {
 		"grid": [
-			".......KKKK.",
-			".KK.KKKPHHPK",
-			"KPPKHHKHAAHK",
-			"KPPKHHKHAAHK",
-			".KK.KKKSHHSK",
-			".......KKKK.",
+			".........KKKK.",
+			".....KK.KPHHPK",
+			".PP.KHPKKHAAHK",
+			".SS.KPSKKHAAHK",
+			".....KK.KSHHSK",
+			".........KKKK.",
 		],
 		"ramp": {"P": "#ff5a30", "S": "#b8241e", "H": "#ffaa22", "A": "#fff4b0"},
 	},
@@ -621,25 +653,27 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#ff5a30", "S": "#b8241e", "H": "#ffaa22", "A": "#fff4b0"},
 	},
-	# M50.1b: Prism's beam (player-only): the laser's bar, thinner, in three hues (cyan tail,
-	# violet body, warm-white head).
+	# M50.1b: Prism's beam (player-only). M50.6b: three bands (cyan, violet, warm white) and
+	# an exhaust, one cell thin: five of them leave together.
 	"shot_prism_player": {
 		"grid": [
-			".KKKKKKKKKK.",
-			"KSSSPPPPHHHK",
-			".KKKKKKKKKK.",
+			"....KKKKKKKKK.",
+			"S.SKAAPPPHHWWK",
+			"....KKKKKKKKK.",
 		],
-		"ramp": {"P": "#b48cff", "S": "#27c0e0", "H": "#fff8d0", "A": "#ffffff"},
+		"ramp": {"P": "#b48cff", "S": "#27c0e0", "H": "#fff8d0", "A": "#8ff8ff"},
+		"tail": 3,
 	},
-	# M50.4c1: the Minigun's tracer (player-only): a 2x7 streak with a warm core.
+	# M50.4c1: the Minigun's tracer (player-only). M50.6b: one cell thin with a warm core, the only
+	# warm player shot (it is still a bar: the shape rule holds).
 	"shot_minigun_player": {
 		"grid": [
-			".KKKKKKK.",
-			"KSSPPPHAK",
-			"KSSPPPHAK",
-			".KKKKKKK.",
+			"...KKKKKK.",
+			"S.SKSPPHAK",
+			"...KKKKKK.",
 		],
 		"ramp": {"P": "#ffb84a", "S": "#c9602e", "H": "#ffe890", "A": "#fff8e0"},
+		"tail": 3,
 	},
 	# M50.1b: the misfuse's shot (player-only): a tiny pistol, barrel first.
 	"shot_misfuse_player": {
@@ -652,35 +686,36 @@ const SPRITES := {
 		],
 		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
 	},
-	# M50.3a: the launcher's shell (player-only): a squat canister bomb, flat-sided (player shots
-	# are angular), in the player shots' cyan, its fuse trailing back with a warm spark.
+	# M50.3a: the launcher's shell (player-only). M50.6b: a finned shell, flat-sided (player shots are
+	# angular), in the player shots' cyan, a gold and orange flame behind it.
 	"shot_bomb_player": {
 		"grid": [
-			"AA.......",
-			"AK.KKKKK.",
-			"..KKHHHPK",
-			"..KHPPPPK",
-			"..KPPPPSK",
-			"..KSPPSSK",
-			"...KKKKK.",
+			"..KK.KKKKKK..",
+			".KSPKWWWWPPK.",
+			"AHKSPPPPPPPWK",
+			"AAHKPPPPPPWWK",
+			"AHKSPPPPPPPSK",
+			".KSPKSSSSSSK.",
+			"..KK.KKKKKK..",
 		],
-		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffd84a"},
+		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ff8a1c", "A": "#ffd84a"},
+		"tail": 1,
 	},
-	# M50.3a: Cluster's shell (player-only, built in M50.3b): an eight-sided shell with five dark
-	# bomblet dots.
+	# M50.3a: Cluster's shell (player-only, built in M50.3b): an eight-sided shell. M50.6b: its five
+	# bomblets are gold.
 	"shot_cluster_player": {
 		"grid": [
 			"..KKKKK..",
 			".KHHHHPK.",
-			"KHEHPPEPK",
+			"KHAHPPAPK",
 			"KHHPPPPSK",
-			"KHPPEPPSK",
+			"KHPPAPPSK",
 			"KPPPPPPSK",
-			"KPEPPPESK",
+			"KPAPPPASK",
 			".KSSSSSK.",
 			"..KKKKK..",
 		],
-		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffffff"},
+		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#ffffff", "A": "#ffd84a"},
 	},
 	# M50.3a: the launcher's mine: an eight-sided plate with a cyan rim (the player's side) and a
 	# dim light; armed, the light is lit (and blinks, steady under reduce flashing).
@@ -707,6 +742,34 @@ const SPRITES := {
 			"..KKK..",
 		],
 		"ramp": {"P": "#27c0e0", "S": "#2a1e38", "H": "#8ff8ff", "A": "#8ff8ff"},
+	},
+	# M50.6b: the muzzle flash (ShotFx): a warm wedge, its flat side on the muzzle, drawn for a few
+	# frames along the shot's heading. Not drawn under reduce flashing.
+	"muzzle_flash": {
+		"grid": [
+			"KK......",
+			"KHKK....",
+			"KHHHKKK.",
+			"KWWWHHPK",
+			"KHHHKKK.",
+			"KHKK....",
+			"KK......",
+		],
+		"ramp": {"P": "#ffc23a", "S": "#ffc23a", "H": "#fff2a0", "A": "#ffffff"},
+	},
+	# M50.6b: the hit spark (ShotFx): a cyan eight-point star where a player shot lands (angular and
+	# cool: the player's side). An effect, so it has no outline.
+	"hit_spark": {
+		"grid": [
+			"H..H..H",
+			".H.H.H.",
+			"..WWW..",
+			"HHWWWHH",
+			"..WWW..",
+			".H.H.H.",
+			"H..H..H",
+		],
+		"ramp": {"P": "#8ff8ff", "S": "#27c0e0", "H": "#8ff8ff", "A": "#ffffff"},
 	},
 	"gem": {
 		"grid": [

@@ -24,6 +24,7 @@ const NATIVE := {
 	&"shooter": 26.0, &"splitter": 30.0, &"splitter_mini": 15.0, &"hunter": 40.0,
 	&"orbit_shard": 14.0, &"shot_line_player": 21.0, &"shot_ball_player": 22.0,
 	&"shot_line_enemy": 21.0, &"shot_ball_enemy": 22.0,
+	&"shot_bomb_player": 22.4,   # M50.6b: the launcher's shell (shot size 1.6) at 2x, not 3x
 }
 const NATIVE_SHOT := 14.0
 
@@ -33,6 +34,7 @@ var _images := {}     ## id -> Array[Image], 1 px per grid cell (tiles: pre-scal
 var _tex := {}        ## id -> Array[CanvasTexture]
 var _white := {}      ## id -> Array[CanvasTexture]: the same frames as a white silhouette
 var _size := {}       ## id -> Vector2 (1 px per cell; tiles: pre-scaled)
+var _tail := {}       ## M50.6b: id -> cells of loose tail left of a shot's outlined body
 var _palette := {}
 var _tiles: Array[StringName] = []
 var _wall_rim := {}   ## the art's WALL_RIM (outline, lit), {} without one
@@ -169,6 +171,13 @@ func frame_count(id: StringName) -> int:
 ## The grid size of an id, 1 px per cell (a tile: already at TILE_SCALE).
 func size_of(id: StringName) -> Vector2:
 	return _size.get(id, Vector2.ZERO)
+
+
+## M50.6b: the cells of loose, unoutlined tail on the left of a shot's grid (its "tail" key,
+## 0 without one). A shot is drawn shifted back by half of it, so its outlined body sits on
+## the node and the tail trails behind on every heading.
+func tail_of(id: StringName) -> float:
+	return _tail.get(id, 0.0)
 
 
 func image(id: StringName, frame := 0) -> Image:
@@ -348,6 +357,8 @@ func _bake_id(id: StringName, entry: Dictionary, pre_scale: int) -> void:
 	_tex[id] = tex
 	_white[id] = white
 	_size[id] = Vector2(images[0].get_size())
+	if pre_scale == 1 and int(entry.get("tail", 0)) > 0:
+		_tail[id] = float(int(entry["tail"]))
 
 
 static func _grids_of(entry: Dictionary) -> Array:

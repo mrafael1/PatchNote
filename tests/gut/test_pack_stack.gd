@@ -648,3 +648,61 @@ func test_the_bot_opens_each_pack_at_once_and_a_seed_replays() -> void:
 	assert_ne(a, c, "another seed plays differently")
 	var h := await _bot_run(4242, &"hoard")
 	assert_string_contains(h, "opened=0|left=5", "the hoard probe never opens one")
+
+
+# --- 9. M50.6a: the tryout's taste opens its packs by itself -----------------------------------
+
+## S7's Arsenal taste (PathDef.taste_auto_open): a player who never presses the key still gets
+## the taste's cards. The pack opens on the first free tick, the key is not taught there (S8's
+## first pack teaches it), and S8 keeps the stack.
+func test_the_tryout_taste_opens_a_pack_by_itself_and_s8_still_stacks() -> void:
+	assert_true(_arsenal().taste_auto_open, "data: Arsenal's taste opens by itself")
+	assert_false(PathDB.get_def(&"auto").taste_auto_open)
+	assert_false(PathDB.get_def(&"survival").taste_auto_open)
+	var s7 := FileAccess.get_file_as_string("res://campaign/sessions/s2_01_tryout.tres")
+	assert_false(s7.contains("{key:open_pack}"), "S7 no longer teaches the key")
+	assert_true(FileAccess.get_file_as_string("res://campaign/sessions/s2_02_day_one.tres").contains("{key:open_pack} opens it"),
+			"S8 does, with its first packs")
+	SaveGame.go_inert()
+	CampaignDB.active = true
+	assert_true(CampaignDB.jump_to(&"s2_01_tryout"))
+	game = load("res://main.tscn").instantiate()
+	add_child_autofree(game)
+	if game.stage_card != null:
+		game.stage_card.skip()
+	await wait_physics_frames(3)
+	player = game.player
+	player.set_input(Fixtures.ScriptedInput.new())   # never asks for a pack
+	RunState.invincible = true
+	game.spawner.enabled = false
+	game.pick_panel.input_delay = 0.0
+	game.run_loop.goal_clock = 7.0   # the Arsenal taste (4 s) and its cards (6 s) are in
+	await wait_physics_frames(150)
+	var r := game.path_runner
+	assert_true(r.pack_path(), "the taste deals packs")
+	assert_true(r.auto_opens())
+	_kill(r, _arsenal().pack_every)
+	await wait_physics_frames(4)
+	assert_eq(r.packs_opened, 1, "the pack opened with no key pressed")
+	assert_false(r.first_pack_said, "and no line taught a key")
+	for line in r.said:
+		assert_false(line.contains("opens"), line)
+	if game.pick_panel.is_open():   # (a 1-card pack is a toast: no panel)
+		game.pick_panel.choose(0)
+	await wait_physics_frames(2)
+	assert_eq(r.pack_stack(), 0)
+	game.free()
+	RunState.session = null
+	RunState.set_pause(PickPanel.PAUSE, false)
+	# S8: the same path stacks, as M50.6 built it.
+	var r8 := await _session(&"s2_02_day_one")
+	player.set_input(Fixtures.ScriptedInput.new())
+	game.run_loop.goal_clock = 11.0
+	await wait_physics_frames(3)
+	assert_false(r8.auto_opens(), "S8 is not a tryout")
+	_kill(r8, _arsenal().pack_every)
+	await wait_physics_frames(30)
+	assert_eq(r8.packs_opened, 0, "S8's pack waits for the key")
+	assert_eq(r8.pack_stack(), 1)
+	assert_eq(r8.said.size(), 1, "and its first pack teaches the key")
+	assert_string_contains(r8.said[0], "opens it")

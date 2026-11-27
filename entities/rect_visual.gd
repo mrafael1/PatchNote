@@ -131,6 +131,8 @@ func _draw_skin() -> bool:
 	var s := skin.scale_for(drawn, size.x) * grow
 	var frame := skin.idle_frame(drawn, now)
 	var upright := Skins.upright(id)
+	# M50.6b: a shot's loose tail hangs behind it: the outlined body stays centred on the node.
+	var at := Vector2(-skin.tail_of(drawn) * s * 0.5, 0.0)
 	var flip := Vector2(1, -1) if Skins.flipped(id, now) else Vector2.ONE   # M48b: the flip bug
 	if upright:
 		draw_set_transform(Vector2.ZERO, -rotation, flip)
@@ -141,19 +143,19 @@ func _draw_skin() -> bool:
 		# hit flash and telegraph flicker on it; the later steps get the white silhouette
 		# (M48b review: a morph never hides a telegraph or a hit).
 		var over := morph_overlay(u, now)
-		SkinMorph.draw(self, skin, drawn, Vector2.ZERO, s, frame, u, over["fill"], size * grow,
+		SkinMorph.draw(self, skin, drawn, at, s, frame, u, over["fill"], size * grow,
 				SaveGame.reduce_flashing(), color.a)
 		if float(over["silhouette"]) > 0.0:
-			skin.draw_silhouette(self, drawn, Vector2.ZERO, s, frame,
+			skin.draw_silhouette(self, drawn, at, s, frame,
 					Color(1, 1, 1, float(over["silhouette"]) * color.a))
 		if upright or flip.y < 0.0:
 			draw_set_transform(Vector2.ZERO)
 		_draw_rim_and_bar(grow)
 		return true
-	skin.draw(self, drawn, Vector2.ZERO, s, frame, Color(1, 1, 1, color.a))
+	skin.draw(self, drawn, at, s, frame, Color(1, 1, 1, color.a))
 	var white := _white(now)
 	if white > 0.0:
-		skin.draw_silhouette(self, drawn, Vector2.ZERO, s, frame, Color(1, 1, 1, white * color.a))
+		skin.draw_silhouette(self, drawn, at, s, frame, Color(1, 1, 1, white * color.a))
 	if upright or flip.y < 0.0:
 		draw_set_transform(Vector2.ZERO)
 	_draw_rim_and_bar(grow)

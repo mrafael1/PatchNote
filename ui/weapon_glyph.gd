@@ -159,9 +159,10 @@ static func _draw_skin(ci: CanvasItem, icon: StringName, centre: Vector2, size: 
 	if skin == null or not skin.has(id):
 		return false
 	var cells := skin.size_of(id)
-	var s := maxf(1.0, floorf(size / maxf(cells.x, cells.y)))
+	var tail := skin.tail_of(id)   # M50.6b: the outlined body fills the box, its loose tail hangs out
+	var s := maxf(1.0, floorf(size / maxf(cells.x - tail, cells.y)))
 	var v := maxf(color.r, maxf(color.g, color.b))
-	skin.draw(ci, id, centre.round(), s, 0, Color(v, v, v, color.a))
+	skin.draw(ci, id, (centre - Vector2(tail * s * 0.5, 0.0)).round(), s, 0, Color(v, v, v, color.a))
 	skin_draws += 1
 	return true
 

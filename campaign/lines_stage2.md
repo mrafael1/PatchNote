@@ -24,7 +24,7 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 ### Intro
 ### Cues
 - at 4: path arsenal warning: (happy) Version one. Your guns are cards.
-- at 8: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack. {key:open_pack} opens it.
+- at 8: (happy) {key:weapon_prev} and {key:weapon_next} to switch cards. Six kills, I'll deal you a pack.
 - picked 1: (proud) See? Same card, stronger gun.
 - at 36: (proud) Okay. Saving that one.
 - at 40: path survival warning: (happy) Version two. Guns lying around.

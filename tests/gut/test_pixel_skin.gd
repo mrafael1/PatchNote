@@ -653,14 +653,16 @@ func test_the_atlas_hash_is_m48as() -> void:
 	# minigun). M50.5: both, merged.
 	# M50.3a: + shot_bomb_player, shot_cluster_player, mine, mine_armed and the card_rare role
 	# (5ccf2497... on build/arcade). M50.5: re-pinned on the merged tree.
-	assert_eq(skin.digest(), "30a949100fbd5abb552ac28d889fe4ad40586b4c6af897100c84664524f10a43")
+	# M50.6b: the owner's projectile sheet redrew ten shots and added muzzle_flash and hit_spark
+	# (30a94910... before): the art moved on purpose.
+	assert_eq(skin.digest(), "db2c84518e7d82a873ca4e25d72e9e3b52cec842b029f950bf48992a19bd29ad")
 
 
 ## M50.3a: the launcher's bomb, Cluster's shell and the mine (dim, armed) are player-side
 ## sprites in the `shots` reveal group; there is no enemy bomb or cluster.
 func test_the_launcher_sprites_are_player_shots() -> void:
 	var skin := Skins.pixel()
-	var sizes := {&"shot_bomb_player": Vector2(9, 7), &"shot_cluster_player": Vector2(9, 9),
+	var sizes := {&"shot_bomb_player": Vector2(13, 7), &"shot_cluster_player": Vector2(9, 9),   # M50.6b: the finned shell
 			&"mine": Vector2(7, 7), &"mine_armed": Vector2(7, 7)}
 	for id: StringName in sizes:
 		assert_true(skin.has(id), String(id))
@@ -696,3 +698,120 @@ func test_use_reveals_all_and_role_on_drives_palette() -> void:
 	Skins.use(null)
 	assert_false(Skins.is_on(&"player"))
 	assert_eq(Palette.color(&"bg"), Palette.tier_0(&"bg"))
+
+
+# --- M50.6b: the projectile sheet ----------------------------------------------------------
+
+## The sheet's shots at their sizes: a pointed bolt, shard and lance, the finned shell, the
+## thin Prism beam and tracer, the pulsing orb, the teardrop and the three-orb chain.
+func test_m50_6b_shot_sprites_and_their_tails() -> void:
+	var skin := Skins.pixel()
+	var want := {&"shot_dot_player": [Vector2(11, 5), 3.0], &"shot_fan_player": [Vector2(7, 5), 1.0],
+			&"shot_line_player": [Vector2(18, 5), 5.0], &"shot_bomb_player": [Vector2(13, 7), 1.0],
+			&"shot_prism_player": [Vector2(14, 3), 3.0], &"shot_minigun_player": [Vector2(10, 3), 3.0],
+			&"shot_cluster_player": [Vector2(9, 9), 0.0], &"shot_dot_enemy": [Vector2(10, 10), 0.0],
+			&"shot_fan_enemy": [Vector2(7, 5), 0.0], &"shot_line_enemy": [Vector2(14, 6), 0.0]}
+	var outline := Color.html(String(_art().get(&"PALETTE")["outline"]))
+	for id: StringName in want:
+		assert_eq(skin.size_of(id), want[id][0], String(id))
+		assert_eq(skin.tail_of(id), want[id][1], "%s tail" % id)
+		# A loose tail carries no outline: the outlined body is the shot.
+		var img := skin.image(id)
+		for x in int(skin.tail_of(id)):
+			for y in img.get_height():
+				assert_false(img.get_pixel(x, y).is_equal_approx(outline), "%s: outline in the tail at %d,%d" % [id, x, y])
+	assert_eq(skin.tail_of(&"chaser"), 0.0, "a body has no tail")
+	assert_eq(skin.frame_count(&"shot_dot_enemy"), 2, "the orb pulses")
+	assert_ne(skin.image(&"shot_dot_enemy", 0).get_data(), skin.image(&"shot_dot_enemy", 1).get_data())
+	# Honest sizes at 2x: the launcher's shell (shot size 1.6) is no longer drawn at 3x.
+	assert_eq(skin.scale_for(&"shot_bomb_player", 14.0 * 1.6), 2.0)
+	assert_eq(skin.scale_for(&"shot_dot_player", 14.0), 2.0)
+	# Cluster's bomblets are gold (the shell's A), not the eye's dark dots.
+	assert_eq(skin.image(&"shot_cluster_player").get_pixel(2, 2), Color.html("#ffd84a"))
+	for id: StringName in [ShotFx.MUZZLE, ShotFx.SPARK]:
+		assert_true(skin.has(id), String(id))
+		assert_true(id in Skins.GROUPS[&"shots"], "%s is revealed with the shots" % id)
+		assert_true(Skins.upright(id) and not String(id).begins_with("shot_"), "an effect, not a shot id")
+
+
+func _fx(world: Node, id: StringName) -> Array[ShotFx]:
+	var out: Array[ShotFx] = []
+	for c in world.get_children():
+		if c is ShotFx and (c as ShotFx).id == id and not c.is_queued_for_deletion():
+			out.append(c)
+	return out
+
+
+func _shot(world: Node, faction: StringName, velocity: Vector2, at := Vector2.ZERO) -> Node2D:
+	var p := (load("res://entities/projectile.tscn") as PackedScene).instantiate() as Node2D
+	p.set(&"faction", faction)
+	p.set(&"velocity", velocity)
+	p.set_physics_process(false)
+	world.add_child(p)
+	p.set_physics_process(false)
+	p.global_position = at
+	return p
+
+
+## The Pixel look draws the muzzle flash and the hit spark as sprites (ShotFx), from Feedback's
+## hooks: one flash per physics frame turned to the pellets' mean heading, a spark where a
+## player shot lands; nothing without the look, none for an enemy shot; reduce flashing keeps
+## today's muzzle path and dims the spark.
+func test_m50_6b_muzzle_flash_and_hit_spark() -> void:
+	SaveGame.go_inert()
+	var world := Node2D.new()
+	add_child_autofree(world)
+	var fb := Feedback.new()
+	fb.effects_parent = world
+	add_child_autofree(fb)
+	var settings := SaveGame.state().settings as Dictionary
+	settings["reduce_flashing"] = false
+	Skins.use(null)
+	var shot := _shot(world, &"player", Vector2(0, -900), Vector2(40, 50))
+	EventBus.projectile_fired.emit(shot)
+	EventBus.projectile_hit.emit(shot, null, Vector2(7, 9))
+	assert_eq(_fx(world, ShotFx.MUZZLE).size() + _fx(world, ShotFx.SPARK).size(), 0, "no look: no sprite effect")
+	Skins.use(Skins.pixel())
+	EventBus.projectile_fired.emit(shot)
+	var flashes := _fx(world, ShotFx.MUZZLE)
+	assert_eq(flashes.size(), 1, "a flash at the muzzle")
+	if flashes.size() == 1:
+		assert_eq(flashes[0].position, Vector2(40, 50))
+		assert_almost_eq(flashes[0].rotation, -PI / 2.0, 0.0001, "along the shot's heading")
+		assert_eq(ShotFx.offset(Skins.pixel(), ShotFx.MUZZLE, 2.0), Vector2(8, 0), "its flat side on the muzzle")
+		# A fan's other pellets, the same frame: the one flash turns to the mean heading.
+		EventBus.projectile_fired.emit(_shot(world, &"player", Vector2(900, 0), Vector2(40, 50)))
+		assert_eq(_fx(world, ShotFx.MUZZLE).size(), 1, "one flash per frame")
+		assert_almost_eq(flashes[0].rotation, -PI / 4.0, 0.0001, "the mean heading")
+	EventBus.projectile_hit.emit(shot, null, Vector2(7, 9))
+	var sparks := _fx(world, ShotFx.SPARK)
+	assert_eq(sparks.size(), 1, "a spark where the shot landed")
+	if sparks.size() == 1:
+		assert_eq(sparks[0].position, Vector2(7, 9))
+		assert_eq(sparks[0].fade, 1.0)
+	var theirs := _shot(world, &"enemy", Vector2(300, 0))
+	EventBus.projectile_fired.emit(theirs)
+	EventBus.projectile_hit.emit(theirs, null, Vector2.ZERO)
+	assert_eq([_fx(world, ShotFx.MUZZLE).size(), _fx(world, ShotFx.SPARK).size()], [1, 1], "enemy shots: neither")
+	# Reduce flashing: no drawn flash, a dim spark.
+	for c in world.get_children():
+		if c is ShotFx:
+			c.free()
+	settings["reduce_flashing"] = true
+	EventBus.projectile_fired.emit(shot)
+	EventBus.projectile_hit.emit(shot, null, Vector2.ZERO)
+	assert_eq(_fx(world, ShotFx.MUZZLE).size(), 0, "reduce flashing: no muzzle flash sprite")
+	sparks = _fx(world, ShotFx.SPARK)
+	assert_eq(sparks.size(), 1)
+	if sparks.size() == 1:
+		assert_eq(sparks[0].fade, 0.5, "reduce flashing: a dim spark")
+	settings["reduce_flashing"] = false
+	# The effect ends by itself and the live count follows the tree.
+	var before := ShotFx.live
+	var fx := ShotFx.new()
+	world.add_child(fx)
+	assert_eq(ShotFx.live, before + 1)
+	fx._process(1.0)
+	assert_true(fx.is_queued_for_deletion(), "a few frames, then gone")
+	fx.free()
+	assert_eq(ShotFx.live, before)

@@ -29,6 +29,7 @@ const SHINE_EVERY := 1.8
 const SHINE_TIME := 0.45
 const PIPS := 8
 const MIN_FS := 6.0     ## M50.2c review: the smallest FUSE text (card units)
+const RIBBON_CELL := 2.0   ## M50.6a: one cell of the Pixel ribbon's block capitals (card units)
 
 ## The card shown: {style, title, rank, from, icon, icon_a, icon_b, tag, ribbon, gain, foot}.
 var face := {}
@@ -41,6 +42,8 @@ var shine := -1.0       ## the rare shine's sweep 0..1, < 0 none
 var lit := false        ## the focused / hovered choice
 ## M50.2c review: the last drawn FUSE text box: {text, fs, height, box} (gain_fit). Read by tests.
 var fuse_drawn := {}
+## M50.6a (tests): the last ribbon drawn: {text, rect, cell} (cell 0 = the look's font).
+var ribbon_drawn := {}
 ## M50.5a: the pictures drawn in the last _draw, in order: [icon, how] with how = &"gun" (CardArt's
 ## pixel gun), &"flat" (WeaponGlyph's flat gun) or &"glyph" (the shot glyph). Read by tests.
 var art_drawn: Array = []
@@ -309,8 +312,13 @@ func _ribbon() -> void:
 	var u := _u()
 	var fs := 11.0
 	var style: StringName = face.get("style", &"card_common")
-	var tw := _font(true).get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(fs * u))).x + 20 * u
+	# M50.6a: on Pixel the ribbon's word is block capitals (RailArt.DIGITS, RIBBON_CELL card
+	# units a cell, drawn as art like the rank badge): the body font at this size closed its C
+	# into a D ("DOMMON", "EPID").
+	var cell := maxf(1.0, roundf(RIBBON_CELL * u))
+	var tw := (RailArt.digits_width(t, cell) if pixel() else _font(true).get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(fs * u))).x) + 20 * u
 	var r := Rect2(Vector2(size.x - tw - 10 * u, -14 * u), Vector2(tw, 24 * u))
+	ribbon_drawn = {"text": t, "rect": r, "cell": cell if pixel() else 0.0}
 	if pixel():
 		if style == &"card_common" or style == &"card_epic":
 			draw_rect(r, CardFaceArt.px(&"ink"))
@@ -321,7 +329,8 @@ func _ribbon() -> void:
 			var box := CardFaceArt.frame(&"ribbon")
 			if box != null:
 				draw_style_box(box, r)
-		_text(r.position + Vector2(0, 5 * u), t, fs, CardFaceArt.px(&"paper_hi"), true, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+		RailArt.draw_digits(self, (r.position + (r.size - Vector2(RailArt.digits_width(t, cell), 7 * cell)) * 0.5).round(),
+				t, cell, CardFaceArt.px(&"paper_hi"))
 	else:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = CardFaceArt.flat(&"pink")

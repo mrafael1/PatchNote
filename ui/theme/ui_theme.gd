@@ -146,6 +146,18 @@ static func pixel_font(bold := false) -> Font:
 	return _pixel[bold]
 
 
+## M50.6a: Pixelify's design pixel is 1/11 em, so at 9, 10 and 13 px its strokes round unevenly
+## and a capital C closes into an O or a D ("PACK" read "PAOK", "CURSOR" "OURSOR" on a 1280
+## px wide window, where the rail's 16 px labels land on 13). Those sizes step to the nearest
+## one that keeps the C open; every other size is itself. For text drawn at its own size
+## (the rail); text inside the scaled game view is resampled and cannot be fixed this way.
+const SMEAR_SIZES := {9: 11, 10: 11, 13: 12}
+
+
+static func pixel_size(px: int) -> int:
+	return int(SMEAR_SIZES.get(px, px))
+
+
 ## M50.5a (owner: "Fifty" read "Aifty", "Fire rate" "Are rate", "Five pellets" "Awe pellets"):
 ## Pixelify's ligatures (liga: fi, fl, ff, ffi, ffl; dlig: st) swap "fi" for one joined glyph
 ## whose pixels read as an A at the chat's and the cards' sizes ("first" -> "Arst", "fire" ->

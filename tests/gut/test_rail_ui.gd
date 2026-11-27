@@ -640,3 +640,18 @@ func test_the_pixel_font_never_joins_letters() -> void:
 					f.get_string_size("f", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 					+ f.get_string_size("i", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x, 1.5,
 					"bold=%s %d: fi is an f then an i (kerning: within 1.5 px)" % [bold, size])
+
+
+## M50.6a: Pixelify closes a capital C into an O or a D at 9, 10 and 13 px ("PACK" read "PAOK"
+## on a 1280 px window, where the rail's 16 px labels landed on 13). The rail never draws at
+## those sizes, and at a full-size window nothing changes.
+func test_the_rail_never_draws_text_at_a_size_that_closes_the_c() -> void:
+	assert_eq(RailLayout.text_px(16, 0.8), 12, "1280 px: 16 * 0.8 = 13 steps to 12")
+	assert_eq(RailLayout.text_px(16, 1.0), 16, "the design size is itself")
+	assert_eq(RailLayout.text_px(12, 0.8), 12)
+	assert_eq(UiTheme.pixel_size(10), 11)
+	assert_eq(UiTheme.pixel_size(14), 14)
+	for d: int in [10, 12, 16, 24]:
+		for i in 41:
+			var s := 0.5 + i * 0.05
+			assert_false(RailLayout.text_px(d, s) in [9, 10, 13], "design %d at scale %.2f" % [d, s])
