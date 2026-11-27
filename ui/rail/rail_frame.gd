@@ -510,4 +510,10 @@ func caption() -> String:
 	var path: Dictionary = snap.get("path", {})
 	if path.get("id", &"") != &"":
 		parts.append(String(path.id))
+	# M50.3c: a level in parts names the part, and the door once it is open.
+	var level: Dictionary = snap.get("parts", {})
+	if int(level.get("of", 0)) > 1:
+		parts.append("part %d/%d" % [int(level.part), int(level.of)])
+		if level.get("door", false):
+			parts.append("door open")
 	return " · ".join(parts)

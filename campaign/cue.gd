@@ -85,7 +85,7 @@ const DROP_KINDS: Array[StringName] = [&"ammo", &"heal"]
 ## Survival still refused, unbuilt(); M46 builds Arsenal), the whens level and picked, and
 ## [tag] (the pool rule). M47: drop runs (Survival's PathRunner.drop).
 const UNBUILT_ACTIONS: Array[StringName] = [&"look", &"boss"]
-const UNBUILT_WHENS: Array[StringName] = [&"room", &"boss_hp"]
+const UNBUILT_WHENS: Array[StringName] = [&"boss_hp"]   ## M50.3c: `room` is built
 const UNBUILT_TAG := false   ## M45a: a "[tag]" say cue adds its weapon to the live pool
 ## The `path` targets whose PathDef is not built yet (empty since M47: Survival is built).
 ## An explicit list: `off` is never a PathDB id and must pass.

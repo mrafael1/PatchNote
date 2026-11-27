@@ -140,7 +140,7 @@ func test_before_s7_the_raw_screen_from_s7_the_title() -> void:
 	title.free()
 	_done_upto(S8)
 	assert_true(CampaignDB.front_door_open(), "S8 done")
-	_done_upto(&"s2_03_paint")
+	_done_upto(&"s2_04_levels")   # M50.3c: S10 is the last session
 	assert_true(CampaignDB.is_done())
 	var done := await _screen()
 	assert_not_null(done.title, "a finished campaign")

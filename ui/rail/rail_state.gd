@@ -23,7 +23,21 @@ static func read(game: Node, peak: Dictionary) -> Dictionary:
 	out.hp = _hp(game, player)
 	out.dash = _dash(player, peak)
 	out.path = _path(game)
+	out.parts = _parts(game)
 	return out
+
+
+## M50.3c: a level in parts: {part, of, door} (of 0 = one arena, nothing shown).
+static func _parts(game: Node) -> Dictionary:
+	var d := {"part": 0, "of": 0, "door": false}
+	var genre: Variant = game.get(&"genre") if game != null else null
+	var loop: Variant = genre.get(&"run_loop") if genre is Node and is_instance_valid(genre) else null
+	if RunState.session == null or loop == null or loop.stages == null or loop.stages.size() <= 1:
+		return d
+	d.part = int(loop.stage_index) + 1
+	d.of = int(loop.stages.size())
+	d.door = bool(loop.exit_open) and not bool(loop.exit_reached)
+	return d
 
 
 static func _hp(game: Node, player: Node) -> Dictionary:

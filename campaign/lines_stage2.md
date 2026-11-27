@@ -136,6 +136,42 @@ data (campaign/sessions/*.tres, devsession/, paths/), then regenerate.
 - answer:path_arsenal&fused (proud) You fused one. I'm keeping the recipe.
 - answer:path_arsenal&!fused (thinking) No fusion today. The recipe's still there.
 - answer:path_auto&evolved (proud) You evolved one. I only nerfed it a little.
+- (thinking) It's one room. Games have levels.
+
+## s2_04_levels: Level one
+### Before play (in the chat, at the play gate)
+- (happy) Level one. Three parts. Type play.
+### Intro
+- answer:layout_rooms (happy) Three rooms. Clear one, the door opens.
+- answer:layout_gauntlet (happy) Three arenas. Hold each one.
+- answer:layout_shifting (happy) One arena. It rebuilds itself. Three times.
+- !answer:layout_rooms&!answer:layout_gauntlet&!answer:layout_shifting (happy) Three rooms. Clear one, the door opens.
+- (thinking) And I brought a launcher. It's loud.
+### Cues
+- answer:path_arsenal at 4: (happy) New card: the launcher. Rank it up. Two, it sticks. Four, it pulls.
+- !answer:path_arsenal at 4: (happy) A launcher. Slow shells, big booms.
+- answer:path_auto at 7: (happy) It's in your next level-up. It aims at the biggest crowd.
+- answer:path_survival at 7: (happy) It's in a crate. Ten shells. Make them count.
+- answer:path_auto at 12: (thinking) Your passives are back. Haste first.
+- answer:path_auto at 20: (happy) Area too. Launcher blasts get bigger.
+- answer:path_auto at 36: (thinking) Might's back too. Everything hits harder.
+- answer:path_arsenal at 20: (thinking) I wrote a second recipe. Shotgun plus launcher. Go find it.
+- answer:path_arsenal fuse_ready 1: (happy) Link's lit. Next pack, fuse them.
+- answer:path_arsenal fused 1: made:cluster (proud) A Cluster! Shells full of shells.
+- answer:path_arsenal fused 1: made:prism (happy) Prism again. A classic.
+- room 1: (surprised) New enemy, number one. It has a shield. Go around it.
+- answer:enemy_tank room 1: (thinking) Remember your tank? This is its big brother.
+- answer:enemy_bomber room 1: (thinking) Nothing here explodes. Yet.
+- room 2: (worried) Number two stays far away. Don't stand on the red line.
+- answer:enemy_lancer room 2: (thinking) This one draws lines too.
+- room 3: (happy) Last one. You've got this.
+- room 3: (panic) Number three is five tiny ones!
+### Debrief
+- won (proud) That's a level. You just played a level!
+- died (guilty) Level design is hard. That one's on me.
+- (thinking) I tried to pick one enemy to keep. I couldn't. They all stay.
+- answer:path_arsenal&made:cluster (proud) Two recipes in the book now.
+- answer:path_arsenal&!fused (thinking) No fusion today. The recipes keep.
 
 ## fork_path
 - Question: Which shooter do we make?

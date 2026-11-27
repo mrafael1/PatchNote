@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="RuleEdit" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://rules/edit_hot_edges/edit_hot_edges.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"edit_hot_edges"
+title = "Hot edges"
+description = "The arena's outer two tiles hurt while you stand in them."
+conflicts = Array[StringName]([&"edit_bouncy_walls"])
+target = &"walls"
+warn_line = "thinking: Let's make it cozy."
+done_line = "happy: Okay, room to breathe."
+warn_seconds = 1.5
+duration = 10.0
+point_at = &"walls"
+photosensitive = false
+cmd_text = "set edges.heat on"

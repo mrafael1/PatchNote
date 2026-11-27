@@ -1,3 +1,16 @@
+# Next playtest: M50.3c, S10 "Level one" (the new last session)
+
+What is new since M50.6b (play S9 to its end):
+- **S9 now ends with a question:** "What shape should levels be?" Rooms (clear one, the door opens), Gauntlet (three arenas back to back) or Shifting (one arena that rebuilds itself).
+- **S10 "Level one" (v0.8.3)** plays your answer in three parts. Each part ends when its share of enemies is dead; the HUD and the rail say "part 1/3".
+- **The launcher** joins every path at the start: an Arcade card, the first choice of Auto's next level-up, a crate in Survival. On Arcade the AI writes a second recipe: Shotgun + Launcher = Cluster.
+- **Three new enemies, one per part, then mixed:** the shielder (shots on its front stop; go around it, or use blasts and beams), the sniper (a red line, then one fast shot), the swarm (five tiny ones at once).
+- **Hot edges** in part 3: the outer two tiles hurt.
+
+One-liners (defaults taken): which layout did you pick, and was it fun? About 3-4 minutes: right? Could you tell the shielder, sniper and swarm apart (they wear their old bodies plus an arc or a line)? Too hard compared with S9? Cluster or Prism: did you feel a choice?
+
+---
+
 # Next playtest: M50.6b, pixel projectiles
 
 What changed since M50.6a (the Pixel look only; play is the same):

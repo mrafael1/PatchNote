@@ -84,6 +84,18 @@ var shooter_projectile_speed := 320.0
 var shooter_near := 5.0 * TILE    # closer than this: back off
 var shooter_far := 8.0 * TILE     # farther than this: approach
 var shooter_range := 13.0 * TILE
+# M50.3c (PLAN v9 1.9): the three S10 enemies. Their HP, size and speed are variant data
+# (enemies/variants/*.tres); these are the numbers their behaviour reads.
+var shielder_turn_deg := 90.0     # degrees a second its shield turns toward the player
+var sniper_band_tiles := 3.0      # it keeps keep_range .. keep_range + this many tiles away
+var sniper_range_tiles := 18.0    # it aims from up to this far, with a clear line
+var sniper_fire_interval := 3.6   # seconds between two shots (the telegraph is inside it)
+var sniper_shot_speed := 1400.0   # px/s
+var swarm_spread := 44.0          # px: a pack's members land this far around its marker
+# M50.3c: edit_hot_edges. The band is this many tiles inside the arena's border.
+var hot_edge_tiles := 2
+var hot_edge_tick := 1.0          # game seconds stood in the band for one hit
+var hot_edge_damage := 1.0
 var enemy_accel := 1400.0         # low enough that knockback is visible
 var contact_range := 40.0
 var player_hit_knockback := 320.0

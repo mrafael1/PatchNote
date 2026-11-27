@@ -212,7 +212,8 @@ static func _unbuilt_problems(s: SessionDef) -> Array[String]:
 	var path_id := s.resolve(&"path") if SessionDef.fork_of(s.path) == &"" else &""
 	if path_id != &"" and not PathDB.has(path_id):
 		out.append("%s: path %s is not built yet" % [where, path_id])
-	if s.stages != &"" or s.goal == SessionDef.STAGES:
+	# M50.3c: a stage set under a clear goal is built (S10); goal stages itself is not.
+	if s.goal == SessionDef.STAGES:
 		out.append("%s: stages are not built yet (M50)" % where)
 	if s.hud != &"":
 		out.append("%s: hud is not built yet (M51)" % where)

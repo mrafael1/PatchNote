@@ -18,6 +18,9 @@ var hp_ratio := 1.0
 var dead := false
 ## M47: max HP never below this after the rules (0 = no floor; a splitter's minis: 1).
 var min_max_hp := 0.0
+## M50.3c (PLAN v9 1.9): asked before a hit lands; true stops it whole (a shielder's front:
+## no damage, shield_hit fires). Invalid (every other entity): nothing is asked.
+var guard := Callable()
 var _invuln_until := -1.0
 
 
@@ -58,6 +61,9 @@ func take(info: DamageInfo) -> bool:
 		return false
 	# M48b (PLAN 1.7.1): a specimen (S9's first asset) takes nothing until its release.
 	if get_parent().get(&"specimen") == true:
+		return false
+	if guard.is_valid() and guard.call(info):
+		shield_hit.emit(info)
 		return false
 	# Before the session has `health` nothing hurts the player, and nothing shows it:
 	# no i-frames, no telemetry, no player_hit (owner, M39.2).

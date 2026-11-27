@@ -10,7 +10,8 @@ const WALKER := "res://entities/enemy_walker.gd"
 
 func test_the_lists() -> void:
 	assert_eq(EnemyDB.BASES, NAMES, "the legacy order")
-	assert_eq(EnemyDB.VARIANTS, [&"splitter"] as Array[StringName], "M47: the splitter")
+	assert_eq(EnemyDB.VARIANTS, [&"splitter", &"shielder", &"sniper", &"swarm"] as Array[StringName],
+			"M47: the splitter; M50.3c: S10's three")
 	assert_eq(EnemyDB.base_of(&"splitter"), &"chaser")
 	assert_eq(EnemyDB.base_of(&"tank"), &"tank")
 	assert_eq(EnemyDB.base_of(&"nope"), &"")
@@ -23,7 +24,7 @@ func test_the_lists() -> void:
 	assert_eq(all.get_typed_builtin(), TYPE_STRING_NAME)
 	all.append(&"extra")
 	assert_eq(EnemyDB.BASES.size(), 5, "all() is a fresh array")
-	assert_eq(EnemyDB.all().size(), 6)
+	assert_eq(EnemyDB.all().size(), 9)
 	for id in NAMES:
 		assert_true(EnemyDB.has(id), id)
 	assert_false(EnemyDB.has(&"nope"))

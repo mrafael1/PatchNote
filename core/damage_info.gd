@@ -7,6 +7,8 @@ var kind: StringName = &"contact"    ## &"projectile", &"explosion", &"contact",
 var faction: StringName = &"enemy"   ## who dealt it: &"player" or &"enemy"
 var source_patch: StringName = &""   ## empty = base game, otherwise the patch id
 var pos := Vector2.ZERO
+## M50.3c: the shot goes on through its target (a shielder's shield does not stop it).
+var pierces := false
 
 
 static func make(p_amount: float, p_kind: StringName, p_faction: StringName,

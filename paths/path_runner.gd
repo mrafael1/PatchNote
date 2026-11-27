@@ -517,6 +517,10 @@ func _apply(id: StringName) -> void:
 		for w in def.start:
 			if not w in live_pool:
 				live_pool.append(w)
+		# M50.3c: what earlier sessions announced (SessionDef.known) is in the pool from the start.
+		if RunState.session != null:
+			for w in RunState.session.known:
+				announce(w)
 		_grow()
 	starts += 1
 	started.emit(id)

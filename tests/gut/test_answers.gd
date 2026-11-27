@@ -413,12 +413,14 @@ func test_path_cues_need_a_tryout_and_new_things_are_not_built_yet() -> void:
 	s.path = &"auto"
 	s.hp_floor = 1
 	var text := "\n".join(CampaignDB.problems(_campaign([s])))
-	for expected in ["room is not built yet", "checkpoint is not built yet",
+	for expected in ["checkpoint is not built yet",
 			"stages are not built yet", "spawn_weights must sum below 1",
 			"[laser] is not in the session's weapons or a path's offer_pool_extra"]:
 		assert_string_contains(text, expected)
 	# M45a: path auto, [tag], level and picked are built. M47.6c1: spawn_weights too.
-	for gone in ["spawn_weights are not built yet", "path is not built yet", "[tag] is not built yet", "level is not built yet", "path auto"]:
+	# M50.3c: `room` cues are built (a clear session in parts); goal stages itself is not.
+	for gone in ["spawn_weights are not built yet", "path is not built yet", "[tag] is not built yet", "level is not built yet", "path auto",
+			"room is not built yet"]:
 		assert_false(gone in text, gone)
 	s.cues = PackedStringArray(["at 3: path arsenal", "at 4: path survival", "at 5: path off", "picked 1: say x",
 			"at 6: drop shotgun", "at 7: drop ammo", "at 8: drop heal"])
