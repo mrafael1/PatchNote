@@ -1,4 +1,6 @@
-# Patch Notes - PLAN v9.4: Stage 2, the shooter grows
+# Patch Notes - PLAN v9.5: Stage 2, the shooter grows
+
+**v9.5 (2026-11-28, after M51; replay-feedback-2026-11-27, ui-v4-pick-2026-11-27, ui-real-pixel-art-request):** **Stage 1 chains on its own, and the Pixel look gets its real UI.** S0 to S3 no longer wait for `play`: each one starts about a second after the AI's last line, and S0 hands the controls over with a slide that goes too fast until a wall stops it. Real choices (the body pick, the dash pick) still pause. From the S9 reveal, the Pixel look swaps the version rail for **the cabinet**: the game in an arcade frame with a slim marquee, a deck under it with the AI on camera and a dock per path, the dev-chat on the right, hearts and the dash ring on the player, and one corner plate with a skull and the bugs left. Packs open all at once, in rows. The owner approved the pixel mockup on 2026-11-28 (`.check/mockups/ui_v4/concept_pixel.html`). Built as M47.7a, M47.7b, then M48.6a to M48.6f. **Section 0.9 is the authority for v9.5.** The Stage 2 path preview (try a path's final form, then give a verdict) is not in v9.5; it is listed in section 9.
 
 **v9.4 (2026-11-26, after M50.1b; stage1-phases-rework):** **Stage 1 and the game's phases are reworked.** The game boots on a dev desktop: the game window shows only the square, with the movement keys drawn under it and the square straining toward any key it cannot follow yet. **The AI talks from the first second** in the chat window beside it; **during a session its lines come in a small bubble on the game window**. **A session starts only when you type `play`** (or press Enter on the ghost `play`) in the chat. **There is no goal text**: a session ends when its fixed set of enemies is dead, or its script is done and a few seconds pass, or you die. **Between sessions the map does not reload**: the same room, you where you stood; only a death, a chapter or a resume reloads. After S2 the terminal becomes a proper chat (Blob in the header, bubbles, a patch card, quick replies). S3 is three kills; S4's walls grow in; S5 brings the new enemy much more often (owner: the crowd's base rate stays) and ends just after the gravity; S6 ends when its 28 are dead (the last few come to you); S7 is quicker and names each path (ARCADE, SURVIVAL, AUTO); Survival gets a revolver with its rounds above you. Built as M47.6a, b, c1, c2, d1, d2. **Section 0.8 is the authority for v9.4.** Design: `.check/stage1_rework/design.md`.
 
@@ -185,6 +187,83 @@ The owner shared a written plan for Stages 2 and 3 and answered the open points 
 | 6 | M48.5 next | M47.6a, b, c1, c2, d1, d2 first |
 
 **Determinism:** a session is (seed, data, answers, start point); refs are recorded from `player_start`; the chain hash proves the carry. Stage 1 cold refs move once (M47.6c1), the chain ref is born in M47.6c2, S7 and Survival refs move once (M47.6d1), Arcade / Auto S8 / S9 once (M47.6d2).
+
+---
+
+### 0.9 v9.5: Stage 1 chains, and the cabinet (this section wins over older text)
+*Owner (2026-11-27 replay, 2026-11-27 UI pick, 2026-11-28 approval of the pixel mockup and answers). Mockup: `.check/mockups/ui_v4/concept_pixel.html` (main checkout only; it is the visual reference for every M48.6 milestone).*
+
+#### 0.9.1 Stage 1 chains on its own (M47.7a, M47.7b)
+
+**Rules (owner):** typing `play` between sessions breaks the flow. **S0, S1, S2 and S3 start on their own.** The story is enough: the breather is the AI's own lines. A real choice still pauses the game (the body pick at S2's end, the dash picks at S3's end, the death ask). In S0 the player cannot move; the AI talks and hands the controls over with no `play` step. **When the controls land, the square slides too fast in the last direction the player tried, until it hits a wall.**
+
+**Owner answers (2026-11-28):** the next session starts **when the AI finishes talking** (no fixed countdown). "Skip to latest" on the title screen uses **a throwaway save**, never the real one (it applies when that entry is built; the title milestone owns it).
+
+**How it works:**
+- `SessionDef` gains `auto_start: bool` (default false). It is true on `s1_00_nothing`, `s1_01_move`, `s1_02_enemies` and `s1_03_shooting`. Nothing branches on a stage number.
+- `GameHost.hold()` still freezes the session at tick 0 (the HANDOFF pause) and types the session's `before_play` lines. With `auto_start`, the chat input does not open a gate. The host releases the hold **1.0 s after the terminal stops typing** (`GameHost.AUTO_START_DELAY`, real time, presentation only). The ghost `play`, the hint and the play pill are not shown for these sessions.
+- A key press during the lines does not skip them (movement keys still strain the square in S0). Enter skips the typing, as today; the 1.0 s then runs from there.
+- The four sessions' `before_play` lines lose their "type play" wording. The AI's words are the owner's to edit; the builder writes drafts in the same lowercase S0 voice.
+- **Where the gate stays:** S4 and later; a boot or Continue into any session **except S0** (the player may not be at the keyboard); "move on" after a death. A restart ("again") keeps today's carry with no gate.
+- **The slide (M47.7b).** The start point of a session gains one optional field, the **last tried direction** (a unit vector snapped to 8 ways, or zero). `SessionRunner` already counts tries; it now also remembers the last one. When `movement` is granted to a player whose session start carries a tried direction (S0 to S1), the player moves in that direction at `Tuning.handover_slide_mult` (3.0) times the normal speed and ignores input, until a wall blocks it or `Tuning.handover_slide_cap` (1.2 s) passes. The AI then says one line ("...too fast. fixing.") and the speed is normal. With a zero direction nothing happens.
+- The slide is real movement (it changes where S1 starts for a human), so it lives in gameplay code, reads no Palette or Skins, and draws no RNG.
+
+**Determinism:** the hold is hash-neutral today (`run_hash.gd --handoff=`), and the auto release only replaces the key press that ends it. Tool and bot hosts never gate, as before. For the slide: bots and `run_hash` never try a key in S0, so their tried direction is zero and no ref moves. **Gate for both milestones: no ref changed.** If the builder finds that a bot does try a key in S0 (so a ref would move), it stops and reports; a ref change needs the owner.
+
+**Tests (must fail without the change):** an `auto_start` session releases 1.0 s after the terminal is quiet, with no gate, no ghost and no pill; S4 still gates; a boot into S1 gates but a boot into S0 does not; a fork at S2's end still waits for its answer before the chain goes on; a scripted "left" try in S0 makes S1 start with a slide that ends at the left wall and ignores input meanwhile; a zero direction is a no-op; the chain hash and S0-S3 campaign hashes compare with 0 failures. `test_play_gate.gd` keeps its gate tests on S4.
+
+#### 0.9.2 The cabinet: the Pixel look's UI (M48.6a to M48.6f)
+
+**Rules (owner):** the UI must read as part of the pixel game, not as a dev overlay. The layout is the merged pick: frame A without bulbs, chat, host camera and package from C, open-all from B, card faces from A. **Before S9 nothing changes**: Stage 1 and S7-S8 keep today's look, and the cabinet arrives with the S9 reveal (`skin ui`), where the version rail arrives today. The cabinet **replaces the version rail** (M48.5a/b); the flat look (`--skins=off`, tier 0) keeps today's desktop and HUD.
+
+**The layout (design canvas 1600 x 900, as `RailLayout` today; all rects in design px):**
+
+| Piece | Rect | Holds |
+|---|---|---|
+| Cabinet | 12, 12, 1196, 876 | the frame, side trims, no bulbs |
+| Marquee | 34, 24, 1152, 42 | stage, session, path name, the version plate |
+| View | 34, 78, 1152, 648 | the game (16:9), the CRT edge |
+| Deck | 34, 748, 1152, 128 | host camera, caption, the path dock |
+| Chat | 1218, 12, 370, 876 | the dev-chat |
+
+**On the view:** hearts and the dash ring are drawn on the player (Survival: hearts under the feet, rounds above, the battery beside). The **corner plate** sits at the view's top left: a skull and the bugs left to the session's goal, counting down (Survival: a clock and the time left). It hides when the session has no count. The Auto XP bar runs along the view's bottom edge and gems fly into it.
+
+**In the deck:** the AI's body on camera at the left, with its mood plate and a caption that shows every line (also during picks). The dock takes the rest: **Arcade** shows the two-card hand (active tag, rank chip, fuse link) and the package with its xN badge and its kills gauge; **Auto** shows weapon cartridges and passive tokens with READY and MAX marks; **Survival** shows the revolver and its pickups.
+
+**The chat:** one pixel dev-chat (header with the AI's name and the version, a 2-line build log, bubbles, dividers, PATCH and HOTFIX slips, reply pills, the input). The "terminal (legacy)" tab is removed in the Pixel look.
+
+**Packs and cards:** one press opens every stacked pack. The packs fly out, shake and tear together; each deals a row of cards; the front row is live and the rows behind wait, smaller and dimmed; the pick flies into its hand slot and the next row comes forward. Past 4 packs the rest show as "+N more". Card faces say the tier by frame and ribbon (plum common, gold rare, holo epic, prism-striped fuse). **Owner (2026-11-28):** no rotating rays or halos anywhere; no banner on top of a card; **a rare or epic card flips as fast as a common one**, with a bigger burst (an epic adds a short flash and a shake). The fuse and the evolve keep their moment (the two cards meet, a flash, the result slams in), without rays.
+
+**Art rules:** one pixel grid, 3 screen px per art px at the design size (the rail's `art_px` is 2 today; the cabinet uses 3). Frames are code-drawn 9-slices; all text uses the pixel font at sizes that sit on the grid; no gradients, rounded corners or blurs. Colours go through Palette; grids live under `systems/skins/art/` or `ui/` art files as today; no image files. The mockup's kits (`.check/mockups/ui_v4/pixel_art/*.js`: guns, pack, frames, fx) are the source to port, grid for grid. Every tween, flash, shake, flip and spark respects `reduce_flashing` (the mockup's toggle shows the fade-only version).
+
+**Known gaps in the mockup that the build fixes (review findings, 2026-11-27):** small text off the grid (use on-grid sizes only); the fit scale snaps to whole screen px per art px where it can; the hand slots use the splash art, not the small icons; the pistol and laser grips need contrast on the art window; a maxed Auto weapon is not offered again.
+
+**Determinism:** presentation only. Pack contents are still drawn from `pick_rng`, same order, same count per pack, at the same tick as today; open-all only changes when they are shown and picked. **Gate for every M48.6 milestone: `check.ps1 -BotRuns` and the hash gates, no ref changed.** If open-all cannot keep the draw order (for example a pick changes what a later pack may offer and today's draw happens after the pick), M48.6d stops and reports before any ref moves.
+
+**Milestones (each ends playable; each is one PR; windowed captures compared with the mockup):**
+
+| # | Milestone | What it builds | Gate |
+|---|---|---|---|
+| M47.7a | **Stage 1 chains** | `auto_start`, the timed release, the S0-S3 lines | GUT, no ref changed |
+| M47.7b | **The handover slide** | the tried direction in the start point, the slide, the AI's line | GUT, no ref changed (or stop) |
+| M48.6a | **The cabinet frame** | `CabinetLayout` and `CabinetFrame` in place of the rail at `skin ui`: frame, marquee, view, empty deck, chat column rect; the frames kit ported; window base and mouse mapping | hashes, captures |
+| M48.6b | **The view's HUD and the host** | hearts and dash ring on the player, the corner plate, the camera with the caption and mood plate; the rail's KILLS / HP / DASH modules go | hashes, captures |
+| M48.6c | **The chat** | the pixel dev-chat in the chat column, no legacy tab | hashes, captures |
+| M48.6d | **The Arcade dock and packs** | hand, package with badge and gauge, open-all rows, the new card faces and pack art, the reveals, the fuse moment; the guns and pack kits ported | hashes (see Determinism), captures |
+| M48.6e | **The Auto dock** | the XP bar on the view, cartridges and tokens, the offer cards, the evolve moment, the hotfix slip | hashes, captures |
+| M48.6f | **The Survival dock** | revolver, rounds, pickups, the clock plate | hashes, captures |
+
+**What v9.5 overrides:**
+
+| Section | Before | v9.5 |
+|---|---|---|
+| 0.8 play | every session starts on `play` | S0-S3 start on their own; the gate stays from S4 and on a boot past S0 |
+| 0.8 S0 | movement arrives with S1, plainly | it arrives with a slide in the last tried direction |
+| 6.25 / 6.26 version rail | the Pixel UI from `skin ui` | replaced by the cabinet; the rail's files go once M48.6f lands |
+| 1.8 HUD (Pixel) | KILLS / HP / DASH modules | on the player, plus the corner plate |
+| 6.34 / 6.39 packs (Pixel) | one press per pack | one press opens all, in rows |
+
+**Defaults (mine, to confirm at the next playtest):** the gate stays from S4 on; a Continue into S1-S3 gates once; the slide is 3x speed with a 1.2 s cap; the slide's line; the corner plate counts the session's fixed set (a `clear` goal) or its kills goal; the marquee shows "STAGE n · Sxx · title"; in the flat look nothing changes.
 
 ---
 
@@ -2390,6 +2469,8 @@ Built in the `build/s11` worktree on M50.3c (7f65bc0). `BUILD = "M51"`. Design `
 ---
 
 ## 9. Still open (each with a proposed default)
+- **v9.5 defaults (ask at the next playtest):** S0-S3 start on their own about 1 s after the AI's last line; S4 and later still wait for `play`: keep the gate there, or chain the whole of Stage 1? A Continue into S1-S3 waits for `play` once: fine? The handover slide is 3x speed for at most 1.2 s, in the last direction you tried in S0: right feel? The cabinet replaces the version rail from S9 on and the flat look keeps today's HUD: fine?
+- **Not in v9.5 (owner, replay 2026-11-27; needs its own revision):** the Stage 2 paths as a preview then a verdict. The AI proposes three paths, a click previews a path's full final form, and the player gives a final verdict; the first click does not lock a path. Default until then: S7 and `fork_path` stay as built.
 - **M51 defaults (ask at the next playtest):** a weighted swarm is one spawn (budget unit) that brings its pack of 5: right, or should it count as 5? Survival's battery comes from three scripted drops near you, not from kills: enough? The `fork_hud` cards are text only until a HUD style exists: fine to pick from words? Part 3's breather is the new `part_rate` (spawns x0.8) plus the flee edit: does it feel like a break? Survival's S11 runs slightly long by bot (rooms median 211 s after the review fixes): shorten more? The flee edit lands at part 3 + 8 s (review; PLAN 3.2 had + 0 s): right moment?
 - **M51b defaults (ask at the next playtest):** the boot roll plays on every launch (about 3.6 s to land, 5 s in all); moving the focus or the mouse skips it: fine, or only on the first launch of a build? A tick names the session's first patch note (S4 has none: its title "A level"): right words? Replay rolls to the version the chosen session started on (v0.8.0 for Day one), not the mockup's v0.7.0. After the unveil there is no boot roll (the unveil was the show). The wheels hold one digit each: a minor version of 10 or more needs a wider wheel (none today). No game name on the title, as in the mockup.
 - **M50.7 defaults (ask at the next playtest):** the level-up pick line is said on picks 1, 2, then every 5th (three in ten): right cadence? The pack beats add 0.55 s before the cards and 0.35 s after a pick (0.3 s and 0.225 s with reduce flashing), capped there so a stack of three is not a chore: too long? Auto card plates use the rail's block capitals on Pixel (Pixelify stays for the text): readable? Auto difficulty is not retuned (owner, 2026-11-27): judge Auto S8 at the playtest. Bot hunt stays out of run_hash (Q1): its refs keep the old bot. The hotfix slip drops trailing ", " parts when short (keeps "Minigun 30 -> 15 shots/s"): fine, or wrap to two lines? Mouse hover is proven by GUT only: check it with a real mouse.
