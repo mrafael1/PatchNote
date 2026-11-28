@@ -221,7 +221,7 @@ static func allowed(g: Main) -> bool:
 			or RunState.is_paused_for(&"dev_session") or RunState.is_paused_for(&"report"):
 		return false
 	# M47.5a: not during the hot-reload. M47.6a (PLAN v9.4 2.5): Esc at the play gate opens it.
-	if RunState.is_paused_for(&"handoff") and not (g.host != null and g.host.gate and g.host.game == g):
+	if RunState.is_paused_for(&"handoff") and not (g.host != null and (g.host.gate or g.host.auto_wait) and g.host.game == g):
 		return false
 	var clock := TurnClock.current()
 	if clock != null and clock.in_turn():

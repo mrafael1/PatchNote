@@ -1,3 +1,16 @@
+# Next playtest: M47.7a, Stage 1 chains on its own
+
+What changed since M51 (Stage 1 only, S0 to S3; play is the same):
+- **No more `play` between S0, S1, S2 and S3.** The AI says its lines in the chat, and about 1 s after the last one the session starts. There is no ghost `play`, no "(type play)" hint and no play button there.
+- **S0 hands over by itself:** "hang on. wiring the keys." and then the square can move in S1 (the too-fast slide comes in the next build, M47.7b).
+- **Real choices still wait for you:** the body pick at the end of S2, the dash picks at the end of S3, and "again / move on" after a death.
+- **`play` is still asked** from S4 on, when you launch or Continue into S1-S3 (once; you may not be at the keyboard), and after "move on" from a death.
+- Enter skips the AI's typing; Esc still opens the pause menu.
+
+One-liners (defaults taken): is 1 s after the last line the right breath? Are the new lines right (mine, yours to edit)? Should S4 and later chain too?
+
+---
+
 # Next playtest: M51, S11 "Depth" (the new last session; no event yet)
 
 What is new since M50.3c (play S10 to its end):

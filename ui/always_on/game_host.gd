@@ -21,6 +21,12 @@ extends Control
 ## chains never gate (auto_play / auto_beats); tool hosts gate only their swaps (run_hash
 ## calls skip_handoff on frame 1).
 ##
+## M47.7a (PLAN v9.5, 0.9.1): a session with `auto_start` (S0-S3) chains on its own. It still
+## holds at tick 0 and its before_play lines still type, but no gate opens (no ghost, no hint,
+## no play pill): the hold releases AUTO_START_DELAY (real time) after the terminal stops
+## typing. The gate stays on a boot or Continue past the first session, after "move on" from a
+## death, and wherever gate_due() is false nothing changes (tools, bots, --autostart).
+##
 ## M47.6c2 (PLAN v9.4 0.8, design 2.7): no reload between Stage 1 sessions. The next session
 ## is still a fresh instance (a clean RunState.reset), but the swap is invisible: no glitch,
 ## the same arena, the player where it stood (capture_start -> Main.next_start), the room
@@ -55,6 +61,8 @@ const HANDOFF := &"handoff"
 const IDLE_HINT_S := 10.0
 const IDLE_HINT := "(type play)"
 const IDLE_HINT_FROM := 2
+## M47.7a: an auto_start session releases this long (real seconds) after the chat is quiet.
+const AUTO_START_DELAY := 1.0
 const GLITCH_SHADER := preload("res://systems/glitch.gdshader")
 ## M47.6c2: a leftover's pop at the beat (presentation; reduce flashing: a plain fade).
 const PUFF_S := 0.3
@@ -104,6 +112,13 @@ var _gate_usec := 0
 var _activity_usec := 0
 var _hint_shown := false
 var asking_first_run := false   ## the installer's question waits for 1 / 2
+## M47.7a: an auto_start hold: the lines type, then the host releases by itself (no gate).
+var auto_wait := false
+## M47.7a: the next hold gates even on an auto_start session (move on after a death; a restart
+## from a gate). Main sets it; hold() consumes it.
+var gate_next := false
+var _auto_hold := false         ## this hold is an auto_start one (decided in hold())
+var _quiet_usec := -1           ## when the terminal went quiet in an auto_wait (-1: still typing)
 ## M48.5a: the version rail (ui/rail/), the Pixel look's UI style: built on first need, shown
 ## while the look's `ui` group is on and no stage card is up (RailFrame.wanted). Off, the raw
 ## terminal and HUD stay exactly as before.
@@ -264,7 +279,7 @@ func _ready() -> void:
 	if asking_first_run:
 		ask_first_run()
 	if gate_due():   # M47.6a: the first session of a boot waits for play too
-		hold()
+		hold(true)   # M47.7a: a boot gates even an auto_start session (the first one excepted)
 
 
 func _exit_tree() -> void:
@@ -426,7 +441,7 @@ func _exit_chapter(_card: StageCard) -> void:
 		_chapter_rows = false
 		_session_rows()
 	if held:
-		_open_gate()
+		_open_hold()
 
 
 ## The terminal's rows for a session that just started: the speaker, the version, then
@@ -530,6 +545,8 @@ func next_session(restart := "") -> void:
 	# M47.6a: again / restart: the play already given carries over. Review: only a play that
 	# was given (released); a restart from the gate (still held) gates again.
 	_carry_play = restart != "" and not held
+	if restart != "" and held and gate:
+		gate_next = true   # M47.7a: a restart from a gate gates again, auto_start or not
 	_close_gate()
 	_reload_row = restart if restart != "" else "hot-reload game"
 	terminal.cmd_open(_reload_row)
@@ -586,11 +603,60 @@ func _swap() -> void:
 
 ## Holds the new session before its first tick until play (tools call skip_handoff on
 ## frame 1). The gate opens now, or after the stage card / the installer's answer.
-func hold() -> void:
+## M47.7a: `boot` is the first hold of a boot or Continue (_ready). An auto_start session
+## opens no gate and releases by itself (auto_start_due).
+func hold(boot := false) -> void:
 	held = true
+	_auto_hold = gate_due() and auto_start_due(RunState.session, boot, gate_next)
+	gate_next = false
 	RunState.set_pause(HANDOFF, true)
 	if not chapter and not asking_first_run:   # a chapter's gate comes after its card
+		_open_hold()
+
+
+## M47.7a (PLAN v9.5, 0.9.1): session `s` starts on its own: it says so (auto_start), the
+## player did not just move on from a death, and it is not a boot or Continue into it (the
+## player may not be at the keyboard), the campaign's first session excepted.
+static func auto_start_due(s: SessionDef, boot := false, after_death := false) -> bool:
+	if s == null or not s.auto_start or after_death:
+		return false
+	return not boot or CampaignDB.index_of(s.id) == 0
+
+
+## The held session's lines start: the play gate, or (auto_start) the lines alone.
+func _open_hold() -> void:
+	if _auto_hold:
+		_open_auto()
+	else:
 		_open_gate()
+
+
+## M47.7a: the before_play lines type with no gate; _auto_step releases after them. No
+## campaign default here: that one asks for play.
+func _open_auto() -> void:
+	if auto_wait or gate:
+		return
+	auto_wait = true
+	_quiet_usec = -1
+	for line in gate_lines(RunState.session, terminal.is_chat(), false):
+		terminal.type_line(line)
+
+
+## M47.7a: AUTO_START_DELAY of real time after the terminal stops typing, the hold releases.
+## The pause menu (Esc) stops the count while it is up.
+func _auto_step() -> void:
+	if terminal.is_busy() or _menu_up():
+		_quiet_usec = -1
+		return
+	var now := Time.get_ticks_usec()
+	if _quiet_usec < 0:
+		_quiet_usec = now
+	if (now - _quiet_usec) / 1000000.0 >= AUTO_START_DELAY:
+		_release()
+
+
+func _menu_up() -> bool:
+	return game != null and is_instance_valid(game) and game.pause_menu != null and game.pause_menu.is_open()
 
 
 func skip_handoff() -> void:
@@ -608,11 +674,16 @@ func give_play() -> void:
 
 func _release() -> void:
 	held = false
+	var auto := auto_wait
 	if gate:
 		play_wait_s = snappedf((Time.get_ticks_usec() - _gate_usec) / 1000000.0, 0.01)
+	elif auto:   # M47.7a: no gate, so nothing waited and nothing was typed at one
+		play_wait_s = 0.0
+		gate_typed = 0
 	_close_gate()
 	RunState.set_pause(HANDOFF, false)
-	terminal.you_said("play")
+	if not auto:
+		terminal.you_said("play")
 
 
 # --- The play gate (M47.6a, PLAN v9.4 2.5) ----------------------------------------------------
@@ -635,6 +706,7 @@ func _open_gate() -> void:
 
 func _close_gate() -> void:
 	gate = false
+	auto_wait = false
 	_arming = false
 	terminal.chat_input.close_gate()
 
@@ -642,12 +714,12 @@ func _close_gate() -> void:
 ## The lines a gate types for session `s`: its before_play (conditions passing), else the
 ## campaign's before_play_default (M47.6b: the chat's, capitalised, once it is up); {key:...}
 ## named for this keyboard.
-static func gate_lines(s: SessionDef, chat := false) -> Array[Line]:
+static func gate_lines(s: SessionDef, chat := false, fallback := true) -> Array[Line]:
 	var out: Array[Line] = []
 	var lines: Array[Line] = []
 	if s != null:
 		lines = Line.passing(s.before_play_lines(), CampaignDB.line_context(s))
-	if lines.is_empty() and CampaignDB.campaign != null:
+	if lines.is_empty() and fallback and CampaignDB.campaign != null:
 		lines = Line.parse_all(CampaignDB.campaign.before_play_default_for(chat))
 	for l in lines:
 		out.append(SessionRunner.with_keys(l))
@@ -693,8 +765,7 @@ func _gate_step() -> void:
 	if _arming and not terminal.is_busy():
 		_arming = false
 		input.arm()
-	var menu_up := game != null and is_instance_valid(game) and game.pause_menu != null and game.pause_menu.is_open()
-	if menu_up:
+	if _menu_up():
 		input.drop_focus()
 	elif not input.has_focus() and terminal.visible:
 		input.take_focus()
@@ -749,7 +820,7 @@ func answer_first_run(reduce: bool) -> void:
 	if not held:
 		RunState.set_pause(HANDOFF, false)
 	elif not chapter:
-		_open_gate()   # M47.6a: the AI's first lines, then the input
+		_open_hold()   # M47.6a: the AI's first lines, then the input (M47.7a: or no gate)
 
 
 ## M47.6b: the desktop's live texts: the version, the session and its newest basic, the chat's
@@ -794,11 +865,19 @@ func _process(_delta: float) -> void:
 		return
 	if gate:
 		_gate_step()
+	elif auto_wait:
+		_auto_step()
 
 
 ## The mouse over the terminal still aims: motion outside the game column reaches the game
 ## clamped to its edge (the shooter's aim does not freeze).
 func _input(event: InputEvent) -> void:
+	# M47.7a: Enter while an auto_start session's lines type shows them at once (the delay
+	# then runs from there). No other key skips them.
+	var key := event as InputEventKey
+	if key != null and auto_wait and key.pressed and not key.echo and ChatInput.is_enter(key) \
+			and not _menu_up() and terminal.is_busy():
+		terminal.finish()
 	var motion := event as InputEventMouseMotion
 	if motion == null or game == null:
 		return
