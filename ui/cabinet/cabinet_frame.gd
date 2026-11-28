@@ -16,6 +16,8 @@ extends RailFrame
 ## M48.6c: the chat column is one pixel dev-chat (CabinetChatView, drawn from the terminal's
 ## rows; CabinetChat dresses the terminal); the rail's paper log and its reply box are not
 ## built here.
+## M48.6d: Arcade's hand and package are the Arcade dock in the deck (CabinetDock), and a pack
+## opens on the pack stage over the view (CabinetPacks): every stacked pack on one press.
 ##
 ## Drawn from CabinetArt (the mockup's frames kit, grid for grid) on one pixel grid: 3 screen
 ## px per art px at 1600x900; the cabinet fills the window, so the art px is whole only where
@@ -46,6 +48,11 @@ const ChatDress := preload("res://ui/cabinet/cabinet_chat.gd")
 const ChatView := preload("res://ui/cabinet/cabinet_chat_view.gd")
 var chat_view: Control
 
+## M48.6d: the Arcade dock in the deck (a child of the frame) and the pack stage (a child of the
+## host over the glass and the plate: it also draws the flights down to the dock).
+var dock: CabinetDock
+var packs: CabinetPacks
+
 
 ## The cabinet's chat in place of the rail's (no drawing layer behind the rows, no reply box).
 func _build_chat() -> void:
@@ -62,7 +69,7 @@ func _place_chat(l: Dictionary) -> void:
 
 func _exit_tree() -> void:
 	super()
-	for n: Node in [glass, plate, player_hud]:
+	for n: Node in [glass, plate, player_hud, packs]:
 		if n != null and is_instance_valid(n):
 			n.queue_free()
 
@@ -79,6 +86,9 @@ func set_on(want: bool) -> void:
 	if plate != null and is_instance_valid(plate):
 		_place_plate()
 		plate.call(&"note")
+	if packs != null and is_instance_valid(packs):
+		packs.visible = on
+		_bind_packs()
 
 
 ## The caption (in the deck, a child of the frame) and the corner plate (a child of the host,
@@ -92,12 +102,27 @@ func _ensure_parts() -> void:
 		var t: Node = host.get(&"terminal")
 		if t != null and t.has_signal(&"said"):
 			t.connect(&"said", cap_box.say)
+	if dock == null:
+		dock = CabinetDock.new()
+		dock.name = "Dock"
+		dock.frame = self
+		dock.visible = false
+		add_child(dock)
+	var fresh := false
 	if plate == null or not is_instance_valid(plate):
 		plate = Plate.new()
 		plate.name = "CabinetPlate"
 		plate.set(&"frame", self)
 		plate.visible = false
 		host.add_child(plate)
+		fresh = true
+	if packs == null or not is_instance_valid(packs):
+		packs = CabinetPacks.new()
+		packs.name = "CabinetPacks"
+		packs.frame = self
+		host.add_child(packs)
+		fresh = true
+	if fresh:
 		_order_over_view()
 
 
@@ -108,7 +133,7 @@ func _order_over_view() -> void:
 	if v == null:
 		return
 	var at := v.get_index() + 1
-	for n: Node in [glass, plate]:
+	for n: Node in [glass, plate, packs]:
 		if n != null and is_instance_valid(n) and n.get_parent() == host:
 			host.move_child(n, at)
 			at = n.get_index() + 1
@@ -162,6 +187,16 @@ func refresh() -> void:
 		_ensure_player_hud()
 	if plate != null and is_instance_valid(plate):
 		plate.call(&"note")
+	_bind_packs()
+
+
+## The pack stage follows the live game's pick panel (made on the path's first use; none
+## between sessions or while the cabinet is off).
+func _bind_packs() -> void:
+	if packs == null or not is_instance_valid(packs):
+		return
+	var p: Variant = game.get(&"pick_panel") if on and game != null and is_instance_valid(game) else null
+	packs.bind(p as PickPanel if p != null and is_instance_valid(p) else null)
 
 
 func _ensure_glass() -> void:
@@ -173,9 +208,7 @@ func _ensure_glass() -> void:
 	glass.process_mode = Node.PROCESS_MODE_ALWAYS
 	glass.draw.connect(_draw_glass)
 	host.add_child(glass)
-	var v: Node = host.get(&"view")
-	if v != null:
-		host.move_child(glass, v.get_index() + 1)   # over the game, under the glitch and the fade
+	_order_over_view()   # over the game, under the plate, the pack stage, the glitch and the fade
 	_place_glass()
 
 
@@ -198,6 +231,10 @@ func apply_layout(l: Dictionary) -> void:
 	_place_plate()
 	if cap_box != null:
 		cap_box.queue_redraw()
+	if dock != null:
+		dock.queue_redraw()
+	if packs != null and is_instance_valid(packs):
+		packs.queue_redraw()
 
 
 ## One art pixel in screen px.

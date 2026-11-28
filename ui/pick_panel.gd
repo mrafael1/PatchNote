@@ -71,6 +71,13 @@ extends CanvasLayer
 ## flipping in, inside fuse_time() (FUSE_BEAT in a real window). The mascot's bubble parks while a panel is open. A live nerf's
 ## note can show as a toast (note()). Every beat is real time inside the pause; reduce flashing
 ## keeps fades only (no shake, no flash) and shortens them.
+##
+## M48.6d (the cabinet's packs): while the cabinet shows (`stage` set and live), a pack's own step
+## is drawn by the cabinet's pack stage (CabinetPacks, over the view at the window's own pixels):
+## this panel keeps the pause, the input delay, the keys and the focus, and its buttons are
+## frameless hit areas under the stage's cards (no card face, no dim, no hand preview here). The
+## replace step and the give step stay this panel's. With `beats` the intro, the slot-in and the
+## fuse take the stage's times; headless they take none, as before.
 
 signal picked(offer: PickOffer, index: int)
 ## M50.1a: the replace step's Back (the pack stays open).
@@ -143,6 +150,12 @@ var _line_gap: Control             ## M50.7 review: room between a pack's title 
 ## M50.7 review: where the chosen card flies (a point in this panel's coordinates); main sets it to
 ## the rail's HAND module or the flat hand widget. Unset: the flat hand's corner.
 var hand_target: Callable
+## M48.6d: the cabinet's pack stage (CabinetFrame binds it; null with no cabinet).
+var stage: CabinetPacks
+var _dim: ColorRect
+var _hits: Control                 ## M48.6d: the staged pack's hit buttons (placed by the stage's rects)
+var _staged_built := false
+var _deal_fresh := true
 
 
 func _ready() -> void:
@@ -152,10 +165,10 @@ func _ready() -> void:
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.visible = false
 	add_child(_root)
-	var dim := ColorRect.new()
-	dim.color = Color(Palette.SCRIM_PICK, 0.55)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_root.add_child(dim)
+	_dim = ColorRect.new()
+	_dim.color = Color(Palette.SCRIM_PICK, 0.55)
+	_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_root.add_child(_dim)
 	var column := VBoxContainer.new()
 	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	column.alignment = BoxContainer.ALIGNMENT_END
@@ -197,6 +210,10 @@ func _ready() -> void:
 	_pack_art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_pack_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(_pack_art)
+	_hits = Control.new()
+	_hits.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hits.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(_hits)
 	_toast = Label.new()
 	_toast.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	_toast.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -228,6 +245,11 @@ func is_open() -> bool:
 	return _root.visible
 
 
+## M48.6d: the cabinet's pack stage draws this offer (a pack, not a give step, the cabinet live).
+func staged() -> bool:
+	return stage != null and is_instance_valid(stage) and offer != null and offer.pack and not offer.give_step and stage.live()
+
+
 ## M50.2a: a 1-card pack, applied by the PathRunner without a pause: its line shows for
 ## TOAST_TIME (a new toast replaces the one showing).
 func toast(p_offer: PickOffer) -> void:
@@ -247,6 +269,8 @@ func toast(p_offer: PickOffer) -> void:
 	_toast.modulate = Color(1, 1, 1, 1)
 	_toast.visible = true
 	_toast_left = TOAST_TIME
+	if stage != null and is_instance_valid(stage):   # M48.6d: its card flies into the hand slot
+		stage.toasted(p_offer)
 
 
 ## M50.7: a line in the toast's place with no card (a live nerf's patch note on the flat HUD),
@@ -294,6 +318,8 @@ func open(p_offer: PickOffer) -> bool:
 	_reveal_t = 0.0
 	# M50.7: a pack drops and tears first (beats); the deal and the input delay start after it.
 	_intro_total = intro_time() if beats and offer.pack else 0.0
+	if staged():   # M48.6d: the stage's intro (the packs fly out, or the next row comes forward)
+		_intro_total = stage.opening(self)
 	_intro = _intro_total
 	_build()
 	_locked_for = input_delay
@@ -398,6 +424,10 @@ func _build() -> void:
 	_choice_faces.clear()
 	_fuse_faces.clear()
 	_hand_link = 0
+	_staged_built = staged()
+	var on_stage := _staged_built and _replacing < 0
+	_dim.visible = not on_stage
+	_pack_art.visible = not _staged_built
 	# M50.7 review: a pack's lifted card (its tier plate) cleared the title only by a few px.
 	_line_gap.custom_minimum_size.y = 26.0 if offer.pack and not offer.give_step and _replacing < 0 else 0.0
 	var hints := Settings.key_hints()
@@ -433,11 +463,23 @@ func _build() -> void:
 		return
 	if _fusing > 0.0:
 		_line.text = "Fusing... %s" % _fused_title
+		if on_stage:   # M48.6d: the stage plays the fuse moment
+			_line.visible = false
+			return
 		_build_fuse_faces()
 		return
 	_line.text = offer.line + waiting_text()
 	if dressed():
 		_build_dressed(hints)
+		return
+	if on_stage:   # M48.6d: the stage draws the row; the buttons are the hit areas under its cards
+		_line.visible = false
+		var n := offer.cards.size() + (1 if has_fuse() else 0)
+		for i in n:
+			_add_hit(choose.bind(i))
+		_place_hits()
+		stage.dealt(self, _deal_fresh)
+		_deal_fresh = true
 		return
 	for i in offer.cards.size():
 		if offer.pack:   # M50.2c: a card face
@@ -480,6 +522,39 @@ func _add_card(face: Dictionary, on_press: Callable, tip := "") -> void:
 	_frames.append(b)
 	_buttons.append(b)
 	_faces.append(f)
+
+
+## M48.6d: a staged pack card's hit area: a frameless Button (its keys, focus, click and the input
+## delay) with nothing drawn; the stage draws the card over it.
+func _add_hit(on_press: Callable) -> void:
+	var b := Button.new()
+	var empty := StyleBoxEmpty.new()
+	for st: StringName in [&"normal", &"hover", &"pressed", &"focus", &"disabled", &"hover_pressed"]:
+		b.add_theme_stylebox_override(st, empty)
+	b.disabled = true
+	b.pressed.connect(on_press)
+	b.mouse_entered.connect(_hover.bind(b))
+	_hits.add_child(b)
+	_frames.append(b)
+	_buttons.append(b)
+
+
+## M48.6d: the hit areas follow the stage's cards (the window can resize under an open pack).
+func _place_hits() -> void:
+	if stage == null or not is_instance_valid(stage) or _buttons.is_empty():
+		return
+	var rects := stage.hit_rects(_buttons.size())
+	for i in _buttons.size():
+		if _buttons[i].get_parent() == _hits:
+			_buttons[i].position = rects[i].position
+			_buttons[i].size = rects[i].size
+
+
+## M48.6d: the slot-in's progress for the stage: [the picked choice, 0..1], [-1, 0.0] when none.
+func outro_progress() -> Array:
+	if _outro <= EPS or _outro_total <= 0.0:
+		return [-1, 0.0]
+	return [_outro_pick, clampf(1.0 - _outro / _outro_total, 0.0, 1.0)]
 
 
 ## M50.7: the give / replace step's choice j as a mini face: a hand card ("Replace Pistol 12":
@@ -843,24 +918,29 @@ func after_fuse(next: PickOffer, title: String) -> void:
 		for h: Dictionary in offer.hand:
 			_fuse_parts["rank_" + String(h.id)] = int(h.rank)
 	_fuse_second = false
+	var before: Array = offer.hand.duplicate(true) if offer != null else []
 	offer = next
 	_replacing = -1
 	_fused_title = title
 	_fuse_total = fuse_time()
 	_fusing = _fuse_total
+	if staged() and not f.is_empty():   # M48.6d: the stage's fuse moment
+		stage.fusing(f, before, _fuse_total)
 	_build()
 
 
 ## M50.7 review: the fuse's length: FUSE_BEAT in a real window (the result card reads), else
 ## FUSE_TIME (headless bots and tests keep theirs; reduce flashing keeps it short).
 func fuse_time() -> float:
+	if beats and staged():   # M48.6d: the stage's moment (the cards fly up, meet, the stamp, the note)
+		return stage.fuse_time()
 	return FUSE_BEAT if beats and not SaveGame.reduce_flashing() else FUSE_TIME
 
 
 ## M50.7 review: while the fuse shows its two parents, [{id, title, rank}] of them (the rail's hand
 ## shows them, not the result), else [].
 func fuse_hand() -> Array:
-	if not fusing() or _fuse_second or _fuse_parts.is_empty():
+	if not fusing() or _fuse_second or _fuse_parts.is_empty() or staged():   # M48.6d: the stage has its own
 		return []
 	var out := []
 	for p: StringName in [_fuse_parts.a, _fuse_parts.b]:
@@ -928,6 +1008,7 @@ func back() -> void:
 	if not can_choose() or _replacing < 0 or offer.give_step:
 		return
 	_replacing = -1
+	_deal_fresh = false   # M48.6d: the same row again, face-up
 	_build()
 	_relock()
 	went_back.emit(offer)
@@ -963,10 +1044,16 @@ func _process(delta: float) -> void:
 		return
 	var real := delta / maxf(Engine.time_scale, 0.001)
 	_pack_art.queue_redraw()
+	if offer != null and offer.pack and _staged_built != staged():   # M48.6d: the cabinet came or went
+		_build()
+		if _locked_for <= 0.0 and _intro <= EPS and _outro <= EPS and _fusing <= 0.0:
+			_unlock()
+	if _staged_built:
+		_place_hits()
 	if _intro > EPS:   # M50.7: the pack drops and tears; the deal and the lock wait for it
 		var was := beat_phase()
 		_intro -= real
-		if beat_phase() == &"tear" and was == &"drop":
+		if beat_phase() == &"tear" and was == &"drop" and (not _staged_built or stage.packs_intro()):
 			_play(&"pack_tear")
 		if _intro <= EPS:
 			_intro = 0.0
@@ -1010,6 +1097,11 @@ func _process(delta: float) -> void:
 ## flips in (a fade under reduce flashing). Inside fuse_time().
 func _fuse_step() -> void:
 	var k := clampf(1.0 - _fusing / _fuse_total, 0.0, 1.0)
+	if _staged_built:   # M48.6d: the stage draws the moment; the chime when the two cards meet
+		if k >= 0.42 and not _fuse_second:
+			_fuse_second = true
+			_play(&"fuse_chime")
+		return
 	if k >= 0.5 and not _fuse_second and not _fuse_parts.is_empty():
 		_fuse_second = true
 		for f in _fuse_faces:
@@ -1047,6 +1139,8 @@ func dismiss() -> void:
 	_toast_left = 0.0
 	if _toast != null:
 		_toast.visible = false
+	if stage != null and is_instance_valid(stage):
+		stage.closed()
 	RunState.set_pause(PAUSE, false)
 
 
@@ -1118,12 +1212,15 @@ func choose(i: int) -> void:
 		_relock()
 		return
 
-	if beats and offer.pack and direct and i < _faces.size():   # M50.7: the slot-in first, still paused
+	var on_stage := staged()
+	if beats and offer.pack and direct and (i < _faces.size() or on_stage):   # M50.7: the slot-in first, still paused
 		for b in _buttons:
 			b.disabled = true
 		_outro_pick = i
-		_outro_total = outro_time()
+		_outro_total = stage.outro_time() if on_stage else outro_time()   # M48.6d: the stage's flight
 		_outro = _outro_total
+		if on_stage:
+			stage.picking(self, i)
 		_update_reveal()
 		return
 	_land_pick(i)
