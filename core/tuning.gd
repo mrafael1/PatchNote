@@ -17,7 +17,8 @@ var player_speed := 330.0
 var player_accel := 3200.0
 var player_friction := 3600.0
 var handover_slide_mult := 3.0       ## M47.7b: the handover slide's speed, times the normal speed
-var handover_slide_cap := 1.2        ## M47.7b: ... and its longest run, seconds of game time (a wall ends it sooner)
+var handover_slide_cap := 2.0        ## M47.7b: ... and a safety only, seconds of game time: a wall ends every slide
+                                     ## from S1's start sooner (the longest, left or right, takes about 1.7 s)
 var player_max_hp := 5
 var player_hit_invuln := 0.8
 var shoot_cooldown := 0.18

@@ -3,7 +3,8 @@ extends GutTest
 ## while the build could not move (8 ways); the session start point carries it into the next
 ## session (GameHost.capture_tried -> Main.next_tried -> Genre.carried_tried) when the carry
 ## applies; when `movement` lands on that player it runs that way at 3x its speed, deaf to the
-## input, until a wall or the 1.2 s cap; then the AI says its line once and all is as usual.
+## input, until a wall (the 2.0 s cap is a safety only); then the AI says its line once and all
+## is as usual.
 ## A zero direction touches nothing; a death, a retry, a restart or a boot carry none.
 
 const Fx := preload("res://tests/gut/fixtures.gd")
@@ -248,16 +249,54 @@ func test_a_left_try_in_s0_slides_s1_to_the_left_wall() -> void:
 	assert_false(p.is_sliding())
 
 
-## In the open (the wall is 32 tiles away) the cap ends it: 1.2 s of game time.
-func test_in_an_open_arena_the_cap_ends_the_slide() -> void:
-	var g := await _game(S1, Vector2.LEFT)
+## From S1's real start (where S0 left the square) every one of the 8 ways ends on a wall,
+## well before the cap (owner: "until it hits a wall").
+func test_from_s1s_start_every_direction_ends_on_a_wall() -> void:
+	var longest := 0.0
+	for d: Vector2i in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1),
+			Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
+		var dir := Vector2(d).normalized()
+		var g := await _game(S1, dir)
+		var p := g.player
+		_scripted(g)
+		assert_eq(g.run_loop.start_point, g.arena.player_start, "S1's own start")
+		var t0 := RunState.game_time
+		var ticks := 0
+		while p.is_sliding() and ticks < 300:
+			await wait_physics_frames(1)
+			ticks += 1
+		var took := RunState.game_time - t0
+		longest = maxf(longest, took)
+		assert_true(p.slid, "%s: over" % d)
+		assert_lt(took, Tuning.handover_slide_cap - 0.2, "%s: a wall ended it, not the cap" % d)
+		assert_eq(p.velocity, Vector2.ZERO, "%s: stopped dead" % d)
+		# Against a wall it was heading for: within the body's half size (17 px) of the inner edge.
+		var inner := g.arena.bounds.grow(-Tuning.TILE)
+		var gap := INF
+		if d.x != 0:
+			gap = minf(gap, absf((inner.position.x if d.x < 0 else inner.end.x) - p.global_position.x))
+		if d.y != 0:
+			gap = minf(gap, absf((inner.position.y if d.y < 0 else inner.end.y) - p.global_position.y))
+		assert_lt(gap, 20.0, "%s: on its wall" % d)
+		gut.p("slide %s: %.2f s to the wall" % [d, took])
+		g.free()
+		await wait_physics_frames(1)
+	gut.p("longest slide from S1's start: %.2f s (cap %.1f s)" % [longest, Tuning.handover_slide_cap])
+
+
+## The cap is a safety: with more room than any slide from S1's start has (the far side of the
+## room, 61 tiles from the left wall), it ends the slide after Tuning.handover_slide_cap.
+func test_with_no_wall_in_reach_the_cap_ends_the_slide() -> void:
+	var far := Vector2(Tuning.TILE * 62.5, Tuning.TILE * 14.0)
+	var g := await _game(S1, Vector2.LEFT, far)
+	assert_eq(g.run_loop.start_point, far, "the carried start")
 	var p := g.player
 	assert_true(p.is_sliding())
 	var input := _scripted(g, Vector2.DOWN)
 	var from := p.global_position
 	var t0 := RunState.game_time
 	var ticks := 0
-	while p.is_sliding() and ticks < 200:
+	while p.is_sliding() and ticks < 300:
 		await wait_physics_frames(1)
 		ticks += 1
 	assert_true(p.slid)
