@@ -1,3 +1,16 @@
+# Next playtest: M48.6c, the chat (third of six UI steps)
+
+What changed since M48.6b (play S9 past its `skin ui` moment, then S10 on each path; die once, and answer the question from the chat):
+- **The chat is a pixel dev-chat now.** The cream paper log and the reply box are gone. The column beside the cabinet is one dark chat: at the top the AI's body, its name, "your developer (AI)", a blinking "live · patching" and the version; under it two lines of build log (the last `$` commands).
+- **Messages are bubbles.** The AI's lines sit left under its name and mood, your replies sit right in violet, sessions and chapters are thin dividers. A patch is a PATCH card with ADD / CHANGE / FIX tags; a live fix is a taped yellow HOTFIX slip. While the AI thinks you see three dots.
+- **Answer from the chat.** A question shows its choices as pills (`[1] ...`, the first one lit); when a choice has a description it is also written in full in the chat. Click a pill or the choice, or press its number. At a play gate the pill says `play` and the input shows a ghost `play`: type it, press Enter, or click.
+- **The mouse wheel scrolls back** through the chat; a new line brings you back to the end.
+- **No "terminal (legacy)" tab** in the cabinet. Before S9, and with no look, the chat is the old one, tab included.
+
+One-liners (defaults taken): is the text a good size at your window? The chat starts empty at the S9 reveal (earlier lines stay in the old chat): fine? The pills only appear when there is something to answer: fine, or always there? Is the AI's name over the first bubble of a run enough, or over every bubble?
+
+---
+
 # Next playtest: M48.6b, the view's HUD and the host (second of six UI steps)
 
 What changed since M48.6a (play S9 past its `skin ui` moment, then S10 on each path):

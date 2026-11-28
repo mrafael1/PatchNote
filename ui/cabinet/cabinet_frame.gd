@@ -8,12 +8,14 @@ extends RailFrame
 ## a deck under it; the dev-chat stands beside it. No bulbs, no game name.
 ##
 ## M48.6a is the frame only, and the game stays fully playable in it: the rail's own pieces
-## live on inside (RailFrame's modules, chat, reply box and body, which this class inherits
-## and lays out through CabinetLayout): the path's modules dock in the deck, the AI's body sits
-## in the deck's camera box, the chat log and the reply box fill the chat column. They are
-## restyled one by one in M48.6c-f. The rail's version track is gone: the marquee's plate
-## shows the version. M48.6b: KILLS / HP / DASH are on the player and on the view's corner
-## plate, and the host's caption stands beside its camera (see below).
+## live on inside (RailFrame's modules and body, which this class inherits and lays out
+## through CabinetLayout): the path's modules dock in the deck, the AI's body sits in the
+## deck's camera box. They are restyled one by one in M48.6d-f. The rail's version track is
+## gone: the marquee's plate shows the version. M48.6b: KILLS / HP / DASH are on the player
+## and on the view's corner plate, and the host's caption stands beside its camera (see below).
+## M48.6c: the chat column is one pixel dev-chat (CabinetChatView, drawn from the terminal's
+## rows; CabinetChat dresses the terminal); the rail's paper log and its reply box are not
+## built here.
 ##
 ## Drawn from CabinetArt (the mockup's frames kit, grid for grid) on one pixel grid: 3 screen
 ## px per art px at 1600x900; the cabinet fills the window, so the art px is whole only where
@@ -37,6 +39,25 @@ const PlayerHud := preload("res://ui/cabinet/cabinet_player_hud.gd")
 var cap_box: Control
 var plate: Control
 var player_hud: Node2D
+
+## M48.6c: the dev-chat in the chat column (the header, the build log, the messages, the reply
+## pills, the input line) and the terminal's dresser that hands it the rows.
+const ChatDress := preload("res://ui/cabinet/cabinet_chat.gd")
+const ChatView := preload("res://ui/cabinet/cabinet_chat_view.gd")
+var chat_view: Control
+
+
+## The cabinet's chat in place of the rail's (no drawing layer behind the rows, no reply box).
+func _build_chat() -> void:
+	chat = ChatDress.new(self)
+	chat_view = ChatView.new()
+	chat_view.name = "Chat"
+	chat_view.set(&"frame", self)
+	add_child(chat_view)
+
+
+func _place_chat(l: Dictionary) -> void:
+	chat_view.call(&"place", l.chat)
 
 
 func _exit_tree() -> void:
@@ -173,7 +194,6 @@ func layout_for(window: Vector2) -> Dictionary:
 
 func apply_layout(l: Dictionary) -> void:
 	super(l)
-	reply.clip_contents = true   # the narrower column: a long question never runs off the box
 	_place_glass()
 	_place_plate()
 	if cap_box != null:
@@ -223,7 +243,7 @@ func marquee_version() -> String:
 # --- Drawing ------------------------------------------------------------------------------------
 
 ## The static cabinet: the backdrop, the body with its grain, the side trims, the rivets, the
-## screen's bezel, the deck and its camera box, the chat column's paper cells.
+## screen's bezel, the deck and its camera box (the chat column draws itself: chat_view).
 func _draw_chrome(ci: Control) -> void:
 	if not layout.get("cabinet", false):
 		return
@@ -249,15 +269,6 @@ func _draw_chrome(ci: Control) -> void:
 	# The deck and the camera box.
 	CabinetArt.draw9_rect(ci, &"deck", layout.deck, a)
 	_draw_camera(ci)
-	# The chat column: the rail's paper log and reply box (M48.6c restyles them).
-	var p := px()
-	for r: Rect2 in [layout.log, layout.reply]:
-		ci.draw_rect(r.grow(p), RailArt.c(&"ink"))
-		RailArt.bevel(ci, r, RailArt.c(&"paper"), RailArt.c(&"paper_hi"), RailArt.c(&"paper_lo"), p)
-	var lg: Rect2 = layout.log
-	var head := Rect2(lg.position, Vector2(lg.size.x, roundf(RailLayout.HEADER_H * s())))
-	RailArt.bevel(ci, head, RailArt.c(&"cell"), RailArt.c(&"hi"), RailArt.c(&"cell"), p)
-	ci.draw_rect(Rect2(Vector2(head.position.x, head.end.y - p), Vector2(head.size.x, p)), RailArt.c(&"ink"))
 
 
 ## The host camera box in the deck: its frame, its floor, its brackets.
@@ -272,7 +283,7 @@ func _draw_camera(ci: Control) -> void:
 
 
 ## The live layer (the rail's track layer, redrawn every frame): the marquee and its texts,
-## the camera's REC dot, the chat's header.
+## the camera's REC dot.
 func _draw_track(ci: Control) -> void:
 	if not layout.get("cabinet", false):
 		return
@@ -326,7 +337,6 @@ func _draw_track(ci: Control) -> void:
 		_draw_camera(ci)
 	CabinetArt.orn(ci, &"rec_dot" if blink(1.0) else &"rec_off", hb.position + Vector2(3, 28) * a, a)
 	CabinetArt.draw_digits(ci, "REC", Vector2(hb.end.x - 14 * a, hb.position.y + 28 * a), a, CabinetArt.c(&"pink_hi"))
-	chat.draw_header(ci)
 
 
 ## The CRT glass over the game: scanlines (every third art row), the glare streak top-left,

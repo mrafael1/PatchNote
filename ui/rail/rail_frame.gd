@@ -80,13 +80,19 @@ func _ready() -> void:
 	modules.name = "Modules"
 	modules.frame = self
 	add_child(modules)
+	_build_chat()
+	visible = false
+
+
+## The chat's pieces: the terminal's dresser, its drawing layer behind the rows, the reply box.
+## M48.6c: the cabinet builds its own (one pixel dev-chat; no layer, no reply box).
+func _build_chat() -> void:
 	chat = Chat.new(self)
 	chat_layer = _layer("ChatLayer", chat.draw_layer)
 	reply = Reply.new()
 	reply.name = "Reply"
 	reply.frame = self
 	add_child(reply)
-	visible = false
 
 
 func _exit_tree() -> void:
@@ -254,6 +260,19 @@ func apply_layout(l: Dictionary) -> void:
 	layout = l
 	if not l.get("rail", false):
 		return
+	_place_chat(l)
+	if blob != null:
+		blob.call(&"place", l.blob)
+	var t: TerminalPanel = host.get(&"terminal")
+	if t != null and t.dresser == chat:
+		t.call(&"_style_back")   # the insets follow the scale
+	chrome.queue_redraw()
+	track.queue_redraw()
+	modules.queue_redraw()
+
+
+## The reply box and the chat's layer in their rects (M48.6c: the cabinet places its own chat).
+func _place_chat(l: Dictionary) -> void:
 	reply.position = l.reply.position
 	reply.size = l.reply.size
 	reply.call(&"layout_input")
@@ -263,14 +282,6 @@ func apply_layout(l: Dictionary) -> void:
 	chat_layer.position = lg.position + Vector2(0, head)
 	chat_layer.size = Vector2(lg.size.x, lg.size.y - head - px())
 	chat_layer.clip_contents = true
-	if blob != null:
-		blob.call(&"place", l.blob)
-	var t: TerminalPanel = host.get(&"terminal")
-	if t != null and t.dresser == chat:
-		t.call(&"_style_back")   # the insets follow the scale
-	chrome.queue_redraw()
-	track.queue_redraw()
-	modules.queue_redraw()
 
 
 ## Reads the game now and redraws what changed (tests call it directly).
@@ -290,7 +301,8 @@ func _process(_delta: float) -> void:
 	refresh()
 	chat.step()
 	track.queue_redraw()
-	chat_layer.queue_redraw()
+	if chat_layer != null:
+		chat_layer.queue_redraw()
 	if bool(snap.get("dash", {}).get("on", false)) and not bool(snap.dash.ready):
 		modules.queue_redraw()
 

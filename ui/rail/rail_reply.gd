@@ -29,8 +29,13 @@ func _process(_delta: float) -> void:
 
 ## The open question now: {question, who, choices: Array[String], prompt: bool}.
 func state() -> Dictionary:
+	return state_of(frame.host.get(&"terminal") if frame != null and frame.host != null else null)
+
+
+## M48.6c: the same reading for any reader of the terminal's rows (the cabinet's chat has no
+## reply box; its pills and its input read this).
+static func state_of(t: TerminalPanel) -> Dictionary:
 	var out := {"question": "", "who": "", "choices": [] as Array[String], "prompt": false, "gate": false}
-	var t: TerminalPanel = frame.host.get(&"terminal") if frame != null and frame.host != null else null
 	if t == null:
 		return out
 	out.who = t.speaker

@@ -10,6 +10,12 @@ extends GutTest
 ## RailFrame that lays these same pieces out in its own layout; the rail's version track and
 ## the caption under the game are gone. RailLayout itself is still tested here (its cells and
 ## text sizes are what the docked pieces use); everything else below runs inside the cabinet.
+##
+## M48.6c: the cabinet has its own chat (test_cabinet_chat.gd): the rail's paper log and its
+## reply box are not built any more. What is still alive of them is tested here: the rail
+## chat's marking of the rows (hotfix, patch, hidden choices, the answer's text), which the
+## cabinet's dresser inherits, and the reply box's reading of the open question
+## (RailFrame.Reply.state_of), which the cabinet's pills use.
 
 const S1 := &"s1_01_move"
 const S4 := &"s1_04_level"
@@ -108,8 +114,8 @@ func test_the_game_is_16_9_and_nothing_overlaps_it_at_any_window() -> void:
 
 ## Review (M48.5a): the body on the rail sat over the log's bottom right, so the rows and the
 ## scrollbar ended above it (RailLayout.LOG_BOTTOM_PAD, still the rail layout's own rule).
-## M48.6a: the cabinet seats the body in the deck's camera box, off the log; the rows and the
-## scrollbar end inside the log, above the reply box.
+## M48.6a: the cabinet seats the body in the deck's camera box, off the log.
+## M48.6c: the log is the chat's messages area (the terminal's rect), inside the chat column.
 func test_the_log_rows_end_inside_the_log_and_the_body_is_off_it() -> void:
 	assert_eq(RailLayout.LOG_BOTTOM_PAD, RailLayout.LOG.end.y - RailLayout.BLOB.position.y + 6.0, "the rail's rule")
 	assert_true(RailLayout.BLOB.intersects(RailLayout.LOG), "on the rail the body overlapped the log's corner")
@@ -122,12 +128,8 @@ func test_the_log_rows_end_inside_the_log_and_the_body_is_off_it() -> void:
 		var t := h.terminal
 		var lg: Rect2 = h.layout.log
 		assert_false(blob.intersects(lg), "%s: the body is off the log (the deck's camera box)" % win)
-		var sb := t.get_theme_stylebox(&"panel")
-		assert_gt(sb.content_margin_bottom, 0.0, "%s: the rows keep a pad off the log's edge" % win)
-		var sc: Rect2 = t._scroll.get_global_rect()
-		var bottom := (h as Control).get_global_rect().position.y + lg.end.y
-		assert_lte(sc.end.y, bottom + 0.5, "%s: the scroll (rows and bar) ends inside the log" % win)
-		assert_lte(lg.end.y, (h.layout.reply as Rect2).position.y, "%s: the log ends above the reply box" % win)
+		assert_eq(Rect2(t.position, t.size), lg, "%s: the terminal is the chat's messages area" % win)
+		assert_true((h.layout.chat as Rect2).encloses(lg), "%s: inside the chat column" % win)
 	assert_not_null(rail.blob)
 
 
@@ -164,7 +166,7 @@ func test_the_look_turns_the_rail_on_and_off_and_the_rows_stay() -> void:
 	assert_false(t._title.visible, "the raw title row hides (the chat header)")
 	assert_false(t.chat.visible, "M48.5b: the dev-chat hides under the rail's log")
 	assert_false(h.desktop.visible, "M48.5b: so does the dev desktop")
-	assert_eq(t.input_row().get_parent(), rail.reply, "M48.5b: the input sits in the reply box's well")
+	assert_eq(t.input_row().get_parent(), (rail as CabinetFrame).chat_view, "M48.6c: the input sits in the chat's input line")
 	assert_true(h.layout.get("rail", false))
 	assert_eq(h.game_rect(), h.layout.game as Rect2, "the game view sits in the rail's frame")
 	assert_eq(h.viewport.size_2d_override, Vector2i(1280, 720), "the sim size never moves")
@@ -398,7 +400,7 @@ func test_survival_ammo_follows_the_loadout() -> void:
 	assert_eq(String(ammo.title), lo.sidearm.label())
 
 
-# --- The chat and the reply box ------------------------------------------------------------------
+# --- The chat's rows and the open question -------------------------------------------------------
 
 func test_patch_and_hotfix_slips_and_choices_in_the_reply_box() -> void:
 	var h := await _hosted(S8, &"path_arsenal")
@@ -428,23 +430,25 @@ func test_patch_and_hotfix_slips_and_choices_in_the_reply_box() -> void:
 	t.ask(["again", "move on"] as Array[String])
 	t.finish()
 	rail.chat.step()
-	var st: Dictionary = rail.reply.state()
+	var st: Dictionary = RailFrame.Reply.state_of(t)
 	assert_eq(st.choices, ["again", "move on"] as Array[String], "the choices are pills")
 	assert_true(st.prompt)
 	for r in t.row_nodes():
 		if int(r.get_meta(&"kind", -1)) == TerminalPanel.Row.CHOICE:
 			assert_false((r as Control).visible, "not in the log")
-	var pills: Array[Rect2] = rail.reply.pill_rects(2)
+	# M48.6c: the pills are the cabinet chat's.
+	var view: Control = (rail as CabinetFrame).chat_view
+	var pills: Array[Rect2] = view.pill_rects()
 	assert_eq(pills.size(), 2)
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_LEFT
 	e.pressed = true
 	e.position = pills[1].get_center()
-	rail.reply._gui_input(e)
+	view._gui_input(e)
 	assert_eq(picked, [1] as Array[int], "a click on a pill chooses, as on the raw row")
 	t.answer("2")
 	rail.chat.step()
-	assert_false(rail.reply.state().prompt)
+	assert_false(RailFrame.Reply.state_of(t).prompt)
 	var last: Control = t.row_nodes().back()
 	assert_true(last.visible, "the answer is a 'you' message in the log")
 	assert_eq(rail.chat._answer_text(t.row_nodes(), t.row_nodes().size() - 1), "move on")
@@ -481,7 +485,8 @@ func test_rows_made_under_the_rail_keep_their_order_in_the_chat() -> void:
 
 
 ## M48.5b (the play gate, M47.6a): under the rail the gate is typed in the reply box's well,
-## and its one `play` pill gives play as the chat's pill does.
+## and its one `play` pill gives play as the chat's pill does. M48.6c: the well is the cabinet
+## chat's input line, the pill its pill.
 func test_the_play_gate_in_the_reply_box() -> void:
 	var h := await _hosted(S8, &"path_arsenal")
 	var rail := _pixel(h)
@@ -490,13 +495,14 @@ func test_the_play_gate_in_the_reply_box() -> void:
 	t.chat_input.play_given.connect(func() -> void: played.append(true))
 	t.chat_input.gentle = true
 	t.chat_input.open_gate()
-	var st: Dictionary = rail.reply.state()
+	var view: Control = (rail as CabinetFrame).chat_view
+	var st: Dictionary = RailFrame.Reply.state_of(t)
 	assert_true(bool(st.gate))
 	assert_eq(RailFrame.Reply.pills_of(st), ["play"] as Array[String], "one play pill")
 	assert_eq(RailFrame.Reply.well_hint(st), "", "the input's own ghost shows")
 	assert_eq(RailFrame.Reply.key_of(st, 0), "", "review: no key chip on the gate pill (1 only types '1')")
 	assert_eq(RailFrame.Reply.key_of({"choices": ["a", "b"], "gate": false}, 1), "2", "open choices keep their keys")
-	var well: Rect2 = rail.reply.well_rect()
+	var well: Rect2 = view.parts().input
 	var row := t.input_row()
 	assert_true(well.encloses(Rect2(row.position, row.size)), "the input in the well")
 	t.chat_input.text = "play"
@@ -505,11 +511,11 @@ func test_the_play_gate_in_the_reply_box() -> void:
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_LEFT
 	e.pressed = true
-	e.position = rail.reply.pill_rects(1)[0].get_center()
-	rail.reply._gui_input(e)
+	e.position = (view.pill_rects()[0] as Rect2).get_center()
+	view._gui_input(e)
 	assert_eq(played.size(), 2, "the pill gives play")
 	t.chat_input.close_gate()
-	assert_eq(RailFrame.Reply.pills_of(rail.reply.state()).size(), 0)
+	assert_eq(RailFrame.Reply.pills_of(RailFrame.Reply.state_of(t)).size(), 0)
 
 
 ## Review: S8's death asks, then says two more lines, then posts the choices; the box pairs the
@@ -528,7 +534,7 @@ func test_the_reply_box_shows_the_question_not_the_lines_after_it() -> void:
 	t.ask(["again", "move on (I'll take this one)"] as Array[String])
 	t.finish()
 	rail.chat.step()
-	var st: Dictionary = rail.reply.state()
+	var st: Dictionary = RailFrame.Reply.state_of(t)
 	assert_eq(st.choices, ["again", "move on (I'll take this one)"] as Array[String])
 	assert_eq(String(st.question), "Day one bugs. Want another go, or should I just patch it?",
 			"the asking line, three rows up")
@@ -536,13 +542,13 @@ func test_the_reply_box_shows_the_question_not_the_lines_after_it() -> void:
 	t.say_row("Right. Here is the plan.")
 	t.ask(["go", "wait"] as Array[String])
 	t.finish()
-	assert_eq(String(rail.reply.state().question), "Right. Here is the plan.",
+	assert_eq(String(RailFrame.Reply.state_of(t).question), "Right. Here is the plan.",
 			"no question since the last answer: the last line said, never an older exchange's")
 	t.answer("1")
 	t.say_row("Is this a question?")
 	t.say_row("Watching now.")
 	t.finish()
-	assert_eq(String(rail.reply.state().question), "Watching now.",
+	assert_eq(String(RailFrame.Reply.state_of(t).question), "Watching now.",
 			"no choices open: the latest line, not an older question")
 
 
@@ -556,7 +562,7 @@ func test_reduce_flashing_holds_every_blink_and_the_reveal_is_instant() -> void:
 	assert_eq(rail.modulate.a, 1.0, "no crossfade: an instant swap")
 	for i in 3:
 		assert_true(rail.blink(1.0), "the current tick and the live dot are steady")
-		assert_true(rail.reply.caret_on(), "the caret too")
+		assert_true(h.terminal.caret_on(Time.get_ticks_usec()), "the caret too")
 		await wait_seconds(0.3)
 	SaveGame.set_setting("reduce_flashing", false)
 	Skins.use(null)
