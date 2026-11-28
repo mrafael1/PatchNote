@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M51"
+const BUILD := "M47.7a"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
@@ -485,6 +485,8 @@ func _end_session(choice: StringName) -> void:
 	if host != null and leave == "" and choice != &"retry":
 		next_start = GameHost.capture_start(self, CampaignDB.current())
 		next_lead = camera.get_screen_center_position() - player.global_position 				if next_start.is_finite() and camera != null else Vector2.ZERO
+	if host != null and choice == &"move_on":
+		host.gate_next = true   # M47.7a: after a death the next session waits for play
 	debrief.close()
 	if leave != "":
 		_leave_to(leave)

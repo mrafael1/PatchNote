@@ -127,6 +127,11 @@ const STAGE_SETS_DIR := "res://levels/stages/"
 ## M47.6a (PLAN v9.4, 0.8): what the AI types in the chat at the play gate, before the
 ## session's sim starts (Line syntax). Empty: the campaign's before_play_default.
 @export var before_play: PackedStringArray = []
+## M47.7a (PLAN v9.5, 0.9.1): the session starts on its own. The host still holds it at tick 0
+## and types before_play, but opens no play gate: it releases GameHost.AUTO_START_DELAY after
+## the chat stops typing. A boot or Continue into it (the first session excepted) and a move
+## on after a death still gate.
+@export var auto_start := false
 ## M47.6a: said in the bubble the moment a `script` end window opens (used from M47.6c1).
 ## "" = nothing said.
 @export var end_line := ""
