@@ -15,6 +15,17 @@ var dash_locked := false
 ## Before the session has `health` (owner, M39.2) nothing hurts the player: enemies
 ## reach it and nothing happens.
 var damage_locked := false
+## M47.7b (PLAN 0.9.1): the handover slide. The controls land too fast: the body runs one way
+## (the last direction tried while it could not move) at Tuning.handover_slide_mult times its
+## speed and reads no move, jump or dash input, until something blocks it or
+## Tuning.handover_slide_cap seconds of game time pass. Then `slid` is true (the cue "slid")
+## and speed and input are the usual ones: a wall stops the body dead, the cap drops it to
+## its normal speed. Never started: none of this is touched.
+var slid := false
+var _sliding := false
+var _slide_dir := Vector2.ZERO
+var _slide_left := 0.0
+var _slide_ticks := 0
 
 @onready var mover: Mover = $Mover
 @onready var health: Health = $Health
@@ -61,6 +72,54 @@ func set_input(provider: PlayerInput) -> void:
 	add_child(input)
 
 
+## M47.7b: start the handover slide toward `dir` (the genre, when movement is granted to a
+## player whose start carries a tried direction). A zero direction does nothing.
+func start_slide(dir: Vector2) -> void:
+	if dir == Vector2.ZERO:
+		return
+	_sliding = true
+	_slide_dir = dir.normalized()
+	_slide_left = Tuning.handover_slide_cap
+	_slide_ticks = 0
+	slid = false
+
+
+## The slide's direction while it is pending or running (ZERO otherwise).
+func slide_dir() -> Vector2:
+	return _slide_dir if _sliding else Vector2.ZERO
+
+
+func is_sliding() -> bool:
+	return _sliding
+
+
+## One tick of the slide; false once it is over (this tick already reads the input again).
+## A wall is a slide collision of the last tick's move that faces the slide.
+func _slide_step(delta: float) -> bool:
+	var blocked := false
+	if _slide_ticks > 0:
+		for i in get_slide_collision_count():
+			if get_slide_collision(i).get_normal().dot(_slide_dir) < -0.1:
+				blocked = true
+	if blocked or _slide_left <= 0.0001:
+		_sliding = false
+		_slide_left = 0.0
+		slid = true
+		# The body keeps its speed against a wall (floating move_and_slide): drop it here.
+		if blocked:
+			mover.stop()
+		else:
+			velocity = velocity.limit_length(mover.speed)
+		return false
+	_slide_ticks += 1
+	_slide_left -= delta
+	mover.speed *= Tuning.handover_slide_mult
+	mover.wish = _slide_dir
+	mover.jump_held = false
+	_facing = _slide_dir
+	return true
+
+
 func set_bot(on: bool) -> void:
 	set_input(BotInput.new() if on else HumanInput.new())
 
@@ -69,7 +128,7 @@ func is_bot() -> bool:
 	return input is BotInput
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	mover.speed = Tuning.player_speed * RunState.rules.player_speed_mult
 	mover.accel = Tuning.player_accel
 	mover.friction = Tuning.player_friction
@@ -87,6 +146,8 @@ func _physics_process(_delta: float) -> void:
 	if movement_locked:
 		mover.wish = Vector2.ZERO
 		mover.jump_held = false
+	elif _sliding and _slide_step(delta):
+		pass   # M47.7b: the handover slide drives the body; the input waits
 	else:
 		var move := input.move
 		var turn := fposmod(RunState.rules.input_rotation_deg, 360.0)

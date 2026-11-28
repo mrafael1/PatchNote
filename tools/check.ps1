@@ -321,8 +321,9 @@ if ($BotRuns) {
     Test-Errors 'hash_shell_campaign' $shell
     if ($shell.Text -notmatch '\[runhash\] summary: campaign shell, 14 runs, 0 failures') { $failures += 'hash_shell_campaign: hosted campaign hashes differ' }
     # M47.6c2: S0-S6 chained in one host with the carried start (the chain ref, born in M47.6c2).
-    if (Test-Path (Join-Path $root '.check/ref_m47_6c2/chain_hash.jsonl')) {
-    $chainHash = Invoke-Godot 'hash_chain' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --chain --compare=.check/ref_m47_6c2/chain_hash.jsonl 1 2'
+    # M47.7b: the chain ref moved once (the bot slides in S1, on purpose): ref_m47_7b.
+    if (Test-Path (Join-Path $root '.check/ref_m47_7b/chain_hash.jsonl')) {
+    $chainHash = Invoke-Godot 'hash_chain' '--fixed-fps 60 -s tools/run_hash.gd -- --campaign --chain --compare=.check/ref_m47_7b/chain_hash.jsonl 1 2'
     Test-Errors 'hash_chain' $chainHash
     if ($chainHash.Text -notmatch '\[runhash\] summary: campaign chain, 14 runs, 0 failures') { $failures += 'hash_chain: the chained Stage 1 hashes differ' }
     }

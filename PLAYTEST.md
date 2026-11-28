@@ -1,3 +1,16 @@
+# Next playtest: M47.7b, the handover slide
+
+What changed since M47.7a (the start of S1 only; everything else is the same):
+- **Press a direction in S0** (the square cannot move yet; it leans). The game remembers the last direction you tried.
+- **When the keys land in S1, the square shoots off that way**, three times too fast, and ignores your keys until it hits a wall (or for 1.2 s at most). It leans that way while the AI types "ok. the keys are in. try now."
+- **The AI then says "...too fast. fixing."** and the speed and the keys are normal.
+- If you press nothing in S0, nothing slides: S1 starts as before.
+- After a death, a restart, or a launch straight into S1 there is no slide.
+
+One-liners (defaults taken): left and right stop in the open after about 21 tiles (the side walls are farther than 1.2 s away): should every slide end on a wall? Is 3x the right "too fast"? Is the line right (mine, yours to edit)?
+
+---
+
 # Next playtest: M47.7a, Stage 1 chains on its own
 
 What changed since M51 (Stage 1 only, S0 to S3; play is the same):

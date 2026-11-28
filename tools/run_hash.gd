@@ -52,6 +52,11 @@ extends SceneTree
 ## then the host's swap), the save answered and jumped as a cold run is. One line per session
 ## and seed with its "start"; a chained session must equal the cold run of that session
 ## from the same --start (the gates replay each).
+##
+## M47.7b (PLAN 0.9.1): the start point's optional tried direction (the handover slide).
+## --start=<x>,<y>,<dx>,<dy> (each of dx, dy is -1, 0 or 1) also starts the session with that
+## direction; --chain carries it as the game does (GameHost.capture_tried) and prints it in
+## "start" when it is not zero, so the same text replays the session cold.
 
 var seconds := 120
 var out_path := ""
@@ -68,6 +73,7 @@ var shell := false                   ## --shell (M47.5a)
 var handoff_frames := 0              ## --handoff (M47.5a)
 var viewport_size := Vector2i.ZERO   ## --viewport (M47.5a)
 var start_at := Vector2.INF          ## --start (M47.6c2): INF = the arena's player_start
+var start_tried := Vector2.ZERO      ## --start's dx,dy (M47.7b): ZERO = no tried direction
 var chain := false                   ## --chain (M47.6c2)
 const CAMPAIGN_SESSIONS: Array[StringName] = [&"s1_00_nothing", &"s1_01_move", &"s1_02_enemies",
 		&"s1_03_shooting", &"s1_04_level", &"s1_05_wrong", &"s1_06_playground"]
@@ -110,8 +116,10 @@ func _run() -> void:
 			chain = true
 		elif arg.begins_with("--start="):
 			var xy := arg.trim_prefix("--start=").split(",")
-			if xy.size() == 2:
+			if xy.size() == 2 or xy.size() == 4:
 				start_at = Vector2(float(xy[0]), float(xy[1]))
+			if xy.size() == 4:   # M47.7b: 8 ways, as SessionRunner.last_tried
+				start_tried = Vector2(signf(float(xy[2])), signf(float(xy[3]))).normalized()
 		elif arg.begins_with("--handoff="):
 			handoff_frames = int(arg.trim_prefix("--handoff="))
 		elif arg.begins_with("--viewport="):
@@ -289,6 +297,7 @@ func _run_campaign(seeds: Array[int]) -> void:
 			main_script.set(&"next_seed", run_seed)
 			if start_at.is_finite():   # M47.6c2: a carried start, replayed cold
 				main_script.set(&"next_start", start_at)
+				main_script.set(&"next_tried", start_tried)
 			var game: Node = load("res://main.tscn").instantiate()
 			var host: Node = null
 			if shell:   # M47.5a: the game inside a tool host (never live)
@@ -365,6 +374,9 @@ static func _diverged(want: Array, hashes: Array[String]) -> int:
 ## "x,y" to 0.01: the run's start point (RunLoop.start_point), as --start reads it back.
 static func _start_of(game: Node) -> String:
 	var p: Vector2 = game.run_loop.start_point
+	var d: Vector2 = game.run_loop.start_tried   # M47.7b: ",dx,dy" when a direction came with it
+	if d != Vector2.ZERO:
+		return "%.2f,%.2f,%d,%d" % [p.x, p.y, roundi(signf(roundf(d.x * 1.4))), roundi(signf(roundf(d.y * 1.4)))]
 	return "%.2f,%.2f" % [p.x, p.y]
 
 
@@ -415,6 +427,7 @@ func _run_chain(seeds: Array[int]) -> void:
 				main_script.call(&"clear_start")
 				if start_at.is_finite():
 					main_script.set(&"next_start", start_at)
+					main_script.set(&"next_tried", start_tried)
 				game = load("res://main.tscn").instantiate()
 				host = host_script.call(&"host_for_tools", game, viewport_size)
 				root.add_child(host)
@@ -470,6 +483,8 @@ func _run_chain(seeds: Array[int]) -> void:
 				# The game's own capture, read while the debrief is open (as Main._end_session).
 				main_script.set(&"next_start", host_script.call(&"capture_start", game,
 						db.call(&"get_session", session_ids[i + 1])))
+				main_script.set(&"next_tried", host_script.call(&"capture_tried", game,
+						db.call(&"get_session", session_ids[i + 1])))   # M47.7b
 			if game.debrief.is_open():
 				game.debrief.close()
 		root.remove_child(host)

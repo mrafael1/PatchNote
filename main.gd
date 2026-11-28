@@ -5,7 +5,7 @@ extends Node2D
 ## and hands the run itself to the genre: arena, world, player, camera, spawner and
 ## pacing all live in the Genre node it builds. It never branches on a genre id.
 
-const BUILD := "M47.7a"
+const BUILD := "M47.7b"
 ## M47.5b: menu_quit's target before the front door: the app itself (no start screen to go to).
 const QUIT_GAME := "quit"
 
@@ -21,6 +21,10 @@ static var next_start := NO_START
 ## Where the view stood from the player at the capture (lookahead, smoothing and the arena's
 ## limits included; presentation only), carried with next_start so the room does not move.
 static var next_lead := Vector2.ZERO
+## M47.7b (PLAN 0.9.1): the start point's optional field, the last direction tried while the
+## session before could not move (GameHost.capture_tried; 8 ways, ZERO = none). Carried,
+## consumed and cleared with next_start.
+static var next_tried := Vector2.ZERO
 ## Tests: called with the scene path instead of changing scene (M47.5a review).
 static var leave_hook := Callable()
 
@@ -81,6 +85,7 @@ func _ready() -> void:
 	next_genre = &""
 	var carried := next_start   # M47.6c2: consumed here, whatever this run is
 	var carried_lead := next_lead
+	var carried_tried := next_tried   # M47.7b
 	clear_start()
 	# PLAN v8 1.2: the campaign's session, when the campaign is active (else the v6 loop).
 	RunState.session = CampaignDB.session_for_game()
@@ -99,6 +104,7 @@ func _ready() -> void:
 	genre.def = def
 	genre.carried_start = carried
 	genre.carried_lead = carried_lead
+	genre.carried_tried = carried_tried
 	add_child(genre)
 	genre.build(self)
 
@@ -484,6 +490,7 @@ func _end_session(choice: StringName) -> void:
 	clear_start()
 	if host != null and leave == "" and choice != &"retry":
 		next_start = GameHost.capture_start(self, CampaignDB.current())
+		next_tried = GameHost.capture_tried(self, CampaignDB.current())   # M47.7b: the slide's way
 		next_lead = camera.get_screen_center_position() - player.global_position 				if next_start.is_finite() and camera != null else Vector2.ZERO
 	if host != null and choice == &"move_on":
 		host.gate_next = true   # M47.7a: after a death the next session waits for play
@@ -616,6 +623,7 @@ func menu_restart() -> void:
 static func clear_start() -> void:
 	next_start = NO_START
 	next_lead = Vector2.ZERO
+	next_tried = Vector2.ZERO
 
 
 ## M47.5a: the next scene plays `run_seed` (-1 = random): the host swaps the session in

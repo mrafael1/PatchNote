@@ -491,6 +491,15 @@ static func capture_start(main: Main, next: SessionDef) -> Vector2:
 	return printed_start(main.player.global_position)
 
 
+## M47.7b (PLAN 0.9.1): the start point's optional field, by the same capture path: the last
+## direction the player tried while the ending session could not move (SessionRunner.last_tried,
+## 8 ways), or ZERO: none tried, or the carry does not apply (a death, another stage or arena).
+static func capture_tried(main: Main, next: SessionDef) -> Vector2:
+	if not capture_start(main, next).is_finite() or main.session_runner == null:
+		return Vector2.ZERO
+	return main.session_runner.last_tried
+
+
 ## A start to 0.01 px exactly as its printed "%.2f" text reads back (run_hash --start, the
 ## [botrun] and campaign lines): snapped() in single precision can land one ulp off the
 ## parsed text, and one ulp moved S2's chained hashes against its cold replay.

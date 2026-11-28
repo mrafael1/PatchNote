@@ -8,6 +8,8 @@ extends Node
 ## Presentation only: it writes Visual.position / Visual.scale, never the body, collisions or
 ## the sim, and reads no RNG. It runs ALWAYS: while the tree is paused (the play gate) it reads
 ## the Input singleton directly; while the sim runs it reads the player's input (bots too).
+## M47.7b (PLAN 0.9.1): while the handover slide is pending (the hold before it) or running,
+## the lean is the slide's direction: the square still pulls the way it tried, then shoots off.
 ## A child of the player, so it runs after the body set the Visual for this frame.
 
 const LEAN := 3.0
@@ -34,7 +36,11 @@ func _ready() -> void:
 ## The direction the player is pushing: the keys while paused, the player's input while the
 ## sim runs.
 func wanted() -> Vector2:
-	if player == null or not is_instance_valid(player) or not bool(player.get(&"movement_locked")):
+	if player == null or not is_instance_valid(player):
+		return Vector2.ZERO
+	if player.has_method(&"slide_dir") and player.call(&"slide_dir") != Vector2.ZERO:
+		return player.call(&"slide_dir")   # M47.7b: read only, never written
+	if not bool(player.get(&"movement_locked")):
 		return Vector2.ZERO
 	var v := Vector2.ZERO
 	if get_tree().paused:
