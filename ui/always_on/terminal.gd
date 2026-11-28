@@ -333,13 +333,15 @@ func _show_body() -> void:
 	if _scroll == null:
 		return
 	var dressed := dresser != null
+	# M48.6c: the cabinet's chat draws every row itself (the rows stay, as its model, unseen).
+	var drawn := dressed and dresser.has_method(&"draws_rows") and bool(dresser.call(&"draws_rows"))
 	if _title != null:
 		_title.visible = not dressed and chat == null
 	if chat == null:
-		_scroll.visible = true
+		_scroll.visible = not drawn
 		return
 	chat.visible = not dressed
-	_scroll.visible = dressed
+	_scroll.visible = dressed and not drawn
 	for r in _list.get_children():
 		if r.has_meta(&"pre_chat"):
 			(r as CanvasItem).visible = not dressed
@@ -773,6 +775,11 @@ func _complete_typing() -> void:
 
 func has_prompt() -> bool:
 	return _you != null
+
+
+## M48.6c: the think row while its spinner runs (the cabinet's chat shows its dots), else null.
+func thinking_row() -> Label:
+	return _think if _think != null and is_instance_valid(_think) else null
 
 
 ## Every row's text, in order (tests, captures). M47.6b: the terminal's rows, then the

@@ -211,7 +211,20 @@ static func draw_digits(ci: CanvasItem, text: String, at: Vector2, px: float, co
 # --- M48.6b: the view's HUD (the mockup page's own grids, not the frames kit) ---------------------
 
 ## Colours the mockup page uses outside the kit's palette: the clock's face, an idle caption.
-const HUD_PAL := {&"clock": "#ffb35a", &"cap_idle": "#8a7a9a"}
+## M48.6c: and the chat's text colours (the page's .chat CSS): dim text, the build log's green
+## and its `$`, the speaker's name, the live line, the three tag inks, a still thinking dot.
+const HUD_PAL := {&"clock": "#ffb35a", &"cap_idle": "#8a7a9a",
+	&"c_dim": "#a79fcf", &"c_log_text": "#8cffa6", &"c_log_sigil": "#7a68c0", &"c_who": "#ff8f7a",
+	&"c_live": "#6ee7b7", &"c_white": "#ffffff", &"t_add_ink": "#8ff0c6", &"t_chg_ink": "#8fd8ff",
+	&"t_fix_ink": "#ffd77a"}
+
+
+## M48.6c: the terminal's tokens while the cabinet's chat dresses it (TerminalPanel.colors: the
+## docked input's text, its ghost and its caret read them; the rows are drawn by the chat).
+static func chat_colors() -> Dictionary:
+	return {&"bg": c(&"c_bg"), &"rule": c(&"c_rule"), &"text": c(&"c_text"), &"dim": c(&"c_dim"),
+			&"cmd": c(&"c_log_text"), &"note": c(&"c_text"), &"choice": c(&"gold"), &"you": c(&"c_text"),
+			&"err": c(&"red")}
 
 ## The hearts on the player (full, empty) and the corner plate's clock (the skull is ORN's).
 const HUD := {

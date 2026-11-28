@@ -121,8 +121,7 @@ func test_the_view_is_16_9_and_no_piece_overlaps_at_any_window() -> void:
 		for a: String in ["marquee", "view", "deck"]:
 			assert_true(frame.encloses(parts[a]), "%s: %s inside the cabinet" % [win, a])
 		assert_false(frame.intersects(l.chat), "%s: the chat stands beside the cabinet" % win)
-		# The rail's pieces, alive inside: the body and the modules in the deck, the log over the
-		# reply box in the chat column.
+		# The rail's pieces, alive inside: the body and the modules in the deck.
 		var deck: Rect2 = l.deck
 		assert_true(deck.encloses(l.host), "%s: the camera box in the deck" % win)
 		assert_true((l.host as Rect2).encloses(l.blob), "%s: the body in the camera box" % win)
@@ -145,9 +144,11 @@ func test_the_view_is_16_9_and_no_piece_overlaps_at_any_window() -> void:
 		assert_true(deck.has_point(l.mood), "%s: the mood plate in the deck" % win)
 		assert_true(view.has_point(l.plate), "%s: the corner plate inside the view" % win)
 		var chat: Rect2 = l.chat
-		assert_true(chat.encloses(l.log) and chat.encloses(l.reply), "%s: log and reply in the chat column" % win)
-		assert_false((l.log as Rect2).intersects(l.reply), "%s: log / reply" % win)
-		assert_eq(l.terminal, l.log, "the terminal's rows are the log")
+		# M48.6c: the chat column is one dev-chat (test_cabinet_chat.gd); the terminal's rect is
+		# its messages area.
+		assert_true(chat.encloses(l.terminal), "%s: the messages in the chat column" % win)
+		assert_eq(l.terminal, l.log, "the terminal's rows are the messages")
+		assert_false(l.has("reply"), "%s: no reply box" % win)
 
 
 ## M48.6b (owner): the cabinet fills the window as the rail did, s = min(W / 1600, H / 900); it
@@ -369,10 +370,11 @@ func test_the_rail_pieces_live_on_inside_the_cabinet() -> void:
 	var l := h.layout
 	assert_eq(t.dresser, cab.chat, "the terminal is dressed as the chat")
 	assert_eq(t.rows(), before, "the same rows")
-	assert_eq(Rect2(t.position, t.size), l.log as Rect2, "the log in the chat column")
-	assert_eq(t.input_row().get_parent(), cab.reply, "the input in the reply box")
-	assert_eq(Rect2(cab.reply.position, cab.reply.size), l.reply as Rect2)
-	assert_true((l.chat as Rect2).encloses(l.reply))
+	assert_eq(Rect2(t.position, t.size), l.log as Rect2, "the terminal over the chat's messages")
+	# M48.6c: the chat column is the cabinet's own chat; the rail's reply box is not built.
+	assert_eq(t.input_row().get_parent(), cab.chat_view, "the input in the chat's input line")
+	assert_eq(Rect2(cab.chat_view.position, cab.chat_view.size), l.chat as Rect2)
+	assert_null(cab.reply)
 	assert_true(h.game.mascot.docked(), "the corner body docks")
 	assert_not_null(cab.blob)
 	assert_eq(Rect2(cab.blob.position, cab.blob.size), l.blob as Rect2, "the body in the deck's camera box")
@@ -388,8 +390,6 @@ func test_the_rail_pieces_live_on_inside_the_cabinet() -> void:
 	assert_lt(cab.ms(), cab.s(), "the modules draw smaller than on the rail")
 	assert_almost_eq(cab.ms(), CabinetLayout.MODULE_K, 0.0001)
 	assert_eq(cab.mpx(), 1.0)
-	var sb := t.get_theme_stylebox(&"panel")
-	assert_eq(sb.content_margin_bottom, CabinetLayout.LOG_BOTTOM_PAD, "no body on the log: its own small pad")
 	# The frame draws (chrome, marquee, glass, modules) without an engine error.
 	cab.chrome.queue_redraw()
 	cab.track.queue_redraw()
@@ -443,7 +443,8 @@ func test_the_cabinet_is_presentation_only() -> void:
 	var banned := RegEx.create_from_string("\\b(Tuning|WorldRules|gameplay_rng|director_rng|loot_rng|pick_rng|randf|randi|randomize)\\b|RunState\\.rules")
 	for path: String in ["res://ui/cabinet/cabinet_frame.gd", "res://ui/cabinet/cabinet_layout.gd",
 			"res://ui/cabinet/cabinet_caption.gd", "res://ui/cabinet/cabinet_plate.gd",
-			"res://ui/cabinet/cabinet_player_hud.gd", "res://systems/skins/art/cabinet_art.gd"]:
+			"res://ui/cabinet/cabinet_player_hud.gd", "res://ui/cabinet/cabinet_chat.gd",
+			"res://ui/cabinet/cabinet_chat_view.gd", "res://systems/skins/art/cabinet_art.gd"]:
 		var code := PackedStringArray()
 		for line in FileAccess.get_file_as_string(path).split("\n"):
 			var cut := line.find("#")

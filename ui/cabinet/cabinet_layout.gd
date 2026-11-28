@@ -14,8 +14,12 @@ extends RefCounted
 ## The deck holds the host's camera box at its left (the AI's body inside), then the mood plate
 ## and the caption bubble (M48.6b), then the path's modules (the rail's hand / pack / items /
 ## ammo cells at MODULE_K of their rail size, until M48.6d-f restyle them). KILLS / HP / DASH
-## have no cell here: they are on the player and on the view's corner plate. The chat log and
-## the reply box share the chat column.
+## have no cell here: they are on the player and on the view's corner plate.
+##
+## M48.6c: the chat column is one pixel dev-chat (chat_parts): the header, the 2-line build
+## log, the messages, the reply pills (as many rows as they need, none with no pill) and the
+## input line, stacked inside the chat's frame. The terminal's own rect is the messages area
+## (its rows are the chat's model; CabinetChatView draws them).
 
 const DESIGN := Vector2(1600, 900)
 const BASE := Vector2i(1600, 900)    ## the windowed size while the cabinet shows
@@ -40,11 +44,15 @@ const MODULE_K := MODULES.size.y / RailLayout.ROW_H   ## the modules' size again
 const PATH_W := 568.0                        ## the rail's path slot (RailLayout.CELLS)
 ## The view's corner plate: its top-left inside the view.
 const PLATE := Vector2(18, 18)
-## The chat column: the rail's log over its reply box.
-const REPLY_H := 214.0
-const LOG := Rect2(1218, 12, 370, 876 - REPLY_H - 6)
-const REPLY := Rect2(1218, 888 - REPLY_H, 370, REPLY_H)
-const LOG_BOTTOM_PAD := 10.0          ## no body sits on the log here
+## The chat column's parts, in art px (the mockup's .chat): the frame's ring, the header, the
+## build log, a pill, the input line and the gaps around them.
+const CHAT_RING := 2
+const CHAT_HEAD := 30
+const CHAT_LOG := 17
+const CHAT_PILL := 11
+const CHAT_PILL_GAP := 2
+const CHAT_INPUT := 14
+const CHAT_PAD := 3
 
 
 ## The scale for a window: the fit; snapped down to a whole number of screen px per art px
@@ -73,9 +81,8 @@ static func fit_16_9(r: Rect2) -> Rect2:
 
 
 ## The layout for a window of `window` px: GameHost's keys (k, game, terminal, font), the keys
-## the rail's pieces read (rail, s, px, origin, log, reply, blob, cells, spine_x) and the
-## cabinet's own (cabinet, art, frame, marquee, view, deck, chat, host, cap, mood, plate,
-## modules, module_s).
+## the rail's pieces read (rail, s, px, origin, log, blob, cells) and the cabinet's own
+## (cabinet, art, frame, marquee, view, deck, chat, host, cap, mood, plate, modules, module_s).
 static func layout_for(window: Vector2) -> Dictionary:
 	var s := scale_for(window)
 	var origin := ((window - DESIGN * s) * 0.5).round()
@@ -96,11 +103,11 @@ static func layout_for(window: Vector2) -> Dictionary:
 	out.plate = (out.view.position + PLATE * s).round()
 	out.modules = RailLayout.map(MODULES, s, origin)
 	out.module_s = s * MODULE_K
-	out.terminal = RailLayout.map(LOG, s, origin)
+	# M48.6c: the terminal's rect is the chat's messages area (no pill showing); its font is
+	# the chat's text size (the docked input draws at it).
+	out.terminal = chat_parts(out.chat, out.art, 0).messages
 	out.log = out.terminal
-	out.reply = RailLayout.map(REPLY, s, origin)
-	out.font = RailLayout.font_px(s)
-	out.log_bottom_pad = LOG_BOTTOM_PAD
+	out.font = text_px(2, s)
 	# The path's slot only (no kills / hp / dash cell: RailModules skips a cell it is not given).
 	var cells := {}
 	var x := MODULES.position.x
@@ -111,7 +118,29 @@ static func layout_for(window: Vector2) -> Dictionary:
 	cells[&"pack"] = RailLayout.map(Rect2(x + hand_w + gap, MODULES.position.y,
 			(PATH_W - RailLayout.HAND_W) * MODULE_K - gap, MODULES.size.y), s, origin)
 	out.cells = cells
-	out.spine_x = roundf(origin.x + (LOG.position.x + RailLayout.SPINE_X) * s)
+	return out
+
+
+## M48.6c: the chat column's parts for the chat rect `chat` (window px) at `art` screen px per
+## art px, with `pill_rows` rows of reply pills: {inner, header, log, messages, pills, input},
+## stacked top to bottom inside the frame's ring, never overlapping, on whole px. With no pill
+## the pills rect is empty and the messages take its room.
+static func chat_parts(chat: Rect2, art: float, pill_rows: int) -> Dictionary:
+	var a := art
+	var inner := chat.grow(-roundf(CHAT_RING * a))
+	var out := {"inner": inner}
+	out.header = Rect2(inner.position, Vector2(inner.size.x, roundf(CHAT_HEAD * a)))
+	out.log = Rect2(Vector2(inner.position.x, out.header.end.y), Vector2(inner.size.x, roundf(CHAT_LOG * a)))
+	var input_h := roundf(CHAT_INPUT * a)
+	var pad := roundf(CHAT_PAD * a)
+	out.input = Rect2(Vector2(inner.position.x + pad, inner.end.y - pad - input_h), Vector2(inner.size.x - 2.0 * pad, input_h))
+	var rows := maxi(0, pill_rows)
+	var pills_h := 0.0
+	if rows > 0:
+		pills_h = roundf((rows * CHAT_PILL + (rows - 1) * CHAT_PILL_GAP + 1) * a)
+	var pills_y: float = out.input.position.y - roundf(1.0 * a) - pills_h
+	out.pills = Rect2(Vector2(inner.position.x + pad, pills_y), Vector2(inner.size.x - 2.0 * pad, pills_h))
+	out.messages = Rect2(Vector2(inner.position.x, out.log.end.y), Vector2(inner.size.x, maxf(0.0, pills_y - out.log.end.y)))
 	return out
 
 
