@@ -32,6 +32,10 @@ var player: Node2D
 ## the player there when the spot is clear, else at its usual start.
 var carried_start := Vector2.INF
 var carried_lead := Vector2.ZERO
+## M47.7b (PLAN 0.9.1): the start point's optional field: the last direction the player tried
+## while the previous session could not move (8 ways, or ZERO: none). A genre slides the
+## player that way when `movement` is granted (the handover slide); ZERO touches nothing.
+var carried_tried := Vector2.ZERO
 
 
 func build(p_shell: Node) -> void:

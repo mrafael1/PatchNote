@@ -38,6 +38,11 @@ func apply_basics() -> void:
 		dasher.style = Unlocks.dash_style()
 		dasher.aims = Unlocks.dash_aims()
 	player.set(&"damage_locked", not Unlocks.has_basic(&"health"))
+	# M47.7b (PLAN 0.9.1): movement lands on a player whose start carries a tried direction:
+	# the handover slide, once. A zero direction touches nothing.
+	if carried_tried != Vector2.ZERO and Unlocks.has_basic(&"movement"):
+		player.call(&"start_slide", carried_tried)
+		carried_tried = Vector2.ZERO
 
 
 ## The spawner runs with enemies, but not while the gun cannot hit them yet (S3 before
@@ -97,6 +102,7 @@ func build(p_shell: Node) -> void:
 
 	player = PLAYER_SCENE.instantiate()
 	player.position = start_for(carried_start)   # M47.6c2: the carried spot, else player_start
+	var tried_in := carried_tried   # M47.7b: apply_basics() consumes it
 	apply_basics()
 	EventBus.basic_added.connect(_on_basic_added)
 	world.add_child(player)
@@ -145,6 +151,7 @@ func build(p_shell: Node) -> void:
 	# order now that the loop sits in the genre, ahead of the shell's nodes.
 	run_loop.process_physics_priority = 1
 	run_loop.start_point = player.position   # M47.6c2: the record's and the bot line's start
+	run_loop.start_tried = tried_in          # M47.7b: ... and its tried direction (tools)
 	add_child(run_loop)
 
 	# M50.3c: edit_hot_edges' band (inert while the rule is 0).

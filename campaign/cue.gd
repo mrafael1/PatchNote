@@ -55,6 +55,9 @@ extends RefCounted
 ## M47.6a (PLAN v9.4, S0):
 ##   "tried 1: say ..."        once the player pressed a direction n times while the build
 ##                             cannot move yet (counted in physics from the player's input)
+## M47.7b (PLAN 0.9.1, the handover slide):
+##   "slid: say ..."           once the player's handover slide ended (a wall or the cap); never
+##                             in a session that starts without a tried direction
 
 ## M50.4b review (Auto's passive items):
 ##   "holds haste: say ..."   once the player holds that item (a give only offers it first)
@@ -68,7 +71,7 @@ extends RefCounted
 
 const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"hp", &"room", &"boss_hp",
 		&"level", &"picked", &"fused", &"fuse_ready", &"tried", &"holds", &"evolve_ready", &"evolved", &"nerfed",
-		&"give_choice"]
+		&"give_choice", &"slid"]
 ## M50.2b (the give step):
 ##   "answer:path_arsenal give_choice 1: say give_kept thinking: ..."   when the n-th give step
 ##                                            of the attempt closed (any choice; held SAY_GAP
@@ -76,7 +79,7 @@ const WHENS: Array[StringName] = [&"at", &"kills", &"pct", &"hit", &"touch", &"h
 const ACTIONS: Array[StringName] = [&"say", &"spawn", &"add", &"edit", &"event", &"path", &"give",
 		&"drop", &"look", &"boss", &"skin", &"release", &"fuse", &"nerf"]
 ## The cue times that take no number (touch takes one or none: a deadline).
-const BARE_WHENS: Array[StringName] = [&"hit"]
+const BARE_WHENS: Array[StringName] = [&"hit", &"slid"]
 const PATH_TARGETS: Array[StringName] = [&"arsenal", &"auto", &"survival", &"off"]
 ## M47: what a `drop` cue drops besides a weapon id.
 ## M51: + battery (S11: Survival's orbit runs on one; Scavenge refills it).
@@ -351,6 +354,8 @@ func due(ctx: Dictionary) -> bool:
 			return int(ctx.get("fuse_ready", 0)) >= int(value)
 		&"tried":
 			return int(ctx.get("tried", 0)) >= int(value)
+		&"slid":   # M47.7b: Player.slid
+			return bool(ctx.get("slid", false))
 		&"evolve_ready":   # M50.4c1: PathRunner.evolve_ready_count
 			return int(ctx.get("evolve_ready", 0)) >= int(value)
 		&"evolved":

@@ -43,6 +43,9 @@ var spawner: Spawner
 var transition: Transition
 ## M47.6c2 (design 2.7): where the player started (a carried spot or player_start).
 var start_point := Vector2.ZERO
+## M47.7b (PLAN 0.9.1): the tried direction the start carried (ZERO: none). Tools print it
+## with the start; the telemetry record does not have it.
+var start_tried := Vector2.ZERO
 var build := ""              ## game build name written to telemetry
 
 var phase: StringName = PLAY

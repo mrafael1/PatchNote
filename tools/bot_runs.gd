@@ -1407,8 +1407,11 @@ static func end_text(game: Node) -> String:
 	var rec: Dictionary = game.run_loop.record
 	var sp: Node = game.get(&"spawner")
 	var start: Vector2 = game.run_loop.start_point
+	# M47.7b: ",dx,dy" after the spot when the start carried a tried direction (run_hash --start reads it).
+	var d: Vector2 = game.run_loop.start_tried
+	var tried := ",%d,%d" % [roundi(signf(roundf(d.x * 1.4))), roundi(signf(roundf(d.y * 1.4)))] if d != Vector2.ZERO else ""
 	return " end=%s spawned=%d/%d start=%.2f,%.2f" % [String(rec.get("end", "")) if String(rec.get("end", "")) != "" else "-",
-			int(sp.get(&"spawned")) if sp != null else 0, int(sp.get(&"budget")) if sp != null else -1, start.x, start.y]
+			int(sp.get(&"spawned")) if sp != null else 0, int(sp.get(&"budget")) if sp != null else -1, start.x, start.y] + tried
 
 
 ## M47: on a tryout, " swaps=<id>@<t>,... leftovers=<n>" (else "").

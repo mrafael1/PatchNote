@@ -58,6 +58,9 @@ var _last_say := -1.0
 ## each new direction the player's input enters counts one (physics, the input it reads).
 var tried := 0
 var _tried_dir := Vector2i.ZERO
+## M47.7b (PLAN 0.9.1): the last direction tried, a unit vector snapped to 8 ways (ZERO: none).
+## The session start point carries it on (GameHost.capture_tried): the handover slide's way.
+var last_tried := Vector2.ZERO
 
 
 func _ready() -> void:
@@ -137,7 +140,7 @@ func _physics_process(_delta: float) -> void:
 	_count_tried()
 	var ctx := {"clock": genre.session_clock(), "kills": RunState.kills, "tried": tried,
 			"pct": genre.session_progress(), "hit": hits > 0, "touched": touched,
-			"hp": _player_hp(),
+			"hp": _player_hp(), "slid": _slid(),
 			"level": path_runner.level() if path_runner != null else -1,
 			"picks": path_runner.picks_on_path if path_runner != null else 0,
 			"fused": path_runner.fusions.size() if path_runner != null else 0,
@@ -176,7 +179,15 @@ func _count_tried() -> void:
 	var d := Vector2i(signi(roundi(m.x * 1.4)), signi(roundi(m.y * 1.4)))
 	if d != Vector2i.ZERO and d != _tried_dir:
 		tried += 1
+	if d != Vector2i.ZERO:
+		last_tried = Vector2(d).normalized()   # M47.7b: 8 ways
 	_tried_dir = d
+
+
+## M47.7b: the player's handover slide ended (cue "slid"); false without one.
+func _slid() -> bool:
+	var p := genre.player
+	return p != null and is_instance_valid(p) and bool(p.get(&"slid"))
 
 
 ## M47 (C1.7): a path started. Each unfired `picked` cue binds to it, or, bound to the
