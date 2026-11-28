@@ -1,3 +1,19 @@
+# Next playtest: M48.6d, the Arcade dock and packs (fourth of six UI steps)
+
+What changed since M48.6c (play S9 on Arcade past its `skin ui` moment, then S10 on Arcade; let two or three packs stack before you open them, and fuse once):
+- **The Arcade dock.** In the deck, right of the AI's caption: your hand as two card slots (the gun's art, its name, a gold rank chip, the key 1 / 2, an ACTIVE or HELD tab; a free slot says EMPTY; a rare gun wears a small crown) and, right of them, the package (the pack, a red `x3` badge when several wait, a small gauge of the kills toward the next one, "[F] OPEN ALL" when one waits, "n kills to next"). The old small HAND / PACK panel is gone from the deck.
+- **The fuse link** sits between the two slots: dim when the two cards are a recipe, lit and sparking when they can fuse now.
+- **One press opens every pack.** The packs fly up from the dock, shake and tear together. Each pack is one row of cards: the front row is yours to pick (keys 1 2 3, or click), the rows behind wait face-down, smaller and darker; past four packs a note says "+N more packs waiting". Your pick pops and flies into its hand slot, the slot flashes with "RANK 2 > 3" or "NEW · RANK 1", and the next row comes forward. The game stays paused until the last row is picked.
+- **New card faces.** Common (plum), rare (gold, a crown), epic (holo, arched), fuse (prism stripes, a PERMANENT tag): a tier ribbon, the gun's splash art, the name on a plate, two or three short lines inside the paper box, rank pips, the key. The full line of the card you point at is written under the row.
+- **Reveals.** Every card turns over at the same speed. A rare gets a gold burst, a ring and sparks; an epic a bigger burst of shards, a short flash and a small shake. No rays, no halo, no banner over a card.
+- **The fuse moment.** When the hand can fuse, the fuse card is the row's 4th (key 4). Pick it: your two cards fly up, meet, a flash, the fused card slams in under a "FUSED!" stamp with what it keeps and loses written beside it, then it drops into your hand and the same pack comes back.
+- **With reduce flashing:** fades only (no flash, shake, sparks or flips).
+- **Before S9, and with no look, nothing changes** (the old panel, one pack a press). A NEW card on a full hand still asks which card goes out on the old screen, and so does the card the AI gives you.
+
+One-liners (defaults taken): is it right that every pack opens on one press, with no way to stop after one? The cards of a row behind are only drawn when the row before is picked (so a pick can change what the next pack offers, as today): fine? The cards say a short form ("point blank x2 within 2 T") and the full line is under the row: readable enough? The "which card goes out" step keeps the old look for now: redo it in this style next?
+
+---
+
 # Next playtest: M48.6c, the chat (third of six UI steps)
 
 What changed since M48.6b (play S9 past its `skin ui` moment, then S10 on each path; die once, and answer the question from the chat):

@@ -152,10 +152,12 @@ static func _hand(runner: Node, lo: Loadout) -> Dictionary:
 		for p in w.def.parents:
 			var pd := WeaponDB.get_weapon(p)
 			parents.append(pd.title if pd != null else String(p))
+		# M48.6d: the cabinet's dock draws the weapon's own art and its tier's slot (id, tier, parent_ids).
 		cards.append({"title": w.def.title, "rank": w.rank, "active": i == lo.active, "deep": w.deep(),
 				"levels": WeaponCurve.levels_of(w.def, w.rank) if w.deep() else ([] as Array[int]),
 				"fused": w.def.is_fusion(), "parents": parents, "icon": w.def.icon,
-				"key": InputSetup.expand_keys("{key:weapon_%d}" % (i + 1))})
+				"key": InputSetup.expand_keys("{key:weapon_%d}" % (i + 1)),
+				"id": w.def.id, "tier": w.def.rarity, "parent_ids": Array(w.def.parents)})
 	# M50.7 review: while the pack's fuse shows its two parents, the rail's hand shows them too
 	# (the fused card would give the result away before it flips in).
 	var panel: Node = runner.get(&"panel")
@@ -167,7 +169,8 @@ static func _hand(runner: Node, lo: Loadout) -> Dictionary:
 				var pw := WeaponDB.get_weapon(h.id)
 				cards.append({"title": String(h.title), "rank": int(h.rank), "active": false, "deep": false,
 						"levels": [] as Array[int], "fused": false, "parents": [] as Array[String],
-						"icon": pw.icon if pw != null else &"", "key": ""})
+						"icon": pw.icon if pw != null else &"", "key": "",
+						"id": StringName(h.id), "tier": pw.rarity if pw != null else &"common", "parent_ids": []})
 	var link := int(runner.call(&"link_state")) if runner.has_method(&"link_state") else 0
 	var widget: Node = runner.call(&"widget")
 	var misfuse := is_instance_valid(widget) and widget.has_method(&"misfusing") and bool(widget.call(&"misfusing"))

@@ -12,9 +12,10 @@ extends RefCounted
 ## stretches evenly.
 ##
 ## The deck holds the host's camera box at its left (the AI's body inside), then the mood plate
-## and the caption bubble (M48.6b), then the path's modules (the rail's hand / pack / items /
-## ammo cells at MODULE_K of their rail size, until M48.6d-f restyle them). KILLS / HP / DASH
-## have no cell here: they are on the player and on the view's corner plate.
+## and the caption bubble (M48.6b), then the path's modules (the rail's items / ammo cells at
+## MODULE_K of their rail size, until M48.6e-f restyle them). KILLS / HP / DASH have no cell
+## here: they are on the player and on the view's corner plate. M48.6d: Arcade's HAND and PACK
+## have no cell either: the Arcade dock (CabinetDock) stands there.
 ##
 ## M48.6c: the chat column is one pixel dev-chat (chat_parts): the header, the 2-line build
 ## log, the messages, the reply pills (as many rows as they need, none with no pill) and the
@@ -109,14 +110,10 @@ static func layout_for(window: Vector2) -> Dictionary:
 	out.log = out.terminal
 	out.font = text_px(2, s)
 	# The path's slot only (no kills / hp / dash cell: RailModules skips a cell it is not given).
+	# M48.6d: no hand / pack cell: the Arcade dock draws the hand and the package.
 	var cells := {}
 	var x := MODULES.position.x
-	var gap := RailLayout.GAP * MODULE_K
-	var hand_w := RailLayout.HAND_W * MODULE_K
 	cells[&"path"] = RailLayout.map(Rect2(x, MODULES.position.y, PATH_W * MODULE_K, MODULES.size.y), s, origin)
-	cells[&"hand"] = RailLayout.map(Rect2(x, MODULES.position.y, hand_w, MODULES.size.y), s, origin)
-	cells[&"pack"] = RailLayout.map(Rect2(x + hand_w + gap, MODULES.position.y,
-			(PATH_W - RailLayout.HAND_W) * MODULE_K - gap, MODULES.size.y), s, origin)
 	out.cells = cells
 	return out
 

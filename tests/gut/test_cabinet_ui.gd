@@ -134,7 +134,8 @@ func test_the_view_is_16_9_and_no_piece_overlaps_at_any_window() -> void:
 		for gone: StringName in [&"kills", &"hp", &"dash"]:
 			assert_false(l.cells.has(gone), "%s: no %s cell in the deck" % [win, gone])
 		assert_true(l.cells.has(&"path"), "%s: the path's slot stays" % win)
-		assert_false((l.cells[&"hand"] as Rect2).intersects(l.cells[&"pack"]), "%s: hand / pack" % win)
+		for gone: StringName in [&"hand", &"pack"]:   # M48.6d: the Arcade dock stands there
+			assert_false(l.cells.has(gone), "%s: no %s cell in the deck" % [win, gone])
 		var cap: Rect2 = l.cap
 		assert_true(deck.encloses(cap), "%s: the caption in the deck" % win)
 		assert_false(cap.intersects(l.host), "%s: caption / camera" % win)
@@ -380,9 +381,13 @@ func test_the_rail_pieces_live_on_inside_the_cabinet() -> void:
 	assert_eq(Rect2(cab.blob.position, cab.blob.size), l.blob as Rect2, "the body in the deck's camera box")
 	assert_false(h.game.hud._label.visible, "the HUD corner docks into the modules")
 	# M48.6b: only the path's modules dock in the deck; the reading still carries the others.
+	# M48.6d: on Arcade the hand and the packs are the Arcade dock's (test_cabinet_arcade.gd), not
+	# the docked HAND / PACK modules.
 	var shown: Array[StringName] = cab.modules.shown_modules()
-	assert_true(&"path" in shown, "the path's module is live")
-	assert_true((l.deck as Rect2).encloses(cab.modules.cell_rect(&"path")), "and docks in the deck")
+	assert_false(&"path" in shown, "Arcade's hand has no docked module")
+	assert_true(cab.dock.shown(), "the Arcade dock shows it")
+	assert_true((l.deck as Rect2).grow(1.0).encloses(cab.dock.rect()), "and stands in the deck")
+	assert_true(cab.snap.path.kind == &"hand", "the hand is still read (RailState)")
 	for m: StringName in [&"kills", &"hp", &"dash"]:
 		assert_false(m in shown, "%s has no module in the cabinet" % m)
 		assert_eq(cab.modules.cell_rect(m), Rect2(), "%s has no cell" % m)
@@ -444,7 +449,9 @@ func test_the_cabinet_is_presentation_only() -> void:
 	for path: String in ["res://ui/cabinet/cabinet_frame.gd", "res://ui/cabinet/cabinet_layout.gd",
 			"res://ui/cabinet/cabinet_caption.gd", "res://ui/cabinet/cabinet_plate.gd",
 			"res://ui/cabinet/cabinet_player_hud.gd", "res://ui/cabinet/cabinet_chat.gd",
-			"res://ui/cabinet/cabinet_chat_view.gd", "res://systems/skins/art/cabinet_art.gd"]:
+			"res://ui/cabinet/cabinet_chat_view.gd", "res://systems/skins/art/cabinet_art.gd",
+			"res://ui/cabinet/cabinet_dock.gd", "res://ui/cabinet/cabinet_packs.gd", "res://ui/cabinet/cabinet_card.gd",
+			"res://systems/skins/art/arcade_art.gd", "res://systems/skins/art/arcade_paint.gd"]:
 		var code := PackedStringArray()
 		for line in FileAccess.get_file_as_string(path).split("\n"):
 			var cut := line.find("#")

@@ -58,8 +58,10 @@ func shown_modules() -> Array[StringName]:
 		out.append(&"dash")
 	match sn.path.kind:
 		&"hand":
-			out.append(&"path")
-			if sn.path.pack.on:
+			# M48.6d: the cabinet gives HAND and PACK no cell (its Arcade dock shows them).
+			if all or cells.has(&"hand"):
+				out.append(&"path")
+			if sn.path.pack.on and (all or cells.has(&"pack")):
 				out.append(&"pack")
 		&"items", &"ammo":
 			out.append(&"path")
@@ -105,8 +107,11 @@ func _draw() -> void:
 		_empty(cells.dash, "DASH")
 	match sn.path.kind:
 		&"hand":
-			_hand(cells.hand, sn.path.hand)
-			if sn.path.pack.on:
+			if cells.has(&"hand"):
+				_hand(cells.hand, sn.path.hand)
+			if not cells.has(&"pack"):
+				pass
+			elif sn.path.pack.on:
 				_pack(cells.pack, sn.path.pack)
 			else:
 				_empty(cells.pack, "PACK")
