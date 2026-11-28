@@ -50,12 +50,13 @@ static func wanted(p_host: Node) -> bool:
 
 ## The host's one call (skin change, attach, chapter in / out): returns the frame (built on
 ## first need) with its state matching wanted().
-static func sync(p_host: Node, frame: RailFrame) -> RailFrame:
+## M48.6a: `kind` is the frame's script (GameHost builds the CabinetFrame; default the rail).
+static func sync(p_host: Node, frame: RailFrame, kind: Script = null) -> RailFrame:
 	var want := wanted(p_host)
 	if frame == null:
 		if not want:
 			return null
-		frame = RailFrame.new()
+		frame = (kind.new() as RailFrame) if kind != null else RailFrame.new()
 		frame.host = p_host
 		frame.name = "Rail"
 		p_host.add_child(frame)
@@ -309,6 +310,16 @@ func s() -> float:
 
 func px() -> float:
 	return float(layout.get("px", 2.0))
+
+
+## M48.6a: the modules' own scale and art pixel (the cabinet docks them smaller in its deck;
+## on the rail they are s() and px()).
+func ms() -> float:
+	return float(layout.get("module_s", s()))
+
+
+func mpx() -> float:
+	return RailLayout.art_px(ms()) if layout.has("module_s") else px()
 
 
 ## A design point (the mockup's px) in window px.

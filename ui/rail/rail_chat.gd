@@ -40,7 +40,8 @@ func back_style() -> StyleBox:
 	box.content_margin_left = roundf(44 * sc)
 	box.content_margin_right = roundf(14 * sc)
 	box.content_margin_top = roundf((RailLayout.HEADER_H + 10) * sc)
-	box.content_margin_bottom = roundf(RailLayout.LOG_BOTTOM_PAD * sc)   # review: clear of the body
+	# Review: clear of the body. M48.6a: the cabinet's log has no body on it (its own pad).
+	box.content_margin_bottom = roundf(float(frame.layout.get("log_bottom_pad", RailLayout.LOG_BOTTOM_PAD)) * sc)
 	return box
 
 

@@ -1,3 +1,16 @@
+# Next playtest: M48.6a, the cabinet frame (first of six UI steps)
+
+What changed since M51 (play S9 through its `skin ui` moment, then S10 on any path):
+- **From S9's UI reveal on, the game sits in an arcade cabinet** instead of on the version rail: a frame with gold side trims, a marquee over the screen, the screen's bezel with a little CRT glass (scanlines, a glare, dark corners), and a deck under it. The dev-chat stands in a column on the right.
+- **The marquee** names where you are: "STAGE 2 · S10 · LEVEL ONE" on the left (plus the part and "DOOR OPEN" in a level), your path in the centre (ARCADE / AUTO / SURVIVAL), the version on a gold plate on the right. The old version track is gone.
+- **Everything else is the old rail, moved in:** KILLS, HP, DASH and your path's panel sit small in the deck, the AI's body is on a little camera at the deck's left, the chat and the reply box are the same paper ones, narrower. They look cramped on purpose: each is rebuilt in the next five steps (M48.6b to f).
+- **Before S9, and with no look, nothing changes.**
+- The cabinet keeps whole pixels: on a 1920x1080 screen it stays 1600x900 in the middle, with a checker margin around it.
+
+One-liners (defaults taken): is the margin at 1080p fine, or should the cabinet fill the screen with slightly uneven pixels? Do the scanlines over the game bother you? Is the marquee's text the right size?
+
+---
+
 # Next playtest: M51, S11 "Depth" (the new last session; no event yet)
 
 What is new since M50.3c (play S10 to its end):
