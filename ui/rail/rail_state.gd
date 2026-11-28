@@ -24,7 +24,45 @@ static func read(game: Node, peak: Dictionary) -> Dictionary:
 	out.dash = _dash(player, peak)
 	out.path = _path(game)
 	out.parts = _parts(game)
+	out.count = _count(game, out.path)
 	return out
+
+
+## M48.6b (PLAN 0.9.2, the view's corner plate): what is left to the session's goal, counting
+## down: {on, kind, n}. `bugs`: a `clear` session's fixed set left (its budget plus its spawn
+## cues, less the kills; never under the enemies still alive), or a kills goal less the kills.
+## `clock`: the seconds left of a survive goal, or, on the Survival path, of the session's time
+## limit. `on` false: the session has no count (a script, stop, overrun, stages or boss goal;
+## no session).
+static func _count(game: Node, path: Dictionary) -> Dictionary:
+	var d := {"on": false, "kind": &"bugs", "n": 0}
+	var s := RunState.session
+	var genre: Variant = game.get(&"genre") if game != null else null
+	var loop: Variant = genre.get(&"run_loop") if genre is Node and is_instance_valid(genre) else null
+	if s == null or loop == null or loop.goal == &"":
+		return d
+	var clear: bool = loop.has_end(SessionDef.CLEAR) and int(loop.enemy_total) >= 0
+	var survive: bool = loop.goal == SessionDef.SURVIVE
+	var capped: bool = path.get("kind", &"") == &"ammo" and float(loop.time_limit) > 0.0 \
+			and (clear or loop.goal == SessionDef.KILLS)
+	if survive or capped:
+		var total := float(loop.goal_value) if survive else float(loop.time_limit)
+		d.on = true
+		d.kind = &"clock"
+		d.n = ceili(maxf(0.0, total - float(loop.goal_clock)) - 0.0001)
+	elif clear:
+		d.on = true
+		d.n = maxi(maxi(0, int(loop.enemy_total) + s.cue_spawn_total() - RunState.kills), RunLoop.enemies_left())
+	elif loop.goal == SessionDef.KILLS:
+		d.on = true
+		d.n = maxi(0, int(loop.goal_value) - RunState.kills)
+	return d
+
+
+## M48.6b: the corner plate's text: the bugs left ("13"), or the time left ("1:12").
+static func count_text(d: Dictionary) -> String:
+	var n := int(d.get("n", 0))
+	return "%d:%02d" % [n / 60, n % 60] if d.get("kind", &"bugs") == &"clock" else str(n)
 
 
 ## M50.3c: a level in parts: {part, of, door} (of 0 = one arena, nothing shown).

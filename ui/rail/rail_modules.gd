@@ -47,11 +47,14 @@ func shown_modules() -> Array[StringName]:
 	var sn: Dictionary = frame.snap
 	if sn.is_empty():
 		return out
-	if sn.kills.on:
+	# M48.6b: in the cabinet only the modules it gives a cell (the path's) are shown.
+	var cells: Dictionary = frame.layout.get("cells", {})
+	var all: bool = not frame.layout.get("cabinet", false)
+	if sn.kills.on and (all or cells.has(&"kills")):
 		out.append(&"kills")
-	if sn.hp.on:
+	if sn.hp.on and (all or cells.has(&"hp")):
 		out.append(&"hp")
-	if sn.dash.on:
+	if sn.dash.on and (all or cells.has(&"dash")):
 		out.append(&"dash")
 	match sn.path.kind:
 		&"hand":
@@ -80,15 +83,23 @@ func _draw() -> void:
 	if l.has("caption"):   # M48.6a: the cabinet's marquee carries it
 		RailFrame.text(self, l.caption, frame.caption(), RailLayout.text_px(12, sc), RailArt.c(&"mute"))
 	var cells: Dictionary = l.cells
-	if sn.kills.on:
+	# M48.6b: a module is drawn only where the layout gives it a cell (the cabinet gives KILLS,
+	# HP and DASH none: they are on the player and on the view's corner plate).
+	if not cells.has(&"kills"):
+		pass
+	elif sn.kills.on:
 		_kills(cells.kills, sn.kills)
 	else:
 		_empty(cells.kills, "KILLS")
-	if sn.hp.on:
+	if not cells.has(&"hp"):
+		pass
+	elif sn.hp.on:
 		_hp(cells.hp, sn.hp)
 	else:
 		_empty(cells.hp, "HP")
-	if sn.dash.on:
+	if not cells.has(&"dash"):
+		pass
+	elif sn.dash.on:
 		_dash(cells.dash, sn.dash)
 	else:
 		_empty(cells.dash, "DASH")

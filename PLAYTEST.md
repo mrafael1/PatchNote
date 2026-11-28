@@ -1,3 +1,17 @@
+# Next playtest: M48.6b, the view's HUD and the host (second of six UI steps)
+
+What changed since M48.6a (play S9 past its `skin ui` moment, then S10 on each path):
+- **Your HP and dash are on you.** A row of hearts floats over your head and a thin ring runs around you: mint when the dash is ready, filling in orange while it cools down. At 2 hearts or fewer the full hearts beat (not with reduce flashing). On Survival the hearts sit under your feet, because the rounds are over your head.
+- **A corner plate at the screen's top left** shows a skull and the bugs left in the session, counting down; the number hops when it changes and turns mint at 0. On Survival it shows a clock and the time left before the session is called.
+- **The AI talks in the deck.** Next to its camera there is a name plate with its mood and a caption that types every line, also while a pack or a level-up is open and between sessions. The camera gets a gold ring while it talks. The speech bubble over the game is gone in the cabinet.
+- **KILLS, HP and DASH left the deck.** Your path's panel (hand and pack, items, ammo) still sits there, small, right of the caption, until its own step (M48.6d to f).
+- **The cabinet fills the window now.** On a 1920x1080 screen it is no longer a 1600x900 island: it scales to 1.2 (pixels are 3.6 screen px there, so some are 3 and some 4 wide).
+- **Before S9, and with no look, nothing changes.**
+
+One-liners (defaults taken): on Survival the plate shows the time left before the AI stops the session (the bugs are not counted there): right, or bugs like the other paths? Are the hearts and the ring the right size around you? Should the hearts hide at full HP? Is the caption's text a good size, and is a long line scrolling inside it fine (the chat keeps it whole)?
+
+---
+
 # Next playtest: M48.6a, the cabinet frame (first of six UI steps)
 
 What changed since M51 (play S9 through its `skin ui` moment, then S10 on any path):
