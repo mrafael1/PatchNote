@@ -5,7 +5,7 @@ extends Control
 ## inset well. It draws RailFrame.snap (RailState.read()); the frame redraws it when the
 ## reading changes.
 
-var frame: Node   ## the RailFrame
+var frame: Node   ## the RailFrame (M48.6a: in the cabinet's deck its ms() / mpx() are smaller than s() / px())
 ## M50.7: a hand card's rank-up highlight (title -> rank seen, title -> msec it changed) and the
 ## stack chip's pulse on a landed pack (real time; steady under reduce flashing).
 var _ranks := {}
@@ -76,8 +76,9 @@ func _draw() -> void:
 	if not l.get("rail", false) or frame.snap.is_empty():
 		return
 	var sn: Dictionary = frame.snap
-	var sc: float = frame.s()
-	RailFrame.text(self, l.caption, frame.caption(), RailLayout.text_px(12, sc), RailArt.c(&"mute"))
+	var sc: float = frame.ms()
+	if l.has("caption"):   # M48.6a: the cabinet's marquee carries it
+		RailFrame.text(self, l.caption, frame.caption(), RailLayout.text_px(12, sc), RailArt.c(&"mute"))
 	var cells: Dictionary = l.cells
 	if sn.kills.on:
 		_kills(cells.kills, sn.kills)
@@ -110,8 +111,8 @@ func _draw() -> void:
 
 ## The module's cell and its tab with the title (`accent`: the gold part after it).
 func _cell(r: Rect2, title: String, accent := "") -> void:
-	var p: float = frame.px()
-	var sc: float = frame.s()
+	var p: float = frame.mpx()
+	var sc: float = frame.ms()
 	RailArt.bevel(self, r, RailArt.c(&"cell"), RailArt.c(&"hi"), RailArt.c(&"lo"), p)
 	var tab := Rect2(r.position, Vector2(r.size.x, roundf(28 * sc)))
 	RailArt.bevel(self, tab, RailArt.c(&"base"), RailArt.c(&"cell"), RailArt.c(&"base"), p)
@@ -125,8 +126,8 @@ func _cell(r: Rect2, title: String, accent := "") -> void:
 
 ## A module that is not live: an inset well, its name dim.
 func _empty(r: Rect2, title: String) -> void:
-	var p: float = frame.px()
-	var sc: float = frame.s()
+	var p: float = frame.mpx()
+	var sc: float = frame.ms()
 	RailArt.bevel(self, r, RailArt.c(&"sunk"), RailArt.c(&"ink"), RailArt.c(&"base"), p)
 	RailFrame.text(self, r.position + Vector2(12, 8) * sc, title, RailLayout.text_px(16, sc), RailArt.c(&"hi"), true)
 
@@ -134,27 +135,27 @@ func _empty(r: Rect2, title: String) -> void:
 ## A big number in the pixel digits (design size `d_size`: 64, 32, 24...), top-left at
 ## `top_left`; returns its width.
 func _num(top_left: Vector2, t: String, d_size: float, color: Color) -> float:
-	var cell := maxf(1.0, roundf(d_size * frame.s() / 9.0))
+	var cell := maxf(1.0, roundf(d_size * frame.ms() / 9.0))
 	RailArt.draw_digits(self, top_left.round(), t, cell, color)
 	return RailArt.digits_width(t, cell) + cell
 
 
 func _num_h(d_size: float) -> float:
-	return maxf(1.0, roundf(d_size * frame.s() / 9.0)) * 7.0
+	return maxf(1.0, roundf(d_size * frame.ms() / 9.0)) * 7.0
 
 
 func _d(r: Rect2, d: Vector2) -> Vector2:
-	return (r.position + d * frame.s()).round()
+	return (r.position + d * frame.ms()).round()
 
 
 func _small(r: Rect2, d: Vector2, t: String, color := Color.WHITE, size := 12) -> void:
-	RailFrame.text(self, _d(r, d), t, RailLayout.text_px(size, frame.s()), RailArt.c(&"dim") if color == Color.WHITE else color)
+	RailFrame.text(self, _d(r, d), t, RailLayout.text_px(size, frame.ms()), RailArt.c(&"dim") if color == Color.WHITE else color)
 
 
 ## A key chip ("SHIFT", "1"): paper, ink outline, a bottom lip; gold when `gold`.
 func _key(top_left: Vector2, t: String, gold := false, alpha := 1.0) -> float:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	var fs := RailLayout.text_px(12, sc)
 	var w := maxf(24 * sc, RailFrame.text_w(t, fs, true) + 12 * sc)
 	var r := Rect2(top_left, Vector2(roundf(w), roundf(22 * sc)))
@@ -167,8 +168,8 @@ func _key(top_left: Vector2, t: String, gold := false, alpha := 1.0) -> float:
 
 ## A row of square segments (16x16 design, 2 px gaps): `lit` of `n` in `color`.
 func _segments(top_left: Vector2, n: int, lit: int, color: Color, seg := 16.0, gap := 4.0) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	for i in n:
 		var r := Rect2(top_left + Vector2(2 + i * (seg + gap), 2) * sc, Vector2(seg, seg) * sc)
 		RailArt.block(self, Rect2(r.position.round(), r.size.round()), color if i < lit else RailArt.c(&"sunk"), p)
@@ -177,7 +178,7 @@ func _segments(top_left: Vector2, n: int, lit: int, color: Color, seg := 16.0, g
 # --- KILLS, HP, DASH --------------------------------------------------------------------------
 
 func _kills(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
+	var sc: float = frame.ms()
 	_cell(r, "KILLS")
 	var gpx := roundf(5 * sc)
 	var gs := RailArt.grid_size(RailArt.SKULL, gpx)
@@ -190,7 +191,7 @@ func _kills(r: Rect2, d: Dictionary) -> void:
 
 
 func _hp(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
+	var sc: float = frame.ms()
 	_cell(r, "HP")
 	var n := mini(int(d.max), 10)
 	var avail := r.size.x - 14 * sc
@@ -213,7 +214,7 @@ func _hp(r: Rect2, d: Dictionary) -> void:
 
 
 func _dash(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
+	var sc: float = frame.ms()
 	var style: String = d.style
 	_cell(r, "DASH", "· " + ("tp" if style == "teleport" else style))
 	var hot: Dictionary = frame.hotfix
@@ -241,8 +242,8 @@ func _dash(r: Rect2, d: Dictionary) -> void:
 
 ## The hotfix's solder on a module's tab: a gold strip, three beads and the chip.
 func _solder(r: Rect2, version: String) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	draw_rect(Rect2(r.position, Vector2(roundf(220 * sc), roundf(4 * sc))), RailArt.c(&"gold"))
 	draw_rect(Rect2(r.position + Vector2(0, 4 * sc), Vector2(roundf(220 * sc), p)), RailArt.c(&"gold_lo"))
 	for bx in [28.0, 150.0, 196.0]:
@@ -257,8 +258,8 @@ func _solder(r: Rect2, version: String) -> void:
 # --- Arsenal: HAND + PACK -----------------------------------------------------------------------
 
 func _hand(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	var cards: Array = d.cards
 	_cell(r, "HAND", str(int(d.max)))
 	var hot: Dictionary = frame.hotfix
@@ -302,8 +303,8 @@ func _hand(r: Rect2, d: Dictionary) -> void:
 
 ## One card: rank badge, title, rank line, the weapon's picture, rank pips (8 then +N).
 func _card(cr: Rect2, c: Dictionary) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	var lit: bool = c.active
 	RailArt.block(self, cr, RailArt.c(&"paper"), 2 * p)
 	# M50.7: a rank-up lights the card for FLASH_MS (steady under reduce flashing).
@@ -369,8 +370,8 @@ func _card(cr: Rect2, c: Dictionary) -> void:
 
 ## The misfuse: both cards as one tilted card across the two slots (no tilt under reduce flashing).
 func _misfuse(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	var cr := Rect2(_d(r, Vector2(80, 38)), (Vector2(180, 140) * sc).round())
 	var tilt := 0.0 if SaveGame.reduce_flashing() else deg_to_rad(4.0 * sin(Time.get_ticks_msec() * 0.001 * TAU * 2.0))
 	draw_set_transform(cr.get_center(), tilt, Vector2.ONE)
@@ -387,7 +388,7 @@ func _misfuse(r: Rect2, d: Dictionary) -> void:
 
 
 func _pack(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
+	var sc: float = frame.ms()
 	var stack := int(d.get("stack", 0))
 	var waiting := int(d.get("waiting", stack))   # M50.7: not the pack on screen
 	_cell(r, "PACK", "x%d" % waiting if waiting > 0 else "")   # M50.6: the stack's count (M50.7 review: waiting)
@@ -396,7 +397,7 @@ func _pack(r: Rect2, d: Dictionary) -> void:
 	_stack_seen = stack
 	var pg := _glow(_stack_at)
 	if pg > 0.0:
-		draw_rect(r.grow(2 * frame.px()), Color(RailArt.c(&"gold"), pg), false, 3 * frame.px())
+		draw_rect(r.grow(2 * frame.mpx()), Color(RailArt.c(&"gold"), pg), false, 3 * frame.mpx())
 	RailArt.draw_grid(self, RailArt.PACK, RailArt.PACK_LEGEND, _d(r, Vector2(16, 40)), roundf(5 * sc), true)
 	var pw := _num(_d(r, Vector2(84, 46)), str(int(d.x)), 56, RailArt.c(&"gold"))
 	_num(_d(r, Vector2(84, 46)) + Vector2(pw, 0), "/%d" % int(d.every), 56, RailArt.c(&"dim"))
@@ -422,8 +423,8 @@ func _pack(r: Rect2, d: Dictionary) -> void:
 # --- Auto: ITEMS -------------------------------------------------------------------------------
 
 func _items(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	var weapons: Array = d.weapons
 	var passives: Array = d.passives
 	var n_w := int(d.slots)
@@ -484,8 +485,8 @@ func _items(r: Rect2, d: Dictionary) -> void:
 
 
 func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bool, new_well := false) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	var sr := Rect2(_d(r, Vector2(x, 36)), (Vector2(w, 120) * sc).round())
 	# M50.4f (the sheet's FOCUS): the slot the focused choice changes lifts in a gold ring.
 	var lift := bool(item.get("lift", false)) or new_well
@@ -559,8 +560,8 @@ func _slot(r: Rect2, x: float, w: float, item: Dictionary, cap: int, passive: bo
 # --- Survival: AMMO ----------------------------------------------------------------------------
 
 func _ammo(r: Rect2, d: Dictionary) -> void:
-	var sc: float = frame.s()
-	var p: float = frame.px()
+	var sc: float = frame.ms()
+	var p: float = frame.mpx()
 	_cell(r, "AMMO", "· scavenged")
 	var cr := Rect2(_d(r, Vector2(12, 36)), (Vector2(160, 164) * sc).round())
 	RailArt.block(self, cr, RailArt.c(&"paper"), 2 * p, roundf(4 * sc), RailArt.c(&"paper_lo"))

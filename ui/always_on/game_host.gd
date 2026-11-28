@@ -106,7 +106,8 @@ var _hint_shown := false
 var asking_first_run := false   ## the installer's question waits for 1 / 2
 ## M48.5a: the version rail (ui/rail/), the Pixel look's UI style: built on first need, shown
 ## while the look's `ui` group is on and no stage card is up (RailFrame.wanted). Off, the raw
-## terminal and HUD stay exactly as before.
+## terminal and HUD stay exactly as before. M48.6a (PLAN 0.9.2): the frame built is the
+## cabinet (ui/cabinet/, a RailFrame that lays the rail's living pieces out in its own layout).
 var rail: RailFrame
 var rail_base_set := false        ## the window took the rail's base (once per host, rail_window)
 var _chapter_rows := false      ## the session's rows wait (for the card to close, or the installer's answer)
@@ -301,7 +302,7 @@ func _set_window(on: bool) -> void:
 		_prev_aspect = root.content_scale_aspect
 		_prev_size = root.content_scale_size
 		root.content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
-		Settings.set_window_base(RailLayout.BASE if rail != null and rail.on else BASE)
+		Settings.set_window_base(CabinetLayout.BASE if rail != null and rail.on else BASE)
 		_window_set = true
 	else:
 		root.content_scale_mode = _prev_mode
@@ -348,7 +349,7 @@ func relayout(window := Vector2.ZERO) -> void:
 # --- The version rail (M48.5a) ---------------------------------------------------------------
 
 func _sync_rail() -> void:
-	rail = RailFrame.sync(self, rail)
+	rail = RailFrame.sync(self, rail, CabinetFrame)
 
 
 func _on_rail_skin(_skin: ArtSkin) -> void:
@@ -366,7 +367,7 @@ func rail_window(on: bool) -> void:
 	var live := Settings.window_applies() and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED
 	var was_pos := DisplayServer.window_get_position() if live else Vector2i.ZERO
 	var was_size := DisplayServer.window_get_size() if live else Vector2i.ZERO
-	Settings.set_window_base(RailLayout.BASE)
+	Settings.set_window_base(CabinetLayout.BASE)
 	Settings.apply()
 	if live:
 		DisplayServer.window_set_position(was_pos + (was_size - DisplayServer.window_get_size()) / 2)

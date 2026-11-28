@@ -5,6 +5,11 @@ extends GutTest
 ## and the stage card, the ship versions from the campaign data, the modules gated by the
 ## basics and following the game's state, the chat's slips and the reply box's pills, reduce
 ## flashing, tool hosts and the font. Hosts here are tool hosts (never live, no window change).
+##
+## M48.6a: the frame a host builds is now the cabinet (ui/cabinet/, test_cabinet_ui.gd), a
+## RailFrame that lays these same pieces out in its own layout; the rail's version track and
+## the caption under the game are gone. RailLayout itself is still tested here (its cells and
+## text sizes are what the docked pieces use); everything else below runs inside the cabinet.
 
 const S1 := &"s1_01_move"
 const S4 := &"s1_04_level"
@@ -101,9 +106,13 @@ func test_the_game_is_16_9_and_nothing_overlaps_it_at_any_window() -> void:
 	assert_eq(int(base.font), 16)
 
 
-## Review: the body on the rail sits over the log's bottom right; the rows and the scrollbar end
-## above it, so the newest line is never under it.
-func test_the_log_rows_end_above_the_body_on_the_rail() -> void:
+## Review (M48.5a): the body on the rail sat over the log's bottom right, so the rows and the
+## scrollbar ended above it (RailLayout.LOG_BOTTOM_PAD, still the rail layout's own rule).
+## M48.6a: the cabinet seats the body in the deck's camera box, off the log; the rows and the
+## scrollbar end inside the log, above the reply box.
+func test_the_log_rows_end_inside_the_log_and_the_body_is_off_it() -> void:
+	assert_eq(RailLayout.LOG_BOTTOM_PAD, RailLayout.LOG.end.y - RailLayout.BLOB.position.y + 6.0, "the rail's rule")
+	assert_true(RailLayout.BLOB.intersects(RailLayout.LOG), "on the rail the body overlapped the log's corner")
 	var h := await _hosted(S8, &"path_arsenal")
 	var rail := _pixel(h)
 	for win: Vector2 in [Vector2(1600, 900), Vector2(1920, 1080), Vector2(1280, 720)]:
@@ -112,13 +121,13 @@ func test_the_log_rows_end_above_the_body_on_the_rail() -> void:
 		var blob: Rect2 = h.layout.blob
 		var t := h.terminal
 		var lg: Rect2 = h.layout.log
-		assert_true(blob.intersects(lg), "%s: the body overlaps the log's corner (the mockup)" % win)
+		assert_false(blob.intersects(lg), "%s: the body is off the log (the deck's camera box)" % win)
 		var sb := t.get_theme_stylebox(&"panel")
-		assert_lte(t.position.y + t.size.y - sb.content_margin_bottom, blob.position.y,
-				"%s: the rows' area ends above the body" % win)
+		assert_gt(sb.content_margin_bottom, 0.0, "%s: the rows keep a pad off the log's edge" % win)
 		var sc: Rect2 = t._scroll.get_global_rect()
-		var top := (h as Control).get_global_rect().position.y + blob.position.y
-		assert_lte(sc.end.y, top + 0.5, "%s: the scroll (rows and bar) ends above the body" % win)
+		var bottom := (h as Control).get_global_rect().position.y + lg.end.y
+		assert_lte(sc.end.y, bottom + 0.5, "%s: the scroll (rows and bar) ends inside the log" % win)
+		assert_lte(lg.end.y, (h.layout.reply as Rect2).position.y, "%s: the log ends above the reply box" % win)
 	assert_not_null(rail.blob)
 
 
@@ -217,19 +226,19 @@ func test_the_window_takes_the_rail_base_once_and_never_flips_back() -> void:
 	assert_eq(Settings._base_size, GameHost.BASE, "raw before the reveal")
 	Skins.reveal(&"ui")
 	assert_true(h.rail.on)
-	assert_eq(Settings._base_size, RailLayout.BASE, "the reveal: the rail's 16:9 base")
+	assert_eq(Settings._base_size, CabinetLayout.BASE, "the reveal: the rail's 16:9 base")
 	assert_true(h.rail_base_set)
 	Settings._scale_applied = 1.0   # as applied
 	h.chapter = true
 	h._sync_rail()
 	assert_false(h.rail.on)
-	assert_eq(Settings._base_size, RailLayout.BASE, "a stage card keeps the window")
+	assert_eq(Settings._base_size, CabinetLayout.BASE, "a stage card keeps the window")
 	assert_eq(Settings._scale_applied, 1.0, "no re-apply (no resize, no re-centre)")
 	h.chapter = false
 	h._sync_rail()
 	Skins.reset_reveal(true)   # an S9 retry: the raw terminal again until 55 s
 	assert_false(h.rail.on)
-	assert_eq(Settings._base_size, RailLayout.BASE, "a retry keeps the window")
+	assert_eq(Settings._base_size, CabinetLayout.BASE, "a retry keeps the window")
 	Skins.reveal(&"ui")
 	assert_true(h.rail.on)
 	assert_eq(Settings._scale_applied, 1.0, "and its second reveal does not resize either")
