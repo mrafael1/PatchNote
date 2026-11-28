@@ -270,7 +270,13 @@ func test_modules_exist_only_once_their_basic_is_live() -> void:
 	Skins.use(null)
 	var h4 := await _hosted(S4)
 	var rail4 := _pixel(h4)
+	assert_true(rail4.snap.kills.on and rail4.snap.hp.on and rail4.snap.dash.on, "S4: all three are read")
+	# M48.6b: the cabinet gives them no module (they are on the player and the corner plate);
+	# on the rail's own layout they are modules as before.
+	assert_eq(rail4.modules.shown_modules(), [] as Array[StringName], "none in the cabinet's deck")
+	rail4.layout = RailLayout.layout_for(Vector2(1600, 900))
 	assert_eq(rail4.modules.shown_modules(), [&"kills", &"hp", &"dash"] as Array[StringName])
+	rail4.layout = h4.layout
 
 
 # --- Module values follow the game -------------------------------------------------------------

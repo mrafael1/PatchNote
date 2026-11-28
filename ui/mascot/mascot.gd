@@ -157,6 +157,22 @@ func docked() -> bool:
 	return _corner != null and not _corner.visible
 
 
+## M48.6b: the cabinet's caption (the deck, beside the host's camera) shows every line, so the
+## floating bubble stays hidden while it is on. Only the bubble: the queue, the typing, the
+## read time and the signals run on unchanged.
+var _captioned := false
+
+
+func set_captioned(on: bool) -> void:
+	_captioned = on
+	if _bubble != null:
+		_bubble.visible = bubble_enabled and not _parked and not on and _current != null
+
+
+func captioned() -> bool:
+	return _captioned
+
+
 ## M47.6a (PLAN v9.4 2.3): how many rows `text` takes in the bubble (its width rule, its
 ## font). SessionDef.problems() keeps authored lines to SessionDef.BUBBLE_ROWS.
 static func bubble_rows(text: String) -> int:
@@ -233,7 +249,7 @@ func keep_out(view: Vector2) -> Rect2:
 func park_bubble(on: bool) -> void:
 	_parked = on
 	if _bubble != null:
-		_bubble.visible = bubble_enabled and not on and _current != null
+		_bubble.visible = bubble_enabled and not on and not _captioned and _current != null
 
 
 ## M50.7: the bubble is on screen (tests).
@@ -381,7 +397,7 @@ func _start(line: Line, priority: int) -> void:
 	var w := _bubble.get_combined_minimum_size().x
 	_bubble.offset_left = _bubble.offset_right - w
 	_bubble.offset_bottom = _bubble.offset_top
-	_bubble.visible = bubble_enabled and not _parked
+	_bubble.visible = bubble_enabled and not _parked and not _captioned
 	body.set_expression(line.expression)
 	body.say_start()
 	line_started.emit(line, priority)

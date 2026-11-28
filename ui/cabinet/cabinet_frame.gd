@@ -9,34 +9,138 @@ extends RailFrame
 ##
 ## M48.6a is the frame only, and the game stays fully playable in it: the rail's own pieces
 ## live on inside (RailFrame's modules, chat, reply box and body, which this class inherits
-## and lays out through CabinetLayout): the HUD modules dock in the deck, the AI's body sits in
-## the deck's camera box, the chat log and the reply box fill the chat column. They are
-## restyled one by one in M48.6b-f. The rail's version track is gone: the marquee's plate
-## shows the version.
+## and lays out through CabinetLayout): the path's modules dock in the deck, the AI's body sits
+## in the deck's camera box, the chat log and the reply box fill the chat column. They are
+## restyled one by one in M48.6c-f. The rail's version track is gone: the marquee's plate
+## shows the version. M48.6b: KILLS / HP / DASH are on the player and on the view's corner
+## plate, and the host's caption stands beside its camera (see below).
 ##
 ## Drawn from CabinetArt (the mockup's frames kit, grid for grid) on one pixel grid: 3 screen
-## px per art px at 1600x900, a whole number at every window (CabinetLayout.scale_for).
+## px per art px at 1600x900; the cabinet fills the window, so the art px is whole only where
+## a snap is cheap (CabinetLayout.scale_for).
 ## Presentation only: it reads the game through RailState and never writes it, draws no RNG,
-## reads no Tuning and no rules. Nothing here moves by itself but the REC dot's blink, steady
-## under reduce flashing (RailFrame.blink).
+## reads no Tuning and no rules. What moves by itself: the REC dot's blink, the caption's
+## typing and caret, the plate's bump and the low-HP heart beat, each still or steady under
+## reduce flashing.
 
 ## The CRT glass over the game view: scanlines, the glare streak, the dithered corners. A
 ## child of the host right over the view (the frame itself sits under the game).
 var glass: Control
 
+## M48.6b: the view's HUD and the host. The corner plate (the bugs or the time left) is a child
+## of the host over the glass; the caption (every line the AI says, with the mood plate) is
+## drawn in the deck beside the camera; the hearts and the dash ring are a Node2D this frame
+## adds to the live player. KILLS / HP / DASH have no module in the deck any more.
+const Caption := preload("res://ui/cabinet/cabinet_caption.gd")
+const Plate := preload("res://ui/cabinet/cabinet_plate.gd")
+const PlayerHud := preload("res://ui/cabinet/cabinet_player_hud.gd")
+var cap_box: Control
+var plate: Control
+var player_hud: Node2D
+
 
 func _exit_tree() -> void:
-	if glass != null and is_instance_valid(glass):
-		glass.queue_free()
+	super()
+	for n: Node in [glass, plate, player_hud]:
+		if n != null and is_instance_valid(n):
+			n.queue_free()
 
 
 func set_on(want: bool) -> void:
+	if want:
+		_ensure_parts()
 	super(want)
 	if on:
 		_ensure_glass()
 	if glass != null and is_instance_valid(glass):
 		glass.visible = on
 		glass.queue_redraw()
+	if plate != null and is_instance_valid(plate):
+		_place_plate()
+		plate.call(&"note")
+
+
+## The caption (in the deck, a child of the frame) and the corner plate (a child of the host,
+## over the view), built on first need; the caption hears every line the terminal says.
+func _ensure_parts() -> void:
+	if cap_box == null:
+		cap_box = Caption.new()
+		cap_box.name = "Caption"
+		cap_box.set(&"frame", self)
+		add_child(cap_box)
+		var t: Node = host.get(&"terminal")
+		if t != null and t.has_signal(&"said"):
+			t.connect(&"said", cap_box.say)
+	if plate == null or not is_instance_valid(plate):
+		plate = Plate.new()
+		plate.name = "CabinetPlate"
+		plate.set(&"frame", self)
+		plate.visible = false
+		host.add_child(plate)
+		_order_over_view()
+
+
+## The glass right over the game view, the corner plate over the glass (both under the glitch
+## and the fade).
+func _order_over_view() -> void:
+	var v: Node = host.get(&"view")
+	if v == null:
+		return
+	var at := v.get_index() + 1
+	for n: Node in [glass, plate]:
+		if n != null and is_instance_valid(n) and n.get_parent() == host:
+			host.move_child(n, at)
+			at = n.get_index() + 1
+
+
+func _place_plate() -> void:
+	if plate == null or not is_instance_valid(plate) or not layout.has("view"):
+		return
+	var v: Rect2 = layout.view
+	plate.position = v.position
+	plate.size = v.size
+	plate.queue_redraw()
+
+
+## Docked (the cabinet shows on a live game): the rail's docking, and the floating bubble goes
+## (the caption shows the lines) and the player gets its hearts and dash ring. Undocked: back.
+func _dock(docked: bool) -> void:
+	super(docked)
+	if game == null or not is_instance_valid(game):
+		return
+	var mascot: Node = game.get(&"mascot")
+	if mascot != null and mascot.has_method(&"set_captioned"):
+		mascot.call(&"set_captioned", docked)
+	if docked:
+		_ensure_player_hud()
+	elif player_hud != null and is_instance_valid(player_hud):
+		player_hud.queue_free()
+		player_hud = null
+
+
+## The hearts and the ring ride the live player (a new player gets a new one).
+func _ensure_player_hud() -> void:
+	var p: Variant = game.get(&"player") if game != null and is_instance_valid(game) else null
+	if p == null or not is_instance_valid(p) or not (p is Node2D):
+		return
+	if player_hud != null and is_instance_valid(player_hud) and player_hud.get_parent() == p:
+		return
+	if player_hud != null and is_instance_valid(player_hud):
+		player_hud.queue_free()
+	player_hud = PlayerHud.new()
+	player_hud.name = "CabinetPlayerHud"
+	player_hud.set(&"frame", self)
+	(p as Node).add_child(player_hud)
+
+
+## Every frame while on (RailFrame._process) and on demand: the reading, then the plate and
+## the player's HUD follow it.
+func refresh() -> void:
+	super()
+	if on:
+		_ensure_player_hud()
+	if plate != null and is_instance_valid(plate):
+		plate.call(&"note")
 
 
 func _ensure_glass() -> void:
@@ -71,6 +175,9 @@ func apply_layout(l: Dictionary) -> void:
 	super(l)
 	reply.clip_contents = true   # the narrower column: a long question never runs off the box
 	_place_glass()
+	_place_plate()
+	if cap_box != null:
+		cap_box.queue_redraw()
 
 
 ## One art pixel in screen px.
@@ -141,12 +248,7 @@ func _draw_chrome(ci: Control) -> void:
 	CabinetArt.draw9_rect(ci, &"scr", view.grow(5 * a), a)
 	# The deck and the camera box.
 	CabinetArt.draw9_rect(ci, &"deck", layout.deck, a)
-	var hb: Rect2 = layout.host
-	CabinetArt.draw9_rect(ci, &"host", hb, a)
-	var floor_w := CabinetArt.orn_size(&"host_floor").x
-	CabinetArt.orn(ci, &"host_floor", hb.position + Vector2(floorf((hb.size.x / a - floor_w) * 0.5), 28) * a, a)
-	CabinetArt.orn(ci, &"bracket_tl", hb.position + Vector2(3, 3) * a, a)
-	CabinetArt.orn(ci, &"bracket_tr", Vector2(hb.end.x - 9 * a, hb.position.y + 3 * a), a)
+	_draw_camera(ci)
 	# The chat column: the rail's paper log and reply box (M48.6c restyles them).
 	var p := px()
 	for r: Rect2 in [layout.log, layout.reply]:
@@ -156,6 +258,17 @@ func _draw_chrome(ci: Control) -> void:
 	var head := Rect2(lg.position, Vector2(lg.size.x, roundf(RailLayout.HEADER_H * s())))
 	RailArt.bevel(ci, head, RailArt.c(&"cell"), RailArt.c(&"hi"), RailArt.c(&"cell"), p)
 	ci.draw_rect(Rect2(Vector2(head.position.x, head.end.y - p), Vector2(head.size.x, p)), RailArt.c(&"ink"))
+
+
+## The host camera box in the deck: its frame, its floor, its brackets.
+func _draw_camera(ci: Control) -> void:
+	var a := art()
+	var hb: Rect2 = layout.host
+	CabinetArt.draw9_rect(ci, &"host", hb, a)
+	var floor_w := CabinetArt.orn_size(&"host_floor").x
+	CabinetArt.orn(ci, &"host_floor", hb.position + Vector2(floorf((hb.size.x / a - floor_w) * 0.5), 28) * a, a)
+	CabinetArt.orn(ci, &"bracket_tl", hb.position + Vector2(3, 3) * a, a)
+	CabinetArt.orn(ci, &"bracket_tr", Vector2(hb.end.x - 9 * a, hb.position.y + 3 * a), a)
 
 
 ## The live layer (the rail's track layer, redrawn every frame): the marquee and its texts,
@@ -207,6 +320,10 @@ func _draw_track(ci: Control) -> void:
 			CabinetArt.orn(ci, &"marq_chev_l", Vector2(tx + cw + 3 * a, chev_y), a)
 	# The camera's REC: the dot blinks (steady under reduce flashing), the letters stay.
 	var hb: Rect2 = layout.host
+	if cap_box != null and bool(cap_box.call(&"talking")):
+		# M48.6b: the camera lights up while the host talks (a gold ring around the box).
+		CabinetArt.draw9_rect(ci, &"host_talk", hb.grow(2 * a), a)
+		_draw_camera(ci)
 	CabinetArt.orn(ci, &"rec_dot" if blink(1.0) else &"rec_off", hb.position + Vector2(3, 28) * a, a)
 	CabinetArt.draw_digits(ci, "REC", Vector2(hb.end.x - 14 * a, hb.position.y + 28 * a), a, CabinetArt.c(&"pink_hi"))
 	chat.draw_header(ci)

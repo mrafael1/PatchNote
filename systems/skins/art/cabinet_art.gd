@@ -20,7 +20,9 @@ static var _tiles := {}
 
 ## A kit colour by its palette role (MAGENTA for a typo, as Palette does).
 static func c(role: StringName) -> Color:
-	return hex(PAL[role]) if PAL.has(role) else Color.MAGENTA
+	if PAL.has(role):
+		return hex(PAL[role])
+	return hex(HUD_PAL[role]) if HUD_PAL.has(role) else Color.MAGENTA
 
 
 ## A "#rrggbb" / "#rrggbbaa" colour, cached.
@@ -204,6 +206,53 @@ static func draw_digits(ci: CanvasItem, text: String, at: Vector2, px: float, co
 					ci.draw_rect(Rect2(at + Vector2(x + cx, y) * px, Vector2(px, px)), color)
 		x += String(g[0]).length() + 1
 	return maxf(0.0, x - 1) * px
+
+
+# --- M48.6b: the view's HUD (the mockup page's own grids, not the frames kit) ---------------------
+
+## Colours the mockup page uses outside the kit's palette: the clock's face, an idle caption.
+const HUD_PAL := {&"clock": "#ffb35a", &"cap_idle": "#8a7a9a"}
+
+## The hearts on the player (full, empty) and the corner plate's clock (the skull is ORN's).
+const HUD := {
+	&"heart": {"ramp": {"K": "#1e1424", "R": "#ff6b5a", "r": "#ffc0b0"},
+		"grid": [".KK.KK.", "KRRKRRK", "KRrRRRK", "KRRRRRK", ".KRRRK.", "..KRK..", "...K..."]},
+	&"heart_empty": {"ramp": {"K": "#1e1424", "D": "#4e3866"},
+		"grid": [".KK.KK.", "KDDKDDK", "KDDDDDK", "KDDDDDK", ".KDDDK.", "..KDK..", "...K..."]},
+	&"clock": {"ramp": {"K": "#1e1424", "O": "#ffb35a"},
+		"grid": [".KKKKK.", "KOOKOOK", "KOOKOOK", "KOOKKOK", "KOOOOOK", ".KKKKK."]},
+}
+
+static var _rings := {}
+
+
+## A HUD grid by name.
+static func hud(ci: CanvasItem, hud_name: StringName, at: Vector2, px: float) -> void:
+	var o: Dictionary = HUD[hud_name]
+	draw(ci, o.grid, o.ramp, at, px)
+
+
+## The cells of a 1-cell-thick pixel ring of radius `r` (the mockup's ringPts): [dx, dy, angle],
+## the angle clockwise from the top in 0..TAU.
+static func ring_cells(r: int) -> Array:
+	if not _rings.has(r):
+		var out := []
+		for dy in range(-r - 1, r + 2):
+			for dx in range(-r - 1, r + 2):
+				var d := sqrt(float(dx * dx + dy * dy))
+				if d >= r - 0.5 and d < r + 0.5:
+					out.append([dx, dy, fposmod(atan2(dy, dx) + PI / 2.0, TAU)])
+		_rings[r] = out
+	return _rings[r]
+
+
+## A pixel ring centred on the cell at `centre`; `frac` < 1 draws only its first part, clockwise
+## from the top.
+static func draw_ring(ci: CanvasItem, centre: Vector2, r: int, px: float, color: Color, frac := 1.0) -> void:
+	for cell: Array in ring_cells(r):
+		if frac < 1.0 and float(cell[2]) > frac * TAU:
+			continue
+		ci.draw_rect(Rect2(centre + Vector2(cell[0], cell[1]) * px, Vector2(px, px)), color)
 
 
 # --- The kit's data (frames.js, generated from it: do not hand-edit a grid) ---------------------

@@ -130,28 +130,50 @@ func test_the_view_is_16_9_and_no_piece_overlaps_at_any_window() -> void:
 		assert_false((l.host as Rect2).intersects(l.modules), "%s: beside the camera" % win)
 		for id: StringName in l.cells:
 			assert_true((l.modules as Rect2).grow(1.0).encloses(l.cells[id]), "%s: %s in the module strip" % [win, id])
-		for a: StringName in [&"kills", &"hp", &"dash", &"path"]:
-			for b: StringName in [&"kills", &"hp", &"dash", &"path"]:
-				if String(a) < String(b):
-					assert_false((l.cells[a] as Rect2).intersects(l.cells[b]), "%s: %s / %s" % [win, a, b])
+		# M48.6b: KILLS / HP / DASH have no cell in the deck; the caption sits between the camera
+		# and the path's modules; the corner plate starts inside the view.
+		for gone: StringName in [&"kills", &"hp", &"dash"]:
+			assert_false(l.cells.has(gone), "%s: no %s cell in the deck" % [win, gone])
+		assert_true(l.cells.has(&"path"), "%s: the path's slot stays" % win)
 		assert_false((l.cells[&"hand"] as Rect2).intersects(l.cells[&"pack"]), "%s: hand / pack" % win)
+		var cap: Rect2 = l.cap
+		assert_true(deck.encloses(cap), "%s: the caption in the deck" % win)
+		assert_false(cap.intersects(l.host), "%s: caption / camera" % win)
+		assert_false(cap.intersects(l.modules), "%s: caption / modules" % win)
+		assert_gt(cap.position.x, (l.host as Rect2).end.x, "%s: the caption is right of the camera" % win)
+		assert_lt(cap.end.x, (l.modules as Rect2).position.x + 1.0, "%s: the modules are right of the caption" % win)
+		assert_true(deck.has_point(l.mood), "%s: the mood plate in the deck" % win)
+		assert_true(view.has_point(l.plate), "%s: the corner plate inside the view" % win)
 		var chat: Rect2 = l.chat
 		assert_true(chat.encloses(l.log) and chat.encloses(l.reply), "%s: log and reply in the chat column" % win)
 		assert_false((l.log as Rect2).intersects(l.reply), "%s: log / reply" % win)
 		assert_eq(l.terminal, l.log, "the terminal's rows are the log")
 
 
-func test_the_scale_snaps_to_whole_screen_px_per_art_px() -> void:
-	var want := {Vector2(1600, 900): 3.0, Vector2(1920, 1080): 3.0, Vector2(2560, 1440): 4.0,
-			Vector2(3840, 2160): 7.0, Vector2(1280, 720): 2.0, Vector2(1066, 600): 1.0, Vector2(1760, 720): 2.0}
+## M48.6b (owner): the cabinet fills the window as the rail did, s = min(W / 1600, H / 900); it
+## snaps to a whole number of screen px per art px only when that costs less than 4 % of the size.
+func test_the_scale_fills_the_window_and_snaps_only_when_cheap() -> void:
+	assert_eq(CabinetLayout.scale_for(Vector2(1600, 900)), 1.0, "the design size is exact")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(1920, 1080)), 1.2, 0.0001, "1080p fills at 1.2 (a snap would lose 17 %)")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(1280, 720)), 0.8, 0.0001, "720p fills at 0.8")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(2560, 1440)), 1.6, 0.0001, "1440p fills at 1.6")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(3840, 2160)), 7.0 / 3.0, 0.0001, "4K snaps to 7 px (2.8 % lost)")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(1640, 920)), 1.0, 0.0001, "a few px over the design size snaps back to it")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(1700, 950)), 950.0 / 900.0, 0.0001, "5 % over: the fit, no snap")
+	assert_almost_eq(CabinetLayout.scale_for(Vector2(1760, 720)), 0.8, 0.0001, "a wide window fits its height")
+	# What each window gets: the art px (whole only when snapped) and a view that fills the fit.
+	var want := {Vector2(1600, 900): 3.0, Vector2(1920, 1080): 3.6, Vector2(1280, 720): 2.4, Vector2(3840, 2160): 7.0}
 	for win: Vector2 in want:
 		var l := CabinetLayout.layout_for(win)
-		assert_eq(float(l.art), float(want[win]), "%s: art px" % win)
+		assert_almost_eq(float(l.art), float(want[win]), 0.0001, "%s: art px" % win)
 		assert_almost_eq(float(l.s), float(want[win]) / 3.0, 0.0001, "%s: s is art / 3" % win)
-		assert_eq((l.view as Rect2).size, Vector2(384, 216) * float(want[win]), "%s: the view is 384x216 art px" % win)
+		var view: Rect2 = l.view
+		assert_eq(view.size.x * 9.0, view.size.y * 16.0, "%s: the view is exactly 16:9" % win)
+		assert_almost_eq(view.size.x, 1152.0 * float(l.s), 16.0, "%s: the view is 1152 design px wide" % win)
 		assert_lte(float(l.s), minf(win.x / 1600.0, win.y / 900.0) + 0.0001, "%s: never over the fit" % win)
-	# The design size plus a few pixels stays on the same grid (no off-grid in-between scale).
-	assert_eq(float(CabinetLayout.layout_for(Vector2(1700, 950)).art), 3.0)
+	assert_eq((CabinetLayout.layout_for(Vector2(1600, 900)).view as Rect2).size, Vector2(1152, 648))
+	assert_eq((CabinetLayout.layout_for(Vector2(1920, 1080)).view as Rect2).size, Vector2(1376, 774), "1080p: 16 x 86 by 9 x 86")
+	assert_eq((CabinetLayout.layout_for(Vector2(3840, 2160)).view as Rect2).size, Vector2(384, 216) * 7.0)
 	# A window too small for one art px keeps the plain fit (no snap), still 16:9 and inside.
 	var tiny := CabinetLayout.layout_for(Vector2(400, 225))
 	assert_almost_eq(float(tiny.s), 0.25, 0.0001)
@@ -355,10 +377,14 @@ func test_the_rail_pieces_live_on_inside_the_cabinet() -> void:
 	assert_not_null(cab.blob)
 	assert_eq(Rect2(cab.blob.position, cab.blob.size), l.blob as Rect2, "the body in the deck's camera box")
 	assert_false(h.game.hud._label.visible, "the HUD corner docks into the modules")
+	# M48.6b: only the path's modules dock in the deck; the reading still carries the others.
 	var shown: Array[StringName] = cab.modules.shown_modules()
-	for m: StringName in [&"kills", &"hp", &"dash", &"path"]:
-		assert_true(m in shown, "%s is live" % m)
-		assert_true((l.deck as Rect2).encloses(cab.modules.cell_rect(m)), "%s docks in the deck" % m)
+	assert_true(&"path" in shown, "the path's module is live")
+	assert_true((l.deck as Rect2).encloses(cab.modules.cell_rect(&"path")), "and docks in the deck")
+	for m: StringName in [&"kills", &"hp", &"dash"]:
+		assert_false(m in shown, "%s has no module in the cabinet" % m)
+		assert_eq(cab.modules.cell_rect(m), Rect2(), "%s has no cell" % m)
+		assert_true(cab.snap[m].on, "%s is still read (RailState)" % m)
 	assert_lt(cab.ms(), cab.s(), "the modules draw smaller than on the rail")
 	assert_almost_eq(cab.ms(), CabinetLayout.MODULE_K, 0.0001)
 	assert_eq(cab.mpx(), 1.0)
@@ -416,7 +442,8 @@ func test_the_kit_grids_are_whole_and_every_colour_is_known() -> void:
 func test_the_cabinet_is_presentation_only() -> void:
 	var banned := RegEx.create_from_string("\\b(Tuning|WorldRules|gameplay_rng|director_rng|loot_rng|pick_rng|randf|randi|randomize)\\b|RunState\\.rules")
 	for path: String in ["res://ui/cabinet/cabinet_frame.gd", "res://ui/cabinet/cabinet_layout.gd",
-			"res://systems/skins/art/cabinet_art.gd"]:
+			"res://ui/cabinet/cabinet_caption.gd", "res://ui/cabinet/cabinet_plate.gd",
+			"res://ui/cabinet/cabinet_player_hud.gd", "res://systems/skins/art/cabinet_art.gd"]:
 		var code := PackedStringArray()
 		for line in FileAccess.get_file_as_string(path).split("\n"):
 			var cut := line.find("#")

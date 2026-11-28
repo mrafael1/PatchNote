@@ -32,6 +32,9 @@ signal idle
 signal chosen(index: int)
 ## M47.6b: the chat upgrade landed (its queued row was shown).
 signal upgraded
+## M48.6b: the AI said a line (any source: the corner during play, a gate, a beat, a reply). The
+## cabinet caption shows it; `expression` is "" while the AI has no face.
+signal said(text: String, expression: StringName, priority: int)
 
 enum Row { SAY, CMD, NOTE, THINK, CHOICE, YOU, SYS, HEAD, TYPE, UPGRADE }
 
@@ -577,6 +580,7 @@ func say_row(text: String, expression: StringName = &"idle", priority := 2) -> L
 func _say_row_now(text: String, expression: StringName = &"idle", priority := 2) -> Label:
 	_close_you()
 	var expr := expression if has_face else &""
+	said.emit(text, expr, priority)
 	var now := Time.get_ticks_usec()
 	var shared: bool = not _last_head.is_empty() and _last_head.speaker == speaker \
 			and _last_head.expression == expr and now - int(_last_head.usec) <= int(SAME_HEADER_S * 1000000.0)
